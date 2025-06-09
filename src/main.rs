@@ -12,6 +12,32 @@ struct Cli {
     command: Option<Commands>,
 }
 
+fn get_current_shell() -> String {
+    #[cfg(windows)]
+    {
+        // On Windows, check COMSPEC or default to PowerShell
+        env::var("COMSPEC").ok()
+            .and_then(|s| std::path::Path::new(&s).file_stem())
+            .and_then(|s| s.to_str())
+            .map(|s| {
+                match s.to_lowercase().as_str() {
+                    "cmd" => "cmd",
+                    "powershell" => "powershell",
+                    _ => "powershell"
+                }
+            })
+            .unwrap_or("powershell")
+            .to_string()
+    }
+    
+    #[cfg(not(windows))]
+    {
+        env::var("SHELL").ok()
+            .and_then(|s| s.split('/').last().map(String::from))
+            .unwrap_or_else(|| "bash".to_string())
+    }
+}
+
 #[derive(Subcommand)]
 enum Commands {
     Load {
@@ -53,9 +79,7 @@ fn main() -> Result<()> {
             let mut env_manager = EnvManager::new();
             env_manager.load_env(&dir)?;
             
-            let shell = env::var("SHELL").ok()
-                .and_then(|s| s.split('/').last().map(String::from))
-                .unwrap_or_else(|| "bash".to_string());
+            let shell = get_current_shell();
             
             print!("{}", env_manager.export_for_shell(&shell)?);
         }
@@ -63,9 +87,7 @@ fn main() -> Result<()> {
             let env_manager = EnvManager::new();
             env_manager.unload_env()?;
             
-            let shell = env::var("SHELL").ok()
-                .and_then(|s| s.split('/').last().map(String::from))
-                .unwrap_or_else(|| "bash".to_string());
+            let shell = get_current_shell();
             
             print!("{}", env_manager.export_for_shell(&shell)?);
         }

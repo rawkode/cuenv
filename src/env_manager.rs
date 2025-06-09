@@ -128,6 +128,34 @@ impl EnvManager {
                     }
                 }
             }
+            "powershell" => {
+                for (key, value) in &current_env {
+                    if !self.original_env.contains_key(key) || 
+                       self.original_env.get(key) != Some(value) {
+                        output.push_str(&format!("$env:{} = '{}'\n", key, value));
+                    }
+                }
+                
+                for key in self.original_env.keys() {
+                    if !current_env.contains_key(key) {
+                        output.push_str(&format!("Remove-Item Env:\\{}\n", key));
+                    }
+                }
+            }
+            "cmd" => {
+                for (key, value) in &current_env {
+                    if !self.original_env.contains_key(key) || 
+                       self.original_env.get(key) != Some(value) {
+                        output.push_str(&format!("set {}={}\n", key, value));
+                    }
+                }
+                
+                for key in self.original_env.keys() {
+                    if !current_env.contains_key(key) {
+                        output.push_str(&format!("set {}=\n", key));
+                    }
+                }
+            }
             _ => anyhow::bail!("Unsupported shell: {}", shell),
         }
 
@@ -172,6 +200,16 @@ impl EnvManager {
         // HOME might be needed by some programs
         if let Some(home) = self.original_env.get("HOME") {
             final_env.insert("HOME".to_string(), home.clone());
+        }
+        
+        // Windows uses USERPROFILE instead of HOME
+        #[cfg(windows)]
+        if let Some(userprofile) = self.original_env.get("USERPROFILE") {
+            final_env.insert("USERPROFILE".to_string(), userprofile.clone());
+            // Also set HOME for compatibility with Unix-style programs
+            if !final_env.contains_key("HOME") {
+                final_env.insert("HOME".to_string(), userprofile.clone());
+            }
         }
 
         // Create shared secret values for output filtering
@@ -266,10 +304,19 @@ PORT: "8080""#).unwrap();
         manager.load_env(temp_dir.path()).unwrap();
         
         // Run a command that checks for our variables
-        let status = manager.run_command("sh", &[
+        #[cfg(unix)]
+        let (cmd, args) = ("sh", vec![
             "-c".to_string(), 
             "test \"$TEST_FROM_CUE\" = \"cue_value\" && test -z \"$TEST_PARENT_VAR\"".to_string()
-        ]).unwrap();
+        ]);
+        
+        #[cfg(windows)]
+        let (cmd, args) = ("cmd", vec![
+            "/C".to_string(),
+            "if \"%TEST_FROM_CUE%\"==\"cue_value\" (if \"%TEST_PARENT_VAR%\"==\"\" exit 0 else exit 1) else exit 1".to_string()
+        ]);
+        
+        let status = manager.run_command(cmd, &args).unwrap();
         
         assert_eq!(status, 0, "Command should succeed with correct environment");
         
@@ -293,10 +340,19 @@ ANOTHER_VAR: "another-value""#).unwrap();
         manager.load_env(temp_dir.path()).unwrap();
         
         // Run a command that checks the variables
-        let status = manager.run_command("sh", &[
+        #[cfg(unix)]
+        let (cmd, args) = ("sh", vec![
             "-c".to_string(),
             "test \"$NORMAL_VAR\" = \"normal-value\" && test \"$ANOTHER_VAR\" = \"another-value\"".to_string()
-        ]).unwrap();
+        ]);
+        
+        #[cfg(windows)]
+        let (cmd, args) = ("cmd", vec![
+            "/C".to_string(),
+            "if \"%NORMAL_VAR%\"==\"normal-value\" (if \"%ANOTHER_VAR%\"==\"another-value\" exit 0 else exit 1) else exit 1".to_string()
+        ]);
+        
+        let status = manager.run_command(cmd, &args).unwrap();
         
         assert_eq!(status, 0, "Command should succeed with all variables set");
     }
@@ -313,10 +369,19 @@ TEST_VAR: "test""#).unwrap();
         manager.load_env(temp_dir.path()).unwrap();
         
         // Run a command that checks PATH and HOME are preserved
-        let status = manager.run_command("sh", &[
+        #[cfg(unix)]
+        let (cmd, args) = ("sh", vec![
             "-c".to_string(),
             "test -n \"$PATH\" && test -n \"$HOME\"".to_string()
-        ]).unwrap();
+        ]);
+        
+        #[cfg(windows)]
+        let (cmd, args) = ("cmd", vec![
+            "/C".to_string(),
+            "if defined PATH (if defined HOME exit 0 else exit 1) else exit 1".to_string()
+        ]);
+        
+        let status = manager.run_command(cmd, &args).unwrap();
         
         assert_eq!(status, 0, "PATH and HOME should be preserved");
     }

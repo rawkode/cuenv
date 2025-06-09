@@ -9,6 +9,8 @@ impl ShellHook {
             "bash" => Ok(Self::bash_hook()),
             "zsh" => Ok(Self::zsh_hook()),
             "fish" => Ok(Self::fish_hook()),
+            "powershell" => Ok(Self::powershell_hook()),
+            "cmd" => Ok(Self::cmd_hook()),
             _ => anyhow::bail!("Unsupported shell: {}", shell),
         }
     }
@@ -47,6 +49,38 @@ function _cuenv_hook --on-variable PWD
 end
 
 _cuenv_hook
+"#.to_string()
+    }
+
+    fn powershell_hook() -> String {
+        r#"
+function Invoke-CuenvHook {
+    $output = cuenv hook powershell
+    if ($output) {
+        Invoke-Expression $output
+    }
+}
+
+# Set up location change detection
+$ExecutionContext.SessionState.InvokeCommand.LocationChangedAction = {
+    Invoke-CuenvHook
+}
+
+# Initial hook
+Invoke-CuenvHook
+"#.to_string()
+    }
+
+    fn cmd_hook() -> String {
+        // CMD doesn't support automatic hooks, so we provide a manual function
+        r#"
+@echo off
+REM Add this to your CMD startup script or call manually:
+REM cuenv_hook.cmd
+
+for /f "tokens=*" %%i in ('cuenv hook cmd') do (
+    %%i
+)
 "#.to_string()
     }
 
@@ -108,6 +142,80 @@ if test -f "{}"
     cuenv unload | source
     rm -f "{}"
 end
+"#,
+                        cuenv_file.display(),
+                        cuenv_file.display()
+                    ))
+                } else {
+                    Ok(String::new())
+                }
+            }
+            "powershell" => {
+                if env_cue_exists {
+                    Ok(format!(
+                        r#"
+if (-not (Test-Path "{}") -or ((Get-Content "{}" 2>$null) -ne "{}")) {{
+    $output = cuenv load
+    if ($output) {{
+        Invoke-Expression $output
+    }}
+    Set-Content -Path "{}" -Value "{}"
+}}
+"#,
+                        cuenv_file.display(),
+                        cuenv_file.display(),
+                        current_dir.display(),
+                        cuenv_file.display(),
+                        current_dir.display()
+                    ))
+                } else if cuenv_file.exists() {
+                    Ok(format!(
+                        r#"
+if (Test-Path "{}") {{
+    $output = cuenv unload
+    if ($output) {{
+        Invoke-Expression $output
+    }}
+    Remove-Item "{}"
+}}
+"#,
+                        cuenv_file.display(),
+                        cuenv_file.display()
+                    ))
+                } else {
+                    Ok(String::new())
+                }
+            }
+            "cmd" => {
+                if env_cue_exists {
+                    Ok(format!(
+                        r#"
+@echo off
+if not exist "{}" goto :load
+set /p current_dir=<"{}"
+if not "%current_dir%"=="{}" goto :load
+goto :end
+
+:load
+cuenv load
+echo {}> "{}"
+
+:end
+"#,
+                        cuenv_file.display(),
+                        cuenv_file.display(),
+                        current_dir.display(),
+                        current_dir.display(),
+                        cuenv_file.display()
+                    ))
+                } else if cuenv_file.exists() {
+                    Ok(format!(
+                        r#"
+@echo off
+if exist "{}" (
+    cuenv unload
+    del "{}"
+)
 "#,
                         cuenv_file.display(),
                         cuenv_file.display()

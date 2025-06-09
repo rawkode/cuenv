@@ -35,13 +35,23 @@ fn main() {
     println!("cargo:rustc-link-lib=static=cue_bridge");
     
     // Link system libraries that Go runtime needs
-    println!("cargo:rustc-link-lib=pthread");
-    println!("cargo:rustc-link-lib=m");
-    println!("cargo:rustc-link-lib=dl");
-
     let target = env::var("TARGET").unwrap();
-    if target.contains("apple-darwin") {
-        println!("cargo:rustc-link-lib=framework=Security");
-        println!("cargo:rustc-link-lib=framework=CoreFoundation");
+    
+    if target.contains("windows") {
+        // Windows-specific libraries
+        println!("cargo:rustc-link-lib=ws2_32");
+        println!("cargo:rustc-link-lib=userenv");
+        println!("cargo:rustc-link-lib=ntdll");
+        println!("cargo:rustc-link-lib=winmm");
+    } else {
+        // Unix-like systems
+        println!("cargo:rustc-link-lib=pthread");
+        println!("cargo:rustc-link-lib=m");
+        println!("cargo:rustc-link-lib=dl");
+        
+        if target.contains("apple-darwin") {
+            println!("cargo:rustc-link-lib=framework=Security");
+            println!("cargo:rustc-link-lib=framework=CoreFoundation");
+        }
     }
 }
