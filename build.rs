@@ -38,4 +38,10 @@ fn main() {
     println!("cargo:rustc-link-lib=pthread");
     println!("cargo:rustc-link-lib=m");
     println!("cargo:rustc-link-lib=dl");
+
+    let target = env::var("TARGET").unwrap();
+    if target.contains("apple-darwin") {
+        println!("cargo:rustc-link-lib=framework=Security");
+        println!("cargo:rustc-link-lib=framework=CoreFoundation");
+    }
 }
