@@ -1,0 +1,41 @@
+use std::env;
+use std::path::PathBuf;
+use std::process::Command;
+
+fn main() {
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=libcue-bridge/bridge.go");
+    println!("cargo:rerun-if-changed=libcue-bridge/bridge.h");
+
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let bridge_dir = PathBuf::from("libcue-bridge");
+
+    // Create the bridge directory if it doesn't exist
+    std::fs::create_dir_all(&bridge_dir).expect("Failed to create libcue-bridge directory");
+
+    // Build the Go shared library with CGO
+    let status = Command::new("go")
+        .current_dir(&bridge_dir)
+        .args(&[
+            "build",
+            "-buildmode=c-archive",  // Use static linking instead
+            "-o",
+            out_dir.join("libcue_bridge.a").to_str().unwrap(),
+            "bridge.go",
+        ])
+        .status()
+        .expect("Failed to build Go shared library. Make sure Go is installed.");
+
+    if !status.success() {
+        panic!("Failed to build libcue bridge");
+    }
+
+    // Tell Rust where to find the library
+    println!("cargo:rustc-link-search=native={}", out_dir.display());
+    println!("cargo:rustc-link-lib=static=cue_bridge");
+    
+    // Link system libraries that Go runtime needs
+    println!("cargo:rustc-link-lib=pthread");
+    println!("cargo:rustc-link-lib=m");
+    println!("cargo:rustc-link-lib=dl");
+}

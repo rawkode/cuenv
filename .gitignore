@@ -1,0 +1,41 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+/test-project/
+tarpaulin-report.html
+coverage.json
+
+# Environment files (for local testing)
+/env.cue
+.env
+.cuenv_current
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+
+# Build artifacts from libcue-bridge
+/libcue-bridge/*.a
+/libcue-bridge/*.so
+/libcue-bridge/*.dylib
+/libcue-bridge/*.o
+
+# Debug
+*.log
+debug/
