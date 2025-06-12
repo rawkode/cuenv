@@ -6,8 +6,9 @@ use std::collections::{HashMap, HashSet};
 use std::process::Command;
 
 lazy_static! {
-    // Matches op://vault/item/field or op://vault/item
-    static ref ONEPASSWORD_REGEX: Regex = Regex::new(r"op://([^/]+)/([^/]+)(?:/([^/]+))?").unwrap();
+    // Matches op://vault/item/[section/]field
+    // Captures: vault-name, item-name, optional section-name, field-name (if present)
+    static ref ONEPASSWORD_REGEX: Regex = Regex::new(r"op://([^/\s]+)/([^/\s]+)(?:/([^/\s]+))?(?:/([^/\s]+))?").unwrap();
     
     // Matches gcp-secret://project/secret/version or gcp-secret://project/secret
     static ref GCP_SECRET_REGEX: Regex = Regex::new(r"gcp-secret://([^/]+)/([^/]+)(?:/([^/]+))?").unwrap();
@@ -46,33 +47,41 @@ impl SecretResolver for OnePasswordResolver {
         if let Some(captures) = ONEPASSWORD_REGEX.captures(reference) {
             let vault = captures.get(1).unwrap().as_str();
             let item = captures.get(2).unwrap().as_str();
-            let field = captures.get(3).map(|m| m.as_str());
+            let third = captures.get(3).map(|m| m.as_str());
+            let fourth = captures.get(4).map(|m| m.as_str());
             
-            let result = match field {
-                Some(f) => {
-                    let uri = format!("op://{}/{}/{}", vault, item, f);
-                    self.run_op_command(&["read", &uri])?
-                }
-                None => {
-                    self.run_op_command(&["item", "get", item, "--vault", vault, "--format", "json"])?
-                }
+            // Determine if we have section/field or just field
+            let (section, field) = match (third, fourth) {
+                (Some(s), Some(f)) => (Some(s), Some(f)), // vault/item/section/field
+                (Some(f), None) => (None, Some(f)),        // vault/item/field
+                (None, None) => (None, None),              // vault/item only
+                (None, Some(_)) => unreachable!("Regex cannot produce this pattern"),
             };
             
-            // If no field was specified, we got JSON and need to extract the password
-            if field.is_none() {
-                let json: serde_json::Value = serde_json::from_str(&result)?;
-                if let Some(fields) = json["fields"].as_array() {
-                    for field in fields {
-                        if field["purpose"].as_str() == Some("PASSWORD") {
-                            if let Some(value) = field["value"].as_str() {
-                                return Ok(Some(value.to_string()));
+            // Build the URI based on what components we have
+            let uri = match (section, field) {
+                (Some(s), Some(f)) => format!("op://{}/{}/{}/{}", vault, item, s, f),
+                (None, Some(f)) => format!("op://{}/{}/{}", vault, item, f),
+                (None, None) => {
+                    // When no field is specified, we need to get the item and extract password
+                    let result = self.run_op_command(&["item", "get", item, "--vault", vault, "--format", "json"])?;
+                    let json: serde_json::Value = serde_json::from_str(&result)?;
+                    if let Some(fields) = json["fields"].as_array() {
+                        for field in fields {
+                            if field["purpose"].as_str() == Some("PASSWORD") {
+                                if let Some(value) = field["value"].as_str() {
+                                    return Ok(Some(value.to_string()));
+                                }
                             }
                         }
                     }
+                    return Ok(None);
                 }
-            } else {
-                return Ok(Some(result));
-            }
+                (Some(_), None) => unreachable!("Section without field is not a valid 1Password reference"),
+            };
+            
+            let result = self.run_op_command(&["read", &uri])?;
+            return Ok(Some(result));
         }
         
         Ok(None)
@@ -176,19 +185,41 @@ mod tests {
     
     #[test]
     fn test_onepassword_regex() {
+        // Test vault/item/field format
         let matches = ONEPASSWORD_REGEX.captures("op://Personal/GitHub/token");
         assert!(matches.is_some());
         let matches = matches.unwrap();
         assert_eq!(matches.get(1).unwrap().as_str(), "Personal");
         assert_eq!(matches.get(2).unwrap().as_str(), "GitHub");
         assert_eq!(matches.get(3).unwrap().as_str(), "token");
+        assert!(matches.get(4).is_none());
         
+        // Test vault/item format (no field)
         let matches = ONEPASSWORD_REGEX.captures("op://Work/database-password");
         assert!(matches.is_some());
         let matches = matches.unwrap();
         assert_eq!(matches.get(1).unwrap().as_str(), "Work");
         assert_eq!(matches.get(2).unwrap().as_str(), "database-password");
         assert!(matches.get(3).is_none());
+        assert!(matches.get(4).is_none());
+        
+        // Test vault/item/section/field format
+        let matches = ONEPASSWORD_REGEX.captures("op://MyVault/MyItem/MySection/MyField");
+        assert!(matches.is_some());
+        let matches = matches.unwrap();
+        assert_eq!(matches.get(1).unwrap().as_str(), "MyVault");
+        assert_eq!(matches.get(2).unwrap().as_str(), "MyItem");
+        assert_eq!(matches.get(3).unwrap().as_str(), "MySection");
+        assert_eq!(matches.get(4).unwrap().as_str(), "MyField");
+        
+        // Test that it stops at whitespace
+        let matches = ONEPASSWORD_REGEX.captures("op://Vault/Item/Field and more text");
+        assert!(matches.is_some());
+        let matches = matches.unwrap();
+        assert_eq!(matches.get(1).unwrap().as_str(), "Vault");
+        assert_eq!(matches.get(2).unwrap().as_str(), "Item");
+        assert_eq!(matches.get(3).unwrap().as_str(), "Field");
+        assert!(matches.get(4).is_none());
     }
     
     #[test]
