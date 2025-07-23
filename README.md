@@ -74,6 +74,10 @@ PORT: 3000
 - Type-safe configuration with CUE
 - Secret resolution from 1Password and GCP Secrets Manager (with `cuenv run`)
 - Automatic secret obfuscation in stdout/stderr to prevent accidental exposure
+- Environment-specific configurations with inheritance
+- Capability-based variable filtering for secure credential management
+- Command inference for automatic capability detection
+- Environment variable configuration (CUENV_ENV, CUENV_CAPABILITIES)
 
 ## CUE File Format
 
@@ -140,15 +144,22 @@ package env
 DATABASE_HOST: "localhost"
 DATABASE_USER: "myapp"
 
-// 1Password secret references
-// Format: op://vault/item/field or op://vault/item
-DATABASE_PASSWORD: "op://Personal/database/password"
-API_KEY: "op://Work/myapp-api-key"
+// Secret references - both formats supported
 
-// GCP Secrets Manager references
-// Format: gcp-secret://project/secret/version or gcp-secret://project/secret
+// String format (traditional)
+DATABASE_PASSWORD: "op://Personal/database/password"
 STRIPE_SECRET_KEY: "gcp-secret://my-project/stripe-api-key"
-JWT_SECRET: "gcp-secret://prod-project/jwt-signing-key/latest"
+
+// Structured format (type-safe)
+#OnePasswordRef: { ref: string }
+API_KEY: #OnePasswordRef & { ref: "op://Work/myapp-api-key" }
+
+#GcpSecret: { project: string, secret: string, version?: string }
+JWT_SECRET: #GcpSecret & {
+    project: "prod-project"
+    secret: "jwt-signing-key"
+    version: "latest"
+}
 
 // You can compose URLs with resolved secrets
 DATABASE_URL: "postgres://\(DATABASE_USER):\(DATABASE_PASSWORD)@\(DATABASE_HOST):5432/myapp"
@@ -175,6 +186,59 @@ cuenv run sh -c 'echo "Error: Failed to connect with $API_KEY" >&2'
 ```
 
 This obfuscation applies to all resolved secrets from 1Password and GCP Secrets Manager, helping maintain security when running commands with sensitive data.
+
+### Environments and Capabilities
+
+cuenv supports environment-specific configurations and capability-based filtering:
+
+```cue
+package env
+
+// Base configuration
+DATABASE_URL: "postgresql://localhost:5432/myapp"
+LOG_LEVEL: "info"
+
+// Environment-specific overrides
+environment: {
+    production: {
+        DATABASE_URL: "postgresql://prod-db:5432/myapp"
+        LOG_LEVEL: "warn"
+    }
+}
+
+// Capability-tagged variables
+AWS_ACCESS_KEY: "key" @capability("aws")
+AWS_SECRET_KEY: "secret" @capability("aws")
+
+// Command mappings for automatic capability inference
+Commands: {
+    terraform: capabilities: ["aws", "cloudflare"]
+    aws: capabilities: ["aws"]
+}
+```
+
+Usage:
+```bash
+# Use production environment
+cuenv run -e production -- ./app
+
+# Enable specific capabilities
+cuenv run -c aws -- aws s3 ls
+
+# Use environment variables
+CUENV_ENV=production CUENV_CAPABILITIES=aws cuenv run -- terraform apply
+
+# Automatic capability inference from command
+cuenv run -e production -- aws s3 ls  # Automatically enables 'aws' capability
+```
+
+## Documentation
+
+- **[Usage Guide](docs/USAGE.md)** - Comprehensive usage documentation
+- **[Commands Reference](docs/COMMANDS.md)** - Complete command reference
+- **[Secret Management](docs/SECRETS.md)** - Secret management and security guide
+- **[Structured Secrets](docs/STRUCTURED_SECRETS.md)** - Type-safe secret definitions with CUE
+- **[Environment Variables](docs/ENVIRONMENT_VARIABLES.md)** - Using environment variables for configuration
 
 ## Differences from direnv
 

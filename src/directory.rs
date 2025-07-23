@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use crate::errors::{Error, Result};
 use std::env;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -9,9 +9,9 @@ pub struct DirectoryManager {
 
 impl DirectoryManager {
     pub fn new() -> Self {
-        Self {
-            env_file_name: "env.cue".to_string(),
-        }
+        let env_file_name = env::var("CUENV_FILE").unwrap_or_else(|_| "env.cue".to_string());
+
+        Self { env_file_name }
     }
 
     pub fn find_env_files(&self, start_dir: &Path) -> Result<Vec<PathBuf>> {
@@ -35,7 +35,14 @@ impl DirectoryManager {
     }
 
     pub fn get_current_directory() -> Result<PathBuf> {
-        env::current_dir().context("Failed to get current directory")
+        match env::current_dir() {
+            Ok(dir) => Ok(dir),
+            Err(e) => Err(Error::file_system(
+                PathBuf::from("."),
+                "get current directory",
+                e,
+            )),
+        }
     }
 
     pub fn should_load_env(&self, dir: &Path) -> bool {

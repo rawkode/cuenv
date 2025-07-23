@@ -1,0 +1,12 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc a9698f56abbdafb66603e7a29a36c58155733e63234c79960a76ab771296123a # shrinks to global_vars = [], env_names = ["a", "a"], env_vars = [[], [("A", "")]]
+cc 7e2f1542d062f13571815d32946dca32ee06ab823a138dbff8beebccbe3ed59c # shrinks to base_vars = {"A": "", "AA": ""}, env_name = "a", override_indices = [0]
+cc af11b6f8f472554e0c2f669f3bc408a6cbef4a8aad2eac0995525cb47729fb22 # shrinks to vars = [("A", "", Some("a"))]
+cc c2f77d6e2d19d9f8bbba5998939ec41e4412e7810bfeab877442025057fad600 # shrinks to vars_with_caps = [("A", "", "a"), ("A", "", "a"), ("A", "", "a"), ("A", "", "a"), ("A", "", "a")], vars_without_caps = [("A", ""), ("A", ""), ("A", ""), ("A", ""), ("M20V1LT0__5_ZTJ_98CP8_5EA33___2", "8X2sDl.V032II 8T._3 _AvMS S-_OB88Q_g1l  __ARIyie_k9")], selected_cap_indices = [1, 1]
+cc 154e2c45e84e4a0e5bd9b32ceb4be7b11d63eb324f7b7059b9585c9510040548 # shrinks to vars = [("W", ""), ("W", "")]
+cc b1fc567413cc857a26817c0784bdbc2856b2846fbe2599a08416779d5366a624 # shrinks to vars = [("A", "", None)]

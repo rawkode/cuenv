@@ -136,7 +136,7 @@
         };
 
         devShells.default = pkgs.mkShell {
-          buildInputs = buildInputs ++ devTools;
+          buildInputs = buildInputs ++ nativeBuildInputs ++ devTools;
           
           shellHook = ''
             echo "cuenv development environment"

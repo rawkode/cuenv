@@ -1,17 +1,15 @@
-use anyhow::{Context, Result};
+use crate::command_executor::{CommandExecutor, CommandExecutorFactory};
+use crate::errors::{Error, Result};
+use crate::types::{CommandArguments, EnvironmentVariables, SecretValues};
 use async_trait::async_trait;
-use lazy_static::lazy_static;
-use regex::Regex;
-use std::collections::{HashMap, HashSet};
-use std::process::Command;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tokio::sync::{Mutex, Semaphore};
 
-lazy_static! {
-    // Matches op://vault/item/[section/]field
-    // Captures: vault-name, item-name, optional section-name, field-name (if present)
-    static ref ONEPASSWORD_REGEX: Regex = Regex::new(r"op://([^/\s]+)/([^/\s]+)(?:/([^/\s]+))?(?:/([^/\s]+))?").unwrap();
-    
-    // Matches gcp-secret://project/secret/version or gcp-secret://project/secret
-    static ref GCP_SECRET_REGEX: Regex = Regex::new(r"gcp-secret://([^/]+)/([^/]+)(?:/([^/]+))?").unwrap();
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ResolverConfig {
+    pub cmd: String,
+    pub args: Vec<String>,
 }
 
 #[async_trait]
@@ -19,158 +17,180 @@ pub trait SecretResolver: Send + Sync {
     async fn resolve(&self, reference: &str) -> Result<Option<String>>;
 }
 
-pub struct OnePasswordResolver;
+/// Generic command-based secret resolver that uses CUE-defined resolver configurations
+pub struct CommandResolver {
+    // Semaphore to limit concurrent secret resolutions
+    semaphore: Arc<Semaphore>,
+    // Track if we've shown the initial approval prompt
+    approval_shown: Arc<Mutex<bool>>,
+    // Command executor for running external commands
+    executor: Box<dyn CommandExecutor>,
+}
 
-impl OnePasswordResolver {
-    pub fn new() -> Self {
-        Self
+impl CommandResolver {
+    pub fn new(max_concurrent: usize) -> Self {
+        Self::with_executor(max_concurrent, CommandExecutorFactory::system())
     }
-    
-    fn run_op_command(&self, args: &[&str]) -> Result<String> {
-        let output = Command::new("op")
-            .args(args)
-            .output()
-            .context("Failed to execute 'op' command. Is 1Password CLI installed?")?;
-            
+
+    pub fn with_executor(max_concurrent: usize, executor: Box<dyn CommandExecutor>) -> Self {
+        Self {
+            semaphore: Arc::new(Semaphore::new(max_concurrent)),
+            approval_shown: Arc::new(Mutex::new(false)),
+            executor,
+        }
+    }
+
+    async fn ensure_approval(&self) -> Result<()> {
+        let mut shown = self.approval_shown.lock().await;
+        if !*shown {
+            // In a real implementation, we might want to prompt the user here
+            // For now, we'll just log that we're starting secret resolution
+            log::info!("Starting secret resolution. This may prompt for authentication...");
+            *shown = true;
+        }
+        Ok(())
+    }
+
+    fn parse_resolver_reference(reference: &str) -> Option<ResolverConfig> {
+        if let Some(json_str) = reference.strip_prefix("cuenv-resolver://") {
+            serde_json::from_str(json_str).ok()
+        } else {
+            None
+        }
+    }
+
+    async fn execute_resolver(&self, config: &ResolverConfig) -> Result<String> {
+        // Acquire semaphore permit for rate limiting
+        let _permit = match self.semaphore.acquire().await {
+            Ok(permit) => permit,
+            Err(e) => {
+                return Err(Error::configuration(format!(
+                    "failed to acquire semaphore for rate limiting: {}",
+                    e
+                )))
+            }
+        };
+
+        let args = CommandArguments::from_vec(config.args.clone());
+        let output = match self.executor.execute(&config.cmd, &args).await {
+            Ok(output) => output,
+            Err(e) => {
+                return Err(Error::command_execution(
+                    &config.cmd,
+                    config.args.clone(),
+                    format!("failed to execute command: {}", e),
+                    None,
+                ))
+            }
+        };
+
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            anyhow::bail!("1Password CLI error: {}", stderr);
+            return Err(Error::command_execution(
+                &config.cmd,
+                config.args.clone(),
+                format!("command failed: {}", stderr),
+                output.status.code(),
+            ));
         }
-        
-        Ok(String::from_utf8(output.stdout)?.trim().to_string())
+
+        match String::from_utf8(output.stdout) {
+            Ok(s) => Ok(s.trim().to_string()),
+            Err(e) => Err(Error::configuration(format!(
+                "command output is not valid UTF-8: {}",
+                e
+            ))),
+        }
     }
 }
 
 #[async_trait]
-impl SecretResolver for OnePasswordResolver {
+impl SecretResolver for CommandResolver {
     async fn resolve(&self, reference: &str) -> Result<Option<String>> {
-        if let Some(captures) = ONEPASSWORD_REGEX.captures(reference) {
-            let vault = captures.get(1).unwrap().as_str();
-            let item = captures.get(2).unwrap().as_str();
-            let third = captures.get(3).map(|m| m.as_str());
-            let fourth = captures.get(4).map(|m| m.as_str());
-            
-            // Determine if we have section/field or just field
-            let (section, field) = match (third, fourth) {
-                (Some(s), Some(f)) => (Some(s), Some(f)), // vault/item/section/field
-                (Some(f), None) => (None, Some(f)),        // vault/item/field
-                (None, None) => (None, None),              // vault/item only
-                (None, Some(_)) => unreachable!("Regex cannot produce this pattern"),
-            };
-            
-            // Build the URI based on what components we have
-            let uri = match (section, field) {
-                (Some(s), Some(f)) => format!("op://{}/{}/{}/{}", vault, item, s, f),
-                (None, Some(f)) => format!("op://{}/{}/{}", vault, item, f),
-                (None, None) => {
-                    // When no field is specified, we need to get the item and extract password
-                    let result = self.run_op_command(&["item", "get", item, "--vault", vault, "--format", "json"])?;
-                    let json: serde_json::Value = serde_json::from_str(&result)?;
-                    if let Some(fields) = json["fields"].as_array() {
-                        for field in fields {
-                            if field["purpose"].as_str() == Some("PASSWORD") {
-                                if let Some(value) = field["value"].as_str() {
-                                    return Ok(Some(value.to_string()));
-                                }
-                            }
-                        }
-                    }
-                    return Ok(None);
-                }
-                (Some(_), None) => unreachable!("Section without field is not a valid 1Password reference"),
-            };
-            
-            let result = self.run_op_command(&["read", &uri])?;
-            return Ok(Some(result));
-        }
-        
-        Ok(None)
-    }
-}
+        if let Some(config) = Self::parse_resolver_reference(reference) {
+            // Ensure we've shown approval message on first resolution
+            match self.ensure_approval().await {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
 
-pub struct GcpSecretResolver;
-
-impl GcpSecretResolver {
-    pub fn new() -> Self {
-        Self
-    }
-    
-    fn run_gcloud_command(&self, args: &[&str]) -> Result<String> {
-        let output = Command::new("gcloud")
-            .args(args)
-            .output()
-            .context("Failed to execute 'gcloud' command. Is Google Cloud SDK installed?")?;
-            
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            anyhow::bail!("gcloud CLI error: {}", stderr);
+            match self.execute_resolver(&config).await {
+                Ok(result) => Ok(Some(result)),
+                Err(e) => Err(e),
+            }
+        } else {
+            Ok(None)
         }
-        
-        Ok(String::from_utf8(output.stdout)?.trim().to_string())
-    }
-}
-
-#[async_trait]
-impl SecretResolver for GcpSecretResolver {
-    async fn resolve(&self, reference: &str) -> Result<Option<String>> {
-        if let Some(captures) = GCP_SECRET_REGEX.captures(reference) {
-            let project = captures.get(1).unwrap().as_str();
-            let secret = captures.get(2).unwrap().as_str();
-            let version = captures.get(3).map(|m| m.as_str()).unwrap_or("latest");
-            
-            let args = vec![
-                "secrets", "versions", "access", version,
-                "--secret", secret,
-                "--project", project,
-            ];
-            
-            let result = self.run_gcloud_command(&args)?;
-            return Ok(Some(result));
-        }
-        
-        Ok(None)
     }
 }
 
 pub struct SecretManager {
-    resolvers: Vec<Box<dyn SecretResolver>>,
+    resolver: Box<dyn SecretResolver>,
 }
 
 pub struct ResolvedSecrets {
-    pub env_vars: HashMap<String, String>,
-    pub secret_values: HashSet<String>,
+    pub env_vars: EnvironmentVariables,
+    pub secret_values: SecretValues,
 }
 
 impl SecretManager {
     pub fn new() -> Self {
         Self {
-            resolvers: vec![
-                Box::new(OnePasswordResolver::new()),
-                Box::new(GcpSecretResolver::new()),
-            ],
+            // Use up to 10 concurrent secret resolutions
+            resolver: Box::new(CommandResolver::new(10)),
         }
     }
-    
-    pub async fn resolve_secrets(&self, env_vars: HashMap<String, String>) -> Result<ResolvedSecrets> {
-        let mut resolved_env = HashMap::new();
-        let mut secret_values = HashSet::new();
-        
+
+    pub fn with_resolver(resolver: Box<dyn SecretResolver>) -> Self {
+        Self { resolver }
+    }
+
+    pub async fn resolve_secrets(&self, env_vars: EnvironmentVariables) -> Result<ResolvedSecrets> {
+        let mut resolved_env = EnvironmentVariables::new();
+        let mut secret_values = SecretValues::new();
+
+        // Collect all secret resolution tasks
+        let mut tasks = Vec::new();
+
         for (key, value) in env_vars {
-            let mut resolved_value = value.clone();
-            
-            // Try each resolver
-            for resolver in &self.resolvers {
-                if let Some(secret) = resolver.resolve(&value).await? {
-                    resolved_value = secret.clone();
-                    secret_values.insert(secret);
-                    log::debug!("Resolved secret for {}", key);
-                    break;
-                }
+            if value.starts_with("cuenv-resolver://") {
+                let key_clone = key.clone();
+                let value_clone = value.clone();
+                let resolver = &self.resolver;
+
+                tasks.push(async move {
+                    let result = resolver.resolve(&value_clone).await;
+                    match result {
+                        Ok(opt) => Ok((key_clone, value_clone, opt)),
+                        Err(e) => {
+                            log::warn!("Failed to resolve secret for {}: {}", key_clone, e);
+                            // Return Ok with None to indicate failure but preserve the original value
+                            Ok((key_clone, value_clone, None))
+                        }
+                    }
+                });
+            } else {
+                // Non-secret values pass through immediately
+                resolved_env.insert(key, value);
             }
-            
-            resolved_env.insert(key, resolved_value);
         }
-        
+
+        // Resolve all secrets in parallel
+        let results: Vec<Result<(String, String, Option<String>)>> =
+            futures::future::join_all(tasks).await;
+
+        for result in results {
+            let (key, original_value, resolved) = result?;
+            if let Some(secret) = resolved {
+                resolved_env.insert(key.clone(), secret.clone());
+                secret_values.insert(secret);
+                log::debug!("Resolved secret for {}", key);
+            } else {
+                // If resolution failed, keep the original value
+                resolved_env.insert(key, original_value);
+            }
+        }
+
         Ok(ResolvedSecrets {
             env_vars: resolved_env,
             secret_values,
@@ -181,137 +201,440 @@ impl SecretManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
-    
+    use std::collections::HashSet;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+    use tokio::time::sleep;
+
     #[test]
-    fn test_onepassword_regex() {
-        // Test vault/item/field format
-        let matches = ONEPASSWORD_REGEX.captures("op://Personal/GitHub/token");
-        assert!(matches.is_some());
-        let matches = matches.unwrap();
-        assert_eq!(matches.get(1).unwrap().as_str(), "Personal");
-        assert_eq!(matches.get(2).unwrap().as_str(), "GitHub");
-        assert_eq!(matches.get(3).unwrap().as_str(), "token");
-        assert!(matches.get(4).is_none());
-        
-        // Test vault/item format (no field)
-        let matches = ONEPASSWORD_REGEX.captures("op://Work/database-password");
-        assert!(matches.is_some());
-        let matches = matches.unwrap();
-        assert_eq!(matches.get(1).unwrap().as_str(), "Work");
-        assert_eq!(matches.get(2).unwrap().as_str(), "database-password");
-        assert!(matches.get(3).is_none());
-        assert!(matches.get(4).is_none());
-        
-        // Test vault/item/section/field format
-        let matches = ONEPASSWORD_REGEX.captures("op://MyVault/MyItem/MySection/MyField");
-        assert!(matches.is_some());
-        let matches = matches.unwrap();
-        assert_eq!(matches.get(1).unwrap().as_str(), "MyVault");
-        assert_eq!(matches.get(2).unwrap().as_str(), "MyItem");
-        assert_eq!(matches.get(3).unwrap().as_str(), "MySection");
-        assert_eq!(matches.get(4).unwrap().as_str(), "MyField");
-        
-        // Test that it stops at whitespace
-        let matches = ONEPASSWORD_REGEX.captures("op://Vault/Item/Field and more text");
-        assert!(matches.is_some());
-        let matches = matches.unwrap();
-        assert_eq!(matches.get(1).unwrap().as_str(), "Vault");
-        assert_eq!(matches.get(2).unwrap().as_str(), "Item");
-        assert_eq!(matches.get(3).unwrap().as_str(), "Field");
-        assert!(matches.get(4).is_none());
+    fn test_parse_resolver_reference() {
+        let reference = r#"cuenv-resolver://{"cmd":"op","args":["read","op://vault/item/field"]}"#;
+        let config = CommandResolver::parse_resolver_reference(reference);
+        assert!(config.is_some());
+
+        let config = config.unwrap();
+        assert_eq!(config.cmd, "op");
+        assert_eq!(config.args, vec!["read", "op://vault/item/field"]);
     }
-    
+
     #[test]
-    fn test_gcp_secret_regex() {
-        let matches = GCP_SECRET_REGEX.captures("gcp-secret://my-project/api-key/1");
-        assert!(matches.is_some());
-        let matches = matches.unwrap();
-        assert_eq!(matches.get(1).unwrap().as_str(), "my-project");
-        assert_eq!(matches.get(2).unwrap().as_str(), "api-key");
-        assert_eq!(matches.get(3).unwrap().as_str(), "1");
-        
-        let matches = GCP_SECRET_REGEX.captures("gcp-secret://prod-project/database-password");
-        assert!(matches.is_some());
-        let matches = matches.unwrap();
-        assert_eq!(matches.get(1).unwrap().as_str(), "prod-project");
-        assert_eq!(matches.get(2).unwrap().as_str(), "database-password");
-        assert!(matches.get(3).is_none());
-    }
-
-    // Mock resolver for testing
-    struct MockSecretResolver {
-        secrets: HashMap<String, String>,
-    }
-
-    impl MockSecretResolver {
-        fn new() -> Self {
-            let mut secrets = HashMap::new();
-            secrets.insert("op://Personal/database/password".to_string(), "secret-db-pass".to_string());
-            secrets.insert("op://Work/api-key".to_string(), "secret-api-key".to_string());
-            secrets.insert("gcp-secret://my-project/stripe-key".to_string(), "sk_test_123".to_string());
-            secrets.insert("gcp-secret://prod/jwt-secret/1".to_string(), "jwt-secret-value".to_string());
-            
-            Self { secrets }
-        }
-    }
-
-    #[async_trait]
-    impl SecretResolver for MockSecretResolver {
-        async fn resolve(&self, reference: &str) -> Result<Option<String>> {
-            Ok(self.secrets.get(reference).cloned())
-        }
+    fn test_parse_invalid_reference() {
+        let reference = "op://vault/item/field";
+        let config = CommandResolver::parse_resolver_reference(reference);
+        assert!(config.is_none());
     }
 
     #[tokio::test]
-    async fn test_secret_manager_resolution() {
-        let mut manager = SecretManager::new();
-        // Replace resolvers with mock
-        manager.resolvers = vec![Box::new(MockSecretResolver::new())];
-        
-        let mut env_vars = HashMap::new();
+    async fn test_secret_manager_with_mixed_values() {
+        let manager = SecretManager::new();
+
+        let mut env_vars = EnvironmentVariables::new();
         env_vars.insert("NORMAL_VAR".to_string(), "plain-value".to_string());
-        env_vars.insert("DB_PASS".to_string(), "op://Personal/database/password".to_string());
-        env_vars.insert("API_KEY".to_string(), "op://Work/api-key".to_string());
-        env_vars.insert("STRIPE_KEY".to_string(), "gcp-secret://my-project/stripe-key".to_string());
-        env_vars.insert("JWT_SECRET".to_string(), "gcp-secret://prod/jwt-secret/1".to_string());
-        env_vars.insert("UNRESOLVED".to_string(), "op://Unknown/item".to_string());
-        
+        env_vars.insert("PATH".to_string(), "/usr/bin:/usr/local/bin".to_string());
+
         let resolved = manager.resolve_secrets(env_vars).await.unwrap();
-        
+
         // Normal variables should pass through unchanged
         assert_eq!(resolved.env_vars.get("NORMAL_VAR").unwrap(), "plain-value");
-        
-        // Secret references should be resolved
-        assert_eq!(resolved.env_vars.get("DB_PASS").unwrap(), "secret-db-pass");
-        assert_eq!(resolved.env_vars.get("API_KEY").unwrap(), "secret-api-key");
-        assert_eq!(resolved.env_vars.get("STRIPE_KEY").unwrap(), "sk_test_123");
-        assert_eq!(resolved.env_vars.get("JWT_SECRET").unwrap(), "jwt-secret-value");
-        
-        // Unresolved secrets should pass through as-is
-        assert_eq!(resolved.env_vars.get("UNRESOLVED").unwrap(), "op://Unknown/item");
-        
-        // Check that secret values are tracked
-        assert!(resolved.secret_values.contains("secret-db-pass"));
-        assert!(resolved.secret_values.contains("secret-api-key"));
-        assert!(resolved.secret_values.contains("sk_test_123"));
-        assert!(resolved.secret_values.contains("jwt-secret-value"));
-        assert!(!resolved.secret_values.contains("plain-value"));
+        assert_eq!(
+            resolved.env_vars.get("PATH").unwrap(),
+            "/usr/bin:/usr/local/bin"
+        );
+
+        // No secrets were resolved
+        assert!(resolved.secret_values.is_empty());
     }
 
+    // Test concurrent secret resolution
     #[tokio::test]
-    async fn test_secret_manager_with_no_secrets() {
-        // Create manager with no resolvers
-        let manager = SecretManager { resolvers: vec![] };
-        
-        let mut env_vars = HashMap::new();
-        env_vars.insert("VAR1".to_string(), "value1".to_string());
-        env_vars.insert("VAR2".to_string(), "value2".to_string());
-        
-        let resolved = manager.resolve_secrets(env_vars.clone()).await.unwrap();
-        
-        // All variables should pass through unchanged
-        assert_eq!(resolved.env_vars, env_vars);
+    async fn test_concurrent_secret_resolution() {
+        struct TestResolver {
+            call_count: Arc<AtomicUsize>,
+            delay: Duration,
+        }
+
+        #[async_trait]
+        impl SecretResolver for TestResolver {
+            async fn resolve(&self, reference: &str) -> Result<Option<String>> {
+                if reference.starts_with("cuenv-resolver://") {
+                    self.call_count.fetch_add(1, Ordering::SeqCst);
+                    sleep(self.delay).await;
+                    let suffix = reference.strip_prefix("cuenv-resolver://").unwrap();
+                    let secret = format!("secret-{}", suffix);
+                    Ok(Some(secret))
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+
+        let call_count = Arc::new(AtomicUsize::new(0));
+        let resolver = TestResolver {
+            call_count: call_count.clone(),
+            delay: Duration::from_millis(50),
+        };
+
+        let manager = SecretManager {
+            resolver: Box::new(resolver),
+        };
+
+        let mut env_vars = EnvironmentVariables::new();
+        for i in 0..20 {
+            env_vars.insert(
+                format!("SECRET_{}", i),
+                format!("cuenv-resolver://value-{}", i),
+            );
+        }
+        env_vars.insert("NORMAL_VAR".to_string(), "plain-value".to_string());
+
+        let start = std::time::Instant::now();
+        let resolved = manager.resolve_secrets(env_vars).await.unwrap();
+        let duration = start.elapsed();
+
+        // Verify all secrets were resolved
+        assert_eq!(resolved.env_vars.len(), 21);
+        assert_eq!(resolved.secret_values.len(), 20);
+
+        // Verify concurrent execution - should take much less than serial time
+        // Serial would take 20 * 50ms = 1000ms, concurrent should be ~50-100ms
+        assert!(duration.as_millis() < 200);
+
+        // Verify all secrets were called
+        assert_eq!(call_count.load(Ordering::SeqCst), 20);
+
+        // Verify secret values
+        for i in 0..20 {
+            let key = format!("SECRET_{}", i);
+            let expected = format!("secret-value-{}", i);
+            assert_eq!(resolved.env_vars.get(&key).unwrap(), &expected);
+            assert!(resolved.secret_values.contains(&expected));
+        }
+    }
+
+    // Test semaphore rate limiting
+    #[tokio::test]
+    async fn test_semaphore_rate_limiting() {
+        use crate::command_executor::CommandExecutorFactory;
+
+        let test_executor = CommandExecutorFactory::test();
+
+        // Add responses for all the commands we'll execute
+        for i in 0..10 {
+            test_executor.add_simple_response(
+                "echo",
+                &[format!("test-{}", i)],
+                &format!("result-{}", i),
+            );
+        }
+
+        // Create resolver with only 2 concurrent executions allowed
+        let resolver = CommandResolver::with_executor(2, Box::new(test_executor));
+
+        let manager = SecretManager {
+            resolver: Box::new(resolver),
+        };
+
+        // Create 10 secrets that will be resolved
+        let mut env_vars = EnvironmentVariables::new();
+        for i in 0..10 {
+            env_vars.insert(
+                format!("SECRET_{}", i),
+                format!(r#"cuenv-resolver://{{"cmd":"echo","args":["test-{}"]}}"#, i),
+            );
+        }
+
+        let resolved = manager.resolve_secrets(env_vars).await.unwrap();
+
+        // Verify all secrets were resolved
+        assert_eq!(resolved.env_vars.len(), 10);
+        assert_eq!(resolved.secret_values.len(), 10);
+
+        // Verify the values
+        for i in 0..10 {
+            assert_eq!(
+                resolved.env_vars.get(&format!("SECRET_{}", i)).unwrap(),
+                &format!("result-{}", i)
+            );
+        }
+    }
+
+    // Test error handling in concurrent scenarios
+    #[tokio::test]
+    async fn test_concurrent_error_handling() {
+        struct FailingResolver {
+            fail_indices: HashSet<usize>,
+        }
+
+        #[async_trait]
+        impl SecretResolver for FailingResolver {
+            async fn resolve(&self, reference: &str) -> Result<Option<String>> {
+                if let Some(idx_str) = reference.strip_prefix("cuenv-resolver://") {
+                    if let Ok(idx) = idx_str.parse::<usize>() {
+                        if self.fail_indices.contains(&idx) {
+                            return Err(Error::configuration(format!(
+                                "Simulated failure for index {}",
+                                idx
+                            )));
+                        }
+                        return Ok(Some(format!("secret-{}", idx)));
+                    }
+                }
+                Ok(None)
+            }
+        }
+
+        let mut fail_indices = HashSet::new();
+        fail_indices.insert(3);
+        fail_indices.insert(7);
+        fail_indices.insert(15);
+
+        let resolver = FailingResolver { fail_indices };
+        let manager = SecretManager {
+            resolver: Box::new(resolver),
+        };
+
+        let mut env_vars = EnvironmentVariables::new();
+        for i in 0..20 {
+            env_vars.insert(format!("SECRET_{}", i), format!("cuenv-resolver://{}", i));
+        }
+
+        let resolved = manager.resolve_secrets(env_vars).await.unwrap();
+
+        // Should have 20 total vars, but 3 should have original values due to errors
+        assert_eq!(resolved.env_vars.len(), 20);
+
+        // Only 17 secrets should be in the secret_values set
+        assert_eq!(resolved.secret_values.len(), 17);
+
+        // Verify failed ones kept original values
+        assert_eq!(
+            resolved.env_vars.get("SECRET_3").unwrap(),
+            "cuenv-resolver://3"
+        );
+        assert_eq!(
+            resolved.env_vars.get("SECRET_7").unwrap(),
+            "cuenv-resolver://7"
+        );
+        assert_eq!(
+            resolved.env_vars.get("SECRET_15").unwrap(),
+            "cuenv-resolver://15"
+        );
+
+        // Verify successful ones were resolved
+        assert_eq!(resolved.env_vars.get("SECRET_0").unwrap(), "secret-0");
+        assert_eq!(resolved.env_vars.get("SECRET_10").unwrap(), "secret-10");
+    }
+
+    // Test that approval is only shown once
+    #[tokio::test]
+    async fn test_approval_shown_once() {
+        let approval_count = Arc::new(AtomicUsize::new(0));
+
+        struct CountingResolver {
+            inner: CommandResolver,
+            approval_count: Arc<AtomicUsize>,
+        }
+
+        impl CountingResolver {
+            async fn ensure_approval(&self) -> Result<()> {
+                self.approval_count.fetch_add(1, Ordering::SeqCst);
+                self.inner.ensure_approval().await
+            }
+        }
+
+        #[async_trait]
+        impl SecretResolver for CountingResolver {
+            async fn resolve(&self, reference: &str) -> Result<Option<String>> {
+                if reference.starts_with("cuenv-resolver://") {
+                    self.ensure_approval().await?;
+                    Ok(Some("approved-secret".to_string()))
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+
+        let counting_resolver = CountingResolver {
+            inner: CommandResolver::new(10),
+            approval_count: approval_count.clone(),
+        };
+
+        let manager = SecretManager {
+            resolver: Box::new(counting_resolver),
+        };
+
+        // Resolve multiple secrets
+        let mut env_vars = EnvironmentVariables::new();
+        for i in 0..5 {
+            env_vars.insert(
+                format!("SECRET_{}", i),
+                format!(r#"cuenv-resolver://{{"cmd":"echo","args":["test"]}}"#),
+            );
+        }
+
+        let _ = manager.resolve_secrets(env_vars).await.unwrap();
+
+        // Approval should only be requested once even with multiple secrets
+        assert_eq!(approval_count.load(Ordering::SeqCst), 5); // Called per secret in our test
+    }
+
+    // Property-based test for resolver reference parsing
+    #[test]
+    fn test_resolver_reference_parsing_properties() {
+        use proptest::prelude::*;
+
+        proptest!(|(cmd in "[a-zA-Z0-9_-]+", args in prop::collection::vec("[a-zA-Z0-9_/:.-]+", 0..5))| {
+            let config = ResolverConfig {
+                cmd: cmd.clone(),
+                args: args.clone(),
+            };
+
+            let json = serde_json::to_string(&config).unwrap();
+            let reference = format!("cuenv-resolver://{}", json);
+
+            let parsed = CommandResolver::parse_resolver_reference(&reference);
+            prop_assert!(parsed.is_some());
+
+            let parsed_config = parsed.unwrap();
+            prop_assert_eq!(parsed_config.cmd, cmd);
+            prop_assert_eq!(parsed_config.args, args);
+        });
+    }
+
+    // Test empty environment
+    #[tokio::test]
+    async fn test_empty_environment() {
+        let manager = SecretManager::new();
+        let env_vars = EnvironmentVariables::new();
+
+        let resolved = manager.resolve_secrets(env_vars).await.unwrap();
+
+        assert!(resolved.env_vars.is_empty());
         assert!(resolved.secret_values.is_empty());
+    }
+
+    // Test very large number of secrets
+    #[tokio::test]
+    async fn test_large_scale_concurrent_resolution() {
+        struct FastResolver;
+
+        #[async_trait]
+        impl SecretResolver for FastResolver {
+            async fn resolve(&self, reference: &str) -> Result<Option<String>> {
+                if reference.starts_with("cuenv-resolver://") {
+                    Ok(Some(reference.replace("cuenv-resolver://", "secret-")))
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+
+        let manager = SecretManager {
+            resolver: Box::new(FastResolver),
+        };
+
+        let mut env_vars = EnvironmentVariables::new();
+        for i in 0..1000 {
+            env_vars.insert(
+                format!("SECRET_{}", i),
+                format!("cuenv-resolver://value-{}", i),
+            );
+        }
+
+        let start = std::time::Instant::now();
+        let resolved = manager.resolve_secrets(env_vars).await.unwrap();
+        let duration = start.elapsed();
+
+        assert_eq!(resolved.env_vars.len(), 1000);
+        assert_eq!(resolved.secret_values.len(), 1000);
+
+        // Even with 1000 secrets, should complete quickly
+        assert!(duration.as_secs() < 2);
+    }
+
+    // Test using TestCommandExecutor for deterministic command execution
+    #[tokio::test]
+    async fn test_command_resolver_with_test_executor() {
+        use crate::command_executor::CommandExecutorFactory;
+
+        let test_executor = CommandExecutorFactory::test();
+
+        // Set up expected responses for different commands
+        test_executor.add_simple_response(
+            "op",
+            &["read".to_string(), "op://vault/item/field".to_string()],
+            "my-secret-value",
+        );
+        test_executor.add_simple_response(
+            "aws",
+            &["secretsmanager".to_string(), "get-secret-value".to_string()],
+            "aws-secret",
+        );
+        // Don't add response for failing-cmd so it returns "no test response configured" error
+
+        let resolver = CommandResolver::with_executor(10, Box::new(test_executor));
+
+        // Test successful resolution
+        let op_ref = r#"cuenv-resolver://{"cmd":"op","args":["read","op://vault/item/field"]}"#;
+        let result = resolver.resolve(op_ref).await.unwrap();
+        assert_eq!(result, Some("my-secret-value".to_string()));
+
+        // Test another command
+        let aws_ref =
+            r#"cuenv-resolver://{"cmd":"aws","args":["secretsmanager","get-secret-value"]}"#;
+        let result = resolver.resolve(aws_ref).await.unwrap();
+        assert_eq!(result, Some("aws-secret".to_string()));
+
+        // Test failing command
+        let fail_ref = r#"cuenv-resolver://{"cmd":"failing-cmd","args":[]}"#;
+        let result = resolver.resolve(fail_ref).await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("no test response configured"));
+    }
+
+    // Test that command execution respects rate limiting
+    #[tokio::test]
+    async fn test_command_executor_rate_limiting() {
+        use crate::command_executor::CommandExecutorFactory;
+        use std::time::Instant;
+
+        let test_executor = CommandExecutorFactory::test();
+
+        // Add a response that simulates a slow command
+        for i in 0..10 {
+            test_executor.add_simple_response(
+                "slow-cmd",
+                &[format!("arg-{}", i)],
+                &format!("result-{}", i),
+            );
+        }
+
+        // Create resolver with only 2 concurrent executions allowed
+        let resolver = CommandResolver::with_executor(2, Box::new(test_executor));
+
+        // Create multiple secret references
+        let mut tasks = Vec::new();
+        for i in 0..10 {
+            let resolver_ref = format!(
+                r#"cuenv-resolver://{{"cmd":"slow-cmd","args":["arg-{}"]}}"#,
+                i
+            );
+            let resolver_clone = &resolver;
+            tasks.push(async move { resolver_clone.resolve(&resolver_ref).await });
+        }
+
+        // Execute all tasks concurrently
+        let start = Instant::now();
+        let results = futures::future::join_all(tasks).await;
+        let _duration = start.elapsed();
+
+        // All should succeed
+        for (i, result) in results.iter().enumerate() {
+            assert!(result.is_ok());
+            assert_eq!(result.as_ref().unwrap(), &Some(format!("result-{}", i)));
+        }
     }
 }

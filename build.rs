@@ -15,22 +15,22 @@ fn main() {
 
     // Build the Go shared library with CGO
     let mut cmd = Command::new("go");
-    cmd.current_dir(&bridge_dir)
-        .arg("build");
-    
+    cmd.current_dir(&bridge_dir).arg("build");
+
     // Use vendor directory if it exists (for Nix builds)
     if bridge_dir.join("vendor").exists() {
         cmd.arg("-mod=vendor");
     }
-    
+
     cmd.args(&[
-        "-buildmode=c-archive",  // Use static linking instead
+        "-buildmode=c-archive", // Use static linking instead
         "-o",
         out_dir.join("libcue_bridge.a").to_str().unwrap(),
         "bridge.go",
     ]);
-    
-    let status = cmd.status()
+
+    let status = cmd
+        .status()
         .expect("Failed to build Go shared library. Make sure Go is installed.");
 
     if !status.success() {
@@ -40,10 +40,10 @@ fn main() {
     // Tell Rust where to find the library
     println!("cargo:rustc-link-search=native={}", out_dir.display());
     println!("cargo:rustc-link-lib=static=cue_bridge");
-    
+
     // Link system libraries that Go runtime needs
     let target = env::var("TARGET").unwrap();
-    
+
     if target.contains("windows") {
         // Windows-specific libraries
         println!("cargo:rustc-link-lib=ws2_32");
@@ -55,7 +55,7 @@ fn main() {
         println!("cargo:rustc-link-lib=pthread");
         println!("cargo:rustc-link-lib=m");
         println!("cargo:rustc-link-lib=dl");
-        
+
         if target.contains("apple-darwin") {
             println!("cargo:rustc-link-lib=framework=Security");
             println!("cargo:rustc-link-lib=framework=CoreFoundation");

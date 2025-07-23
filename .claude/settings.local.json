@@ -1,8 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(nix build:*)",
-      "Bash(nix log:*)"
+      "Bash(./target/debug/cuenv:*)",
+      "Bash(cargo:*)",
+      "Bash(nix:*)",
+      "Bash(./scripts/test-examples.sh:*)"
     ],
     "deny": []
   }
