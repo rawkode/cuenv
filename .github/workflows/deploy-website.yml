@@ -1,0 +1,39 @@
+name: website-deploy
+
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: git-checkout
+        uses: actions/checkout@v4
+
+      - name: bun-setup
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: dependencies-install`
+        working-directory: ./website
+        run: cuenv run -- bun install
+
+      - name: website-build
+        working-directory: ./website
+        env:
+          CI: "true"
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: bun run build
+
+      - name: cloudflare-deploy
+        working-directory: ./website
+        env:
+          CI: "true"
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: wrangler deploy

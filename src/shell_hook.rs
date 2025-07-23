@@ -1,4 +1,4 @@
-use anyhow::Result;
+use crate::errors::{Error, Result};
 use std::path::PathBuf;
 
 pub struct ShellHook;
@@ -11,7 +11,10 @@ impl ShellHook {
             "fish" => Ok(Self::fish_hook()),
             "powershell" => Ok(Self::powershell_hook()),
             "cmd" => Ok(Self::cmd_hook()),
-            _ => anyhow::bail!("Unsupported shell: {}", shell),
+            _ => Err(Error::unsupported(
+                "shell",
+                format!("unsupported shell: {}", shell),
+            )),
         }
     }
 
@@ -26,7 +29,8 @@ _cuenv_hook() {
 if [[ ";${PROMPT_COMMAND:-};" != *";_cuenv_hook;"* ]]; then
     PROMPT_COMMAND="_cuenv_hook${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 fi
-"#.to_string()
+"#
+        .to_string()
     }
 
     fn zsh_hook() -> String {
@@ -39,7 +43,8 @@ typeset -ag precmd_functions
 if [[ -z ${precmd_functions[(r)_cuenv_hook]} ]]; then
     precmd_functions+=(_cuenv_hook)
 fi
-"#.to_string()
+"#
+        .to_string()
     }
 
     fn fish_hook() -> String {
@@ -49,7 +54,8 @@ function _cuenv_hook --on-variable PWD
 end
 
 _cuenv_hook
-"#.to_string()
+"#
+        .to_string()
     }
 
     fn powershell_hook() -> String {
@@ -68,7 +74,8 @@ $ExecutionContext.SessionState.InvokeCommand.LocationChangedAction = {
 
 # Initial hook
 Invoke-CuenvHook
-"#.to_string()
+"#
+        .to_string()
     }
 
     fn cmd_hook() -> String {
@@ -81,7 +88,8 @@ REM cuenv_hook.cmd
 for /f "tokens=*" %%i in ('cuenv hook cmd') do (
     %%i
 )
-"#.to_string()
+"#
+        .to_string()
     }
 
     pub fn generate_hook_output(shell: &str, current_dir: &PathBuf) -> Result<String> {
@@ -224,7 +232,10 @@ if exist "{}" (
                     Ok(String::new())
                 }
             }
-            _ => anyhow::bail!("Unsupported shell: {}", shell),
+            _ => Err(Error::unsupported(
+                "shell",
+                format!("unsupported shell: {}", shell),
+            )),
         }
     }
 }

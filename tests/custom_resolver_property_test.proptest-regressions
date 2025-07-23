@@ -1,0 +1,15 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 4854467539296e4651525c1a4436a849f77ee6f9166c05ce0a3e00dd17ed46b4 # shrinks to args = ["\\"]
+cc 66bbcd2d768145535ab0b7eb07a1ffa3218e9b032c7cecd15e5b6e196554b47b # shrinks to s = "\0"
+cc 3fb8daf57c165ff93a15827a232f47601817edab4d217e15ebf796f1aff8be16 # shrinks to prefix = "", content = "!", suffix = "\t"
+cc d98c8794154e8559aa112fceb05efce3500a6c15f6b9a963b1083e250f0dc26d # shrinks to command = "aaa", args = ["", ""], transform = "upper"
+cc 2f771d068c5a39eabe4644c1b5a65893f0a0175a70a25872b0290ac69a196c06 # shrinks to bytes = [0]
+cc 61dcbd580f308224d590c3b1ccb43b938eec24633e0b37dab8921775388c4daf # shrinks to s = " "
+cc 6f220137af336b4db29bb02fc82896fd9f71607594b74c3524ebf4bf078a5aeb # shrinks to s = "\""
+cc 68a4f357bc368e74516b38948d36e5041367df74883dfe49584a51ce784ecce9 # shrinks to bytes = [34]
+cc eb4d3072041efe266785643e36519518bf0654252e775fbce44077a61c28c00f # shrinks to prefix = "", content = "\"", suffix = ""

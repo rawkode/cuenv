@@ -7,62 +7,89 @@ use tempfile::TempDir;
 fn test_cuenv_run_with_cue_file() {
     let temp_dir = TempDir::new().unwrap();
     let env_file = temp_dir.path().join("env.cue");
-    
-    fs::write(&env_file, r#"package env
+
+    fs::write(
+        &env_file,
+        r#"package env
 
 APP_NAME: "integration-test"
 VERSION: "1.0.0"
 FULL_NAME: "\(APP_NAME)-\(VERSION)"
 PORT: 9999
 DEBUG: true
-"#).unwrap();
-    
+"#,
+    )
+    .unwrap();
+
     // Get the path to the cuenv binary
     let mut cuenv_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     cuenv_path.push("target");
     cuenv_path.push("debug");
     cuenv_path.push("cuenv");
-    
+
     // Run cuenv with our test file
     let output = Command::new(&cuenv_path)
         .current_dir(temp_dir.path())
-        .args(&["run", "sh", "--", "-c", "echo APP=$APP_NAME PORT=$PORT FULL=$FULL_NAME"])
+        .args(&[
+            "run",
+            "sh",
+            "--",
+            "-c",
+            "echo APP=$APP_NAME PORT=$PORT FULL=$FULL_NAME",
+        ])
         .output()
         .expect("Failed to run cuenv");
-    
+
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(output.status.success(), "Command failed: {}", String::from_utf8_lossy(&output.stderr));
-    assert_eq!(stdout.trim(), "APP=integration-test PORT=9999 FULL=integration-test-1.0.0");
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        stdout.trim(),
+        "APP=integration-test PORT=9999 FULL=integration-test-1.0.0"
+    );
 }
 
 #[test]
 fn test_cuenv_run_hermetic_environment() {
     let temp_dir = TempDir::new().unwrap();
     let env_file = temp_dir.path().join("env.cue");
-    
-    fs::write(&env_file, r#"package env
+
+    fs::write(
+        &env_file,
+        r#"package env
 
 FROM_CUE: "cue-value"
-"#).unwrap();
-    
+"#,
+    )
+    .unwrap();
+
     // Set an environment variable that should NOT be passed through
     std::env::set_var("PARENT_TEST_VAR", "parent-value");
-    
+
     let mut cuenv_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     cuenv_path.push("target");
     cuenv_path.push("debug");
     cuenv_path.push("cuenv");
-    
+
     let output = Command::new(&cuenv_path)
         .current_dir(temp_dir.path())
-        .args(&["run", "sh", "--", "-c", "echo FROM_CUE=$FROM_CUE PARENT=$PARENT_TEST_VAR"])
+        .args(&[
+            "run",
+            "sh",
+            "--",
+            "-c",
+            "echo FROM_CUE=$FROM_CUE PARENT=$PARENT_TEST_VAR",
+        ])
         .output()
         .expect("Failed to run cuenv");
-    
+
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success());
     assert_eq!(stdout.trim(), "FROM_CUE=cue-value PARENT=");
-    
+
     // Clean up
     std::env::remove_var("PARENT_TEST_VAR");
 }
@@ -71,23 +98,33 @@ FROM_CUE: "cue-value"
 fn test_cuenv_run_preserves_required_vars() {
     let temp_dir = TempDir::new().unwrap();
     let env_file = temp_dir.path().join("env.cue");
-    
-    fs::write(&env_file, r#"package env
+
+    fs::write(
+        &env_file,
+        r#"package env
 
 TEST: "value"
-"#).unwrap();
-    
+"#,
+    )
+    .unwrap();
+
     let mut cuenv_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     cuenv_path.push("target");
     cuenv_path.push("debug");
     cuenv_path.push("cuenv");
-    
+
     let output = Command::new(&cuenv_path)
         .current_dir(temp_dir.path())
-        .args(&["run", "sh", "--", "-c", "test -n \"$PATH\" && test -n \"$HOME\" && echo OK"])
+        .args(&[
+            "run",
+            "sh",
+            "--",
+            "-c",
+            "test -n \"$PATH\" && test -n \"$HOME\" && echo OK",
+        ])
         .output()
         .expect("Failed to run cuenv");
-    
+
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success());
     assert_eq!(stdout.trim(), "OK");
