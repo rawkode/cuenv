@@ -39,3 +39,7 @@ coverage.json
 # Debug
 *.log
 debug/
+
+# Nix
+result
+

@@ -14,16 +14,23 @@ fn main() {
     std::fs::create_dir_all(&bridge_dir).expect("Failed to create libcue-bridge directory");
 
     // Build the Go shared library with CGO
-    let status = Command::new("go")
-        .current_dir(&bridge_dir)
-        .args(&[
-            "build",
-            "-buildmode=c-archive",  // Use static linking instead
-            "-o",
-            out_dir.join("libcue_bridge.a").to_str().unwrap(),
-            "bridge.go",
-        ])
-        .status()
+    let mut cmd = Command::new("go");
+    cmd.current_dir(&bridge_dir)
+        .arg("build");
+    
+    // Use vendor directory if it exists (for Nix builds)
+    if bridge_dir.join("vendor").exists() {
+        cmd.arg("-mod=vendor");
+    }
+    
+    cmd.args(&[
+        "-buildmode=c-archive",  // Use static linking instead
+        "-o",
+        out_dir.join("libcue_bridge.a").to_str().unwrap(),
+        "bridge.go",
+    ]);
+    
+    let status = cmd.status()
         .expect("Failed to build Go shared library. Make sure Go is installed.");
 
     if !status.success() {
