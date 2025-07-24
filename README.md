@@ -79,10 +79,14 @@ cuenv init fish | source
 ```cue
 package env
 
-DATABASE_URL: "postgres://localhost/mydb"
-API_KEY: "secret123"
-DEBUG: true
-PORT: 3000
+import "github.com/rawkode/cuenv"
+
+env: cuenv.#Env & {
+    DATABASE_URL: "postgres://localhost/mydb"
+    API_KEY: "secret123"
+    DEBUG: "true"
+    PORT: "3000"
+}
 ```
 
 2. Navigate to the directory and the environment will be automatically loaded.
@@ -116,21 +120,21 @@ PORT: 3000
 Your `env.cue` files should use the cuenv package schema:
 
 ```cue
-package main
+package env
 
-import "github.com/rawkode/cuenv/schema"
+import "github.com/rawkode/cuenv"
 
-#env: schema.#Env & {
-    // String values
+env: cuenv.#Env & {
+    // String values  
     DATABASE_URL: "postgres://user:pass@host/db"
 
-    // Number values
-    PORT: 3000
-    TIMEOUT: 30
+    // String representations of numbers
+    PORT: "3000"
+    TIMEOUT: "30"
 
-    // Boolean values
-    DEBUG: true
-    ENABLE_CACHE: false
+    // String representations of booleans
+    DEBUG: "true"
+    ENABLE_CACHE: "false"
 
     // Shell expansion is supported
     LOG_PATH: "$HOME/logs/myapp"
@@ -138,8 +142,8 @@ import "github.com/rawkode/cuenv/schema"
     // CUE features are supported
     BASE_URL: "https://api.example.com"
     API_ENDPOINT: "\(BASE_URL)/v1"  // String interpolation
-    DEBUG_PORT: PORT + 1            // Computed values
-    ENVIRONMENT: *"development" | string  // Defaults
+    HOST: "localhost"
+    DATABASE_DSN: "postgres://\(HOST):5432/myapp"  // Computed values
 }
 ```
 
@@ -174,33 +178,29 @@ cuenv run bash -- -c 'echo "PARENT_VAR=$PARENT_VAR"'  # Will print: PARENT_VAR=
 When using `cuenv run`, secret references in your CUE files are automatically resolved:
 
 ```cue
-package main
+package env
 
-import "github.com/rawkode/cuenv/schema"
+import "github.com/rawkode/cuenv"
 
-#env: schema.#Env & {
+env: cuenv.#Env & {
     // Regular environment variables
     DATABASE_HOST: "localhost"
     DATABASE_USER: "myapp"
 
-    // Secret references
-    DATABASE_PASSWORD: op: "Personal/database/password"
-    STRIPE_SECRET_KEY: gcpSecret: {
-        project: "my-project"
-        secret: "stripe-api-key"
-    }
-
-    // For 1Password with sections
-    API_KEY: op: "Work/myapp-api-key/section/field"
-
-    JWT_SECRET: gcpSecret: {
-        project: "prod-project"
-        secret: "jwt-signing-key"
-        version: "latest"
-    }
+    // Secret references - 1Password format
+    DATABASE_PASSWORD: "op://Personal/database/password"
+    API_KEY: "op://Work/myapp-api-key/field"
+    
+    // Secret references - Various providers
+    GITHUB_TOKEN: "github://myorg/myrepo/GITHUB_TOKEN"
+    AWS_SECRET: "aws-secret://prod/api/secret"
+    GCP_SECRET: "gcp-secret://myproject/db-password"
+    AZURE_KEY: "azure-keyvault://myvault/keys/mykey"
+    VAULT_TOKEN: "vault://secret/data/myapp/token"
 
     // You can compose URLs with resolved secrets
-    DATABASE_URL: "postgres://\(DATABASE_USER):\(DATABASE_PASSWORD)@\(DATABASE_HOST):5432/myapp"
+    DB_HOST: "prod.example.com"
+    DATABASE_URL: "postgres://\(DATABASE_USER):\(DATABASE_PASSWORD)@\(DB_HOST):5432/myapp"
 }
 ```
 
@@ -231,36 +231,51 @@ This obfuscation applies to all resolved secrets from 1Password and GCP Secrets 
 cuenv supports environment-specific configurations and capability-based filtering:
 
 ```cue
-package main
+package env
 
-import "github.com/rawkode/cuenv/schema"
+import "github.com/rawkode/cuenv"
 
-#env: schema.#Env & {
+env: cuenv.#Env & {
     // Base configuration
     DATABASE_URL: "postgresql://localhost:5432/myapp"
     LOG_LEVEL: "info"
-}
+    PORT: "3000"
 
-// Environment-specific overrides
-#environments: schema.#Environments & {
-    production: {
-        DATABASE_URL: "postgresql://prod-db:5432/myapp"
-        LOG_LEVEL: "warn"
+    // AWS capabilities - tagged with @capability
+    AWS_REGION: "us-east-1" @capability("aws")
+    AWS_ACCESS_KEY: "aws-access-key" @capability("aws")
+    AWS_SECRET_KEY: "aws-secret-key" @capability("aws")
+
+    // Docker capabilities
+    DOCKER_REGISTRY: "docker.io" @capability("docker")
+    DOCKER_IMAGE: "myapp:latest" @capability("docker")
+
+    // Environment-specific overrides
+    environment: {
+        production: {
+            DATABASE_URL: "postgresql://prod-db:5432/myapp"
+            LOG_LEVEL: "warn"
+            PORT: "8080"
+            AWS_REGION: "us-west-2" @capability("aws")
+        }
+        staging: {
+            DATABASE_URL: "postgresql://staging-db:5432/myapp"
+            LOG_LEVEL: "debug"
+        }
     }
-}
 
-// Capability-tagged variables
-#capabilities: schema.#Capabilities & {
-    aws: {
-        AWS_ACCESS_KEY: "key"
-        AWS_SECRET_KEY: "secret"
+    // Command mappings for automatic capability inference
+    Commands: {
+        terraform: {
+            capabilities: ["aws", "cloudflare"]
+        }
+        aws: {
+            capabilities: ["aws"]
+        }
+        deploy: {
+            capabilities: ["aws", "docker"]
+        }
     }
-}
-
-// Command mappings for automatic capability inference
-#commands: schema.#Commands & {
-    terraform: capabilities: ["aws", "cloudflare"]
-    aws: capabilities: ["aws"]
 }
 ```
 
@@ -281,11 +296,15 @@ cuenv run -e production -- aws s3 ls  # Automatically enables 'aws' capability
 
 ## Documentation
 
-- **[Usage Guide](docs/USAGE.md)** - Comprehensive usage documentation
-- **[Commands Reference](docs/COMMANDS.md)** - Complete command reference
-- **[Secret Management](docs/SECRETS.md)** - Secret management and security guide
-- **[Structured Secrets](docs/STRUCTURED_SECRETS.md)** - Type-safe secret definitions with CUE
-- **[Environment Variables](docs/ENVIRONMENT_VARIABLES.md)** - Using environment variables for configuration
+- **[Quickstart Guide](https://cuenv.dev/quickstart)** - Get started quickly with cuenv
+- **[Commands Reference](https://cuenv.dev/reference/commands)** - Complete command reference
+- **[Secret Management](https://cuenv.dev/guides/secrets)** - Secret management and security guide
+- **[CUE Format Guide](https://cuenv.dev/guides/cue-format)** - Type-safe configuration with CUE
+- **[Environments](https://cuenv.dev/guides/environments)** - Environment-specific configurations
+- **[Capabilities](https://cuenv.dev/guides/capabilities)** - Capability-based variable filtering
+- **[Shell Integration](https://cuenv.dev/guides/shell-integration)** - Setting up shell hooks
+- **[Configuration](https://cuenv.dev/reference/configuration)** - Configuration options reference
+- **[Environment Variables](https://cuenv.dev/reference/env-vars)** - Using environment variables for configuration
 
 ## Differences from direnv
 
