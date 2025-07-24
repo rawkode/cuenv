@@ -83,14 +83,10 @@ cuenv init fish | source
 ```cue
 package env
 
-import "github.com/rawkode/cuenv"
-
-env: cuenv.#Env & {
-    DATABASE_URL: "postgres://localhost/mydb"
-    API_KEY: "secret123"
-    DEBUG: "true"
-    PORT: "3000"
-}
+DATABASE_URL: "postgres://localhost/mydb"
+API_KEY: "secret123"
+DEBUG: "true"
+PORT: "3000"
 ```
 
 2. Navigate to the directory and the environment will be automatically loaded.
@@ -126,29 +122,25 @@ Your `env.cue` files should use the cuenv package schema:
 ```cue
 package env
 
-import "github.com/rawkode/cuenv"
+// String values
+DATABASE_URL: "postgres://user:pass@host/db"
 
-env: cuenv.#Env & {
-    // String values
-    DATABASE_URL: "postgres://user:pass@host/db"
+// String representations of numbers
+PORT: "3000"
+TIMEOUT: "30"
 
-    // String representations of numbers
-    PORT: "3000"
-    TIMEOUT: "30"
+// String representations of booleans
+DEBUG: "true"
+ENABLE_CACHE: "false"
 
-    // String representations of booleans
-    DEBUG: "true"
-    ENABLE_CACHE: "false"
+// Shell expansion is supported
+LOG_PATH: "$HOME/logs/myapp"
 
-    // Shell expansion is supported
-    LOG_PATH: "$HOME/logs/myapp"
-
-    // CUE features are supported
-    BASE_URL: "https://api.example.com"
-    API_ENDPOINT: "\(BASE_URL)/v1"  // String interpolation
-    HOST: "localhost"
-    DATABASE_DSN: "postgres://\(HOST):5432/myapp"  // Computed values
-}
+// CUE features are supported
+BASE_URL: "https://api.example.com"
+API_ENDPOINT: "\(BASE_URL)/v1"  // String interpolation
+HOST: "localhost"
+DATABASE_DSN: "postgres://\(HOST):5432/myapp"  // Computed values
 ```
 
 ## How It Works
@@ -184,28 +176,24 @@ When using `cuenv run`, secret references in your CUE files are automatically re
 ```cue
 package env
 
-import "github.com/rawkode/cuenv"
+// Regular environment variables
+DATABASE_HOST: "localhost"
+DATABASE_USER: "myapp"
 
-env: cuenv.#Env & {
-    // Regular environment variables
-    DATABASE_HOST: "localhost"
-    DATABASE_USER: "myapp"
+// Secret references - 1Password format
+DATABASE_PASSWORD: "op://Personal/database/password"
+API_KEY: "op://Work/myapp-api-key/field"
 
-    // Secret references - 1Password format
-    DATABASE_PASSWORD: "op://Personal/database/password"
-    API_KEY: "op://Work/myapp-api-key/field"
+// Secret references - Various providers
+GITHUB_TOKEN: "github://myorg/myrepo/GITHUB_TOKEN"
+AWS_SECRET: "aws-secret://prod/api/secret"
+GCP_SECRET: "gcp-secret://myproject/db-password"
+AZURE_KEY: "azure-keyvault://myvault/keys/mykey"
+VAULT_TOKEN: "vault://secret/data/myapp/token"
 
-    // Secret references - Various providers
-    GITHUB_TOKEN: "github://myorg/myrepo/GITHUB_TOKEN"
-    AWS_SECRET: "aws-secret://prod/api/secret"
-    GCP_SECRET: "gcp-secret://myproject/db-password"
-    AZURE_KEY: "azure-keyvault://myvault/keys/mykey"
-    VAULT_TOKEN: "vault://secret/data/myapp/token"
-
-    // You can compose URLs with resolved secrets
-    DB_HOST: "prod.example.com"
-    DATABASE_URL: "postgres://\(DATABASE_USER):\(DATABASE_PASSWORD)@\(DB_HOST):5432/myapp"
-}
+// You can compose URLs with resolved secrets
+DB_HOST: "prod.example.com"
+DATABASE_URL: "postgres://\(DATABASE_USER):\(DATABASE_PASSWORD)@\(DB_HOST):5432/myapp"
 ```
 
 **Requirements:**
@@ -238,48 +226,44 @@ cuenv supports environment-specific configurations and capability-based filterin
 ```cue
 package env
 
-import "github.com/rawkode/cuenv"
+// Base configuration
+DATABASE_URL: "postgresql://localhost:5432/myapp"
+LOG_LEVEL: "info"
+PORT: "3000"
 
-env: cuenv.#Env & {
-    // Base configuration
-    DATABASE_URL: "postgresql://localhost:5432/myapp"
-    LOG_LEVEL: "info"
-    PORT: "3000"
+// AWS capabilities - tagged with @capability
+AWS_REGION: "us-east-1" @capability("aws")
+AWS_ACCESS_KEY: "aws-access-key" @capability("aws")
+AWS_SECRET_KEY: "aws-secret-key" @capability("aws")
 
-    // AWS capabilities - tagged with @capability
-    AWS_REGION: "us-east-1" @capability("aws")
-    AWS_ACCESS_KEY: "aws-access-key" @capability("aws")
-    AWS_SECRET_KEY: "aws-secret-key" @capability("aws")
+// Docker capabilities
+DOCKER_REGISTRY: "docker.io" @capability("docker")
+DOCKER_IMAGE: "myapp:latest" @capability("docker")
 
-    // Docker capabilities
-    DOCKER_REGISTRY: "docker.io" @capability("docker")
-    DOCKER_IMAGE: "myapp:latest" @capability("docker")
-
-    // Environment-specific overrides
-    environment: {
-        production: {
-            DATABASE_URL: "postgresql://prod-db:5432/myapp"
-            LOG_LEVEL: "warn"
-            PORT: "8080"
-            AWS_REGION: "us-west-2" @capability("aws")
-        }
-        staging: {
-            DATABASE_URL: "postgresql://staging-db:5432/myapp"
-            LOG_LEVEL: "debug"
-        }
+// Environment-specific overrides
+environment: {
+    production: {
+        DATABASE_URL: "postgresql://prod-db:5432/myapp"
+        LOG_LEVEL: "warn"
+        PORT: "8080"
+        AWS_REGION: "us-west-2" @capability("aws")
     }
+    staging: {
+        DATABASE_URL: "postgresql://staging-db:5432/myapp"
+        LOG_LEVEL: "debug"
+    }
+}
 
-    // Command mappings for automatic capability inference
-    Commands: {
-        terraform: {
-            capabilities: ["aws", "cloudflare"]
-        }
-        aws: {
-            capabilities: ["aws"]
-        }
-        deploy: {
-            capabilities: ["aws", "docker"]
-        }
+// Command mappings for automatic capability inference
+Commands: {
+    terraform: {
+        capabilities: ["aws", "cloudflare"]
+    }
+    aws: {
+        capabilities: ["aws"]
+    }
+    deploy: {
+        capabilities: ["aws", "docker"]
     }
 }
 ```
