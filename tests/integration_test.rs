@@ -32,11 +32,7 @@ DEBUG: true
     // Run cuenv with our test file
     let output = Command::new(&cuenv_path)
         .current_dir(temp_dir.path())
-        .args(&[
-            "exec",
-            "printenv",
-            "APP_NAME",
-        ])
+        .args(&["exec", "printenv", "APP_NAME"])
         .output()
         .expect("Failed to run cuenv");
 
@@ -48,10 +44,7 @@ DEBUG: true
         stderr,
         stdout
     );
-    assert_eq!(
-        stdout.trim(),
-        "integration-test"
-    );
+    assert_eq!(stdout.trim(), "integration-test");
 }
 
 #[test]
@@ -80,11 +73,7 @@ FROM_CUE: "cue-value"
 
     let output = Command::new(&cuenv_path)
         .current_dir(temp_dir.path())
-        .args(&[
-            "exec",
-            "printenv",
-            "FROM_CUE",
-        ])
+        .args(&["exec", "printenv", "FROM_CUE"])
         .output()
         .expect("Failed to run cuenv");
 
@@ -119,11 +108,7 @@ TEST: "value"
 
     let output = Command::new(&cuenv_path)
         .current_dir(temp_dir.path())
-        .args(&[
-            "exec",
-            "printenv",
-            "PATH",
-        ])
+        .args(&["exec", "printenv", "PATH"])
         .output()
         .expect("Failed to run cuenv");
 
