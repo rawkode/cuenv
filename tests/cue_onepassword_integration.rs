@@ -33,7 +33,7 @@ impl CommandExecutor for OnePasswordTestExecutor {
             let reference = &args_slice[1];
 
             match reference.as_str() {
-                "op://korora-tech.cuenv/test-password/password" => Ok(Output {
+                "op://rawkode.cuenv/test-password/password" => Ok(Output {
                     status: exit_status_from_code(0),
                     stdout: b"my-super-secret-password".to_vec(),
                     stderr: Vec::new(),
@@ -82,14 +82,14 @@ fn test_cue_file_with_onepassword_secrets() {
         r#"package env
 
 env: {
-import "github.com/korora-tech/cuenv/onepassword"
+import "github.com/rawkode/cuenv/onepassword"
 
 // Database configuration with 1Password secret
 DB_HOST: "postgres.example.com"
 DB_PORT: "5432"
 DB_USER: "appuser"
 DB_PASSWORD: onepassword.#OnePasswordRef & {
-    ref: "op://korora-tech.cuenv/test-password/password"
+    ref: "op://rawkode.cuenv/test-password/password"
 }
 
 // API configuration
@@ -110,7 +110,7 @@ LOG_LEVEL: "info"
     // For now, we'll just verify the CUE file is written correctly
     assert!(env_file.exists());
     let content = fs::read_to_string(&env_file).unwrap();
-    assert!(content.contains("op://korora-tech.cuenv/test-password/password"));
+    assert!(content.contains("op://rawkode.cuenv/test-password/password"));
 }
 
 #[test]
@@ -128,7 +128,7 @@ env: {
 DB_PASSWORD: {
     resolver: {
         command: "op"
-        args: ["read", "op://korora-tech.cuenv/test-password/password"]
+        args: ["read", "op://rawkode.cuenv/test-password/password"]
     }
 }
 
@@ -144,7 +144,7 @@ APP_VERSION: "1.0.0"
     let content = fs::read_to_string(&env_file).unwrap();
     assert!(content.contains("resolver:"));
     assert!(content.contains("command: \"op\""));
-    assert!(content.contains("op://korora-tech.cuenv/test-password/password"));
+    assert!(content.contains("op://rawkode.cuenv/test-password/password"));
 }
 
 #[tokio::test]
@@ -159,12 +159,12 @@ async fn test_onepassword_integration_with_cue() {
 
 env: {
 import (
-    "github.com/korora-tech/cuenv/pkg/secret/v1"
+    "github.com/rawkode/cuenv/pkg/secret/v1"
 )
 
 DB_PASSWORD: v1.#Resolver & {
     command: "op"
-    args: ["read", "op://korora-tech.cuenv/test-password/password"]
+    args: ["read", "op://rawkode.cuenv/test-password/password"]
 }
 
 APP_NAME: "test-app"
@@ -184,7 +184,7 @@ APP_NAME: "test-app"
     let mut env_vars = HashMap::new();
     env_vars.insert(
         "DB_PASSWORD".to_string(),
-        r#"cuenv-resolver://{"cmd":"op","args":["read","op://korora-tech.cuenv/test-password/password"]}"#.to_string()
+        r#"cuenv-resolver://{"cmd":"op","args":["read","op://rawkode.cuenv/test-password/password"]}"#.to_string()
     );
     env_vars.insert("APP_NAME".to_string(), "test-app".to_string());
 

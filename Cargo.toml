@@ -1,13 +1,13 @@
 [package]
 name = "cuenv"
-version = "0.1.0"
+version = "0.1.5"
 edition = "2021"
 authors = ["Korora Tech"]
 description = "A direnv alternative that uses CUE files for environment configuration"
 license = "MIT"
-repository = "https://github.com/korora-tech/cuenv"
-homepage = "https://github.com/korora-tech/cuenv"
-documentation = "https://github.com/korora-tech/cuenv"
+repository = "https://github.com/rawkode/cuenv"
+homepage = "https://github.com/rawkode/cuenv"
+documentation = "https://github.com/rawkode/cuenv"
 readme = "README.md"
 keywords = ["environment", "cue", "direnv", "env", "shell"]
 categories = ["command-line-utilities", "development-tools", "config"]

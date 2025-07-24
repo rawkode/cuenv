@@ -1,4 +1,4 @@
-module github.com/korora-tech/cuenv/libcue-bridge
+module github.com/rawkode/cuenv/libcue-bridge
 
 go 1.21
 

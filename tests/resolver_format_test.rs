@@ -11,22 +11,22 @@ fn test_resolver_format_documentation() {
     DB_PASSWORD: {
         resolver: {
             command: "op"
-            args: ["read", "op://korora-tech.cuenv/test-password/password"]
+            args: ["read", "op://rawkode.cuenv/test-password/password"]
         }
     }
     "#;
 
     // 2. Using the schema import (recommended):
     let cue_with_schema = r#"
-    import op "github.com/korora-tech/cuenv/cue/onepassword"
-    
+    import op "github.com/rawkode/cuenv/cue/onepassword"
+
     DB_PASSWORD: op.#OnePasswordRef & {
-        ref: "op://korora-tech.cuenv/test-password/password"
+        ref: "op://rawkode.cuenv/test-password/password"
     }
     "#;
 
     // 3. What gets converted to internally:
-    let internal_format = r#"cuenv-resolver://{"cmd":"op","args":["read","op://korora-tech.cuenv/test-password/password"]}"#;
+    let internal_format = r#"cuenv-resolver://{"cmd":"op","args":["read","op://rawkode.cuenv/test-password/password"]}"#;
 
     // The Go bridge extracts resolver.command and resolver.args and converts to JSON with "cmd" field
     // This is the format that SecretManager expects and processes
@@ -46,7 +46,7 @@ fn test_onepassword_reference_format() {
     // - field: The specific field within the item (e.g., "password", "api_key")
 
     let examples = vec![
-        "op://korora-tech.cuenv/test-password/password",
+        "op://rawkode.cuenv/test-password/password",
         "op://Development/GitHub/personal_access_token",
         "op://AWS/Production/secret_access_key",
         "op://MyVault/Stripe/api_key",

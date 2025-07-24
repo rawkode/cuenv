@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2025-01-24
+
+### Added
+- Package-based CUE evaluation for better modularity and reusability
+- Windows platform support with proper cross-compilation
+- Nix flake for reproducible builds and development environments
+- Support for 1Password section-based references in secret resolution
+- Major refactoring with improved CUE integration and error handling
+
+### Fixed
+- Resolved all clippy lints for cleaner codebase
+- Updated README with correct CUE syntax examples
+- Proper linking of Security & CoreFoundation frameworks on macOS
+
+### Changed
+- Migrated from file-based to package-based CUE evaluation
+- Improved cross-platform support and build process
+
 ## [0.1.0] - 2024-06-09
 
 ### Added
@@ -28,5 +46,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All resolved secrets are automatically obfuscated in command output
 - Hermetic environment execution prevents parent environment leakage
 
-[Unreleased]: https://github.com/korora-tech/cuenv/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/korora-tech/cuenv/releases/tag/v0.1.0
+[Unreleased]: https://github.com/rawkode/cuenv/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/rawkode/cuenv/compare/v0.1.0...v0.1.5
+[0.1.0]: https://github.com/rawkode/cuenv/releases/tag/v0.1.0

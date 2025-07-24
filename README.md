@@ -1,6 +1,7 @@
 # cuenv
 
-[![CI](https://github.com/korora-tech/cuenv/workflows/CI/badge.svg)](https://github.com/korora-tech/cuenv/actions)
+[![CI](https://github.com/rawkode/cuenv/workflows/ci/badge.svg)](https://github.com/rawkode/cuenv/actions)
+[![codecov](https://codecov.io/gh/rawkode/cuenv/graph/badge.svg)](https://codecov.io/gh/rawkode/cuenv)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Crates.io](https://img.shields.io/crates/v/cuenv.svg)](https://crates.io/crates/cuenv)
 
@@ -125,7 +126,7 @@ package env
 import "github.com/rawkode/cuenv"
 
 env: cuenv.#Env & {
-    // String values  
+    // String values
     DATABASE_URL: "postgres://user:pass@host/db"
 
     // String representations of numbers
@@ -190,7 +191,7 @@ env: cuenv.#Env & {
     // Secret references - 1Password format
     DATABASE_PASSWORD: "op://Personal/database/password"
     API_KEY: "op://Work/myapp-api-key/field"
-    
+
     // Secret references - Various providers
     GITHUB_TOKEN: "github://myorg/myrepo/GITHUB_TOKEN"
     AWS_SECRET: "aws-secret://prod/api/secret"

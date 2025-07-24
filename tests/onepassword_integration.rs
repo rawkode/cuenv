@@ -32,7 +32,7 @@ impl CommandExecutor for OnePasswordTestExecutor {
             let reference = &args_slice[1];
 
             // Check for our test reference
-            if reference == "op://korora-tech.cuenv/test-password/password" {
+            if reference == "op://rawkode.cuenv/test-password/password" {
                 Ok(Output {
                     status: exit_status_from_code(0),
                     stdout: b"my-super-secret-password".to_vec(),
@@ -76,7 +76,7 @@ async fn test_onepassword_secret_resolution() {
     let resolver = CommandResolver::with_executor(10, Box::new(OnePasswordTestExecutor));
 
     // Test the exact reference format with op read command
-    let reference = r#"cuenv-resolver://{"cmd":"op","args":["read","op://korora-tech.cuenv/test-password/password"]}"#;
+    let reference = r#"cuenv-resolver://{"cmd":"op","args":["read","op://rawkode.cuenv/test-password/password"]}"#;
 
     let result = resolver.resolve(reference).await.unwrap();
     assert_eq!(result, Some("my-super-secret-password".to_string()));
@@ -92,7 +92,7 @@ async fn test_onepassword_secret_manager_integration() {
     let mut env_vars = HashMap::new();
     env_vars.insert(
         "DB_PASSWORD".to_string(),
-        r#"cuenv-resolver://{"cmd":"op","args":["read","op://korora-tech.cuenv/test-password/password"]}"#.to_string(),
+        r#"cuenv-resolver://{"cmd":"op","args":["read","op://rawkode.cuenv/test-password/password"]}"#.to_string(),
     );
     env_vars.insert("DB_HOST".to_string(), "localhost".to_string());
     env_vars.insert("DB_PORT".to_string(), "5432".to_string());
@@ -140,7 +140,7 @@ async fn test_multiple_onepassword_secrets() {
     // Add multiple 1Password references (only one will succeed in our test)
     env_vars.insert(
         "SECRET_1".to_string(),
-        r#"cuenv-resolver://{"cmd":"op","args":["read","op://korora-tech.cuenv/test-password/password"]}"#.to_string(),
+        r#"cuenv-resolver://{"cmd":"op","args":["read","op://rawkode.cuenv/test-password/password"]}"#.to_string(),
     );
     env_vars.insert(
         "SECRET_2".to_string(),
