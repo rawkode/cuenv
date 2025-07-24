@@ -6,7 +6,7 @@ package cuenv
 		command: "op"
 		args: [
 			"read",
-			ref
+			ref,
 		]
 	}
 }

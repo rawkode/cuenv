@@ -11,8 +11,8 @@ env: cuenv.#Env & {
 	PORT:         "3000"
 
 	// Using CUE's string interpolation
-	BASE_URL:      "https://api.example.com"
-	API_ENDPOINT:  "\(BASE_URL)/v1"
+	BASE_URL:     "https://api.example.com"
+	API_ENDPOINT: "\(BASE_URL)/v1"
 
 	// Computed values
 	HOST:         "localhost"

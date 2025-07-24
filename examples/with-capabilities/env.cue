@@ -10,13 +10,13 @@ env: cuenv.#Env & {
 	PORT:         "3000"
 
 	// AWS capabilities
-	AWS_REGION:      "us-east-1" @capability("aws")
-	AWS_ACCESS_KEY:  "aws-access-key-test" @capability("aws")
-	AWS_SECRET_KEY:  "aws-secret-key-test" @capability("aws")
-	S3_BUCKET:       "my-app-bucket" @capability("aws")
+	AWS_REGION:     "us-east-1"           @capability("aws")
+	AWS_ACCESS_KEY: "aws-access-key-test" @capability("aws")
+	AWS_SECRET_KEY: "aws-secret-key-test" @capability("aws")
+	S3_BUCKET:      "my-app-bucket"       @capability("aws")
 
 	// Docker capabilities
-	DOCKER_REGISTRY: "docker.io" @capability("docker")
+	DOCKER_REGISTRY: "docker.io"    @capability("docker")
 	DOCKER_IMAGE:    "myapp:latest" @capability("docker")
 
 	// Commands with capabilities

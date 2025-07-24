@@ -14,8 +14,16 @@
     };
   };
 
-  outputs = { self, nixpkgs, rust-overlay, flake-utils, treefmt-nix }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    { self
+    , nixpkgs
+    , rust-overlay
+    , flake-utils
+    , treefmt-nix
+    ,
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs {
@@ -23,20 +31,29 @@
         };
 
         # Platform-specific dependencies
-        platformDeps = with pkgs;
-          if stdenv.isDarwin then [
-            darwin.apple_sdk.frameworks.Security
-            darwin.apple_sdk.frameworks.CoreFoundation
-          ] else if stdenv.isLinux then [
-            glibc
-          ] else [ ];
+        platformDeps =
+          with pkgs;
+          if stdenv.isDarwin then
+            [
+              darwin.apple_sdk.frameworks.Security
+              darwin.apple_sdk.frameworks.CoreFoundation
+            ]
+          else if stdenv.isLinux then
+            [
+              glibc
+            ]
+          else
+            [ ];
 
         # Build dependencies
-        buildInputs = with pkgs; [
-          go_1_24
-          openssl
-          pkg-config
-        ] ++ platformDeps;
+        buildInputs =
+          with pkgs;
+          [
+            go_1_24
+            openssl
+            pkg-config
+          ]
+          ++ platformDeps;
 
         # Native build dependencies
         nativeBuildInputs = with pkgs; [
@@ -52,6 +69,8 @@
           programs = {
             # Nix formatter
             nixpkgs-fmt.enable = true;
+
+            cue.enable = true;
 
             # Rust formatter
             rustfmt = {
@@ -70,7 +89,10 @@
             prettier = {
               enable = true;
               # Only format markdown files with prettier
-              includes = [ "*.md" "*.mdx" ];
+              includes = [
+                "*.md"
+                "*.mdx"
+              ];
             };
 
             # TOML formatter
@@ -103,7 +125,7 @@
             export HOME=$(mktemp -d)
             export GOPATH="$HOME/go"
             export GOCACHE="$HOME/go-cache"
-            
+
             go mod vendor
           '';
 
@@ -133,7 +155,7 @@
             export GOPATH="$HOME/go"
             export GOCACHE="$HOME/go-cache"
             export CGO_ENABLED=1
-            
+
             # Copy vendored dependencies
             cp -r ${goVendor}/vendor libcue-bridge/
             chmod -R u+w libcue-bridge
@@ -186,11 +208,11 @@
               export GOPATH="$HOME/go"
               export GOCACHE="$HOME/go-cache"
               export CGO_ENABLED=1
-              
+
               # Copy vendored dependencies
               cp -r ${goVendor}/vendor libcue-bridge/
               chmod -R u+w libcue-bridge
-              
+
               cargo clippy --offline -- -D warnings
             '';
             installPhase = ''
@@ -234,17 +256,23 @@
             echo "  treefmt        - Format all code"
             echo "  nix flake check - Check code formatting"
             echo ""
-            
+
             # Set up environment for building
             export CGO_ENABLED=1
             export GOPATH="$HOME/go"
             export GOCACHE="$HOME/.cache/go-build"
-            
+
             # Platform-specific setup
-            ${if pkgs.stdenv.isDarwin then ''
-              export RUSTFLAGS="-C link-arg=-framework -C link-arg=Security -C link-arg=-framework -C link-arg=CoreFoundation"
-            '' else ""}
+            ${
+              if pkgs.stdenv.isDarwin then
+                ''
+                  export RUSTFLAGS="-C link-arg=-framework -C link-arg=Security -C link-arg=-framework -C link-arg=CoreFoundation"
+                ''
+              else
+                ""
+            }
           '';
         };
-      });
+      }
+    );
 }

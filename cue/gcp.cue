@@ -2,9 +2,9 @@ package cuenv
 
 #GcpSecret: #Resolver & {
 	project: string
-	secret: string
+	secret:  string
 	version: string | *"latest"
-	ref: "gcp://\(project)/\(secret)/\(version)"
+	ref:     "gcp://\(project)/\(secret)/\(version)"
 	resolver: #ExecResolver & {
 		command: "gcloud"
 		args: [
