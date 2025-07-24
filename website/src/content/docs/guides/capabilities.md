@@ -73,23 +73,41 @@ DATABASE_URL: "postgres://..." @capability("database")
 // Map commands to their required capabilities
 Commands: {
     // Terraform needs multiple providers
-    terraform: capabilities: ["aws", "cloudflare", "database"]
+    terraform: {
+        capabilities: ["aws", "cloudflare", "database"]
+    }
 
     // AWS CLI needs AWS credentials
-    aws: capabilities: ["aws"]
+    aws: {
+        capabilities: ["aws"]
+    }
 
     // Database tools
-    psql: capabilities: ["database"]
-    mysql: capabilities: ["database"]
-    mongosh: capabilities: ["database"]
+    psql: {
+        capabilities: ["database"]
+    }
+    mysql: {
+        capabilities: ["database"]
+    }
+    mongosh: {
+        capabilities: ["database"]
+    }
 
     // CI/CD tools
-    gh: capabilities: ["github"]
-    glab: capabilities: ["gitlab"]
+    gh: {
+        capabilities: ["github"]
+    }
+    glab: {
+        capabilities: ["gitlab"]
+    }
 
     // Container tools
-    docker: capabilities: ["docker"]
-    kubectl: capabilities: ["kubernetes"]
+    docker: {
+        capabilities: ["docker"]
+    }
+    kubectl: {
+        capabilities: ["kubernetes"]
+    }
 }
 ```
 
@@ -144,10 +162,18 @@ TEST_DATABASE: "postgres://test-db/test" @capability("test")
 TEST_API_KEY: "test-key" @capability("test")
 
 Commands: {
-    npm: capabilities: ["build"]
-    docker: capabilities: ["build"]
-    kubectl: capabilities: ["deploy"]
-    jest: capabilities: ["test"]
+    npm: {
+        capabilities: ["build"]
+    }
+    docker: {
+        capabilities: ["build"]
+    }
+    kubectl: {
+        capabilities: ["deploy"]
+    }
+    jest: {
+        capabilities: ["test"]
+    }
 }
 ```
 
@@ -169,10 +195,18 @@ AZURE_CLIENT_ID: "id" @capability("azure")
 AZURE_CLIENT_SECRET: "secret" @capability("azure")
 
 Commands: {
-    terraform: capabilities: ["aws", "gcp", "azure"]
-    aws: capabilities: ["aws"]
-    gcloud: capabilities: ["gcp"]
-    az: capabilities: ["azure"]
+    terraform: {
+        capabilities: ["aws", "gcp", "azure"]
+    }
+    aws: {
+        capabilities: ["aws"]
+    }
+    gcloud: {
+        capabilities: ["gcp"]
+    }
+    az: {
+        capabilities: ["azure"]
+    }
 }
 ```
 
@@ -244,13 +278,19 @@ API_ADMIN_KEY: "admin-key" @capability("api-admin")
 
 Commands: {
     // Read-only commands
-    "api-client": capabilities: ["api-read"]
+    "api-client": {
+        capabilities: ["api-read"]
+    }
 
     // Write commands get read + write
-    "api-sync": capabilities: ["api-read", "api-write"]
+    "api-sync": {
+        capabilities: ["api-read", "api-write"]
+    }
 
     // Admin commands get everything
-    "api-admin": capabilities: ["api-read", "api-write", "api-admin"]
+    "api-admin": {
+        capabilities: ["api-read", "api-write", "api-admin"]
+    }
 }
 ```
 
@@ -273,7 +313,9 @@ _capabilities: {
 
 // Apply to commands
 Commands: {
-    "app-server": capabilities: _capabilities
+    "app-server": {
+        capabilities: _capabilities
+    }
 }
 ```
 
@@ -345,9 +387,15 @@ SERVICE_B_URL: "http://service-b:8081" @capability("service-b")
 
 // Gateway needs access to all services
 Commands: {
-    "api-gateway": capabilities: ["service-a", "service-b"]
-    "service-a-worker": capabilities: ["service-a"]
-    "service-b-worker": capabilities: ["service-b"]
+    "api-gateway": {
+        capabilities: ["service-a", "service-b"]
+    }
+    "service-a-worker": {
+        capabilities: ["service-a"]
+    }
+    "service-b-worker": {
+        capabilities: ["service-b"]
+    }
 }
 ```
 
@@ -383,7 +431,11 @@ TF_BACKEND_BUCKET: "terraform-state" @capability("terraform")
 TF_BACKEND_KEY: "prod/terraform.tfstate" @capability("terraform")
 
 Commands: {
-    terraform: capabilities: ["terraform", "aws-infra"]
-    terragrunt: capabilities: ["terraform", "aws-infra"]
+    terraform: {
+        capabilities: ["terraform", "aws-infra"]
+    }
+    terragrunt: {
+        capabilities: ["terraform", "aws-infra"]
+    }
 }
 ```
