@@ -73,12 +73,12 @@ impl fmt::Display for Error {
                 )
             }
             Error::Environment { variable, message } => {
-                write!(f, "environment variable '{}' error: {}", variable, message)
+                write!(f, "environment variable '{variable}' error: {message}")
             }
             Error::SecretResolution {
                 reference, message, ..
             } => {
-                write!(f, "failed to resolve secret '{}': {}", reference, message)
+                write!(f, "failed to resolve secret '{reference}': {message}")
             }
             Error::CommandExecution {
                 command,
@@ -95,7 +95,7 @@ impl fmt::Display for Error {
                         if args_str.is_empty() {
                             String::new()
                         } else {
-                            format!(" {}", args_str)
+                            format!(" {args_str}")
                         },
                         code,
                         message
@@ -107,17 +107,17 @@ impl fmt::Display for Error {
                         if args_str.is_empty() {
                             String::new()
                         } else {
-                            format!(" {}", args_str)
+                            format!(" {args_str}")
                         },
                         message
                     ),
                 }
             }
             Error::Configuration { message } => {
-                write!(f, "configuration error: {}", message)
+                write!(f, "configuration error: {message}")
             }
             Error::ShellExpansion { value, message } => {
-                write!(f, "failed to expand shell value '{}': {}", value, message)
+                write!(f, "failed to expand shell value '{value}': {message}")
             }
             Error::FileSystem {
                 path,
@@ -133,16 +133,16 @@ impl fmt::Display for Error {
                 )
             }
             Error::Json { message, .. } => {
-                write!(f, "JSON error: {}", message)
+                write!(f, "JSON error: {message}")
             }
             Error::Ffi { operation, message } => {
-                write!(f, "FFI operation '{}' failed: {}", operation, message)
+                write!(f, "FFI operation '{operation}' failed: {message}")
             }
             Error::PermissionDenied { operation, message } => {
-                write!(f, "permission denied for {}: {}", operation, message)
+                write!(f, "permission denied for {operation}: {message}")
             }
             Error::Unsupported { feature, message } => {
-                write!(f, "unsupported feature '{}': {}", feature, message)
+                write!(f, "unsupported feature '{feature}': {message}")
             }
         }
     }

@@ -37,7 +37,7 @@ impl CommandExecutor for SystemCommandExecutor {
             Err(e) => Err(Error::command_execution(
                 cmd,
                 args.clone().into_inner(),
-                format!("failed to execute command: {}", e),
+                format!("failed to execute command: {e}"),
                 None,
             )),
         }
@@ -58,7 +58,7 @@ impl CommandExecutor for SystemCommandExecutor {
             Err(e) => Err(Error::command_execution(
                 cmd,
                 args.clone().into_inner(),
-                format!("failed to execute command with environment: {}", e),
+                format!("failed to execute command with environment: {e}"),
                 None,
             )),
         }

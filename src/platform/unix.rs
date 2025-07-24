@@ -8,8 +8,8 @@ impl PlatformOps for UnixPlatform {
     fn get_current_shell() -> Result<Shell, String> {
         // First try the SHELL environment variable
         if let Ok(shell_path) = env::var("SHELL") {
-            if let Some(shell_name) = shell_path.split('/').last() {
-                if let Some(shell) = Shell::from_str(shell_name) {
+            if let Some(shell_name) = shell_path.split('/').next_back() {
+                if let Ok(shell) = shell_name.parse::<Shell>() {
                     if shell.is_unix() {
                         return Ok(shell);
                     }
@@ -21,9 +21,9 @@ impl PlatformOps for UnixPlatform {
         if let Ok(ppid) = std::fs::read_to_string("/proc/self/stat") {
             if let Some(ppid_str) = ppid.split_whitespace().nth(3) {
                 if let Ok(ppid_num) = ppid_str.parse::<u32>() {
-                    if let Ok(cmd) = std::fs::read_to_string(format!("/proc/{}/comm", ppid_num)) {
+                    if let Ok(cmd) = std::fs::read_to_string(format!("/proc/{ppid_num}/comm")) {
                         let shell_name = cmd.trim();
-                        if let Some(shell) = Shell::from_str(shell_name) {
+                        if let Ok(shell) = shell_name.parse::<Shell>() {
                             if shell.is_unix() {
                                 return Ok(shell);
                             }

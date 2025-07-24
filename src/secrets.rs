@@ -65,8 +65,7 @@ impl CommandResolver {
             Ok(permit) => permit,
             Err(e) => {
                 return Err(Error::configuration(format!(
-                    "failed to acquire semaphore for rate limiting: {}",
-                    e
+                    "failed to acquire semaphore for rate limiting: {e}"
                 )))
             }
         };
@@ -78,7 +77,7 @@ impl CommandResolver {
                 return Err(Error::command_execution(
                     &config.cmd,
                     config.args.clone(),
-                    format!("failed to execute command: {}", e),
+                    format!("failed to execute command: {e}"),
                     None,
                 ))
             }
@@ -89,7 +88,7 @@ impl CommandResolver {
             return Err(Error::command_execution(
                 &config.cmd,
                 config.args.clone(),
-                format!("command failed: {}", stderr),
+                format!("command failed: {stderr}"),
                 output.status.code(),
             ));
         }
@@ -97,8 +96,7 @@ impl CommandResolver {
         match String::from_utf8(output.stdout) {
             Ok(s) => Ok(s.trim().to_string()),
             Err(e) => Err(Error::configuration(format!(
-                "command output is not valid UTF-8: {}",
-                e
+                "command output is not valid UTF-8: {e}"
             ))),
         }
     }
@@ -140,7 +138,15 @@ impl SecretManager {
             resolver: Box::new(CommandResolver::new(10)),
         }
     }
+}
 
+impl Default for SecretManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SecretManager {
     pub fn with_resolver(resolver: Box<dyn SecretResolver>) -> Self {
         Self { resolver }
     }
@@ -163,7 +169,7 @@ impl SecretManager {
                     match result {
                         Ok(opt) => Ok((key_clone, value_clone, opt)),
                         Err(e) => {
-                            log::warn!("Failed to resolve secret for {}: {}", key_clone, e);
+                            log::warn!("Failed to resolve secret for {key_clone}: {e}");
                             // Return Ok with None to indicate failure but preserve the original value
                             Ok((key_clone, value_clone, None))
                         }
@@ -184,7 +190,7 @@ impl SecretManager {
             if let Some(secret) = resolved {
                 resolved_env.insert(key.clone(), secret.clone());
                 secret_values.insert(secret);
-                log::debug!("Resolved secret for {}", key);
+                log::debug!("Resolved secret for {key}");
             } else {
                 // If resolution failed, keep the original value
                 resolved_env.insert(key, original_value);

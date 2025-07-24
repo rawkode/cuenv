@@ -22,7 +22,7 @@ fn main() {
         cmd.arg("-mod=vendor");
     }
 
-    cmd.args(&[
+    cmd.args([
         "-buildmode=c-archive", // Use static linking instead
         "-o",
         out_dir.join("libcue_bridge.a").to_str().unwrap(),

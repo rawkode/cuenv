@@ -37,18 +37,16 @@ impl CueParser {
     }
 }
 
+impl Default for CueParser {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Default)]
 pub struct ParseOptions {
     pub environment: Option<String>,
     pub capabilities: Vec<String>,
-}
-
-impl Default for ParseOptions {
-    fn default() -> Self {
-        Self {
-            environment: None,
-            capabilities: Vec::new(),
-        }
-    }
 }
 
 pub struct ParseResult {
@@ -91,7 +89,7 @@ impl CueParser {
             Err(e) => {
                 return Err(Error::ffi(
                     "cue_parse_string",
-                    format!("failed to create C string from content: {}", e),
+                    format!("failed to create C string from content: {e}"),
                 ))
             }
         };
@@ -112,7 +110,7 @@ impl CueParser {
                 unsafe { cue_free_string(result_ptr) };
                 return Err(Error::ffi(
                     "cue_parse_string",
-                    format!("failed to convert C string to Rust string: {}", e),
+                    format!("failed to convert C string to Rust string: {e}"),
                 ));
             }
         };
@@ -254,12 +252,8 @@ impl CueParser {
 
         if let serde_json::Value::Object(map) = value {
             // Handle both old format (direct variables) and new format (with "variables" key)
-            let vars_map = if let Some(vars) = map.get("variables") {
-                if let serde_json::Value::Object(m) = vars {
-                    m
-                } else {
-                    map
-                }
+            let vars_map = if let Some(serde_json::Value::Object(m)) = map.get("variables") {
+                m
             } else {
                 map
             };

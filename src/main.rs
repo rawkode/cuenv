@@ -118,7 +118,7 @@ fn main() -> Result<()> {
                 .as_str();
 
             match env_manager.export_for_shell(shell) {
-                Ok(output) => print!("{}", output),
+                Ok(output) => print!("{output}"),
                 Err(e) => return Err(e),
             }
         }
@@ -134,7 +134,7 @@ fn main() -> Result<()> {
                 .as_str();
 
             match env_manager.export_for_shell(shell) {
-                Ok(output) => print!("{}", output),
+                Ok(output) => print!("{output}"),
                 Err(e) => return Err(e),
             }
         }
@@ -157,12 +157,12 @@ fn main() -> Result<()> {
                 }
             };
             match ShellHook::generate_hook_output(&shell, &current_dir) {
-                Ok(output) => print!("{}", output),
+                Ok(output) => print!("{output}"),
                 Err(e) => return Err(e),
             }
         }
         Some(Commands::Init { shell }) => match ShellHook::generate_hook(&shell) {
-            Ok(output) => print!("{}", output),
+            Ok(output) => print!("{output}"),
             Err(e) => return Err(e),
         },
         Some(Commands::Allow { directory }) => {
@@ -205,16 +205,10 @@ fn main() -> Result<()> {
             }
 
             // Load environment with options and command for inference
-            match env_manager.load_env_with_options(&current_dir, env_name, caps, Some(&command)) {
-                Ok(()) => {}
-                Err(e) => return Err(e),
-            }
+            env_manager.load_env_with_options(&current_dir, env_name, caps, Some(&command))?;
 
             // Execute the command with the loaded environment
-            let status = match env_manager.run_command(&command, &args) {
-                Ok(s) => s,
-                Err(e) => return Err(e),
-            };
+            let status = env_manager.run_command(&command, &args)?;
 
             // Exit with the same status code as the child process
             std::process::exit(status);
@@ -225,18 +219,15 @@ fn main() -> Result<()> {
                 Ok(d) => d,
                 Err(e) => {
                     return Err(Error::configuration(format!(
-                        "failed to get current directory: {}",
-                        e
+                        "failed to get current directory: {e}"
                     )))
                 }
             };
 
             if dir_manager.should_load_env(&current_dir) {
                 let mut env_manager = EnvManager::new();
-                match env_manager.load_env(&current_dir) {
-                    Ok(()) => println!("cuenv: loading env.cue"),
-                    Err(e) => return Err(e),
-                }
+                env_manager.load_env(&current_dir)?;
+                println!("cuenv: loading env.cue")
             } else {
                 println!("cuenv: no env.cue found in current directory");
             }
