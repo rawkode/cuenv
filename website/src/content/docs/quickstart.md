@@ -99,7 +99,7 @@ package env
 // ... other config ...
 
 // 1Password secret reference
-DATABASE_PASSWORD: "op://Personal/myapp-db/password"
+DATABASE_PASSWORD: cuenv.#OnePasswordRef & {ref: "op://Personal/myapp-db/password"}
 
 // GCP Secret Manager reference
 API_SECRET: "gcp-secret://my-project/api-secret-key"
@@ -116,7 +116,7 @@ cuenv run node app.js
 
 # Regular shell use won't resolve secrets (for security)
 echo $DATABASE_PASSWORD
-# Output: op://Personal/myapp-db/password
+# Output: cuenv.#OnePasswordRef & {ref: "op://Personal/myapp-db/password"}
 ```
 
 ## Step 5: Environment-Specific Configuration

@@ -152,7 +152,7 @@ env: cuenv.#Env & {
     DEV_API_KEY: "dev-key-123" @capability("dev")
 
     // Production credentials (more restrictive)
-    PROD_API_KEY: "op://Production/API/key" @capability("prod", "sensitive")
+    PROD_API_KEY: cuenv.#OnePasswordRef & {ref: "op://Production/API/key"} @capability("prod", "sensitive")
 
     // Different databases per capability
     DATABASE_URL: "postgres://localhost/dev" @capability("dev")
@@ -173,8 +173,8 @@ env: cuenv.#Env & {
     DOCKER_REGISTRY: "registry.example.com" @capability("build")
 
     // Deployment credentials
-    DEPLOY_KEY: "op://Deploy/SSH/key" @capability("deploy")
-    KUBE_CONFIG: "op://Deploy/Kubernetes/config" @capability("deploy")
+    DEPLOY_KEY: cuenv.#OnePasswordRef & {ref: "op://Deploy/SSH/key"} @capability("deploy")
+    KUBE_CONFIG: cuenv.#OnePasswordRef & {ref: "op://Deploy/Kubernetes/config"} @capability("deploy")
 
     // Test environment
     TEST_DATABASE: "postgres://test-db/test" @capability("test")
@@ -250,7 +250,7 @@ env: cuenv.#Env & {
     DATABASE_PASSWORD: "secret123"
 
     // Good: Restricted to database operations
-    DATABASE_PASSWORD: "op://Vault/Database/password" @capability("database")
+    DATABASE_PASSWORD: cuenv.#OnePasswordRef & {ref: "op://Vault/Database/password"} @capability("database")
 }
 ```
 
@@ -291,7 +291,7 @@ env: cuenv.#Env & {
         }
         production: {
             // Production is locked down
-            DB_ADMIN_USER: "op://Prod/DB/admin" @capability("prod-admin")
+            DB_ADMIN_USER: cuenv.#OnePasswordRef & {ref: "op://Prod/DB/admin"} @capability("prod-admin")
             DEBUG_ENABLED: false
         }
     }

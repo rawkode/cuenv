@@ -96,6 +96,8 @@ environment: {
 ```cue title="env.cue"
 package env
 
+import "github.com/rawkode/cuenv"
+
 APP_NAME: "myapp"
 
 environment: {
@@ -104,11 +106,23 @@ environment: {
         API_KEY: "dev-key-12345"  // Hardcoded for dev
     }
     staging: {
-        DATABASE_URL: "op://Staging/Database/url"
-        API_KEY: "op://Staging/API/key"
+        DATABASE_URL: cuenv.#OnePasswordRef & {
+            vault: "Staging"
+            item: "Database"
+            field: "url"
+        }
+        API_KEY: cuenv.#OnePasswordRef & {
+            vault: "Staging"
+            item: "API"
+            field: "key"
+        }
     }
     production: {
-        DATABASE_URL: "op://Production/Database/url"
+        DATABASE_URL: cuenv.#OnePasswordRef & {
+            vault: "Production"
+            item: "Database"
+            field: "url"
+        }
         API_KEY: "gcp-secret://prod-project/api-key"
     }
 }
@@ -271,6 +285,8 @@ cuenv run -e production-eu -- ./deploy.sh
 ```cue title="env.cue"
 package env
 
+import "github.com/rawkode/cuenv"
+
 // Different development configurations
 environment: {
     "dev-local": {
@@ -284,7 +300,11 @@ environment: {
         USE_LOCAL_STORAGE: false
     }
     "dev-remote": {
-        DATABASE_URL: "op://Development/Remote-DB/url"
+        DATABASE_URL: cuenv.#OnePasswordRef & {
+            vault: "Development"
+            item: "Remote-DB"
+            field: "url"
+        }
         REDIS_URL: "redis://dev.redis.internal:6379"
         USE_LOCAL_STORAGE: false
     }
@@ -295,6 +315,8 @@ environment: {
 
 ```cue title="env.cue"
 package env
+
+import "github.com/rawkode/cuenv"
 
 environment: {
     ci: {
@@ -307,7 +329,11 @@ environment: {
     }
     cd: {
         // Deployment environment
-        DEPLOY_KEY: "op://DevOps/Deploy-Key/private"
+        DEPLOY_KEY: cuenv.#OnePasswordRef & {
+            vault: "DevOps"
+            item: "Deploy-Key"
+            field: "private"
+        }
         DOCKER_REGISTRY: "gcr.io/my-project"
         KUBECTL_CONTEXT: "production-cluster"
     }
@@ -358,6 +384,8 @@ Never hardcode secrets in production environments:
 ```cue title="env.cue"
 package env
 
+import "github.com/rawkode/cuenv"
+
 environment: {
     development: {
         // OK for development
@@ -365,7 +393,11 @@ environment: {
     }
     production: {
         // Always use secret references
-        API_KEY: "op://Production/API/key"
+        API_KEY: cuenv.#OnePasswordRef & {
+            vault: "Production"
+            item: "API"
+            field: "key"
+        }
     }
 }
 ```
