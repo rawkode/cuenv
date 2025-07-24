@@ -17,6 +17,7 @@ fn test_secret_obfuscation_in_output() {
         &env_file,
         r#"package env
 
+env: {
 // Normal environment variables
 PUBLIC_VAR: "public-value"
 API_ENDPOINT: "https://api.example.com"
@@ -25,6 +26,7 @@ API_ENDPOINT: "https://api.example.com"
 // But for testing without real secret managers, we use plain values
 SECRET_KEY: "supersecret123"
 DATABASE_PASSWORD: "db-pass-456"
+}
 "#,
     )
     .unwrap();
@@ -90,8 +92,10 @@ fn test_secret_obfuscation_preserves_functionality() {
         &env_file,
         r#"package env
 
+env: {
 TEST_VAR: "test-value"
 SECRET_VAR: "secret-value"
+}
 "#,
     )
     .unwrap();

@@ -1,9 +1,9 @@
-module: "korora-tech.cuenv/examples"
+module: "github.com/rawkode/cuenv-examples"
 language: {
 	version: "v0.13.2"
 }
 deps: {
-	"github.com/korora-tech/cuenv@v0": {
-		v: "v0.1.2"
+	"github.com/rawkode/cuenv@v0": {
+		v: "v0.1.4"
 	}
 }

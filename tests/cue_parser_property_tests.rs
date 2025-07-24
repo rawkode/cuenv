@@ -28,32 +28,42 @@ fn valid_capability_name() -> impl Strategy<Value = String> {
 
 /// Generate a simple CUE file content with environment variables
 fn cue_env_content(vars: Vec<(String, String)>) -> String {
-    let mut content = String::from("package env\n\n");
+    let mut content = String::from("package env\n\nenv: {\n");
 
     for (key, value) in vars {
-        content.push_str(&format!("{}: \"{}\"\n", key, value.replace('"', "\\\"")));
+        content.push_str(&format!(
+            "    {}: \"{}\"\n",
+            key,
+            value.replace('"', "\\\"")
+        ));
     }
 
+    content.push_str("}\n");
     content
 }
 
 /// Generate a CUE file with capabilities
 fn cue_with_capabilities(vars: Vec<(String, String, Option<String>)>) -> String {
-    let mut content = String::from("package env\n\n");
+    let mut content = String::from("package env\n\nenv: {\n");
 
     for (key, value, capability) in vars {
         if let Some(cap) = capability {
             content.push_str(&format!(
-                "{}: \"{}\" @capability(\"{}\")\n",
+                "    {}: \"{}\" @capability(\"{}\")\n",
                 key,
                 value.replace('"', "\\\""),
                 cap
             ));
         } else {
-            content.push_str(&format!("{}: \"{}\"\n", key, value.replace('"', "\\\"")));
+            content.push_str(&format!(
+                "    {}: \"{}\"\n",
+                key,
+                value.replace('"', "\\\"")
+            ));
         }
     }
 
+    content.push_str("}\n");
     content
 }
 
@@ -62,30 +72,35 @@ fn cue_with_environments(
     global_vars: Vec<(String, String)>,
     environments: HashMap<String, Vec<(String, String)>>,
 ) -> String {
-    let mut content = String::from("package env\n\n");
+    let mut content = String::from("package env\n\nenv: {\n");
 
     // Global variables
     for (key, value) in global_vars {
-        content.push_str(&format!("{}: \"{}\"\n", key, value.replace('"', "\\\"")));
+        content.push_str(&format!(
+            "    {}: \"{}\"\n",
+            key,
+            value.replace('"', "\\\"")
+        ));
     }
 
     // Environments
     if !environments.is_empty() {
-        content.push_str("\nenvironment: {\n");
+        content.push_str("\n    environment: {\n");
         for (env_name, vars) in environments {
-            content.push_str(&format!("    {}: {{\n", env_name));
+            content.push_str(&format!("        {}: {{\n", env_name));
             for (key, value) in vars {
                 content.push_str(&format!(
-                    "        {}: \"{}\"\n",
+                    "            {}: \"{}\"\n",
                     key,
                     value.replace('"', "\\\"")
                 ));
             }
-            content.push_str("    }\n");
+            content.push_str("        }\n");
         }
-        content.push_str("}\n");
+        content.push_str("    }\n");
     }
 
+    content.push_str("}\n");
     content
 }
 
@@ -414,7 +429,7 @@ proptest! {
             .replace('\n', "\\n")
             .replace('\t', "\\t");
 
-        let content = format!("package env\n\n{}: \"{}\"\n", key, escaped_value);
+        let content = format!("package env\n\nenv: {{\n    {}: \"{}\"\n}}\n", key, escaped_value);
         fs::write(&cue_file, content).unwrap();
 
         let options = ParseOptions::default();
@@ -455,20 +470,20 @@ proptest! {
         let temp_dir = TempDir::new().unwrap();
         let cue_file = temp_dir.path().join("env.cue");
 
-        let mut content = String::from("package env\n\n");
+        let mut content = String::from("package env\n\nenv: {\n");
 
         // Write base variables
         for (key, value) in &base_vars {
-            content.push_str(&format!("{}: \"{}\"\n", key, value.replace('"', "\\\"")));
+            content.push_str(&format!("    {}: \"{}\"\n", key, value.replace('"', "\\\"")));
         }
 
         // Write environment with overrides
-        content.push_str(&format!("\nenvironment: {{\n    {}: {{\n", env_name));
+        content.push_str(&format!("\n    environment: {{\n        {}: {{\n", env_name));
         for &idx in &valid_indices {
             let key = &base_keys[idx];
-            content.push_str(&format!("        {}: \"OVERRIDDEN_{}\"\n", key, key));
+            content.push_str(&format!("            {}: \"OVERRIDDEN_{}\"\n", key, key));
         }
-        content.push_str("    }\n}\n");
+        content.push_str("        }\n    }\n}\n");
 
         fs::write(&cue_file, content).unwrap();
 

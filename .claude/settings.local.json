@@ -5,7 +5,10 @@
       "Bash(cargo:*)",
       "Bash(nix:*)",
       "Bash(./scripts/test-examples.sh:*)",
-      "Bash(gh pr view:*)"
+      "Bash(gh pr view:*)",
+      "Bash(RUST_BACKTRACE=1 nix develop --command cargo test test_command_capability_inference -- --nocapture)",
+      "Bash(ls:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

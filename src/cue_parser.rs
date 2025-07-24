@@ -8,6 +8,7 @@ use std::path::Path;
 #[link(name = "cue_bridge")]
 extern "C" {
     fn cue_parse_string(content: *const c_char) -> *mut c_char;
+    fn cue_eval_package(dir_path: *const c_char, package_name: *const c_char) -> *mut c_char;
     fn cue_free_string(s: *mut c_char);
 }
 
@@ -71,6 +72,109 @@ impl CueParser {
         };
 
         Self::parse_content_with_options(&content, options)
+    }
+
+    pub fn eval_package(dir: &Path, package_name: &str) -> Result<HashMap<String, String>> {
+        match Self::eval_package_with_options(dir, package_name, &ParseOptions::default()) {
+            Ok(result) => Ok(result.variables),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn eval_package_with_options(
+        dir: &Path,
+        package_name: &str,
+        options: &ParseOptions,
+    ) -> Result<ParseResult> {
+        let c_dir = match CString::new(dir.to_string_lossy().as_ref()) {
+            Ok(s) => s,
+            Err(e) => {
+                return Err(Error::ffi(
+                    "cue_eval_package",
+                    format!("failed to create C string from directory path: {e}"),
+                ))
+            }
+        };
+
+        let c_package = match CString::new(package_name) {
+            Ok(s) => s,
+            Err(e) => {
+                return Err(Error::ffi(
+                    "cue_eval_package",
+                    format!("failed to create C string from package name: {e}"),
+                ))
+            }
+        };
+
+        let result_ptr = unsafe { cue_eval_package(c_dir.as_ptr(), c_package.as_ptr()) };
+
+        if result_ptr.is_null() {
+            return Err(Error::cue_parse(dir, "CUE parser returned null pointer"));
+        }
+
+        let result_cstr = unsafe { CStr::from_ptr(result_ptr) };
+        let result_str = match result_cstr.to_str() {
+            Ok(s) => s,
+            Err(e) => {
+                unsafe { cue_free_string(result_ptr) };
+                return Err(Error::ffi(
+                    "cue_eval_package",
+                    format!("failed to convert C string to Rust string: {e}"),
+                ));
+            }
+        };
+
+        let parse_result = if result_str.is_empty() {
+            ParseResult {
+                variables: HashMap::new(),
+                commands: HashMap::new(),
+            }
+        } else {
+            // Parse JSON result
+            let json_value: serde_json::Value = match serde_json::from_str(result_str) {
+                Ok(v) => v,
+                Err(e) => {
+                    unsafe { cue_free_string(result_ptr) };
+                    return Err(Error::Json {
+                        message: "failed to parse JSON result from CUE parser".to_string(),
+                        source: e,
+                    });
+                }
+            };
+
+            // Check if it's an error response
+            if let serde_json::Value::Object(ref map) = json_value {
+                if let Some(serde_json::Value::String(error)) = map.get("error") {
+                    unsafe { cue_free_string(result_ptr) };
+                    return Err(Error::cue_parse(dir, error.clone()));
+                }
+            }
+
+            // Deserialize into structured result
+            let cue_result: CueParseResult = match serde_json::from_value(json_value) {
+                Ok(r) => r,
+                Err(e) => {
+                    unsafe { cue_free_string(result_ptr) };
+                    return Err(Error::Json {
+                        message: "failed to parse CUE result structure".to_string(),
+                        source: e,
+                    });
+                }
+            };
+
+            match Self::build_parse_result(cue_result, options) {
+                Ok(r) => r,
+                Err(e) => {
+                    unsafe { cue_free_string(result_ptr) };
+                    return Err(e);
+                }
+            }
+        };
+
+        // Free the C string
+        unsafe { cue_free_string(result_ptr) };
+
+        Ok(parse_result)
     }
 
     pub fn parse_content(content: &str) -> Result<HashMap<String, String>> {
@@ -280,12 +384,14 @@ mod tests {
 
     #[test]
     fn test_parse_simple_env() {
-        let content = r#"package env
+        let content = r#"package cuenv
 
-DATABASE_URL: "postgres://localhost/mydb"
-API_KEY: "secret123"
-DEBUG: true
-PORT: 3000"#;
+env: {
+    DATABASE_URL: "postgres://localhost/mydb"
+    API_KEY: "secret123"
+    DEBUG: true
+    PORT: 3000
+}"#;
 
         let result = CueParser::parse_content(content).unwrap();
         assert_eq!(
@@ -299,15 +405,17 @@ PORT: 3000"#;
 
     #[test]
     fn test_parse_with_comments() {
-        let content = r#"package env
+        let content = r#"package cuenv
 
-// This is a comment
-DATABASE_URL: "postgres://localhost/mydb"
-// Multi-line comments in CUE use //
-// not /* */
-API_KEY: "secret123"
-// Another comment
-DEBUG: true"#;
+env: {
+    // This is a comment
+    DATABASE_URL: "postgres://localhost/mydb"
+    // Multi-line comments in CUE use //
+    // not /* */
+    API_KEY: "secret123"
+    // Another comment
+    DEBUG: true
+}"#;
 
         let result = CueParser::parse_content(content).unwrap();
         assert_eq!(
@@ -320,17 +428,19 @@ DEBUG: true"#;
 
     #[test]
     fn test_parse_cue_features() {
-        let content = r#"package env
+        let content = r#"package cuenv
 
-// CUE supports string interpolation
-BASE_URL: "https://api.example.com"
-API_ENDPOINT: "\(BASE_URL)/v1"
-
-// Default values
-PORT: *3000 | int
-
-// Constraints
-TIMEOUT: >=0 & <=3600 & int | *30"#;
+env: {
+    // CUE supports string interpolation
+    BASE_URL: "https://api.example.com"
+    API_ENDPOINT: "\(BASE_URL)/v1"
+    
+    // Default values
+    PORT: *3000 | int
+    
+    // Constraints
+    TIMEOUT: >=0 & <=3600 & int | *30
+}"#;
 
         let result = CueParser::parse_content(content).unwrap();
         // The CUE parser will evaluate these expressions
@@ -341,31 +451,35 @@ TIMEOUT: >=0 & <=3600 & int | *30"#;
     #[test]
     fn test_package_requirement() {
         let content = r#"{
-            DATABASE_URL: "postgres://localhost/mydb"
+            env: {
+                DATABASE_URL: "postgres://localhost/mydb"
+            }
         }"#;
 
         let result = CueParser::parse_content(content);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.to_string().contains("package env"));
+        assert!(err.to_string().contains("package cuenv"));
     }
 
     #[test]
     fn test_parse_with_environments() {
-        let content = r#"package env
+        let content = r#"package cuenv
 
-DATABASE_URL: "postgres://localhost/mydb"
-API_KEY: "secret123"
-PORT: 3000
-
-environment: {
-    production: {
-        DATABASE_URL: "postgres://prod.example.com/mydb"
-        PORT: 8080
-    }
-    staging: {
-        DATABASE_URL: "postgres://staging.example.com/mydb"
-        API_KEY: "staging-key"
+env: {
+    DATABASE_URL: "postgres://localhost/mydb"
+    API_KEY: "secret123"
+    PORT: 3000
+    
+    environment: {
+        production: {
+            DATABASE_URL: "postgres://prod.example.com/mydb"
+            PORT: 8080
+        }
+        staging: {
+            DATABASE_URL: "postgres://staging.example.com/mydb"
+            API_KEY: "staging-key"
+        }
     }
 }"#;
 
@@ -407,12 +521,14 @@ environment: {
 
     #[test]
     fn test_parse_with_capabilities() {
-        let content = r#"package env
+        let content = r#"package cuenv
 
-DATABASE_URL: "postgres://localhost/mydb"
-API_KEY: "secret123"
-AWS_ACCESS_KEY: "aws-key" @capability("aws")
-AWS_SECRET_KEY: "aws-secret" @capability("aws")"#;
+env: {
+    DATABASE_URL: "postgres://localhost/mydb"
+    API_KEY: "secret123"
+    AWS_ACCESS_KEY: "aws-key" @capability("aws")
+    AWS_SECRET_KEY: "aws-secret" @capability("aws")
+}"#;
 
         // Test without capability filter
         let result = CueParser::parse_content(content).unwrap();
@@ -445,18 +561,20 @@ AWS_SECRET_KEY: "aws-secret" @capability("aws")"#;
 
     #[test]
     fn test_parse_with_commands() {
-        let content = r#"package env
+        let content = r#"package cuenv
 
-DATABASE_URL: "postgres://localhost/mydb"
-
-Commands: {
-    migrate: {
-        capabilities: ["database"]
+env: {
+    DATABASE_URL: "postgres://localhost/mydb"
+    
+    Commands: {
+        migrate: {
+            capabilities: ["database"]
+        }
+        deploy: {
+            capabilities: ["aws", "docker"]
+        }
+        test: {}
     }
-    deploy: {
-        capabilities: ["aws", "docker"]
-    }
-    test: {}
 }"#;
 
         let options = ParseOptions::default();
@@ -484,16 +602,18 @@ Commands: {
 
     #[test]
     fn test_parse_with_env_and_capabilities() {
-        let content = r#"package env
+        let content = r#"package cuenv
 
-DATABASE_URL: "postgres://localhost/mydb"
-API_KEY: "secret123"
-AWS_ACCESS_KEY: "aws-key-dev" @capability("aws")
-
-environment: {
-    production: {
-        DATABASE_URL: "postgres://prod.example.com/mydb"
-        AWS_ACCESS_KEY: "aws-key-prod" @capability("aws")
+env: {
+    DATABASE_URL: "postgres://localhost/mydb"
+    API_KEY: "secret123"
+    AWS_ACCESS_KEY: "aws-key-dev" @capability("aws")
+    
+    environment: {
+        production: {
+            DATABASE_URL: "postgres://prod.example.com/mydb"
+            AWS_ACCESS_KEY: "aws-key-prod" @capability("aws")
+        }
     }
 }"#;
 
@@ -514,7 +634,9 @@ environment: {
 
     #[test]
     fn test_empty_cue_file() {
-        let content = r#"package env"#;
+        let content = r#"package cuenv
+
+env: {}"#;
 
         let result = CueParser::parse_content(content).unwrap();
         assert_eq!(result.len(), 0);
@@ -523,18 +645,20 @@ environment: {
     #[test]
     fn test_structured_secrets() {
         // Test with simpler CUE syntax that the parser can handle
-        let content = r#"package env
+        let content = r#"package cuenv
 
-// Regular variables
-DATABASE_URL: "postgres://localhost/mydb"
-
-// Secret references in string format
-AWS_KEY: "op://Personal/aws/key"
-DB_PASS: "op://Work/database/password"
-
-// Traditional secret format
-STRIPE_KEY: "op://Work/stripe/key"
-GCP_SECRET: "gcp-secret://my-project/api-key""#;
+env: {
+    // Regular variables
+    DATABASE_URL: "postgres://localhost/mydb"
+    
+    // Secret references in string format
+    AWS_KEY: "op://Personal/aws/key"
+    DB_PASS: "op://Work/database/password"
+    
+    // Traditional secret format
+    STRIPE_KEY: "op://Work/stripe/key"
+    GCP_SECRET: "gcp-secret://my-project/api-key"
+}"#;
 
         let result = CueParser::parse_content(content).unwrap();
 
@@ -561,11 +685,13 @@ GCP_SECRET: "gcp-secret://my-project/api-key""#;
 
     #[test]
     fn test_parse_with_nested_objects() {
-        let content = r#"package env
+        let content = r#"package cuenv
 
-DATABASE: {
-    host: "localhost"
-    port: 5432
+env: {
+    DATABASE: {
+        host: "localhost"
+        port: 5432
+    }
 }"#;
 
         // The parser should skip non-primitive values
@@ -575,15 +701,17 @@ DATABASE: {
 
     #[test]
     fn test_value_types() {
-        let content = r#"package env
+        let content = r#"package cuenv
 
-STRING_VAL: "hello"
-INT_VAL: 42
-FLOAT_VAL: 3.14
-BOOL_VAL: true
-NULL_VAL: null
-ARRAY_VAL: [1, 2, 3]
-OBJECT_VAL: {nested: "value"}"#;
+env: {
+    STRING_VAL: "hello"
+    INT_VAL: 42
+    FLOAT_VAL: 3.14
+    BOOL_VAL: true
+    NULL_VAL: null
+    ARRAY_VAL: [1, 2, 3]
+    OBJECT_VAL: {nested: "value"}
+}"#;
 
         let result = CueParser::parse_content(content).unwrap();
         assert_eq!(result.get("STRING_VAL").unwrap(), "hello");

@@ -12,11 +12,13 @@ fn test_cuenv_run_with_cue_file() {
         &env_file,
         r#"package env
 
+env: {
 APP_NAME: "integration-test"
 VERSION: "1.0.0"
 FULL_NAME: "\(APP_NAME)-\(VERSION)"
 PORT: 9999
 DEBUG: true
+}
 "#,
     )
     .unwrap();
@@ -61,7 +63,9 @@ fn test_cuenv_run_hermetic_environment() {
         &env_file,
         r#"package env
 
+env: {
 FROM_CUE: "cue-value"
+}
 "#,
     )
     .unwrap();
@@ -103,7 +107,9 @@ fn test_cuenv_run_preserves_required_vars() {
         &env_file,
         r#"package env
 
+env: {
 TEST: "value"
+}
 "#,
     )
     .unwrap();

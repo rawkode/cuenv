@@ -51,6 +51,7 @@
           cargo-audit
           gopls
           gotools
+          cue
         ];
 
         # Vendor Go dependencies
@@ -76,7 +77,7 @@
           
           outputHashMode = "recursive";
           outputHashAlgo = "sha256";
-          outputHash = "sha256-1/rEFyvRPwXFX2J6L4JMr3whD/Vnq0L++Gz5DbKrG0o=";
+          outputHash = "sha256-l/urNOAK9q5nflBt2ovfbaM3WNCn0ouZlc9RJq/+eKk=";
         };
 
         cuenv = pkgs.rustPlatform.buildRustPackage {
