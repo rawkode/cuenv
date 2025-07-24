@@ -1,20 +1,25 @@
 package env
 
-// Hook definitions at root level
-hooks: {
-    // Hook that runs when entering the environment
-    onEnter: {
-        command: "echo"
-        args: ["🚀 Environment activated! Database: $DATABASE_URL"]
-    }
-    
-    // Hook that runs when exiting the environment
-    onExit: {
-        command: "echo"
-        args: ["👋 Cleaning up environment..."]
-    }
-}
+import "github.com/rawkode/cuenv"
 
-// Regular environment variables
-DATABASE_URL: "postgres://localhost/mydb"
-API_KEY: "secret123"
+// Environment configuration with hooks
+env: cuenv.#Env & {
+	// Regular environment variables
+	DATABASE_URL: "postgres://localhost/mydb"
+	API_KEY: "secret123"
+	
+	// Hook definitions
+	hooks: {
+		// Hook that runs when entering the environment
+		onEnter: {
+			command: "echo"
+			args: ["🚀 Environment activated! Database: $DATABASE_URL"]
+		}
+		
+		// Hook that runs when exiting the environment
+		onExit: {
+			command: "echo"
+			args: ["👋 Cleaning up environment..."]
+		}
+	}
+}

@@ -1,23 +1,28 @@
 package env
 
-// Child overrides - these will override parent values
-DATABASE_URL: "postgres://localhost/child-db"
-API_KEY:      "child-api-key"
+import "github.com/rawkode/cuenv"
 
-// Additional child-specific variables
-CHILD_SERVICE: "enabled"
-CHILD_PORT:    "4000"
+// Child configuration
+env: cuenv.#Env & {
+	// Child overrides - these will override parent values
+	DATABASE_URL: "postgres://localhost/child-db"
+	API_KEY:      "child-api-key"
 
-// Note: In the new structure, composition happens through CUE imports
-// rather than automatic parent directory loading. To reference parent
-// values, you would import the parent package explicitly.
+	// Additional child-specific variables
+	CHILD_SERVICE: "enabled"
+	CHILD_PORT:    "4000"
 
-// Additional commands for child
-Commands: {
-	migrate: {
-		capabilities: ["database"]
-	}
-	deploy: {
-		capabilities: ["aws", "docker"]
+	// Note: In the new structure, composition happens through CUE imports
+	// rather than automatic parent directory loading. To reference parent
+	// values, you would import the parent package explicitly.
+
+	// Additional commands for child
+	Commands: {
+		migrate: {
+			capabilities: ["database"]
+		}
+		deploy: {
+			capabilities: ["aws", "docker"]
+		}
 	}
 }
