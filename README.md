@@ -192,8 +192,8 @@ env: cuenv.#Env & {
     DATABASE_USER: "myapp"
 
     // Secret references - 1Password format
-    DATABASE_PASSWORD: "op://Personal/database/password"
-    API_KEY: "op://Work/myapp-api-key/field"
+    DATABASE_PASSWORD: cuenv.#OnePasswordRef & {ref: "op://Personal/database/password"}
+    API_KEY: cuenv.#OnePasswordRef & {ref: "op://Work/myapp-api-key/field"}
 
     // Secret references - Various providers
     GITHUB_TOKEN: "github://myorg/myrepo/GITHUB_TOKEN"

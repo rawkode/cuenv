@@ -259,13 +259,14 @@ Commands: {
 ```cue
 package env
 
-// URL format
-PASSWORD: "op://vault/item/field"
-API_KEY: "op://vault/item/section/field"
+import "github.com/rawkode/cuenv/cue"
 
-// Structured format
-#OnePasswordRef: { ref: string }
-SECRET: #OnePasswordRef & { ref: "op://Personal/secret" }
+// Structured format (recommended)
+PASSWORD: cuenv.#OnePasswordRef & {ref: "op://vault/item/field"}
+API_KEY: cuenv.#OnePasswordRef & {ref: "op://vault/item/section/field"}
+
+// Example with capability
+SECRET: cuenv.#OnePasswordRef & {ref: "op://Personal/secret"} @capability("security")
 ```
 
 ### GCP Secrets Format

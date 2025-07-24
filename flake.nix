@@ -66,9 +66,6 @@
             # YAML formatter
             yamlfmt.enable = true;
 
-            # Markdown formatter - using prettier instead of mdformat to preserve frontmatter
-            # mdformat.enable = true;
-
             # Prettier formatter - handles markdown with frontmatter support
             prettier = {
               enable = true;
@@ -83,14 +80,14 @@
 
         # Development tools
         devTools = with pkgs; [
-          rust-analyzer
           cargo-watch
           cargo-edit
           cargo-outdated
           cargo-audit
+          cue
           gopls
           gotools
-          cue
+          rust-analyzer
           treefmt.config.build.wrapper
         ];
 
@@ -164,7 +161,7 @@
 
           meta = with pkgs.lib; {
             description = "A direnv alternative that uses CUE files for environment configuration";
-            homepage = "https://github.com/korora-tech/cuenv";
+            homepage = "https://github.com/rawkode/cuenv";
             license = licenses.mit;
             maintainers = [ ];
           };

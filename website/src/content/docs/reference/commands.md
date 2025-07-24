@@ -294,8 +294,10 @@ cuenv run -e production -- node server.js
 cat > env.cue << 'EOF'
 package env
 
+import "github.com/rawkode/cuenv/cue"
+
 DATABASE_URL: "postgres://user:pass@localhost/db"
-API_KEY: "op://Work/MyApp/api_key"
+API_KEY: cuenv.#OnePasswordRef & {ref: "op://Work/MyApp/api_key"}
 EOF
 
 # Run with resolved secrets
