@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Crates.io](https://img.shields.io/crates/v/cuenv.svg)](https://crates.io/crates/cuenv)
 
-A direnv alternative that uses CUE files for environment configuration.
+A direnv alternative that uses CUE packages for environment configuration.
 
 ## Development
 
@@ -78,7 +78,7 @@ cuenv init fish | source
 
 ## Usage
 
-1. Create an `env.cue` file in your project directory:
+1. Create a CUE package in your project directory with `.cue` files:
 
 ```cue
 package env
@@ -97,7 +97,7 @@ env: cuenv.#Env & {
 
 ## Commands
 
-- `cuenv` - Check if env.cue exists in current directory
+- `cuenv` - Load CUE package from current directory
 - `cuenv load [directory]` - Manually load environment from a directory
 - `cuenv unload` - Unload the current environment
 - `cuenv status` - Show environment changes
@@ -108,7 +108,7 @@ env: cuenv.#Env & {
 ## Features
 
 - Automatic environment loading when entering directories
-- Hierarchical environment loading (loads parent env.cue files first)
+- CUE package-based environment loading
 - Shell variable expansion support
 - Support for multiple shells (bash, zsh, fish)
 - Type-safe configuration with CUE
@@ -121,7 +121,7 @@ env: cuenv.#Env & {
 
 ## CUE File Format
 
-Your `env.cue` files should use the cuenv package schema:
+Your CUE package should use the cuenv package schema:
 
 ```cue
 package env
@@ -153,8 +153,8 @@ env: cuenv.#Env & {
 
 ## How It Works
 
-1. When you cd into a directory, cuenv checks for `env.cue` files
-1. It loads all env.cue files from the root directory to the current directory
+1. When you cd into a directory, cuenv checks for CUE packages (directories with `.cue` files)
+1. It loads the CUE package from the current directory
 1. Environment variables are set in your shell
 1. When you leave the directory, the environment is restored
 

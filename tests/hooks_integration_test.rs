@@ -7,7 +7,7 @@ fn test_hooks_integration() {
     let dir = TempDir::new().unwrap();
     let cue_file = dir.path().join("test.cue");
 
-    let content = r#"package cuenv
+    let content = r#"package env
 
 hooks: {
     onEnter: {
@@ -28,7 +28,7 @@ env: {
     fs::write(&cue_file, content).unwrap();
 
     let options = ParseOptions::default();
-    let result = CueParser::parse_env_file_with_options(&cue_file, &options).unwrap();
+    let result = CueParser::eval_package_with_options(dir.path(), "env", &options).unwrap();
 
     // Check variables
     assert_eq!(result.variables.get("TEST_VAR").unwrap(), "test_value");

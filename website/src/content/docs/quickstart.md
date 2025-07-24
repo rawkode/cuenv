@@ -5,16 +5,16 @@ description: Get up and running with cuenv in 5 minutes
 
 This guide will walk you through creating your first cuenv configuration and using it in a project.
 
-## Step 1: Create Your First env.cue
+## Step 1: Create Your First CUE Package
 
-Create a new directory for your project and add an `env.cue` file:
+Create a new directory for your project and add CUE files:
 
 ```bash
 mkdir my-project
 cd my-project
 ```
 
-Create `env.cue` with your favorite editor:
+Create a CUE file with your favorite editor:
 
 ```cue title="env.cue"
 package env
@@ -64,29 +64,39 @@ echo $DATABASE_URL
 # Output: postgres://myapp@localhost:5432/myapp_dev
 ```
 
-## Step 3: Hierarchical Configuration
+## Step 3: Multiple CUE Files
 
-Create a parent configuration that will be shared across projects:
+You can split your configuration across multiple CUE files in the same package:
 
 ```bash
-# In the parent directory
-cd ..
-cat > env.cue << 'EOF'
+# Create a database configuration file
+cat > database.cue << 'EOF'
 package env
 
-// Shared organizational settings
-ORG_NAME: "My Company"
-DEFAULT_REGION: "us-east-1"
-LOG_LEVEL: "info"
+// Database-specific settings
+DATABASE_POOL_SIZE: 10
+DATABASE_TIMEOUT: 30
+DATABASE_SSL: true
+EOF
+
+# Create an app configuration file
+cat > app.cue << 'EOF'
+package env
+
+// App-specific settings
+APP_VERSION: "1.0.0"
+APP_TIMEOUT: 60
 EOF
 ```
 
-Now your project inherits these values:
+All files in the package are loaded together:
 
 ```bash
-cd my-project
-echo $ORG_NAME
-# Output: My Company
+echo $DATABASE_POOL_SIZE
+# Output: 10
+
+echo $APP_VERSION
+# Output: 1.0.0
 ```
 
 ## Step 4: Using Secrets (Production)

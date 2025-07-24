@@ -6,6 +6,7 @@ package main
 import "C"
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"unsafe"
@@ -15,40 +16,6 @@ import (
 	"cuelang.org/go/cue/load"
 	"cuelang.org/go/mod/modconfig"
 )
-
-//export cue_parse_string
-func cue_parse_string(content *C.char) *C.char {
-	goContent := C.GoString(content)
-
-	// Check if the content starts with "package env" or "package cuenv"
-	trimmed := strings.TrimSpace(goContent)
-	if !strings.HasPrefix(trimmed, "package env") && !strings.HasPrefix(trimmed, "package cuenv") {
-		errMsg := map[string]string{"error": "CUE file must start with 'package env' or 'package cuenv'"}
-		errBytes, _ := json.Marshal(errMsg)
-		return C.CString(string(errBytes))
-	}
-
-	ctx := cuecontext.New()
-	v := ctx.CompileString(goContent)
-
-	if v.Err() != nil {
-		// Try to return a more helpful error message
-		errMsg := map[string]string{"error": v.Err().Error()}
-		errBytes, _ := json.Marshal(errMsg)
-		return C.CString(string(errBytes))
-	}
-
-	// Use the shared extraction logic
-	result := extractCueData(v)
-
-	// Convert to JSON
-	jsonBytes, err := json.Marshal(result)
-	if err != nil {
-		return C.CString("")
-	}
-
-	return C.CString(string(jsonBytes))
-}
 
 // extractSecretReference checks if a CUE value has a resolver field, indicating it's a secret
 func extractSecretReference(val cue.Value) string {
@@ -115,6 +82,13 @@ func cue_free_string(s *C.char) {
 func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
 	goDir := C.GoString(dirPath)
 	goPkg := C.GoString(packageName)
+
+	// Only allow loading the "env" package
+	if goPkg != "env" {
+		errMsg := map[string]string{"error": fmt.Sprintf("Only 'env' package is supported, got '%s'. Please ensure your .cue files use 'package env'", goPkg)}
+		errBytes, _ := json.Marshal(errMsg)
+		return C.CString(string(errBytes))
+	}
 
 	// Create a registry for module resolution
 	registry, err := modconfig.NewRegistry(&modconfig.Config{

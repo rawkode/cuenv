@@ -104,6 +104,21 @@ fn cue_with_environments(
     content
 }
 
+#[test]
+fn test_parse_empty_file_is_valid() {
+    let temp_dir = TempDir::new().unwrap();
+    let cue_file = temp_dir.path().join("env.cue");
+    let content = "package env\n";
+    fs::write(&cue_file, content).unwrap();
+
+    let options = ParseOptions::default();
+
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+
+    assert!(result.variables.is_empty());
+    assert!(result.commands.is_empty());
+}
+
 proptest! {
     #[test]
     fn test_parse_simple_env_vars(
@@ -132,7 +147,7 @@ proptest! {
             capabilities: vec![],
         };
 
-        let result = CueParser::parse_env_file_with_options(&cue_file, &options).unwrap();
+        let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
 
         // All variables should be parsed
         prop_assert_eq!(result.variables.len(), unique_vars.len());
@@ -185,10 +200,11 @@ proptest! {
             capabilities: all_capabilities.clone(),
         };
 
-        let result = CueParser::parse_env_file_with_options(&cue_file, &options).unwrap();
+        let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
 
         // When capabilities filter is empty, all variables are included
-        // When capabilities filter is non-empty, only matching variables are included
+        // When capabilities filter is non-empty, variables without capabilities are always included,
+        // and variables with capabilities are only included if they match
         if all_capabilities.is_empty() {
             // No filter active - all variables should be included
             prop_assert_eq!(result.variables.len(), unique_vars.len());
@@ -199,17 +215,20 @@ proptest! {
                 );
             }
         } else {
-            // Filter active - only variables with matching capabilities
+            // Filter active - variables without capabilities + variables with matching capabilities
             let expected_count = unique_vars.iter()
-                .filter(|(_, _, cap)| cap.is_some() && all_capabilities.contains(&cap.as_ref().unwrap()))
+                .filter(|(_, _, cap)| cap.is_none() || all_capabilities.contains(&cap.as_ref().unwrap()))
                 .count();
 
             prop_assert_eq!(result.variables.len(), expected_count);
 
-            // Check that variables with capabilities were parsed
-            for (key, _, cap) in &unique_vars {
-                if cap.is_some() && all_capabilities.contains(&cap.as_ref().unwrap()) {
-                    prop_assert!(result.variables.contains_key(key));
+            // Check that appropriate variables were parsed
+            for (key, value, cap) in &unique_vars {
+                if cap.is_none() || all_capabilities.contains(&cap.as_ref().unwrap()) {
+                    prop_assert_eq!(
+                        result.variables.get(key).map(|s| s.as_str()),
+                        Some(value.as_str())
+                    );
                 }
             }
         }
@@ -280,7 +299,7 @@ proptest! {
                 capabilities: vec![],
                 };
 
-            let result = CueParser::parse_env_file_with_options(&cue_file, &options).unwrap();
+            let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
 
             // Should have global vars + environment-specific vars
             let mut all_expected = HashMap::new();
@@ -300,23 +319,6 @@ proptest! {
                 );
             }
         }
-    }
-
-    #[test]
-    fn test_parse_empty_file_is_valid(
-        package_name in prop::strategy::Just("env").prop_union(prop::strategy::Just("cuenv"))
-    ) {
-        let temp_dir = TempDir::new().unwrap();
-        let cue_file = temp_dir.path().join("env.cue");
-        let content = format!("package {}\n", package_name);
-        fs::write(&cue_file, content).unwrap();
-
-        let options = ParseOptions::default();
-
-        let result = CueParser::parse_env_file_with_options(&cue_file, &options).unwrap();
-
-        prop_assert!(result.variables.is_empty());
-        prop_assert!(result.commands.is_empty());
     }
 
     #[test]
@@ -390,11 +392,11 @@ proptest! {
             capabilities: selected_caps.clone(),
         };
 
-        let result = CueParser::parse_env_file_with_options(&cue_file, &options).unwrap();
+        let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
 
-        // When capabilities are specified, only variables with matching capabilities are included
-        // Variables without capabilities are excluded when capability filter is active
-        let expected_count = unique_vars_with_caps.iter()
+        // When capabilities are specified, variables without capabilities are always included,
+        // and variables with capabilities are only included if they match
+        let expected_count = unique_vars_without_caps.len() + unique_vars_with_caps.iter()
             .filter(|(_, _, cap)| selected_caps.contains(cap))
             .count();
 
@@ -435,7 +437,7 @@ proptest! {
         let options = ParseOptions::default();
 
         // Should be able to parse without panic
-        let result = CueParser::parse_env_file_with_options(&cue_file, &options);
+        let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options);
 
         // Parser might fail on invalid escape sequences, which is expected
         if result.is_ok() {
@@ -492,7 +494,7 @@ proptest! {
             capabilities: vec![],
         };
 
-        let result = CueParser::parse_env_file_with_options(&cue_file, &options).unwrap();
+        let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
 
         // All base variables should be present
         prop_assert_eq!(result.variables.len(), base_vars.len());

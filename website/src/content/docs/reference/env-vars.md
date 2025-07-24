@@ -7,22 +7,6 @@ description: Complete list of environment variables used by cuenv
 
 These environment variables control cuenv's behavior.
 
-### CUENV_FILE
-
-Specifies a custom filename for environment configuration files.
-
-- **Type:** String
-- **Default:** `env.cue`
-- **Examples:** `app.cue`, `config.cue`, `.env.cue`
-
-```bash
-# Use a different filename
-export CUENV_FILE="config.cue"
-
-# cuenv will now look for config.cue instead of env.cue
-cd /path/to/project  # Loads from config.cue if present
-```
-
 ### CUENV_ENV
 
 Selects which environment configuration to load.

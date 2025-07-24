@@ -97,14 +97,39 @@ for /f "tokens=*" %%i in ('cuenv hook cmd') do (
 
     pub fn generate_hook_output(shell: &str, current_dir: &Path) -> Result<String> {
         let cuenv_file = current_dir.join(".cuenv_current");
-        let env_cue_exists = current_dir.join("env.cue").exists();
+        // Check if current directory has any .cue files (indicating a CUE package)
+        let has_cue_package = std::fs::read_dir(current_dir)
+            .map(|entries| {
+                entries.filter_map(|e| e.ok()).any(|entry| {
+                    entry
+                        .path()
+                        .extension()
+                        .and_then(|ext| ext.to_str())
+                        .map(|ext| ext == "cue")
+                        .unwrap_or(false)
+                })
+            })
+            .unwrap_or(false);
 
         // Check if we have a previous environment stored
         let previous_dir = if cuenv_file.exists() {
             match std::fs::read_to_string(&cuenv_file) {
                 Ok(content) => {
                     let dir = PathBuf::from(content.trim());
-                    if dir != current_dir && dir.join("env.cue").exists() {
+                    // Check if previous dir has CUE package
+                    let has_prev_package = std::fs::read_dir(&dir)
+                        .map(|entries| {
+                            entries.filter_map(|e| e.ok()).any(|entry| {
+                                entry
+                                    .path()
+                                    .extension()
+                                    .and_then(|ext| ext.to_str())
+                                    .map(|ext| ext == "cue")
+                                    .unwrap_or(false)
+                            })
+                        })
+                        .unwrap_or(false);
+                    if dir != current_dir && has_prev_package {
                         Some(dir)
                     } else {
                         None
@@ -156,7 +181,7 @@ for /f "tokens=*" %%i in ('cuenv hook cmd') do (
 
         // Generate the shell-specific hook output
         let env_output =
-            Self::generate_shell_specific_output(shell, current_dir, &cuenv_file, env_cue_exists)?;
+            Self::generate_shell_specific_output(shell, current_dir, &cuenv_file, has_cue_package)?;
 
         // Combine hook commands with environment management
         if hook_commands.is_empty() {
@@ -243,11 +268,11 @@ for /f "tokens=*" %%i in ('cuenv hook cmd') do (
         shell: &str,
         current_dir: &Path,
         cuenv_file: &Path,
-        env_cue_exists: bool,
+        has_cue_package: bool,
     ) -> Result<String> {
         match shell {
             "bash" | "zsh" => {
-                if env_cue_exists {
+                if has_cue_package {
                     Ok(format!(
                         r#"
 if [[ ! -f "{}" ]] || [[ "$(cat "{}" 2>/dev/null)" != "{}" ]]; then
@@ -277,7 +302,7 @@ fi
                 }
             }
             "fish" => {
-                if env_cue_exists {
+                if has_cue_package {
                     Ok(format!(
                         r#"
 if not test -f "{}"
@@ -308,7 +333,7 @@ end
                 }
             }
             "powershell" => {
-                if env_cue_exists {
+                if has_cue_package {
                     Ok(format!(
                         r#"
 if (-not (Test-Path "{}") -or ((Get-Content "{}" 2>$null) -ne "{}")) {{
@@ -344,7 +369,7 @@ if (Test-Path "{}") {{
                 }
             }
             "cmd" => {
-                if env_cue_exists {
+                if has_cue_package {
                     Ok(format!(
                         r#"
 @echo off
