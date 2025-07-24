@@ -97,7 +97,7 @@ After restarting your shell or sourcing your configuration file, verify the inst
 # Check if cuenv is installed
 cuenv --version
 
-# Create a test env.cue file
+# Create a test CUE file
 echo 'package env
 TEST_VAR: "Hello from cuenv!"' > env.cue
 

@@ -241,7 +241,7 @@ fn main() -> Result<()> {
                     // List available tasks
                     let tasks = env_manager.list_tasks();
                     if tasks.is_empty() {
-                        println!("No tasks defined in env.cue");
+                        println!("No tasks defined in the CUE package");
                     } else {
                         println!("Available tasks:");
                         for (name, description) in tasks {
@@ -297,7 +297,6 @@ fn main() -> Result<()> {
             std::process::exit(status);
         }
         None => {
-            let dir_manager = DirectoryManager::new();
             let current_dir = match DirectoryManager::get_current_directory() {
                 Ok(d) => d,
                 Err(e) => {
@@ -307,12 +306,13 @@ fn main() -> Result<()> {
                 }
             };
 
-            if dir_manager.should_load_env(&current_dir) {
-                let mut env_manager = EnvManager::new();
-                env_manager.load_env(&current_dir)?;
-                println!("cuenv: loading env.cue")
-            } else {
-                println!("cuenv: no env.cue found in current directory");
+            let mut env_manager = EnvManager::new();
+            match env_manager.load_env(&current_dir) {
+                Ok(()) => println!("cuenv: loaded CUE package from {}", current_dir.display()),
+                Err(e) => {
+                    eprintln!("cuenv: failed to load CUE package: {e}");
+                    return Err(e);
+                }
             }
         }
     }

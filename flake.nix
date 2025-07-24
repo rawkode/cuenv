@@ -113,10 +113,14 @@
           treefmt.config.build.wrapper
         ];
 
+        # Read version from Cargo.toml
+        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+        version = cargoToml.package.version;
+
         # Vendor Go dependencies
         goVendor = pkgs.stdenv.mkDerivation {
           pname = "cuenv-go-vendor";
-          version = "0.1.0";
+          version = version;
           src = ./libcue-bridge;
 
           nativeBuildInputs = [ pkgs.go_1_24 ];
@@ -141,7 +145,7 @@
 
         cuenv = pkgs.rustPlatform.buildRustPackage {
           pname = "cuenv";
-          version = "0.1.0";
+          version = version;
 
           src = ./.;
 

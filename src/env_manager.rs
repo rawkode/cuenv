@@ -136,6 +136,12 @@ impl EnvManager {
         package_name: &str,
         options: &ParseOptions,
     ) -> Result<()> {
+        // Only allow loading the "env" package
+        if package_name != "env" {
+            return Err(Error::configuration(format!(
+                "Only 'env' package is supported, got '{package_name}'. Please ensure your .cue files use 'package env'"
+            )));
+        }
         let parse_result = match CueParser::eval_package_with_options(dir, package_name, options) {
             Ok(result) => result,
             Err(e) => {
