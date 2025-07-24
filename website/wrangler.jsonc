@@ -1,9 +1,14 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "cuenv-dev",
+  "name": "cuenv-website",
   "compatibility_date": "2025-07-22",
   "assets": {
     "directory": "./dist"
-  }
+  },
+	"routes": [
+		{
+			"pattern": "cuenv.dev/",
+			"custom_domain": true,
+		}
+	]
 }
-
