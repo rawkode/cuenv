@@ -1,6 +1,7 @@
-______________________________________________________________________
-
-## title: CUE File Format description: Learn how to write CUE configuration files for cuenv
+---
+title: CUE File Format
+description: Learn how to write CUE configuration files for cuenv
+---
 
 CUE (Configure, Unify, Execute) is a powerful configuration language that provides type safety and validation. This guide covers how to use CUE with cuenv.
 

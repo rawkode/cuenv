@@ -1,6 +1,7 @@
-______________________________________________________________________
-
-## title: Command Reference description: Complete reference for all cuenv commands
+---
+title: Command Reference
+description: Complete reference for all cuenv commands
+---
 
 ## Overview
 

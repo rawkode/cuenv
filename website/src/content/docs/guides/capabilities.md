@@ -1,6 +1,7 @@
-______________________________________________________________________
-
-## title: Capabilities description: Control which environment variables are exposed based on command requirements
+---
+title: Capabilities
+description: Control which environment variables are exposed based on command requirements
+---
 
 Capabilities provide fine-grained control over which environment variables are exposed to specific commands. This security feature ensures that sensitive credentials are only available when needed.
 
@@ -73,19 +74,19 @@ DATABASE_URL: "postgres://..." @capability("database")
 Commands: {
     // Terraform needs multiple providers
     terraform: capabilities: ["aws", "cloudflare", "database"]
-    
+
     // AWS CLI needs AWS credentials
     aws: capabilities: ["aws"]
-    
+
     // Database tools
     psql: capabilities: ["database"]
     mysql: capabilities: ["database"]
     mongosh: capabilities: ["database"]
-    
+
     // CI/CD tools
     gh: capabilities: ["github"]
     glab: capabilities: ["gitlab"]
-    
+
     // Container tools
     docker: capabilities: ["docker"]
     kubectl: capabilities: ["kubernetes"]
@@ -244,10 +245,10 @@ API_ADMIN_KEY: "admin-key" @capability("api-admin")
 Commands: {
     // Read-only commands
     "api-client": capabilities: ["api-read"]
-    
+
     // Write commands get read + write
     "api-sync": capabilities: ["api-read", "api-write"]
-    
+
     // Admin commands get everything
     "api-admin": capabilities: ["api-read", "api-write", "api-admin"]
 }

@@ -1,6 +1,7 @@
-______________________________________________________________________
-
-## title: Managing Environments description: Learn how to manage multiple environments with cuenv
+---
+title: Managing Environments
+description: Learn how to manage multiple environments with cuenv
+---
 
 cuenv provides powerful features for managing different environments (development, staging, production) with environment-specific configurations and capability-based filtering.
 
@@ -80,7 +81,7 @@ environment: {
         API_URL: "https://api.example.com"
         WORKERS: 16
         // CACHE_TTL remains 300 (inherited)
-        
+
         // Add production-only values
         ENABLE_MONITORING: true
         SENTRY_DSN: "https://key@sentry.io/project"
@@ -343,7 +344,7 @@ environment: production: {
     DATABASE_URL: string
     API_KEY: string
     SENTRY_DSN: string
-    
+
     // Ensure specific values
     NODE_ENV: "production"
     DEBUG: false
@@ -464,7 +465,7 @@ package env
 environment: {
     "prod-us": { /* ... */ }
     "prod-eu": { /* ... */ }
-    
+
     // Aliases
     "prod": "prod-us"  // Default production is US
     "p": "prod-us"     // Short alias

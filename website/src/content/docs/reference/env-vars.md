@@ -1,6 +1,7 @@
-______________________________________________________________________
-
-## title: Environment Variables Reference description: Complete list of environment variables used by cuenv
+---
+title: Environment Variables Reference
+description: Complete list of environment variables used by cuenv
+---
 
 ## Configuration Variables
 

@@ -1,6 +1,7 @@
-______________________________________________________________________
-
-## title: Quick Start description: Get up and running with cuenv in 5 minutes
+---
+title: Quick Start
+description: Get up and running with cuenv in 5 minutes
+---
 
 This guide will walk you through creating your first cuenv configuration and using it in a project.
 
@@ -100,7 +101,7 @@ package env
 // 1Password secret reference
 DATABASE_PASSWORD: "op://Personal/myapp-db/password"
 
-// GCP Secret Manager reference  
+// GCP Secret Manager reference
 API_SECRET: "gcp-secret://my-project/api-secret-key"
 
 // Composed with resolved secrets

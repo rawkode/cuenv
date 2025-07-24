@@ -1,6 +1,7 @@
-______________________________________________________________________
-
-## title: Secret Management description: Securely manage secrets with 1Password and GCP Secrets Manager integration
+---
+title: Secret Management
+description: Securely manage secrets with 1Password and GCP Secrets Manager integration
+---
 
 cuenv provides built-in integration with popular secret managers, allowing you to reference secrets in your configuration without exposing them in plain text.
 
@@ -368,7 +369,7 @@ After (`env.cue`):
 package env
 
 DATABASE_URL: "op://Personal/MyApp/database_url"
-API_KEY: "op://Work/Stripe/secret_key" 
+API_KEY: "op://Work/Stripe/secret_key"
 JWT_SECRET: "gcp-secret://my-project/jwt-secret"
 ```
 

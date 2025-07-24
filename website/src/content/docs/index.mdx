@@ -16,25 +16,30 @@ hero:
       variant: minimal
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { Card, CardGrid } from "@astrojs/starlight/components";
 
 ## 🚀 Why cuenv?
 
 <div class="animate-fade-in">
-<CardGrid stagger>
-	<Card title="Type-Safe Configuration" icon="seti:config">
-		<span class="gradient-text">Validate at load time</span> with CUE's powerful type system. No more runtime surprises from typos or invalid values.
-	</Card>
-	<Card title="Hierarchical Loading" icon="seti:folder">
-		<span class="gradient-text">Share configurations</span> across projects. Parent directories automatically provide base settings.
-	</Card>
-	<Card title="Secret Management" icon="seti:lock">
-		<span class="gradient-text">Built-in security</span> with 1Password and GCP Secrets Manager. Automatic obfuscation prevents leaks.
-	</Card>
-	<Card title="Cross-Platform" icon="seti:code">
-		<span class="gradient-text">Works everywhere</span> - Linux, macOS, and Windows with native shell integrations.
-	</Card>
-</CardGrid>
+	<CardGrid stagger>
+		<Card title="Type-Safe Configuration" icon="seti:config">
+			<span class="gradient-text">Validate at load time</span> with CUE's
+			powerful type system. No more runtime surprises from typos or invalid
+			values.
+		</Card>
+		<Card title="Hierarchical Loading" icon="seti:folder">
+			<span class="gradient-text">Share configurations</span> across projects.
+			Parent directories automatically provide base settings.
+		</Card>
+		<Card title="Secret Management" icon="seti:lock">
+			<span class="gradient-text">Built-in security</span> with 1Password and
+			GCP Secrets Manager. Automatic obfuscation prevents leaks.
+		</Card>
+		<Card title="Cross-Platform" icon="seti:code">
+			<span class="gradient-text">Works everywhere</span> - Linux, macOS, and
+			Windows with native shell integrations.
+		</Card>
+	</CardGrid>
 </div>
 
 ## ✨ See it in Action
@@ -65,19 +70,24 @@ API_ENDPOINT: "\(BASE_URL)/v1"  // String interpolation
 
 <CardGrid>
 	<Card title="Auto-loading" icon="rocket">
-		<strong>Zero friction</strong> - Environment loads automatically when you `cd` into a directory
+		<strong>Zero friction</strong> - Environment loads automatically when you
+		`cd` into a directory
 	</Card>
 	<Card title="Shell Expansion" icon="terminal">
-		<strong>Feels natural</strong> - Full support for `$HOME`, `${VAR}`, and other shell expansions
+		<strong>Feels natural</strong> - Full support for `$HOME`, `${VAR}`, and
+		other shell expansions
 	</Card>
 	<Card title="Environment Inheritance" icon="puzzle">
-		<strong>DRY principle</strong> - Dev, staging, and prod configs with smart inheritance
+		<strong>DRY principle</strong> - Dev, staging, and prod configs with smart
+		inheritance
 	</Card>
 	<Card title="Capability Filtering" icon="setting">
-		<strong>Security first</strong> - AWS credentials only for AWS commands, automatically
+		<strong>Security first</strong> - AWS credentials only for AWS commands,
+		automatically
 	</Card>
 	<Card title="Hermetic Execution" icon="document">
-		<strong>Clean environments</strong> - Run commands with only the variables you define
+		<strong>Clean environments</strong> - Run commands with only the variables
+		you define
 	</Card>
 	<Card title="No Allow Required" icon="check">
 		<strong>Trust by default</strong> - Unlike direnv, no manual approval needed
@@ -109,6 +119,11 @@ echo $MESSAGE
 </div>
 
 <div style="text-align: center; margin-top: 3rem;">
-  <h3 class="gradient-text" style="font-size: 1.5rem;">Ready to modernize your environment management?</h3>
-  <p style="color: #666; margin-top: 1rem;">Join developers who've made the switch to type-safe, secure environment configuration.</p>
+	<h3 class="gradient-text" style="font-size: 1.5rem;">
+		Ready to modernize your environment management?
+	</h3>
+	<p style="color: #666; margin-top: 1rem;">
+		Join developers who've made the switch to type-safe, secure environment
+		configuration.
+	</p>
 </div>

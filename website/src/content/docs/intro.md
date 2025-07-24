@@ -1,6 +1,7 @@
-______________________________________________________________________
-
-## title: Introduction to cuenv description: Learn about cuenv and why it's the perfect environment management tool for modern development
+---
+title: Introduction to cuenv
+description: Learn about cuenv and why it's the perfect environment management tool for modern development
+---
 
 cuenv is a modern alternative to direnv that leverages the power of CUE (Configure, Unify, Execute) for type-safe environment configuration. It provides automatic environment loading, hierarchical configuration, and built-in secret management.
 
@@ -35,14 +36,14 @@ Works seamlessly across Linux, macOS, and Windows with native shell integrations
 
 ## Comparison with direnv
 
-| Feature | cuenv | direnv |
-|---------|-------|--------|
-| Configuration Language | CUE (type-safe) | Shell scripts |
-| Validation | Compile-time | Runtime |
-| Secret Management | Built-in | Manual |
-| Allow Required | No | Yes |
-| Hierarchical Loading | Yes | Limited |
-| Cross-Platform | Yes | Limited Windows support |
+| Feature                | cuenv           | direnv                  |
+| ---------------------- | --------------- | ----------------------- |
+| Configuration Language | CUE (type-safe) | Shell scripts           |
+| Validation             | Compile-time    | Runtime                 |
+| Secret Management      | Built-in        | Manual                  |
+| Allow Required         | No              | Yes                     |
+| Hierarchical Loading   | Yes             | Limited                 |
+| Cross-Platform         | Yes             | Limited Windows support |
 
 ## Next Steps
 

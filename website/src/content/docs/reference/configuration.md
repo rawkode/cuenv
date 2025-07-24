@@ -1,6 +1,7 @@
-______________________________________________________________________
-
-## title: Configuration Reference description: Complete reference for cuenv configuration options
+---
+title: Configuration Reference
+description: Complete reference for cuenv configuration options
+---
 
 ## Configuration Files
 

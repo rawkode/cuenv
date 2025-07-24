@@ -1,6 +1,7 @@
-______________________________________________________________________
-
-## title: Shell Integration description: How to integrate cuenv with your shell for automatic environment loading
+---
+title: Shell Integration
+description: How to integrate cuenv with your shell for automatic environment loading
+---
 
 cuenv integrates seamlessly with popular shells to automatically load and unload environment variables as you navigate directories.
 
@@ -332,15 +333,15 @@ For integrated terminal support:
 
 ```json title="settings.json"
 {
-    "terminal.integrated.env.linux": {
-        "CUENV_INIT": "1"
-    },
-    "terminal.integrated.profiles.linux": {
-        "bash": {
-            "path": "bash",
-            "args": ["-l"]
-        }
-    }
+	"terminal.integrated.env.linux": {
+		"CUENV_INIT": "1"
+	},
+	"terminal.integrated.profiles.linux": {
+		"bash": {
+			"path": "bash",
+			"args": ["-l"]
+		}
+	}
 }
 ```
 

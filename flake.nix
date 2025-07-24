@@ -66,8 +66,15 @@
             # YAML formatter
             yamlfmt.enable = true;
 
-            # Markdown formatter
-            mdformat.enable = true;
+            # Markdown formatter - using prettier instead of mdformat to preserve frontmatter
+            # mdformat.enable = true;
+
+            # Prettier formatter - handles markdown with frontmatter support
+            prettier = {
+              enable = true;
+              # Only format markdown files with prettier
+              includes = [ "*.md" "*.mdx" ];
+            };
 
             # TOML formatter
             taplo.enable = true;

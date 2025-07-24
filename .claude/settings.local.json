@@ -1,26 +1,29 @@
 {
   "permissions": {
     "allow": [
-      "Bash(./target/debug/cuenv:*)",
-      "Bash(cargo:*)",
-      "Bash(nix:*)",
       "Bash(./scripts/test-examples.sh:*)",
-      "Bash(gh pr view:*)",
-      "Bash(RUST_BACKTRACE=1 nix develop --command cargo test test_command_capability_inference -- --nocapture)",
+      "Bash(./target/debug/cuenv:*)",
+      "Bash(bun:*)",
+      "Bash(cargo:*)",
+      "Bash(gh:*)",
+      "Bash(grep:*)",
       "Bash(ls:*)",
-      "Bash(grep:*)"
+      "Bash(nix:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   },
   "hooks": {
     "PostToolUse": [
       {
-
-			"matcher": "Edit|MultiEdit|Write",
-			"hooks": [
-        {"type": "command","command": "nix fmt"}
-			]
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "nix fmt"
+          }
+        ]
       }
-		]
+    ]
   }
 }
