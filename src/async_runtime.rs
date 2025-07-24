@@ -21,8 +21,7 @@ impl AsyncRuntime {
                 Ok(rt) => rt,
                 Err(e) => {
                     return Err(Error::configuration(format!(
-                        "failed to create tokio runtime: {}",
-                        e
+                        "failed to create tokio runtime: {e}"
                     )))
                 }
             };
@@ -37,10 +36,7 @@ impl AsyncRuntime {
     where
         F: Future<Output = Result<T>>,
     {
-        let runtime = match self.get_or_create_runtime() {
-            Ok(rt) => rt,
-            Err(e) => return Err(e),
-        };
+        let runtime = self.get_or_create_runtime()?;
 
         runtime.block_on(future)
     }

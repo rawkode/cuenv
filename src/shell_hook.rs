@@ -1,5 +1,5 @@
 use crate::errors::{Error, Result};
-use std::path::PathBuf;
+use std::path::Path;
 
 pub struct ShellHook;
 
@@ -13,7 +13,7 @@ impl ShellHook {
             "cmd" => Ok(Self::cmd_hook()),
             _ => Err(Error::unsupported(
                 "shell",
-                format!("unsupported shell: {}", shell),
+                format!("unsupported shell: {shell}"),
             )),
         }
     }
@@ -92,7 +92,7 @@ for /f "tokens=*" %%i in ('cuenv hook cmd') do (
         .to_string()
     }
 
-    pub fn generate_hook_output(shell: &str, current_dir: &PathBuf) -> Result<String> {
+    pub fn generate_hook_output(shell: &str, current_dir: &Path) -> Result<String> {
         let cuenv_file = current_dir.join(".cuenv_current");
         let env_cue_exists = current_dir.join("env.cue").exists();
 
@@ -234,7 +234,7 @@ if exist "{}" (
             }
             _ => Err(Error::unsupported(
                 "shell",
-                format!("unsupported shell: {}", shell),
+                format!("unsupported shell: {shell}"),
             )),
         }
     }

@@ -13,7 +13,15 @@ impl DirectoryManager {
 
         Self { env_file_name }
     }
+}
 
+impl Default for DirectoryManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DirectoryManager {
     pub fn find_env_files(&self, start_dir: &Path) -> Result<Vec<PathBuf>> {
         let mut env_files = Vec::new();
         let mut current = start_dir.to_path_buf();

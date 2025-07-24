@@ -455,7 +455,6 @@ impl SecretValues {
     }
 
     /// Get an iterator over the secrets (be careful with the returned values)
-    #[must_use]
     pub fn iter(&self) -> impl Iterator<Item = &str> {
         self.0.iter().map(|s| s.0.as_str())
     }

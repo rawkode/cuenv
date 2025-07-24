@@ -4,7 +4,8 @@
       "Bash(./target/debug/cuenv:*)",
       "Bash(cargo:*)",
       "Bash(nix:*)",
-      "Bash(./scripts/test-examples.sh:*)"
+      "Bash(./scripts/test-examples.sh:*)",
+      "Bash(gh pr view:*)"
     ],
     "deny": []
   }

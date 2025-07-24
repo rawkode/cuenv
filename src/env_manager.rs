@@ -32,14 +32,19 @@ impl EnvManager {
             commands: HashMap::new(),
         }
     }
+}
 
+impl Default for EnvManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl EnvManager {
     pub fn load_env(&mut self, dir: &Path) -> Result<()> {
         self.save_original_env();
 
-        let env_files = match self.directory_manager.find_env_files(dir) {
-            Ok(files) => files,
-            Err(e) => return Err(e),
-        };
+        let env_files = self.directory_manager.find_env_files(dir)?;
 
         for env_file in env_files {
             log::info!("Loading environment from: {}", env_file.display());
@@ -61,10 +66,7 @@ impl EnvManager {
     ) -> Result<()> {
         self.save_original_env();
 
-        let env_files = match self.directory_manager.find_env_files(dir) {
-            Ok(files) => files,
-            Err(e) => return Err(e),
-        };
+        let env_files = self.directory_manager.find_env_files(dir)?;
 
         // First pass: load files to get command mappings
         let temp_options = ParseOptions {
@@ -73,11 +75,7 @@ impl EnvManager {
         };
 
         for env_file in &env_files {
-            let parse_result = match CueParser::parse_env_file_with_options(env_file, &temp_options)
-            {
-                Ok(result) => result,
-                Err(e) => return Err(e),
-            };
+            let parse_result = CueParser::parse_env_file_with_options(env_file, &temp_options)?;
             self.commands.extend(parse_result.commands);
         }
 
@@ -88,9 +86,7 @@ impl EnvManager {
                 if let Some(cmd_config) = self.commands.get(cmd) {
                     if let Some(cmd_caps) = &cmd_config.capabilities {
                         log::info!(
-                            "Inferred capabilities for command '{}': {:?}",
-                            cmd,
-                            cmd_caps
+                            "Inferred capabilities for command '{cmd}': {cmd_caps:?}"
                         );
                         capabilities = cmd_caps.clone();
                     }
@@ -161,12 +157,12 @@ impl EnvManager {
                 Err(e) => {
                     return Err(Error::shell_expansion(
                         &value,
-                        format!("Failed to expand value for {}: {}", key, e),
+                        format!("Failed to expand value for {key}: {e}"),
                     ))
                 }
             };
 
-            log::debug!("Setting {}={}", key, expanded_value);
+            log::debug!("Setting {key}={expanded_value}");
             env::set_var(key, expanded_value);
         }
 
@@ -194,12 +190,12 @@ impl EnvManager {
                 Err(e) => {
                     return Err(Error::shell_expansion(
                         &value,
-                        format!("Failed to expand value for {}: {}", key, e),
+                        format!("Failed to expand value for {key}: {e}"),
                     ))
                 }
             };
 
-            log::debug!("Setting {}={}", key, expanded_value);
+            log::debug!("Setting {key}={expanded_value}");
             env::set_var(key, expanded_value);
         }
 
@@ -214,16 +210,16 @@ impl EnvManager {
         for (key, value) in &current_env {
             if let Some(original) = self.original_env.get(key) {
                 if original != value {
-                    println!("  {} (modified): {} -> {}", key, original, value);
+                    println!("  {key} (modified): {original} -> {value}");
                 }
             } else {
-                println!("  {} (new): {}", key, value);
+                println!("  {key} (new): {value}");
             }
         }
 
         for (key, value) in &self.original_env {
             if !current_env.contains_key(key) {
-                println!("  {} (removed): {}", key, value);
+                println!("  {key} (removed): {value}");
             }
         }
 
@@ -235,12 +231,12 @@ impl EnvManager {
         let mut output = String::new();
 
         // Parse shell type
-        let shell_type = match Shell::from_str(shell) {
-            Some(st) => st,
-            None => {
+        let shell_type = match shell.parse::<Shell>() {
+            Ok(st) => st,
+            Err(_) => {
                 return Err(Error::unsupported(
                     "shell",
-                    format!("Unsupported shell: {}", shell),
+                    format!("Unsupported shell: {shell}"),
                 ))
             }
         };
@@ -290,8 +286,7 @@ impl EnvManager {
                 Ok(runtime) => runtime,
                 Err(e) => {
                     return Err(Error::configuration(format!(
-                        "Failed to create tokio runtime: {}",
-                        e
+                        "Failed to create tokio runtime: {e}"
                     )))
                 }
             };
@@ -302,7 +297,7 @@ impl EnvManager {
                     Err(e) => {
                         return Err(Error::secret_resolution(
                             "multiple",
-                            format!("Failed to resolve secrets: {}", e),
+                            format!("Failed to resolve secrets: {e}"),
                         ))
                     }
                 };
@@ -356,7 +351,7 @@ impl EnvManager {
                 return Err(Error::command_execution(
                     command,
                     args.to_vec(),
-                    format!("Failed to spawn command: {}", e),
+                    format!("Failed to spawn command: {e}"),
                     None,
                 ))
             }
@@ -407,7 +402,7 @@ impl EnvManager {
                 return Err(Error::command_execution(
                     command,
                     args.to_vec(),
-                    format!("Failed to wait for command: {}", e),
+                    format!("Failed to wait for command: {e}"),
                     None,
                 ))
             }
@@ -421,7 +416,7 @@ impl EnvManager {
                     return Err(Error::command_execution(
                         command,
                         args.to_vec(),
-                        format!("Failed to process stdout: {}", e),
+                        format!("Failed to process stdout: {e}"),
                         status.code(),
                     ))
                 }
@@ -443,7 +438,7 @@ impl EnvManager {
                     return Err(Error::command_execution(
                         command,
                         args.to_vec(),
-                        format!("Failed to process stderr: {}", e),
+                        format!("Failed to process stderr: {e}"),
                         status.code(),
                     ))
                 }
