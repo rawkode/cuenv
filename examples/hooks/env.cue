@@ -15,8 +15,6 @@ hooks: {
     }
 }
 
-env: {
-    // Regular environment variables
-    DATABASE_URL: "postgres://localhost/mydb"
-    API_KEY: "secret123"
-}
+// Regular environment variables
+DATABASE_URL: "postgres://localhost/mydb"
+API_KEY: "secret123"
