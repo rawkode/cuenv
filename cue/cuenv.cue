@@ -4,20 +4,20 @@ package cuenv
 #Env: {
 	// Environment variables - keys must be valid environment variable names
 	[=~"^[A-Z][A-Z0-9_]*$"]: string | #Secret
-	
+
 	// Environment-specific overrides
 	environment?: [string]: {
 		[=~"^[A-Z][A-Z0-9_]*$"]: string | #Secret
 	}
-	
+
 	// Command definitions with capability requirements
 	Commands?: [string]: #Command
-	
+
 	// Hook definitions for lifecycle events
 	hooks?: {
 		// Hook to run when entering the environment
 		onEnter?: #HookConfig
-		
+
 		// Hook to run when exiting the environment
 		onExit?: #HookConfig
 	}
@@ -47,10 +47,10 @@ package cuenv
 #HookConfig: {
 	// Command to execute for the hook
 	command: string
-	
+
 	// Arguments to pass to the command
 	args: [...string]
-	
+
 	// Optional URL that may be used by the hook
 	url?: string
 }
