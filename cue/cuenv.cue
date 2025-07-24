@@ -26,6 +26,9 @@ package cuenv
 	}
 }
 
+// Tasks should be defined at the top level, not nested within env
+// Example: tasks: { "build": #Task, "test": #Task }
+
 // #Secret represents a secret reference that will be resolved at runtime
 #Secret: {
 	resolver: #Resolver

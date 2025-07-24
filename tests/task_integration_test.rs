@@ -22,17 +22,17 @@ fn test_task_listing() {
 
 env: {
     APP_NAME: "test-app"
-    
-    tasks: {
-        "build": {
-            description: "Build the project"
-            command: "echo 'Building...'"
-        }
-        "test": {
-            description: "Run tests"
-            command: "echo 'Testing...'"
-            dependencies: ["build"]
-        }
+}
+
+tasks: {
+    "build": {
+        description: "Build the project"
+        command: "echo 'Building...'"
+    }
+    "test": {
+        description: "Run tests"
+        command: "echo 'Testing...'"
+        dependencies: ["build"]
     }
 }"#,
     )
@@ -62,12 +62,12 @@ fn test_task_execution() {
 
 env: {
     APP_NAME: "test-app"
-    
-    tasks: {
-        "hello": {
-            description: "Say hello"
-            command: "echo 'Hello from task'"
-        }
+}
+
+tasks: {
+    "hello": {
+        description: "Say hello"
+        command: "echo 'Hello from task'"
     }
 }"#,
     )
@@ -94,15 +94,15 @@ fn test_task_with_dependencies() {
         &env_file,
         r#"package env
 
-env: {
-    tasks: {
-        "first": {
-            command: "echo 'First task'"
-        }
-        "second": {
-            command: "echo 'Second task'"
-            dependencies: ["first"]
-        }
+env: {}
+
+tasks: {
+    "first": {
+        command: "echo 'First task'"
+    }
+    "second": {
+        command: "echo 'Second task'"
+        dependencies: ["first"]
     }
 }"#,
     )
@@ -135,11 +135,11 @@ fn test_missing_task_error() {
         &env_file,
         r#"package env
 
-env: {
-    tasks: {
-        "existing": {
-            command: "echo 'exists'"
-        }
+env: {}
+
+tasks: {
+    "existing": {
+        command: "echo 'exists'"
     }
 }"#,
     )
@@ -168,16 +168,16 @@ fn test_task_with_script() {
 
 env: {
     TEST_VAR: "script-test"
-    
-    tasks: {
-        "script-task": {
-            description: "Test script execution"
-            script: """
-                echo "Script start"
-                echo "TEST_VAR is: $TEST_VAR"
-                echo "Script end"
-                """
-        }
+}
+
+tasks: {
+    "script-task": {
+        description: "Test script execution"
+        script: """
+            echo "Script start"
+            echo "TEST_VAR is: $TEST_VAR"
+            echo "Script end"
+            """
     }
 }"#,
     )
