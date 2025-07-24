@@ -83,7 +83,7 @@ env: {
 EOF
 
     echo -n "  Secret resolution test: "
-    if OUTPUT=$(cd "$TEMP_DIR" && $CUENV run env 2>&1); then
+    if OUTPUT=$(cd "$TEMP_DIR" && $CUENV exec env 2>&1); then
         if echo "$OUTPUT" | grep -q "SECRET_VAR=\\*\\*\\*\\*\\*\\*\\*\\*\\*\\*\\*"; then
             echo -e "${GREEN}PASS${NC} (secret properly masked)"
         else
