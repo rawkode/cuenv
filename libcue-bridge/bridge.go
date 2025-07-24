@@ -283,6 +283,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 	}
 
 	// Extract tasks configuration if present (from env field)
+	// Note: This is deprecated in favor of top-level tasks
 	if tasksField := envRoot.LookupPath(cue.ParsePath("tasks")); tasksField.Exists() {
 		tasks := make(map[string]interface{})
 		iter, _ := tasksField.Fields()
@@ -359,7 +360,8 @@ func extractCueData(v cue.Value) map[string]interface{} {
 		result["tasks"] = tasks
 	}
 
-	// Also check for tasks at the top level (outside env)
+	// Also check for tasks at the top level (outside env) - PREFERRED location
+	// Top-level tasks will override any env.tasks if both are present
 	if tasksField := v.LookupPath(cue.ParsePath("tasks")); tasksField.Exists() {
 		tasks := result["tasks"].(map[string]interface{})
 		iter, _ := tasksField.Fields()
