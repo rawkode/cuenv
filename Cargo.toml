@@ -47,7 +47,7 @@ cc = "1.0"
 [dev-dependencies]
 proptest = "1.4"
 criterion = { version = "0.5", features = ["html_reports"] }
-tempfile = "3.0"
+tempfile = "3.20"
 
 [[bench]]
 name = "critical_paths"
