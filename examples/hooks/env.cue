@@ -1,4 +1,4 @@
-package cuenv
+package env
 
 // Hook definitions at root level
 hooks: {
