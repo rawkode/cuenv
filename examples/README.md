@@ -1,16 +1,15 @@
 # CUE Environment Examples
 
-This directory contains examples demonstrating different features of cuenv using the CUE package approach.
+This directory contains examples demonstrating different features of cuenv.
 
 ## Structure
 
-All examples use the `package cuenv` declaration and can be evaluated using CUE's module system:
+All examples use the `package env` declaration and define environment variables directly at the top level:
 
 - **basic/** - Simple environment variables with CUE interpolation
 - **with-capabilities/** - Capability-based variable filtering and commands
-- **structured-secrets/** - Integration with 1Password using secret references
-- **registry-secrets/** - Various secret manager integrations (GitHub, GitLab, AWS, etc.)
 - **nested/** - Demonstrates directory hierarchy with parent/child configurations
+- **hooks/** - Lifecycle hooks for onEnter and onExit events
 
 ## Usage
 
@@ -30,23 +29,14 @@ cd examples/basic
 eval $(cuenv load)
 ```
 
-## Key Changes from CUENV_FILE
+## Basic Structure
 
-Instead of using `CUENV_FILE` to specify individual files, cuenv now evaluates the entire CUE package in the current directory using `cue eval -p cuenv`. This enables:
-
-1. **Module composition** - Import and compose CUE modules
-1. **Type safety** - Use CUE's type system for validation
-1. **Better organization** - Split configurations across multiple files
-1. **Hierarchy support** - CUE's natural module resolution
-
-## Writing Your Own Configuration
-
-Create an `env.cue` file in your project directory:
+The standard structure for a cuenv file is:
 
 ```cue
-package cuenv
+package env
 
-// Your environment variables
+// Environment variables
 DATABASE_URL: "postgres://localhost/mydb"
 API_KEY:      "your-api-key"
 
@@ -63,6 +53,30 @@ Commands: {
         capabilities: ["aws", "docker"]
     }
 }
+
+// Environment-specific overrides
+environment: {
+    production: {
+        DATABASE_URL: "postgres://prod.example.com/mydb"
+    }
+}
+
+// Lifecycle hooks
+hooks: {
+    onEnter: {
+        command: "echo"
+        args: ["Environment loaded"]
+    }
+}
 ```
 
-Then run `cuenv load` or `cuenv run <command>` from that directory.
+## Key Points
+
+1. **Package Declaration**: Always use `package env`
+2. **Top-level Variables**: Define environment variables directly at the top level
+3. **No Import Required**: No need to import external packages for basic usage
+4. **CUE Features**: String interpolation, constraints, and defaults work as expected
+5. **Capabilities**: Use `@capability("name")` to tag variables
+6. **Commands**: Define command capability mappings in the `Commands` object
+7. **Environments**: Use the `environment` object for environment-specific overrides
+8. **Hooks**: Use the `hooks` object for lifecycle events
