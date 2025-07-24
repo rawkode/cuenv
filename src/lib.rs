@@ -10,4 +10,5 @@ pub mod output_filter;
 pub mod platform;
 pub mod secrets;
 pub mod shell_hook;
+pub mod task_executor;
 pub mod types;

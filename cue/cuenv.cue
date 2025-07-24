@@ -13,6 +13,9 @@ package cuenv
 	// Command definitions with capability requirements
 	Commands?: [string]: #Command
 
+	// Task definitions
+	tasks?: [string]: #Task
+
 	// Hook definitions for lifecycle events
 	hooks?: {
 		// Hook to run when entering the environment
@@ -63,3 +66,30 @@ package cuenv
 
 // #OnExitHook is a convenience type for onExit hooks
 #OnExitHook: #HookConfig
+
+// #Task defines the structure for a task that can be executed by cuenv
+#Task: {
+	// Human-readable description of the task
+	description?: string
+
+	// Shell command to execute (mutually exclusive with script)
+	command?: string
+
+	// Embedded shell script to execute (mutually exclusive with command)
+	script?: string
+
+	// List of task names that must complete successfully before this task runs
+	dependencies?: [...string]
+
+	// Working directory for task execution (defaults to current directory)
+	workingDir?: string
+
+	// Shell to use for execution (e.g., "bash", "sh", "zsh")
+	shell?: string
+
+	// Input files/patterns (for future implementation)
+	inputs?: [...string]
+
+	// Output files/patterns (for future implementation)
+	outputs?: [...string]
+}

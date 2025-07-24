@@ -18,6 +18,8 @@ struct CueParseResult {
     metadata: HashMap<String, VariableMetadata>,
     environments: HashMap<String, HashMap<String, serde_json::Value>>,
     commands: HashMap<String, CommandConfig>,
+    #[serde(default)]
+    tasks: HashMap<String, TaskConfig>,
     hooks: Option<HooksConfig>,
 }
 
@@ -37,6 +39,19 @@ struct VariableMetadata {
 #[derive(Debug, Deserialize)]
 pub struct CommandConfig {
     pub capabilities: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct TaskConfig {
+    pub description: Option<String>,
+    pub command: Option<String>,
+    pub script: Option<String>,
+    pub dependencies: Option<Vec<String>>,
+    #[serde(rename = "workingDir")]
+    pub working_dir: Option<String>,
+    pub shell: Option<String>,
+    pub inputs: Option<Vec<String>>,
+    pub outputs: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Default)]
@@ -79,6 +94,7 @@ pub struct ParseOptions {
 pub struct ParseResult {
     pub variables: HashMap<String, String>,
     pub commands: HashMap<String, CommandConfig>,
+    pub tasks: HashMap<String, TaskConfig>,
     pub hooks: HashMap<String, HookConfig>,
 }
 
@@ -155,6 +171,7 @@ impl CueParser {
             ParseResult {
                 variables: HashMap::new(),
                 commands: HashMap::new(),
+                tasks: HashMap::new(),
                 hooks: HashMap::new(),
             }
         } else {
@@ -251,6 +268,7 @@ impl CueParser {
             ParseResult {
                 variables: HashMap::new(),
                 commands: HashMap::new(),
+                tasks: HashMap::new(),
                 hooks: HashMap::new(),
             }
         } else {
@@ -376,6 +394,7 @@ impl CueParser {
         Ok(ParseResult {
             variables: final_vars,
             commands: cue_result.commands,
+            tasks: cue_result.tasks,
             hooks,
         })
     }

@@ -7,7 +7,7 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 
 use crate::command_executor::CommandExecutor;
-use crate::cue_parser::{CommandConfig, CueParser, HookConfig, HookType, ParseOptions};
+use crate::cue_parser::{CommandConfig, CueParser, HookConfig, HookType, ParseOptions, TaskConfig};
 use crate::hook_manager::HookManager;
 use crate::output_filter::OutputFilter;
 use crate::platform::{PlatformOps, Shell};
@@ -24,6 +24,7 @@ use crate::platform::WindowsPlatform as Platform;
 pub struct EnvManager {
     original_env: HashMap<String, String>,
     commands: HashMap<String, CommandConfig>,
+    tasks: HashMap<String, TaskConfig>,
     hooks: HashMap<String, HookConfig>,
 }
 
@@ -32,6 +33,7 @@ impl EnvManager {
         Self {
             original_env: HashMap::new(),
             commands: HashMap::new(),
+            tasks: HashMap::new(),
             hooks: HashMap::new(),
         }
     }
@@ -65,6 +67,7 @@ impl EnvManager {
 
         let parse_result = CueParser::eval_package_with_options(dir, "env", &temp_options)?;
         self.commands.extend(parse_result.commands);
+        self.tasks.extend(parse_result.tasks);
         self.hooks.extend(parse_result.hooks);
 
         // If no capabilities were specified, try to infer from the command
@@ -144,8 +147,9 @@ impl EnvManager {
             }
         };
 
-        // Store commands and hooks for later use
+        // Store commands, tasks and hooks for later use
         self.commands.extend(parse_result.commands);
+        self.tasks.extend(parse_result.tasks);
         self.hooks.extend(parse_result.hooks);
 
         for (key, value) in parse_result.variables {
@@ -418,6 +422,24 @@ impl EnvManager {
         }
 
         Ok(status.code().unwrap_or(1))
+    }
+
+    /// Get a task by name
+    pub fn get_task(&self, task_name: &str) -> Option<&TaskConfig> {
+        self.tasks.get(task_name)
+    }
+
+    /// List all available tasks with their descriptions
+    pub fn list_tasks(&self) -> Vec<(String, Option<String>)> {
+        self.tasks
+            .iter()
+            .map(|(name, config)| (name.clone(), config.description.clone()))
+            .collect()
+    }
+
+    /// Get all tasks as a HashMap
+    pub fn get_tasks(&self) -> &HashMap<String, TaskConfig> {
+        &self.tasks
     }
 
     fn execute_on_enter_hooks(&self) -> Result<()> {
