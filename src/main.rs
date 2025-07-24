@@ -1,7 +1,10 @@
 use clap::{Parser, Subcommand};
 use cuenv::errors::{Error, Result};
 use cuenv::platform::{PlatformOps, Shell};
-use cuenv::{directory::DirectoryManager, env_manager::EnvManager, shell_hook::ShellHook, task_executor::TaskExecutor};
+use cuenv::{
+    directory::DirectoryManager, env_manager::EnvManager, shell_hook::ShellHook,
+    task_executor::TaskExecutor,
+};
 use std::env;
 use std::path::PathBuf;
 
@@ -228,9 +231,9 @@ fn main() -> Result<()> {
                     // Execute the specified task
                     let executor = TaskExecutor::new(env_manager, current_dir);
                     let rt = tokio::runtime::Runtime::new().map_err(|e| {
-                        Error::configuration(format!("Failed to create async runtime: {}", e))
+                        Error::configuration(format!("Failed to create async runtime: {e}"))
                     })?;
-                    
+
                     let status = rt.block_on(executor.execute_task(&name, &task_args))?;
                     std::process::exit(status);
                 }
@@ -243,8 +246,8 @@ fn main() -> Result<()> {
                         println!("Available tasks:");
                         for (name, description) in tasks {
                             match description {
-                                Some(desc) => println!("  {}: {}", name, desc),
-                                None => println!("  {}", name),
+                                Some(desc) => println!("  {name}: {desc}"),
+                                None => println!("  {name}"),
                             }
                         }
                     }

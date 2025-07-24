@@ -289,7 +289,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 		for iter.Next() {
 			taskName := iter.Label()
 			taskConfig := make(map[string]interface{})
-			
+
 			// Extract description
 			if descField := iter.Value().LookupPath(cue.ParsePath("description")); descField.Exists() {
 				var desc string
@@ -297,7 +297,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 					taskConfig["description"] = desc
 				}
 			}
-			
+
 			// Extract command
 			if cmdField := iter.Value().LookupPath(cue.ParsePath("command")); cmdField.Exists() {
 				var cmd string
@@ -305,7 +305,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 					taskConfig["command"] = cmd
 				}
 			}
-			
+
 			// Extract script
 			if scriptField := iter.Value().LookupPath(cue.ParsePath("script")); scriptField.Exists() {
 				var script string
@@ -313,7 +313,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 					taskConfig["script"] = script
 				}
 			}
-			
+
 			// Extract dependencies
 			if depsField := iter.Value().LookupPath(cue.ParsePath("dependencies")); depsField.Exists() {
 				var deps []string
@@ -321,7 +321,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 					taskConfig["dependencies"] = deps
 				}
 			}
-			
+
 			// Extract workingDir
 			if wdField := iter.Value().LookupPath(cue.ParsePath("workingDir")); wdField.Exists() {
 				var wd string
@@ -329,7 +329,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 					taskConfig["workingDir"] = wd
 				}
 			}
-			
+
 			// Extract shell
 			if shellField := iter.Value().LookupPath(cue.ParsePath("shell")); shellField.Exists() {
 				var shell string
@@ -337,7 +337,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 					taskConfig["shell"] = shell
 				}
 			}
-			
+
 			// Extract inputs
 			if inputsField := iter.Value().LookupPath(cue.ParsePath("inputs")); inputsField.Exists() {
 				var inputs []string
@@ -345,7 +345,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 					taskConfig["inputs"] = inputs
 				}
 			}
-			
+
 			// Extract outputs
 			if outputsField := iter.Value().LookupPath(cue.ParsePath("outputs")); outputsField.Exists() {
 				var outputs []string
@@ -353,7 +353,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 					taskConfig["outputs"] = outputs
 				}
 			}
-			
+
 			tasks[taskName] = taskConfig
 		}
 		result["tasks"] = tasks

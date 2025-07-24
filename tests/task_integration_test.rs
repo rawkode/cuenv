@@ -119,7 +119,7 @@ tasks: {
     assert!(output.status.success());
     assert!(stdout.contains("First task"));
     assert!(stdout.contains("Second task"));
-    
+
     // Ensure proper order: "First task" should appear before "Second task"
     let first_pos = stdout.find("First task").unwrap();
     let second_pos = stdout.find("Second task").unwrap();

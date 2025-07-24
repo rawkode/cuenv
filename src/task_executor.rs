@@ -2,7 +2,7 @@ use crate::cue_parser::TaskConfig;
 use crate::env_manager::EnvManager;
 use crate::errors::{Error, Result};
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use tokio::task::JoinSet;
@@ -63,16 +63,16 @@ impl TaskExecutor {
                     match Self::execute_single_task(&task_config, &working_dir, &task_args).await {
                         Ok(status) => {
                             if status != 0 {
-                                failed_tasks.lock().unwrap().push((task_name.clone(), status));
+                                failed_tasks
+                                    .lock()
+                                    .unwrap()
+                                    .push((task_name.clone(), status));
                             }
                             status
                         }
                         Err(e) => {
-                            failed_tasks
-                                .lock()
-                                .unwrap()
-                                .push((task_name.clone(), -1));
-                            eprintln!("Task '{}' failed: {}", task_name, e);
+                            failed_tasks.lock().unwrap().push((task_name.clone(), -1));
+                            eprintln!("Task '{task_name}' failed: {e}");
                             -1
                         }
                     }
@@ -82,17 +82,15 @@ impl TaskExecutor {
             // Wait for all tasks in this level to complete
             while let Some(result) = join_set.join_next().await {
                 if let Err(e) = result {
-                    return Err(Error::configuration(format!(
-                        "Task execution failed: {}",
-                        e
-                    )));
+                    return Err(Error::configuration(format!("Task execution failed: {e}")));
                 }
             }
 
             // Check if any tasks failed
             let failed = failed_tasks.lock().unwrap();
             if !failed.is_empty() {
-                let failed_names: Vec<String> = failed.iter().map(|(name, _)| name.clone()).collect();
+                let failed_names: Vec<String> =
+                    failed.iter().map(|(name, _)| name.clone()).collect();
                 return Err(Error::configuration(format!(
                     "Tasks failed: {}",
                     failed_names.join(", ")
@@ -111,8 +109,7 @@ impl TaskExecutor {
         for task_name in task_names {
             if !all_tasks.contains_key(task_name) {
                 return Err(Error::configuration(format!(
-                    "Task '{}' not found",
-                    task_name
+                    "Task '{task_name}' not found"
                 )));
             }
         }
@@ -123,7 +120,7 @@ impl TaskExecutor {
         let mut stack = HashSet::new();
 
         for task_name in task_names {
-            self.collect_dependencies(
+            Self::collect_dependencies(
                 task_name,
                 all_tasks,
                 &mut task_dependencies,
@@ -151,7 +148,6 @@ impl TaskExecutor {
 
     /// Recursively collect all dependencies for a task
     fn collect_dependencies(
-        &self,
         task_name: &str,
         all_tasks: &HashMap<String, TaskConfig>,
         task_dependencies: &mut HashMap<String, Vec<String>>,
@@ -161,8 +157,7 @@ impl TaskExecutor {
         // Check for circular dependencies
         if stack.contains(task_name) {
             return Err(Error::configuration(format!(
-                "Circular dependency detected involving task '{}'",
-                task_name
+                "Circular dependency detected involving task '{task_name}'"
             )));
         }
 
@@ -172,9 +167,9 @@ impl TaskExecutor {
 
         stack.insert(task_name.to_string());
 
-        let task_config = all_tasks.get(task_name).ok_or_else(|| {
-            Error::configuration(format!("Task '{}' not found", task_name))
-        })?;
+        let task_config = all_tasks
+            .get(task_name)
+            .ok_or_else(|| Error::configuration(format!("Task '{task_name}' not found")))?;
 
         let dependencies = task_config.dependencies.clone().unwrap_or_default();
 
@@ -182,12 +177,11 @@ impl TaskExecutor {
         for dep_name in &dependencies {
             if !all_tasks.contains_key(dep_name) {
                 return Err(Error::configuration(format!(
-                    "Dependency '{}' of task '{}' not found",
-                    dep_name, task_name
+                    "Dependency '{dep_name}' of task '{task_name}' not found"
                 )));
             }
 
-            self.collect_dependencies(dep_name, all_tasks, task_dependencies, visited, stack)?;
+            Self::collect_dependencies(dep_name, all_tasks, task_dependencies, visited, stack)?;
         }
 
         task_dependencies.insert(task_name.to_string(), dependencies);
@@ -198,7 +192,10 @@ impl TaskExecutor {
     }
 
     /// Perform topological sort to determine execution levels
-    fn topological_sort(&self, dependencies: &HashMap<String, Vec<String>>) -> Result<Vec<Vec<String>>> {
+    fn topological_sort(
+        &self,
+        dependencies: &HashMap<String, Vec<String>>,
+    ) -> Result<Vec<Vec<String>>> {
         let mut in_degree = HashMap::new();
         let mut graph = HashMap::new();
 
@@ -209,7 +206,10 @@ impl TaskExecutor {
 
             for dep in deps {
                 *in_degree.entry(dep.clone()).or_insert(0) += 0; // Ensure dep is in map
-                graph.entry(dep.clone()).or_insert_with(Vec::new).push(task.clone());
+                graph
+                    .entry(dep.clone())
+                    .or_insert_with(Vec::new)
+                    .push(task.clone());
                 *in_degree.get_mut(task).unwrap() += 1;
             }
         }
@@ -223,7 +223,7 @@ impl TaskExecutor {
 
         while !queue.is_empty() {
             let current_level: Vec<String> = queue.drain(..).collect();
-            
+
             if current_level.is_empty() {
                 break;
             }
@@ -258,7 +258,7 @@ impl TaskExecutor {
     /// Execute a single task
     async fn execute_single_task(
         task_config: &TaskConfig,
-        working_dir: &PathBuf,
+        working_dir: &Path,
         args: &[String],
     ) -> Result<i32> {
         // Determine what to execute
@@ -271,12 +271,18 @@ impl TaskExecutor {
                     format!("{} {}", command, args.join(" "))
                 };
                 (
-                    task_config.shell.clone().unwrap_or_else(|| "sh".to_string()),
+                    task_config
+                        .shell
+                        .clone()
+                        .unwrap_or_else(|| "sh".to_string()),
                     full_command,
                 )
             }
             (None, Some(script)) => (
-                task_config.shell.clone().unwrap_or_else(|| "sh".to_string()),
+                task_config
+                    .shell
+                    .clone()
+                    .unwrap_or_else(|| "sh".to_string()),
                 script.clone(),
             ),
             (Some(_), Some(_)) => {
@@ -293,11 +299,11 @@ impl TaskExecutor {
 
         // Determine working directory
         let exec_dir = if let Some(task_wd) = &task_config.working_dir {
-            let mut dir = working_dir.clone();
+            let mut dir = working_dir.to_path_buf();
             dir.push(task_wd);
             dir
         } else {
-            working_dir.clone()
+            working_dir.to_path_buf()
         };
 
         // Execute the task
@@ -313,7 +319,7 @@ impl TaskExecutor {
             Error::command_execution(
                 &shell,
                 vec!["-c".to_string(), script_content.clone()],
-                format!("Failed to execute task: {}", e),
+                format!("Failed to execute task: {e}"),
                 None,
             )
         })?;
@@ -330,8 +336,8 @@ impl TaskExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     fn create_test_env_manager_with_tasks(tasks_cue: &str) -> (EnvManager, TempDir) {
         let temp_dir = TempDir::new().unwrap();
@@ -367,7 +373,7 @@ tasks: {
 
         let tasks = executor.list_tasks();
         assert_eq!(tasks.len(), 2);
-        
+
         let task_names: Vec<&String> = tasks.iter().map(|(name, _)| name).collect();
         assert!(task_names.contains(&&"build".to_string()));
         assert!(task_names.contains(&&"test".to_string()));
@@ -394,8 +400,10 @@ tasks: {
         let (manager, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue);
         let executor = TaskExecutor::new(manager, PathBuf::from("."));
 
-        let plan = executor.build_execution_plan(&["build".to_string()]).unwrap();
-        
+        let plan = executor
+            .build_execution_plan(&["build".to_string()])
+            .unwrap();
+
         // Should have 2 levels: [test], [build]
         assert_eq!(plan.levels.len(), 2);
         assert_eq!(plan.levels[0], vec!["test"]);
@@ -424,7 +432,10 @@ tasks: {
 
         let result = executor.build_execution_plan(&["task1".to_string()]);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Circular dependency"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Circular dependency"));
     }
 
     #[test]
@@ -495,8 +506,10 @@ tasks: {
         let (manager, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue);
         let executor = TaskExecutor::new(manager, PathBuf::from("."));
 
-        let plan = executor.build_execution_plan(&["deploy".to_string()]).unwrap();
-        
+        let plan = executor
+            .build_execution_plan(&["deploy".to_string()])
+            .unwrap();
+
         // Should have 3 levels: [compile], [build, test], [deploy]
         assert_eq!(plan.levels.len(), 3);
         assert_eq!(plan.levels[0], vec!["compile"]);

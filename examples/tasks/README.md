@@ -13,16 +13,19 @@ This example demonstrates cuenv's task support functionality, which allows you t
 ## Usage
 
 ### List Available Tasks
+
 ```bash
 cuenv run
 ```
 
 ### Execute a Task
+
 ```bash
 cuenv run <task_name>
 ```
 
 ### Execute Task with Arguments
+
 ```bash
 cuenv run <task_name> -- --arg1 value1 --arg2 value2
 ```
@@ -49,7 +52,7 @@ tasks: {
 - **lint**: Lints the code (no dependencies)
 - **test**: Runs tests (depends on lint)
 - **build**: Builds the project (depends on test)
-- **deploy**: Deploys the application (depends on build) 
+- **deploy**: Deploys the application (depends on build)
 - **clean**: Cleans build artifacts (independent)
 - **script-example**: Demonstrates multi-line script execution
 
@@ -59,7 +62,7 @@ When you run `cuenv run deploy`, the execution order will be:
 
 1. **lint** (executes first, no dependencies)
 2. **test** (executes after lint completes)
-3. **build** (executes after test completes)  
+3. **build** (executes after test completes)
 4. **deploy** (executes after build completes)
 
 If multiple tasks have no outstanding dependencies, they execute in parallel.
@@ -75,8 +78,9 @@ If multiple tasks have no outstanding dependencies, they execute in parallel.
 ## Environment Variables
 
 All tasks automatically inherit environment variables defined in the env.cue file:
+
 - `DATABASE_URL`: postgres://localhost/myapp
-- `API_KEY`: test-api-key  
+- `API_KEY`: test-api-key
 - `PORT`: 3000
 
 These are available as `$DATABASE_URL`, `$API_KEY`, `$PORT` in task commands/scripts.
