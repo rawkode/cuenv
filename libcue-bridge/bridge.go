@@ -182,6 +182,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 		"metadata":     make(map[string]interface{}),
 		"environments": make(map[string]interface{}),
 		"commands":     make(map[string]interface{}),
+		"hooks":        nil, // Initialize as nil, will be set if hooks exist
 	}
 
 	// Get metadata map reference for use throughout
@@ -280,6 +281,67 @@ func extractCueData(v cue.Value) map[string]interface{} {
 		result["commands"] = cmds
 	}
 
+	// Extract hooks configuration if present (at root level, not under env)
+	if hooksField := v.LookupPath(cue.ParsePath("hooks")); hooksField.Exists() {
+		hooks := make(map[string]interface{})
+
+		// Extract onEnter hook
+		if onEnterField := hooksField.LookupPath(cue.ParsePath("onEnter")); onEnterField.Exists() {
+			onEnter := make(map[string]interface{})
+			if cmdField := onEnterField.LookupPath(cue.ParsePath("command")); cmdField.Exists() {
+				var cmd string
+				if err := cmdField.Decode(&cmd); err == nil {
+					onEnter["command"] = cmd
+				}
+			}
+			if argsField := onEnterField.LookupPath(cue.ParsePath("args")); argsField.Exists() {
+				var args []string
+				if err := argsField.Decode(&args); err == nil {
+					onEnter["args"] = args
+				}
+			}
+			if urlField := onEnterField.LookupPath(cue.ParsePath("url")); urlField.Exists() {
+				var url string
+				if err := urlField.Decode(&url); err == nil {
+					onEnter["url"] = url
+				}
+			}
+			if len(onEnter) > 0 {
+				hooks["onEnter"] = onEnter
+			}
+		}
+
+		// Extract onExit hook
+		if onExitField := hooksField.LookupPath(cue.ParsePath("onExit")); onExitField.Exists() {
+			onExit := make(map[string]interface{})
+			if cmdField := onExitField.LookupPath(cue.ParsePath("command")); cmdField.Exists() {
+				var cmd string
+				if err := cmdField.Decode(&cmd); err == nil {
+					onExit["command"] = cmd
+				}
+			}
+			if argsField := onExitField.LookupPath(cue.ParsePath("args")); argsField.Exists() {
+				var args []string
+				if err := argsField.Decode(&args); err == nil {
+					onExit["args"] = args
+				}
+			}
+			if urlField := onExitField.LookupPath(cue.ParsePath("url")); urlField.Exists() {
+				var url string
+				if err := urlField.Decode(&url); err == nil {
+					onExit["url"] = url
+				}
+			}
+			if len(onExit) > 0 {
+				hooks["onExit"] = onExit
+			}
+		}
+
+		if len(hooks) > 0 {
+			result["hooks"] = hooks
+		}
+	}
+
 	// Extract variables with capability metadata
 	vars := result["variables"].(map[string]interface{})
 
@@ -290,7 +352,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 
 		// Skip internal CUE fields, private fields, and special keys
 		if strings.HasPrefix(key, "_") || strings.HasPrefix(key, "#") ||
-			key == "environment" || key == "Commands" {
+			key == "environment" || key == "Commands" || key == "hooks" {
 			continue
 		}
 

@@ -6,10 +6,14 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 
-use crate::cue_parser::{CommandConfig, CueParser, ParseOptions};
+use crate::command_executor::CommandExecutor;
+use crate::cue_parser::{CommandConfig, CueParser, HookConfig, HookType, ParseOptions};
+use crate::hook_manager::HookManager;
 use crate::output_filter::OutputFilter;
 use crate::platform::{PlatformOps, Shell};
 use crate::secrets::SecretManager;
+use crate::types::{CommandArguments, EnvironmentVariables};
+use async_trait::async_trait;
 
 // Import the platform-specific implementation
 #[cfg(unix)]
@@ -20,6 +24,7 @@ use crate::platform::WindowsPlatform as Platform;
 pub struct EnvManager {
     original_env: HashMap<String, String>,
     commands: HashMap<String, CommandConfig>,
+    hooks: HashMap<String, HookConfig>,
 }
 
 impl EnvManager {
@@ -27,6 +32,7 @@ impl EnvManager {
         Self {
             original_env: HashMap::new(),
             commands: HashMap::new(),
+            hooks: HashMap::new(),
         }
     }
 }
@@ -39,14 +45,7 @@ impl Default for EnvManager {
 
 impl EnvManager {
     pub fn load_env(&mut self, dir: &Path) -> Result<()> {
-        self.save_original_env();
-
-        // Use package evaluation approach
-        log::info!("Loading CUE package from: {}", dir.display());
-        match self.apply_cue_package(dir, "env") {
-            Ok(()) => Ok(()),
-            Err(e) => Err(e),
-        }
+        self.load_env_with_options(dir, None, Vec::new(), None)
     }
 
     pub fn load_env_with_options(
@@ -66,6 +65,7 @@ impl EnvManager {
 
         let parse_result = CueParser::eval_package_with_options(dir, "env", &temp_options)?;
         self.commands.extend(parse_result.commands);
+        self.hooks.extend(parse_result.hooks);
 
         // If no capabilities were specified, try to infer from the command
         if capabilities.is_empty() {
@@ -100,7 +100,11 @@ impl EnvManager {
         );
 
         match self.apply_cue_package_with_options(dir, "env", &options) {
-            Ok(()) => Ok(()),
+            Ok(()) => {
+                // Execute onEnter hooks after environment variables are set
+                self.execute_on_enter_hooks()?;
+                Ok(())
+            }
             Err(e) => Err(e),
         }
     }
@@ -123,36 +127,6 @@ impl EnvManager {
         self.original_env = env::vars().collect();
     }
 
-    fn apply_cue_package(&self, dir: &Path, package_name: &str) -> Result<()> {
-        let env_vars = match CueParser::eval_package(dir, package_name) {
-            Ok(vars) => vars,
-            Err(e) => {
-                return Err(Error::cue_parse_with_source(
-                    dir,
-                    format!("Failed to evaluate CUE package: {}", dir.display()),
-                    e,
-                ));
-            }
-        };
-
-        for (key, value) in env_vars {
-            let expanded_value = match shellexpand::full(&value) {
-                Ok(expanded) => expanded.to_string(),
-                Err(e) => {
-                    return Err(Error::shell_expansion(
-                        &value,
-                        format!("Failed to expand value for {key}: {e}"),
-                    ));
-                }
-            };
-
-            log::debug!("Setting {key}={expanded_value}");
-            env::set_var(key, expanded_value);
-        }
-
-        Ok(())
-    }
-
     fn apply_cue_package_with_options(
         &mut self,
         dir: &Path,
@@ -170,8 +144,9 @@ impl EnvManager {
             }
         };
 
-        // Store commands for later use
+        // Store commands and hooks for later use
         self.commands.extend(parse_result.commands);
+        self.hooks.extend(parse_result.hooks);
 
         for (key, value) in parse_result.variables {
             let expanded_value = match shellexpand::full(&value) {
@@ -443,6 +418,134 @@ impl EnvManager {
         }
 
         Ok(status.code().unwrap_or(1))
+    }
+
+    fn execute_on_enter_hooks(&self) -> Result<()> {
+        // Filter for onEnter hooks
+        let on_enter_hooks: Vec<(&String, &HookConfig)> = self
+            .hooks
+            .iter()
+            .filter(|(_, config)| config.hook_type == HookType::OnEnter)
+            .collect();
+
+        if on_enter_hooks.is_empty() {
+            return Ok(());
+        }
+
+        log::info!("Executing {} onEnter hooks", on_enter_hooks.len());
+
+        // Collect current environment variables for hook execution
+        let env_vars = self.collect_cue_env_vars();
+
+        // Create runtime for async hook execution
+        let rt = match tokio::runtime::Runtime::new() {
+            Ok(runtime) => runtime,
+            Err(e) => {
+                return Err(Error::configuration(format!(
+                    "Failed to create tokio runtime for hooks: {e}"
+                )));
+            }
+        };
+
+        // Create a command executor that uses the system's Command
+        struct SystemCommandExecutor;
+
+        #[async_trait]
+        impl CommandExecutor for SystemCommandExecutor {
+            async fn execute(
+                &self,
+                cmd: &str,
+                args: &CommandArguments,
+            ) -> Result<std::process::Output> {
+                match std::process::Command::new(cmd)
+                    .args(args.as_slice())
+                    .output()
+                {
+                    Ok(output) => Ok(output),
+                    Err(e) => Err(Error::command_execution(
+                        cmd,
+                        args.clone().into_inner(),
+                        format!("failed to execute command: {e}"),
+                        None,
+                    )),
+                }
+            }
+
+            async fn execute_with_env(
+                &self,
+                cmd: &str,
+                args: &CommandArguments,
+                env: EnvironmentVariables,
+            ) -> Result<std::process::Output> {
+                match std::process::Command::new(cmd)
+                    .args(args.as_slice())
+                    .envs(env.into_inner())
+                    .output()
+                {
+                    Ok(output) => Ok(output),
+                    Err(e) => Err(Error::command_execution(
+                        cmd,
+                        args.clone().into_inner(),
+                        format!("failed to execute command with environment: {e}"),
+                        None,
+                    )),
+                }
+            }
+        }
+
+        // Execute hooks
+        let executor = Arc::new(SystemCommandExecutor);
+        let hook_manager = match HookManager::new(executor) {
+            Ok(hm) => hm,
+            Err(e) => {
+                return Err(Error::configuration(format!(
+                    "Failed to create hook manager: {e}"
+                )));
+            }
+        };
+
+        for (name, config) in on_enter_hooks {
+            log::debug!("Executing onEnter hook: {name}");
+            match rt.block_on(hook_manager.execute_hook(config, &env_vars)) {
+                Ok(_) => log::info!("Successfully executed onEnter hook: {name}"),
+                Err(e) => {
+                    // Log error but continue with other hooks
+                    log::error!("Failed to execute onEnter hook '{name}': {e}");
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn collect_cue_env_vars(&self) -> HashMap<String, String> {
+        let current_env: HashMap<String, String> = env::vars().collect();
+        let mut cue_env_vars = HashMap::new();
+
+        // Collect variables that were added or modified by CUE
+        for (key, value) in &current_env {
+            if !self.original_env.contains_key(key) || self.original_env.get(key) != Some(value) {
+                cue_env_vars.insert(key.clone(), value.clone());
+            }
+        }
+
+        // Add minimal required environment variables for hook execution
+        if let Some(path) = self.original_env.get("PATH") {
+            cue_env_vars.insert("PATH".to_string(), path.clone());
+        }
+
+        // Ensure HOME directory is available
+        let home_var = Platform::home_env_var();
+        if let Some(home_value) = self.original_env.get(home_var) {
+            cue_env_vars.insert(home_var.to_string(), home_value.clone());
+        }
+
+        // Ensure HOME is set on all platforms for compatibility
+        if let Some(home) = self.original_env.get("HOME") {
+            cue_env_vars.insert("HOME".to_string(), home.clone());
+        }
+
+        cue_env_vars
     }
 }
 

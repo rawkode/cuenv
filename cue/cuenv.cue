@@ -12,6 +12,15 @@ package cuenv
 	
 	// Command definitions with capability requirements
 	Commands?: [string]: #Command
+	
+	// Hook definitions for lifecycle events
+	hooks?: {
+		// Hook to run when entering the environment
+		onEnter?: #HookConfig
+		
+		// Hook to run when exiting the environment
+		onExit?: #HookConfig
+	}
 }
 
 // #Secret represents a secret reference that will be resolved at runtime
@@ -33,3 +42,24 @@ package cuenv
 // #Capability is used as an attribute to tag environment variables
 // Usage: VAR_NAME: "value" @capability("aws")
 // This is handled as a CUE attribute, not a field
+
+// #HookConfig defines the configuration for a lifecycle hook
+#HookConfig: {
+	// Command to execute for the hook
+	command: string
+	
+	// Arguments to pass to the command
+	args: [...string]
+	
+	// Optional URL that may be used by the hook
+	url?: string
+}
+
+// #Hook defines the supported hook types
+#Hook: "onEnter" | "onExit"
+
+// #OnEnterHook is a convenience type for onEnter hooks
+#OnEnterHook: #HookConfig
+
+// #OnExitHook is a convenience type for onExit hooks
+#OnExitHook: #HookConfig

@@ -4,6 +4,7 @@ pub mod cue_parser;
 pub mod directory;
 pub mod env_manager;
 pub mod errors;
+pub mod hook_manager;
 pub mod memory;
 pub mod output_filter;
 pub mod platform;

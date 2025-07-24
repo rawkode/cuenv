@@ -18,6 +18,15 @@ struct CueParseResult {
     metadata: HashMap<String, VariableMetadata>,
     environments: HashMap<String, HashMap<String, serde_json::Value>>,
     commands: HashMap<String, CommandConfig>,
+    hooks: Option<HooksConfig>,
+}
+
+#[derive(Debug, Deserialize)]
+struct HooksConfig {
+    #[serde(rename = "onEnter")]
+    on_enter: Option<HookConfig>,
+    #[serde(rename = "onExit")]
+    on_exit: Option<HookConfig>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -28,6 +37,23 @@ struct VariableMetadata {
 #[derive(Debug, Deserialize)]
 pub struct CommandConfig {
     pub capabilities: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum HookType {
+    #[default]
+    OnEnter,
+    OnExit,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HookConfig {
+    pub command: String,
+    pub args: Vec<String>,
+    pub url: Option<String>,
+    #[serde(skip)]
+    pub hook_type: HookType,
 }
 
 pub struct CueParser;
@@ -53,6 +79,7 @@ pub struct ParseOptions {
 pub struct ParseResult {
     pub variables: HashMap<String, String>,
     pub commands: HashMap<String, CommandConfig>,
+    pub hooks: HashMap<String, HookConfig>,
 }
 
 impl CueParser {
@@ -128,6 +155,7 @@ impl CueParser {
             ParseResult {
                 variables: HashMap::new(),
                 commands: HashMap::new(),
+                hooks: HashMap::new(),
             }
         } else {
             // Parse JSON result
@@ -223,6 +251,7 @@ impl CueParser {
             ParseResult {
                 variables: HashMap::new(),
                 commands: HashMap::new(),
+                hooks: HashMap::new(),
             }
         } else {
             // Parse JSON result
@@ -331,9 +360,23 @@ impl CueParser {
             }
         }
 
+        // Process hooks
+        let mut hooks = HashMap::new();
+        if let Some(hooks_config) = cue_result.hooks {
+            if let Some(mut on_enter) = hooks_config.on_enter {
+                on_enter.hook_type = HookType::OnEnter;
+                hooks.insert("onEnter".to_string(), on_enter);
+            }
+            if let Some(mut on_exit) = hooks_config.on_exit {
+                on_exit.hook_type = HookType::OnExit;
+                hooks.insert("onExit".to_string(), on_exit);
+            }
+        }
+
         Ok(ParseResult {
             variables: final_vars,
             commands: cue_result.commands,
+            hooks,
         })
     }
 
@@ -722,5 +765,227 @@ env: {
         assert!(!result.contains_key("NULL_VAL"));
         assert!(!result.contains_key("ARRAY_VAL"));
         assert!(!result.contains_key("OBJECT_VAL"));
+    }
+
+    #[test]
+    fn test_parse_with_hooks() {
+        let content = r#"package cuenv
+
+hooks: {
+    onEnter: {
+        command: "echo"
+        args: ["Entering environment"]
+    }
+    onExit: {
+        command: "cleanup.sh"
+        args: ["--verbose"]
+    }
+}
+
+env: {
+    DATABASE_URL: "postgres://localhost/mydb"
+}"#;
+
+        let options = ParseOptions::default();
+        let result = CueParser::parse_content_with_options(content, &options).unwrap();
+
+        assert_eq!(result.hooks.len(), 2);
+
+        let on_enter = result.hooks.get("onEnter").unwrap();
+        assert_eq!(on_enter.command, "echo");
+        assert_eq!(on_enter.args, vec!["Entering environment"]);
+        assert_eq!(on_enter.hook_type, HookType::OnEnter);
+        assert!(on_enter.url.is_none());
+
+        let on_exit = result.hooks.get("onExit").unwrap();
+        assert_eq!(on_exit.command, "cleanup.sh");
+        assert_eq!(on_exit.args, vec!["--verbose"]);
+        assert_eq!(on_exit.hook_type, HookType::OnExit);
+        assert!(on_exit.url.is_none());
+    }
+
+    #[test]
+    fn test_parse_hooks_with_url() {
+        let content = r#"package cuenv
+
+hooks: {
+    onEnter: {
+        command: "notify"
+        args: ["webhook", "start"]
+        url: "https://example.com/webhook"
+    }
+}
+
+env: {
+    API_KEY: "secret123"
+}"#;
+
+        let options = ParseOptions::default();
+        let result = CueParser::parse_content_with_options(content, &options).unwrap();
+
+        assert_eq!(result.hooks.len(), 1);
+
+        let hook = result.hooks.get("onEnter").unwrap();
+        assert_eq!(hook.command, "notify");
+        assert_eq!(hook.args, vec!["webhook", "start"]);
+        assert_eq!(hook.url, Some("https://example.com/webhook".to_string()));
+    }
+
+    #[test]
+    fn test_parse_empty_hooks() {
+        let content = r#"package cuenv
+
+hooks: {}
+
+env: {
+    DATABASE_URL: "postgres://localhost/mydb"
+}"#;
+
+        let options = ParseOptions::default();
+        let result = CueParser::parse_content_with_options(content, &options).unwrap();
+
+        assert_eq!(result.hooks.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_no_hooks() {
+        let content = r#"package cuenv
+
+env: {
+    DATABASE_URL: "postgres://localhost/mydb"
+}"#;
+
+        let options = ParseOptions::default();
+        let result = CueParser::parse_content_with_options(content, &options).unwrap();
+
+        assert_eq!(result.hooks.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_hooks_with_complex_args() {
+        let content = r#"package cuenv
+
+hooks: {
+    onEnter: {
+        command: "docker"
+        args: ["run", "-d", "--name", "test-db", "postgres:14"]
+    }
+    onExit: {
+        command: "docker"
+        args: ["stop", "test-db", "&&", "docker", "rm", "test-db"]
+    }
+}
+
+env: {
+    APP_NAME: "myapp"
+}"#;
+
+        let options = ParseOptions::default();
+        let result = CueParser::parse_content_with_options(content, &options).unwrap();
+
+        let on_enter = result.hooks.get("onEnter").unwrap();
+        assert_eq!(on_enter.args.len(), 5);
+        assert_eq!(on_enter.args[0], "run");
+        assert_eq!(on_enter.args[4], "postgres:14");
+
+        let on_exit = result.hooks.get("onExit").unwrap();
+        assert_eq!(on_exit.args.len(), 6);
+    }
+
+    #[test]
+    fn test_parse_hooks_with_environments() {
+        let content = r#"package cuenv
+
+hooks: {
+    onEnter: {
+        command: "echo"
+        args: ["Development environment"]
+    }
+}
+
+env: {
+    DATABASE_URL: "postgres://localhost/mydb"
+    
+    environment: {
+        production: {
+            DATABASE_URL: "postgres://prod.example.com/mydb"
+        }
+    }
+}"#;
+
+        // Test with development (default)
+        let options = ParseOptions::default();
+        let result = CueParser::parse_content_with_options(content, &options).unwrap();
+        assert_eq!(result.hooks.len(), 1);
+        assert_eq!(
+            result.hooks.get("onEnter").unwrap().args[0],
+            "Development environment"
+        );
+
+        // Test with production environment - hooks should remain the same
+        let options = ParseOptions {
+            environment: Some("production".to_string()),
+            capabilities: Vec::new(),
+        };
+        let result = CueParser::parse_content_with_options(content, &options).unwrap();
+        assert_eq!(result.hooks.len(), 1);
+        assert_eq!(
+            result.hooks.get("onEnter").unwrap().args[0],
+            "Development environment"
+        );
+    }
+
+    #[test]
+    fn test_parse_hooks_only_on_enter() {
+        let content = r#"package cuenv
+
+hooks: {
+    onEnter: {
+        command: "start-server"
+        args: []
+    }
+}
+
+env: {
+    API_URL: "http://localhost:3000"
+}"#;
+
+        let options = ParseOptions::default();
+        let result = CueParser::parse_content_with_options(content, &options).unwrap();
+
+        assert_eq!(result.hooks.len(), 1);
+        assert!(result.hooks.contains_key("onEnter"));
+        assert!(!result.hooks.contains_key("onExit"));
+
+        let hook = result.hooks.get("onEnter").unwrap();
+        assert_eq!(hook.command, "start-server");
+        assert!(hook.args.is_empty());
+    }
+
+    #[test]
+    fn test_parse_hooks_only_on_exit() {
+        let content = r#"package cuenv
+
+hooks: {
+    onExit: {
+        command: "stop-server"
+        args: ["--graceful"]
+    }
+}
+
+env: {
+    API_URL: "http://localhost:3000"
+}"#;
+
+        let options = ParseOptions::default();
+        let result = CueParser::parse_content_with_options(content, &options).unwrap();
+
+        assert_eq!(result.hooks.len(), 1);
+        assert!(!result.hooks.contains_key("onEnter"));
+        assert!(result.hooks.contains_key("onExit"));
+
+        let hook = result.hooks.get("onExit").unwrap();
+        assert_eq!(hook.command, "stop-server");
+        assert_eq!(hook.args, vec!["--graceful"]);
     }
 }

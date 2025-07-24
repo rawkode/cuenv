@@ -6,9 +6,8 @@ import cloudflare from '@astrojs/cloudflare';
 // https://astro.build/config
 export default defineConfig({
 	output: 'static',
-	adapter: cloudflare({
-		mode: 'directory'
-	}),
+	site: 'https://cuenv.dev',
+	adapter: cloudflare(),
 	integrations: [
 		starlight({
 			title: 'cuenv',

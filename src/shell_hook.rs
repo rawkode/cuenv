@@ -1,5 +1,8 @@
 use crate::errors::{Error, Result};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+use crate::cue_parser::{CueParser, HookConfig, HookType, ParseOptions};
+use crate::platform::{escape_cmd_value, escape_shell_value};
 
 pub struct ShellHook;
 
@@ -96,6 +99,152 @@ for /f "tokens=*" %%i in ('cuenv hook cmd') do (
         let cuenv_file = current_dir.join(".cuenv_current");
         let env_cue_exists = current_dir.join("env.cue").exists();
 
+        // Check if we have a previous environment stored
+        let previous_dir = if cuenv_file.exists() {
+            match std::fs::read_to_string(&cuenv_file) {
+                Ok(content) => {
+                    let dir = PathBuf::from(content.trim());
+                    if dir != current_dir && dir.join("env.cue").exists() {
+                        Some(dir)
+                    } else {
+                        None
+                    }
+                }
+                Err(_) => None,
+            }
+        } else {
+            None
+        };
+
+        let mut hook_commands = String::new();
+
+        // If we're leaving a previous environment
+        if let Some(prev_dir) = previous_dir {
+            // Load hooks from the previous directory
+            let options = ParseOptions::default();
+            match CueParser::eval_package_with_options(&prev_dir, "env", &options) {
+                Ok(parse_result) => {
+                    // Filter for onExit hooks
+                    let exit_hooks: Vec<_> = parse_result
+                        .hooks
+                        .iter()
+                        .filter(|(_, config)| config.hook_type == HookType::OnExit)
+                        .collect();
+
+                    if !exit_hooks.is_empty() {
+                        log::debug!(
+                            "Generating onExit hook commands for: {}",
+                            prev_dir.display()
+                        );
+                        for (name, config) in exit_hooks {
+                            // Generate shell command to execute the hook
+                            hook_commands
+                                .push_str(&Self::generate_hook_command(shell, name, config)?);
+                            hook_commands.push('\n');
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Failed to load hooks from previous dir {}: {}",
+                        prev_dir.display(),
+                        e
+                    );
+                }
+            }
+        }
+
+        // Generate the shell-specific hook output
+        let env_output =
+            Self::generate_shell_specific_output(shell, current_dir, &cuenv_file, env_cue_exists)?;
+
+        // Combine hook commands with environment management
+        if hook_commands.is_empty() {
+            Ok(env_output)
+        } else {
+            Ok(format!("{hook_commands}{env_output}"))
+        }
+    }
+
+    fn generate_hook_command(shell: &str, name: &str, config: &HookConfig) -> Result<String> {
+        match shell {
+            "bash" | "zsh" => {
+                let args = config
+                    .args
+                    .iter()
+                    .map(|arg| escape_shell_value(arg))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+
+                if let Some(url) = &config.url {
+                    Ok(format!("# onExit hook: {name}\ncurl -s '{url}' | sh"))
+                } else {
+                    Ok(format!("# onExit hook: {name}\n{} {args}", config.command))
+                }
+            }
+            "fish" => {
+                let args = config
+                    .args
+                    .iter()
+                    .map(|arg| escape_shell_value(arg))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+
+                if let Some(url) = &config.url {
+                    Ok(format!("# onExit hook: {name}\ncurl -s '{url}' | sh"))
+                } else {
+                    Ok(format!("# onExit hook: {name}\n{} {args}", config.command))
+                }
+            }
+            "powershell" => {
+                let args = config
+                    .args
+                    .iter()
+                    .map(|arg| format!("'{}'", arg.replace("'", "''")))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+
+                if let Some(url) = &config.url {
+                    Ok(format!(
+                        "# onExit hook: {name}\nInvoke-WebRequest -Uri '{url}' -UseBasicParsing | Select-Object -ExpandProperty Content | Invoke-Expression"
+                    ))
+                } else {
+                    Ok(format!(
+                        "# onExit hook: {name}\n& '{}' {args}",
+                        config.command
+                    ))
+                }
+            }
+            "cmd" => {
+                let args = config
+                    .args
+                    .iter()
+                    .map(|arg| escape_cmd_value(arg))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+
+                if let Some(url) = &config.url {
+                    Ok(format!("REM onExit hook: {name}\ncurl -s \"{url}\" | cmd"))
+                } else {
+                    Ok(format!(
+                        "REM onExit hook: {name}\n{} {args}",
+                        config.command
+                    ))
+                }
+            }
+            _ => Err(Error::unsupported(
+                "shell",
+                format!("unsupported shell: {shell}"),
+            )),
+        }
+    }
+
+    fn generate_shell_specific_output(
+        shell: &str,
+        current_dir: &Path,
+        cuenv_file: &Path,
+        env_cue_exists: bool,
+    ) -> Result<String> {
         match shell {
             "bash" | "zsh" => {
                 if env_cue_exists {
