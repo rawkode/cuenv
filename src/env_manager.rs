@@ -80,7 +80,9 @@ impl EnvManager {
             }
 
             if capabilities.is_empty() {
-                log::info!("No capabilities specified or inferred, will load all non-capability-tagged variables");
+                log::info!(
+                    "No capabilities specified or inferred, will load all non-capability-tagged variables"
+                );
             }
         }
 
@@ -129,7 +131,7 @@ impl EnvManager {
                     dir,
                     format!("Failed to evaluate CUE package: {}", dir.display()),
                     e,
-                ))
+                ));
             }
         };
 
@@ -140,7 +142,7 @@ impl EnvManager {
                     return Err(Error::shell_expansion(
                         &value,
                         format!("Failed to expand value for {key}: {e}"),
-                    ))
+                    ));
                 }
             };
 
@@ -164,7 +166,7 @@ impl EnvManager {
                     dir,
                     format!("Failed to evaluate CUE package: {}", dir.display()),
                     e,
-                ))
+                ));
             }
         };
 
@@ -178,7 +180,7 @@ impl EnvManager {
                     return Err(Error::shell_expansion(
                         &value,
                         format!("Failed to expand value for {key}: {e}"),
-                    ))
+                    ));
                 }
             };
 
@@ -224,7 +226,7 @@ impl EnvManager {
                 return Err(Error::unsupported(
                     "shell",
                     format!("Unsupported shell: {shell}"),
-                ))
+                ));
             }
         };
 
@@ -274,7 +276,7 @@ impl EnvManager {
                 Err(e) => {
                     return Err(Error::configuration(format!(
                         "Failed to create tokio runtime: {e}"
-                    )))
+                    )));
                 }
             };
 
@@ -285,7 +287,7 @@ impl EnvManager {
                         return Err(Error::secret_resolution(
                             "multiple",
                             format!("Failed to resolve secrets: {e}"),
-                        ))
+                        ));
                     }
                 };
             (
@@ -340,7 +342,7 @@ impl EnvManager {
                     args.to_vec(),
                     format!("Failed to spawn command: {e}"),
                     None,
-                ))
+                ));
             }
         };
 
@@ -353,7 +355,7 @@ impl EnvManager {
                     args.to_vec(),
                     "Failed to capture stdout".to_string(),
                     None,
-                ))
+                ));
             }
         };
         let stderr = match child.stderr.take() {
@@ -364,7 +366,7 @@ impl EnvManager {
                     args.to_vec(),
                     "Failed to capture stderr".to_string(),
                     None,
-                ))
+                ));
             }
         };
 
@@ -391,7 +393,7 @@ impl EnvManager {
                     args.to_vec(),
                     format!("Failed to wait for command: {e}"),
                     None,
-                ))
+                ));
             }
         };
 
@@ -405,7 +407,7 @@ impl EnvManager {
                         args.to_vec(),
                         format!("Failed to process stdout: {e}"),
                         status.code(),
-                    ))
+                    ));
                 }
             },
             Err(_) => {
@@ -414,7 +416,7 @@ impl EnvManager {
                     args.to_vec(),
                     "stdout thread panicked".to_string(),
                     status.code(),
-                ))
+                ));
             }
         }
 
@@ -427,7 +429,7 @@ impl EnvManager {
                         args.to_vec(),
                         format!("Failed to process stderr: {e}"),
                         status.code(),
-                    ))
+                    ));
                 }
             },
             Err(_) => {
@@ -436,7 +438,7 @@ impl EnvManager {
                     args.to_vec(),
                     "stderr thread panicked".to_string(),
                     status.code(),
-                ))
+                ));
             }
         }
 

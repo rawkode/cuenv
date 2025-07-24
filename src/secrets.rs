@@ -66,7 +66,7 @@ impl CommandResolver {
             Err(e) => {
                 return Err(Error::configuration(format!(
                     "failed to acquire semaphore for rate limiting: {e}"
-                )))
+                )));
             }
         };
 
@@ -79,7 +79,7 @@ impl CommandResolver {
                     config.args.clone(),
                     format!("failed to execute command: {e}"),
                     None,
-                ))
+                ));
             }
         };
 
@@ -595,10 +595,12 @@ mod tests {
         let fail_ref = r#"cuenv-resolver://{"cmd":"failing-cmd","args":[]}"#;
         let result = resolver.resolve(fail_ref).await;
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("no test response configured"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("no test response configured")
+        );
     }
 
     // Test that command execution respects rate limiting

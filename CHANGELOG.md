@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.5] - 2025-01-24
 
 ### Added
+
 - Package-based CUE evaluation for better modularity and reusability
 - Windows platform support with proper cross-compilation
 - Nix flake for reproducible builds and development environments
@@ -17,17 +18,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Major refactoring with improved CUE integration and error handling
 
 ### Fixed
+
 - Resolved all clippy lints for cleaner codebase
 - Updated README with correct CUE syntax examples
 - Proper linking of Security & CoreFoundation frameworks on macOS
 
 ### Changed
+
 - Migrated from file-based to package-based CUE evaluation
 - Improved cross-platform support and build process
 
 ## [0.1.0] - 2024-06-09
 
 ### Added
+
 - Initial release of cuenv
 - CUE file parsing for environment configuration
 - Automatic environment loading when entering directories
@@ -42,10 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test suite
 
 ### Security
+
 - Secrets are only resolved when using `cuenv run` command
 - All resolved secrets are automatically obfuscated in command output
 - Hermetic environment execution prevents parent environment leakage
 
-[Unreleased]: https://github.com/rawkode/cuenv/compare/v0.1.5...HEAD
-[0.1.5]: https://github.com/rawkode/cuenv/compare/v0.1.0...v0.1.5
 [0.1.0]: https://github.com/rawkode/cuenv/releases/tag/v0.1.0
+[0.1.5]: https://github.com/rawkode/cuenv/compare/v0.1.0...v0.1.5
+[unreleased]: https://github.com/rawkode/cuenv/compare/v0.1.5...HEAD

@@ -1,13 +1,13 @@
----
-title: Secret Management
-description: Securely manage secrets with 1Password and GCP Secrets Manager integration
----
+______________________________________________________________________
+
+## title: Secret Management description: Securely manage secrets with 1Password and GCP Secrets Manager integration
 
 cuenv provides built-in integration with popular secret managers, allowing you to reference secrets in your configuration without exposing them in plain text.
 
 ## Overview
 
 Secrets are only resolved when using the `cuenv run` command. This ensures that:
+
 - Regular shell usage doesn't expose secret values
 - Secrets are fetched just-in-time when needed
 - Secret values are automatically obfuscated in command output
@@ -21,16 +21,18 @@ Secrets are only resolved when using the `cuenv run` command. This ensures that:
 #### Setup
 
 1. Install the [1Password CLI](https://developer.1password.com/docs/cli/):
+
    ```bash
    # macOS
    brew install --cask 1password-cli
-   
+
    # Linux (example for Ubuntu/Debian)
    curl -sS https://downloads.1password.com/linux/keys/1password.asc | \
      sudo gpg --dearmor --output /usr/share/keyrings/1password-archive-keyring.gpg
    ```
 
-2. Sign in to your 1Password account:
+1. Sign in to your 1Password account:
+
    ```bash
    op signin
    ```
@@ -72,17 +74,20 @@ GCP Secrets Manager provides a secure and convenient way to store API keys, pass
 #### Setup
 
 1. Install the [Google Cloud SDK](https://cloud.google.com/sdk/docs/install):
+
    ```bash
    # Download and install gcloud CLI
    curl https://sdk.cloud.google.com | bash
    ```
 
-2. Authenticate with your Google account:
+1. Authenticate with your Google account:
+
    ```bash
    gcloud auth login
    ```
 
-3. Set your default project:
+1. Set your default project:
+
    ```bash
    gcloud config set project YOUR_PROJECT_ID
    ```
@@ -295,12 +300,14 @@ cuenv run -e production -- npm start
 ### 1Password Issues
 
 **Not signed in:**
+
 ```bash
 # Error: You are not currently signed in
 op signin
 ```
 
 **Item not found:**
+
 ```bash
 # Check exact vault and item names
 op item list --vault="Work"
@@ -308,6 +315,7 @@ op item get "MyApp API" --vault="Work"
 ```
 
 **Field not found:**
+
 ```bash
 # List all fields in an item
 op item get "MyApp API" --format json | jq '.fields[].label'
@@ -316,12 +324,14 @@ op item get "MyApp API" --format json | jq '.fields[].label'
 ### GCP Issues
 
 **Not authenticated:**
+
 ```bash
 # Re-authenticate
 gcloud auth login
 ```
 
 **Secret not found:**
+
 ```bash
 # List secrets in project
 gcloud secrets list --project=my-project
@@ -331,6 +341,7 @@ gcloud secrets versions list my-secret --project=my-project
 ```
 
 **Permission denied:**
+
 ```bash
 # Grant secret accessor role
 gcloud secrets add-iam-policy-binding my-secret \
@@ -344,6 +355,7 @@ gcloud secrets add-iam-policy-binding my-secret \
 ### From .env Files
 
 Before (`.env`):
+
 ```bash
 DATABASE_URL=postgres://user:pass@localhost/db
 API_KEY=sk_live_abcd1234
@@ -351,6 +363,7 @@ JWT_SECRET=super-secret-key
 ```
 
 After (`env.cue`):
+
 ```cue title="env.cue"
 package env
 
@@ -362,12 +375,14 @@ JWT_SECRET: "gcp-secret://my-project/jwt-secret"
 ### From direnv
 
 Before (`.envrc`):
+
 ```bash
 export DATABASE_PASSWORD=$(op read "op://Personal/Database/password")
 export API_KEY=$(gcloud secrets versions access latest --secret=api-key)
 ```
 
 After (`env.cue`):
+
 ```cue title="env.cue"
 package env
 

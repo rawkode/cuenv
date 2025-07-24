@@ -22,7 +22,7 @@ impl AsyncRuntime {
                 Err(e) => {
                     return Err(Error::configuration(format!(
                         "failed to create tokio runtime: {e}"
-                    )))
+                    )));
                 }
             };
             self.runtime = Some(runtime);

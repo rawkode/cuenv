@@ -19,7 +19,7 @@ import (
 //export cue_parse_string
 func cue_parse_string(content *C.char) *C.char {
 	goContent := C.GoString(content)
-	
+
 	// Check if the content starts with "package env" or "package cuenv"
 	trimmed := strings.TrimSpace(goContent)
 	if !strings.HasPrefix(trimmed, "package env") && !strings.HasPrefix(trimmed, "package cuenv") {
@@ -27,26 +27,26 @@ func cue_parse_string(content *C.char) *C.char {
 		errBytes, _ := json.Marshal(errMsg)
 		return C.CString(string(errBytes))
 	}
-	
+
 	ctx := cuecontext.New()
 	v := ctx.CompileString(goContent)
-	
+
 	if v.Err() != nil {
 		// Try to return a more helpful error message
 		errMsg := map[string]string{"error": v.Err().Error()}
 		errBytes, _ := json.Marshal(errMsg)
 		return C.CString(string(errBytes))
 	}
-	
+
 	// Use the shared extraction logic
 	result := extractCueData(v)
-	
+
 	// Convert to JSON
 	jsonBytes, err := json.Marshal(result)
 	if err != nil {
 		return C.CString("")
 	}
-	
+
 	return C.CString(string(jsonBytes))
 }
 
@@ -57,7 +57,7 @@ func extractSecretReference(val cue.Value) string {
 	if !resolverField.Exists() {
 		return ""
 	}
-	
+
 	// Extract the resolver configuration
 	// Check for both "cmd" and "command" fields for compatibility
 	cmdField := resolverField.LookupPath(cue.ParsePath("cmd"))
@@ -65,23 +65,23 @@ func extractSecretReference(val cue.Value) string {
 		cmdField = resolverField.LookupPath(cue.ParsePath("command"))
 	}
 	argsField := resolverField.LookupPath(cue.ParsePath("args"))
-	
+
 	if !cmdField.Exists() || !argsField.Exists() {
 		return ""
 	}
-	
+
 	// For now, we'll encode the resolver as a JSON string that the Rust side can decode
 	// In the future, this could be a more sophisticated encoding
 	type Resolver struct {
 		Cmd  string   `json:"cmd"`
 		Args []string `json:"args"`
 	}
-	
+
 	var cmd string
 	if err := cmdField.Decode(&cmd); err != nil {
 		return ""
 	}
-	
+
 	// Decode args array
 	iter, _ := argsField.List()
 	var args []string
@@ -91,18 +91,18 @@ func extractSecretReference(val cue.Value) string {
 			args = append(args, arg)
 		}
 	}
-	
+
 	resolver := Resolver{
 		Cmd:  cmd,
 		Args: args,
 	}
-	
+
 	// Encode as JSON with a special prefix to identify it as a resolver
 	jsonBytes, err := json.Marshal(resolver)
 	if err != nil {
 		return ""
 	}
-	
+
 	return "cuenv-resolver://" + string(jsonBytes)
 }
 
@@ -115,7 +115,7 @@ func cue_free_string(s *C.char) {
 func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
 	goDir := C.GoString(dirPath)
 	goPkg := C.GoString(packageName)
-	
+
 	// Create a registry for module resolution
 	registry, err := modconfig.NewRegistry(&modconfig.Config{
 		Env: os.Environ(),
@@ -125,7 +125,7 @@ func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
 		errBytes, _ := json.Marshal(errMsg)
 		return C.CString(string(errBytes))
 	}
-	
+
 	// Load the CUE package from the directory
 	// CUE will automatically search for module root in parent directories
 	cfg := &load.Config{
@@ -134,7 +134,7 @@ func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
 		Registry: registry,
 		Env:      os.Environ(),
 	}
-	
+
 	// Load all .cue files in the directory
 	instances := load.Instances(nil, cfg)
 	if len(instances) == 0 {
@@ -142,7 +142,7 @@ func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
 		errBytes, _ := json.Marshal(errMsg)
 		return C.CString(string(errBytes))
 	}
-	
+
 	// Check for load errors
 	inst := instances[0]
 	if inst.Err != nil {
@@ -150,20 +150,20 @@ func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
 		errBytes, _ := json.Marshal(errMsg)
 		return C.CString(string(errBytes))
 	}
-	
+
 	// Build the instance
 	ctx := cuecontext.New()
 	v := ctx.BuildInstance(inst)
-	
+
 	if v.Err() != nil {
 		errMsg := map[string]string{"error": v.Err().Error()}
 		errBytes, _ := json.Marshal(errMsg)
 		return C.CString(string(errBytes))
 	}
-	
+
 	// Use the same extraction logic as cue_parse_string
 	result := extractCueData(v)
-	
+
 	// Convert to JSON
 	jsonBytes, err := json.Marshal(result)
 	if err != nil {
@@ -171,29 +171,29 @@ func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
 		errBytes, _ := json.Marshal(errMsg)
 		return C.CString(string(errBytes))
 	}
-	
+
 	return C.CString(string(jsonBytes))
 }
 
 // extractCueData extracts the structured data from a CUE value
 func extractCueData(v cue.Value) map[string]interface{} {
 	result := map[string]interface{}{
-		"variables": make(map[string]interface{}),
-		"metadata": make(map[string]interface{}),
+		"variables":    make(map[string]interface{}),
+		"metadata":     make(map[string]interface{}),
 		"environments": make(map[string]interface{}),
-		"commands": make(map[string]interface{}),
+		"commands":     make(map[string]interface{}),
 	}
-	
+
 	// Get metadata map reference for use throughout
 	metadata := result["metadata"].(map[string]interface{})
-	
+
 	// Look for the 'env' field which contains the environment definition
 	envRoot := v.LookupPath(cue.ParsePath("env"))
 	if !envRoot.Exists() {
 		// Return empty result if no env field
 		return result
 	}
-	
+
 	// Extract environment configurations if present
 	if envField := envRoot.LookupPath(cue.ParsePath("environment")); envField.Exists() {
 		envs := make(map[string]interface{})
@@ -206,11 +206,11 @@ func extractCueData(v cue.Value) map[string]interface{} {
 			for envIter.Next() {
 				key := envIter.Label()
 				val := envIter.Value()
-				
+
 				// Extract attributes for environment-specific variables
 				attrs := val.Attributes(cue.ValueAttr)
 				varMeta := make(map[string]interface{})
-				
+
 				for _, attr := range attrs {
 					if attr.Name() == "capability" {
 						if caps, err := attr.String(0); err == nil {
@@ -222,11 +222,11 @@ func extractCueData(v cue.Value) map[string]interface{} {
 						}
 					}
 				}
-				
+
 				if len(varMeta) > 0 {
 					envMeta[key] = varMeta
 				}
-				
+
 				// Check if this is a secret type
 				secretRef := extractSecretReference(val)
 				if secretRef != "" {
@@ -243,7 +243,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 		}
 		result["environments"] = envs
 	}
-	
+
 	// Extract Commands configuration if present (from env field)
 	if cmdField := envRoot.LookupPath(cue.ParsePath("Commands")); cmdField.Exists() {
 		cmds := make(map[string]interface{})
@@ -261,7 +261,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 		}
 		result["commands"] = cmds
 	}
-	
+
 	// Also check for Commands at the top level (outside env)
 	if cmdField := v.LookupPath(cue.ParsePath("Commands")); cmdField.Exists() {
 		cmds := result["commands"].(map[string]interface{})
@@ -279,25 +279,25 @@ func extractCueData(v cue.Value) map[string]interface{} {
 		}
 		result["commands"] = cmds
 	}
-	
+
 	// Extract variables with capability metadata
 	vars := result["variables"].(map[string]interface{})
-	
+
 	iter, _ := envRoot.Fields()
 	for iter.Next() {
 		key := iter.Label()
 		val := iter.Value()
-		
+
 		// Skip internal CUE fields, private fields, and special keys
-		if strings.HasPrefix(key, "_") || strings.HasPrefix(key, "#") || 
-		   key == "environment" || key == "Commands" {
+		if strings.HasPrefix(key, "_") || strings.HasPrefix(key, "#") ||
+			key == "environment" || key == "Commands" {
 			continue
 		}
-		
+
 		// Extract attributes (like @capability)
 		attrs := val.Attributes(cue.ValueAttr)
 		varMeta := make(map[string]interface{})
-		
+
 		for _, attr := range attrs {
 			if attr.Name() == "capability" {
 				if caps, err := attr.String(0); err == nil {
@@ -305,7 +305,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 				}
 			}
 		}
-		
+
 		// Check if this is a secret type and convert accordingly
 		secretRef := extractSecretReference(val)
 		if secretRef != "" {
@@ -324,7 +324,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 			}
 		}
 	}
-	
+
 	return result
 }
 

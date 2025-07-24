@@ -59,16 +59,19 @@ nix build
 Add the following to your shell configuration:
 
 ### Bash (~/.bashrc)
+
 ```bash
 eval "$(cuenv init bash)"
 ```
 
 ### Zsh (~/.zshrc)
+
 ```zsh
 eval "$(cuenv init zsh)"
 ```
 
 ### Fish (~/.config/fish/config.fish)
+
 ```fish
 cuenv init fish | source
 ```
@@ -151,9 +154,9 @@ env: cuenv.#Env & {
 ## How It Works
 
 1. When you cd into a directory, cuenv checks for `env.cue` files
-2. It loads all env.cue files from the root directory to the current directory
-3. Environment variables are set in your shell
-4. When you leave the directory, the environment is restored
+1. It loads all env.cue files from the root directory to the current directory
+1. Environment variables are set in your shell
+1. When you leave the directory, the environment is restored
 
 ## Running Commands in Hermetic Environment
 
@@ -206,6 +209,7 @@ env: cuenv.#Env & {
 ```
 
 **Requirements:**
+
 - For 1Password: Install [1Password CLI](https://developer.1password.com/docs/cli/) and authenticate with `op signin`
 - For GCP Secrets: Install [gcloud CLI](https://cloud.google.com/sdk/docs/install) and authenticate with `gcloud auth login`
 
@@ -281,6 +285,7 @@ env: cuenv.#Env & {
 ```
 
 Usage:
+
 ```bash
 # Use production environment
 cuenv run -e production -- ./app

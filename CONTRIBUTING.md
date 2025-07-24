@@ -5,6 +5,7 @@ Thank you for your interest in contributing to cuenv! This document provides gui
 ## Code of Conduct
 
 By participating in this project, you agree to abide by our Code of Conduct:
+
 - Be respectful and inclusive
 - Welcome newcomers and help them get started
 - Focus on constructive criticism
@@ -22,26 +23,26 @@ By participating in this project, you agree to abide by our Code of Conduct:
 ### Submitting Pull Requests
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass (`cargo test`)
-6. Format your code (`cargo fmt`)
-7. Run clippy (`cargo clippy`)
-8. Commit your changes with a descriptive message
-9. Push to your fork
-10. Open a Pull Request
+1. Create a feature branch (`git checkout -b feature/amazing-feature`)
+1. Make your changes
+1. Add tests for new functionality
+1. Ensure all tests pass (`cargo test`)
+1. Format your code (`cargo fmt`)
+1. Run clippy (`cargo clippy`)
+1. Commit your changes with a descriptive message
+1. Push to your fork
+1. Open a Pull Request
 
 ### Development Setup
 
 1. Install Rust (latest stable)
-2. Install Go (for libcue bindings)
-3. Clone the repository
-4. Build the project:
+1. Install Go (for libcue bindings)
+1. Clone the repository
+1. Build the project:
    ```bash
    cargo build
    ```
-5. Run tests:
+1. Run tests:
    ```bash
    cargo test
    ```
@@ -70,6 +71,7 @@ By participating in this project, you agree to abide by our Code of Conduct:
 - Reference issues when applicable
 
 Example:
+
 ```
 Add support for recursive environment loading
 

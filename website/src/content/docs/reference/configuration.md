@@ -1,7 +1,6 @@
----
-title: Configuration Reference
-description: Complete reference for cuenv configuration options
----
+______________________________________________________________________
+
+## title: Configuration Reference description: Complete reference for cuenv configuration options
 
 ## Configuration Files
 
@@ -31,8 +30,9 @@ cuenv loads configurations hierarchically from parent directories:
 ```
 
 Result in `/home/user/projects/myapp/src/`:
+
 - `ORG=mycompany`
-- `TEAM=backend` 
+- `TEAM=backend`
 - `APP=myapp`
 
 ## Environment Variables
@@ -47,6 +47,7 @@ Custom filename for environment configuration.
 
 **Default:** `env.cue`
 **Example:**
+
 ```bash
 export CUENV_FILE="environment.cue"
 ```
@@ -58,6 +59,7 @@ Enable debug output.
 **Default:** `0` (disabled)
 **Values:** `0`, `1`, `true`, `false`
 **Example:**
+
 ```bash
 export CUENV_DEBUG=1
 ```
@@ -69,6 +71,7 @@ Disable automatic environment loading.
 **Default:** `0` (auto-loading enabled)
 **Values:** `0`, `1`, `true`, `false`
 **Example:**
+
 ```bash
 export CUENV_DISABLE_AUTO=1
 ```
@@ -79,6 +82,7 @@ Default environment for `cuenv run`.
 
 **Default:** None (uses base configuration)
 **Example:**
+
 ```bash
 export CUENV_ENV=production
 ```
@@ -90,6 +94,7 @@ Default capabilities for `cuenv run`.
 **Default:** None
 **Format:** Comma-separated list
 **Example:**
+
 ```bash
 export CUENV_CAPABILITIES=aws,database
 ```
@@ -105,6 +110,7 @@ Indicates an environment is currently loaded.
 **Set when:** Environment is loaded
 **Unset when:** Environment is unloaded
 **Example usage:**
+
 ```bash
 if [[ -n "$CUENV_LOADED" ]]; then
     echo "cuenv environment active"
@@ -117,16 +123,18 @@ Path to the directory containing the loaded `env.cue`.
 
 **Set when:** Environment is loaded
 **Example:**
+
 ```bash
 echo "Environment loaded from: $CUENV_ROOT"
 ```
 
-#### CUENV_PREV_*
+#### CUENV_PREV\_\*
 
 Previous values of modified variables.
 
 **Format:** `CUENV_PREV_<VARIABLE_NAME>`
 **Example:**
+
 ```bash
 # If PATH was modified
 echo "Previous PATH: $CUENV_PREV_PATH"
@@ -468,16 +476,19 @@ PRIVATE_KEY: "..." @capability("sensitive")
 ### Common Issues
 
 1. **Environment not loading**
+
    - Check file is named correctly
    - Verify package declaration
    - Enable debug mode
 
-2. **Variables not set**
+1. **Variables not set**
+
    - Check CUE syntax
    - Verify no validation errors
    - Look for typos in variable names
 
-3. **Secrets not resolving**
+1. **Secrets not resolving**
+
    - Ensure secret manager is authenticated
    - Check secret reference format
    - Verify permissions

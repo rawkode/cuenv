@@ -1,16 +1,16 @@
----
-title: CUE File Format
-description: Learn how to write CUE configuration files for cuenv
----
+______________________________________________________________________
+
+## title: CUE File Format description: Learn how to write CUE configuration files for cuenv
 
 CUE (Configure, Unify, Execute) is a powerful configuration language that provides type safety and validation. This guide covers how to use CUE with cuenv.
 
 ## Basic Syntax
 
 Every cuenv configuration file must:
+
 1. Be named `env.cue`
-2. Declare `package env`
-3. Define environment variables as top-level fields
+1. Declare `package env`
+1. Define environment variables as top-level fields
 
 ```cue title="env.cue"
 package env
@@ -352,34 +352,37 @@ AUTH_ENDPOINT: "\(API_BASE_URL)/auth"
 ### Common Errors
 
 1. **Missing package declaration**
+
    ```cue
    // Error: Missing package declaration
    PORT: 3000
-   
+
    // Correct: Include package env
    package env
    PORT: 3000
    ```
 
-2. **Invalid type mixing**
+1. **Invalid type mixing**
+
    ```cue
    package env
-   
+
    // Error: Can't add string to number
    PORT: 3000
    DEBUG_URL: "localhost:" + PORT
-   
+
    // Correct: Use interpolation
    DEBUG_URL: "localhost:\(PORT)"
    ```
 
-3. **Undefined references**
+1. **Undefined references**
+
    ```cue
    package env
-   
+
    // Error: HOSTNAME is not defined
    URL: "https://\(HOSTNAME)/api"
-   
+
    // Correct: Define HOSTNAME first
    HOSTNAME: "example.com"
    URL: "https://\(HOSTNAME)/api"

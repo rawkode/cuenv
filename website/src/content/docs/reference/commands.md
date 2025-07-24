@@ -1,7 +1,6 @@
----
-title: Command Reference
-description: Complete reference for all cuenv commands
----
+______________________________________________________________________
+
+## title: Command Reference description: Complete reference for all cuenv commands
 
 ## Overview
 
@@ -30,6 +29,7 @@ cuenv
 ```
 
 **Output:**
+
 - Success: "env.cue found in current directory"
 - Failure: "No env.cue found in current directory"
 
@@ -42,6 +42,7 @@ cuenv init <shell>
 ```
 
 **Arguments:**
+
 - `<shell>` - Shell type: `bash`, `zsh`, or `fish`
 
 **Examples:**
@@ -66,6 +67,7 @@ cuenv load [directory]
 ```
 
 **Arguments:**
+
 - `[directory]` - Directory to load from (default: current directory)
 
 **Examples:**
@@ -90,6 +92,7 @@ cuenv unload
 ```
 
 **Notes:**
+
 - Restores previous environment variables
 - Safe to call even if no environment is loaded
 
@@ -102,6 +105,7 @@ cuenv status
 ```
 
 **Output includes:**
+
 - Currently loaded environment path
 - List of set variables
 - List of modified variables
@@ -129,9 +133,11 @@ cuenv hook <shell>
 ```
 
 **Arguments:**
+
 - `<shell>` - Shell type: `bash`, `zsh`, or `fish`
 
 **Notes:**
+
 - Used internally by `cuenv init`
 - Can be used for custom shell integration
 
@@ -144,11 +150,13 @@ cuenv run [options] -- <command> [args...]
 ```
 
 **Options:**
+
 - `-e`, `--env <environment>` - Use specific environment
 - `-c`, `--capabilities <list>` - Enable capabilities (comma-separated)
 - `--` - Separator between cuenv options and command
 
 **Environment variables:**
+
 - `CUENV_ENV` - Set default environment
 - `CUENV_CAPABILITIES` - Set default capabilities
 
@@ -172,6 +180,7 @@ CUENV_ENV=staging cuenv run -- ./deploy.sh
 ```
 
 **Secret Resolution:**
+
 - Resolves 1Password references (`op://...`)
 - Resolves GCP Secret Manager references (`gcp-secret://...`)
 - Automatically obfuscates secret values in output
@@ -185,6 +194,7 @@ cuenv completion <shell>
 ```
 
 **Arguments:**
+
 - `<shell>` - Shell type: `bash`, `zsh`, or `fish`
 
 **Installation:**
@@ -380,6 +390,7 @@ cuenv --debug status
 ```
 
 Debug output includes:
+
 - File paths being checked
 - Environment inheritance chain
 - Variable resolution details

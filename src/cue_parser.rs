@@ -92,7 +92,7 @@ impl CueParser {
                 return Err(Error::ffi(
                     "cue_eval_package",
                     format!("failed to create C string from directory path: {e}"),
-                ))
+                ));
             }
         };
 
@@ -102,7 +102,7 @@ impl CueParser {
                 return Err(Error::ffi(
                     "cue_eval_package",
                     format!("failed to create C string from package name: {e}"),
-                ))
+                ));
             }
         };
 
@@ -194,7 +194,7 @@ impl CueParser {
                 return Err(Error::ffi(
                     "cue_parse_string",
                     format!("failed to create C string from content: {e}"),
-                ))
+                ));
             }
         };
 

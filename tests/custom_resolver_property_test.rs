@@ -163,9 +163,11 @@ async fn test_echo_resolver_impl(test_string: &str) -> anyhow::Result<()> {
 
     // The resolver trims whitespace from command output
     let expected_value = test_string.trim();
-    assert_eq!(resolved_value, expected_value,
+    assert_eq!(
+        resolved_value, expected_value,
         "Echo resolver should return trimmed input. Input: {:?}, Expected (trimmed): {:?}, Got: {:?}",
-        test_string, expected_value, resolved_value);
+        test_string, expected_value, resolved_value
+    );
 
     // Verify it's tracked as a secret (using the trimmed value)
     assert!(
@@ -207,9 +209,11 @@ async fn test_echo_resolver_multi_args_impl(args: Vec<String>) -> anyhow::Result
         .get("TEST_VAR")
         .ok_or_else(|| anyhow::anyhow!("TEST_VAR not found"))?;
 
-    assert_eq!(resolved_value, &expected,
+    assert_eq!(
+        resolved_value, &expected,
         "Echo resolver should join args with spaces and trim. Args: {:?}, Expected (trimmed): {:?}, Got: {:?}",
-        args, expected, resolved_value);
+        args, expected, resolved_value
+    );
 
     Ok(())
 }
@@ -385,9 +389,9 @@ async fn test_custom_uppercase_resolver() {
 
 #[tokio::test]
 async fn test_resolver_concurrency() {
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
-    use tokio::time::{sleep, Duration};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tokio::time::{Duration, sleep};
 
     /// Slow echo executor to test concurrency
     struct SlowEchoExecutor {

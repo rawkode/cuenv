@@ -8,9 +8,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     flake-utils.url = "github:numtide/flake-utils";
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, rust-overlay, flake-utils }:
+  outputs = { self, nixpkgs, rust-overlay, flake-utils, treefmt-nix }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = [ (import rust-overlay) ];
@@ -19,13 +23,13 @@
         };
 
         # Platform-specific dependencies
-        platformDeps = with pkgs; 
+        platformDeps = with pkgs;
           if stdenv.isDarwin then [
             darwin.apple_sdk.frameworks.Security
             darwin.apple_sdk.frameworks.CoreFoundation
           ] else if stdenv.isLinux then [
             glibc
-          ] else [];
+          ] else [ ];
 
         # Build dependencies
         buildInputs = with pkgs; [
@@ -42,6 +46,30 @@
           go_1_24
         ];
 
+        # treefmt configuration
+        treefmt = treefmt-nix.lib.evalModule pkgs {
+          projectRootFile = "flake.nix";
+          programs = {
+            # Nix formatter
+            nixpkgs-fmt.enable = true;
+
+            # Rust formatter
+            rustfmt.enable = true;
+
+            # Go formatter
+            gofmt.enable = true;
+
+            # YAML formatter
+            yamlfmt.enable = true;
+
+            # Markdown formatter
+            mdformat.enable = true;
+
+            # TOML formatter
+            taplo.enable = true;
+          };
+        };
+
         # Development tools
         devTools = with pkgs; [
           rust-analyzer
@@ -52,6 +80,7 @@
           gopls
           gotools
           cue
+          treefmt.config.build.wrapper
         ];
 
         # Vendor Go dependencies
@@ -59,9 +88,9 @@
           pname = "cuenv-go-vendor";
           version = "0.1.0";
           src = ./libcue-bridge;
-          
+
           nativeBuildInputs = [ pkgs.go_1_24 ];
-          
+
           buildPhase = ''
             export HOME=$(mktemp -d)
             export GOPATH="$HOME/go"
@@ -69,12 +98,12 @@
             
             go mod vendor
           '';
-          
+
           installPhase = ''
             mkdir -p $out
             cp -r vendor $out/
           '';
-          
+
           outputHashMode = "recursive";
           outputHashAlgo = "sha256";
           outputHash = "sha256-l/urNOAK9q5nflBt2ovfbaM3WNCn0ouZlc9RJq/+eKk=";
@@ -83,9 +112,9 @@
         cuenv = pkgs.rustPlatform.buildRustPackage {
           pname = "cuenv";
           version = "0.1.0";
-          
+
           src = ./.;
-          
+
           cargoLock = {
             lockFile = ./Cargo.lock;
           };
@@ -105,10 +134,11 @@
           inherit buildInputs nativeBuildInputs;
 
           # Platform-specific linker flags
-          RUSTFLAGS = if pkgs.stdenv.isDarwin then
-            "-C link-arg=-framework -C link-arg=Security -C link-arg=-framework -C link-arg=CoreFoundation"
-          else
-            "";
+          RUSTFLAGS =
+            if pkgs.stdenv.isDarwin then
+              "-C link-arg=-framework -C link-arg=Security -C link-arg=-framework -C link-arg=CoreFoundation"
+            else
+              "";
 
           # Ensure Go is available during build
           CGO_ENABLED = "1";
@@ -125,7 +155,7 @@
             description = "A direnv alternative that uses CUE files for environment configuration";
             homepage = "https://github.com/korora-tech/cuenv";
             license = licenses.mit;
-            maintainers = [];
+            maintainers = [ ];
           };
         };
 
@@ -136,9 +166,17 @@
           cuenv = cuenv;
         };
 
+        # Make treefmt available as a check
+        checks = {
+          formatting = treefmt.config.build.check self;
+        };
+
+        # Make formatter available
+        formatter = treefmt.config.build.wrapper;
+
         devShells.default = pkgs.mkShell {
           buildInputs = buildInputs ++ nativeBuildInputs ++ devTools;
-          
+
           shellHook = ''
             echo "cuenv development environment"
             echo "Rust version: $(rustc --version)"
@@ -149,6 +187,8 @@
             echo "  cargo test     - Run tests"
             echo "  cargo run      - Run cuenv"
             echo "  cargo watch    - Watch for changes and rebuild"
+            echo "  treefmt        - Format all code"
+            echo "  nix flake check - Check code formatting"
             echo ""
             
             # Set up environment for building

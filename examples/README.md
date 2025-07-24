@@ -35,9 +35,9 @@ eval $(cuenv load)
 Instead of using `CUENV_FILE` to specify individual files, cuenv now evaluates the entire CUE package in the current directory using `cue eval -p cuenv`. This enables:
 
 1. **Module composition** - Import and compose CUE modules
-2. **Type safety** - Use CUE's type system for validation
-3. **Better organization** - Split configurations across multiple files
-4. **Hierarchy support** - CUE's natural module resolution
+1. **Type safety** - Use CUE's type system for validation
+1. **Better organization** - Split configurations across multiple files
+1. **Hierarchy support** - CUE's natural module resolution
 
 ## Writing Your Own Configuration
 

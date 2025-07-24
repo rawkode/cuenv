@@ -1,7 +1,6 @@
----
-title: Shell Integration
-description: How to integrate cuenv with your shell for automatic environment loading
----
+______________________________________________________________________
+
+## title: Shell Integration description: How to integrate cuenv with your shell for automatic environment loading
 
 cuenv integrates seamlessly with popular shells to automatically load and unload environment variables as you navigate directories.
 
@@ -87,8 +86,8 @@ echo "cuenv_init" >> ~/.config/fish/config.fish
 cuenv uses shell hooks to detect directory changes:
 
 1. **Bash**: Uses `PROMPT_COMMAND`
-2. **Zsh**: Uses `precmd` hook
-3. **Fish**: Uses `fish_prompt` event
+1. **Zsh**: Uses `precmd` hook
+1. **Fish**: Uses `fish_prompt` event
 
 ### The Hook Flow
 
@@ -230,19 +229,22 @@ end
 ### Environment Not Loading
 
 1. **Check initialization:**
+
    ```bash
    # Verify cuenv is initialized
    echo $PROMPT_COMMAND | grep cuenv  # Bash
    echo $precmd_functions | grep cuenv  # Zsh
    ```
 
-2. **Manual test:**
+1. **Manual test:**
+
    ```bash
    # Test hook manually
    cuenv hook bash  # or zsh, fish
    ```
 
-3. **Debug mode:**
+1. **Debug mode:**
+
    ```bash
    export CUENV_DEBUG=1
    cd /path/to/project

@@ -86,7 +86,7 @@ fn main() -> Result<()> {
                             PathBuf::from("."),
                             "get current directory",
                             e,
-                        ))
+                        ));
                     }
                 },
             };
@@ -153,7 +153,7 @@ fn main() -> Result<()> {
                         PathBuf::from("."),
                         "get current directory",
                         e,
-                    ))
+                    ));
                 }
             };
             match ShellHook::generate_hook_output(&shell, &current_dir) {
@@ -184,7 +184,7 @@ fn main() -> Result<()> {
                         PathBuf::from("."),
                         "get current directory",
                         e,
-                    ))
+                    ));
                 }
             };
             let mut env_manager = EnvManager::new();
@@ -220,7 +220,7 @@ fn main() -> Result<()> {
                 Err(e) => {
                     return Err(Error::configuration(format!(
                         "failed to get current directory: {e}"
-                    )))
+                    )));
                 }
             };
 

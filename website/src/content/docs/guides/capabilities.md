@@ -1,7 +1,6 @@
----
-title: Capabilities
-description: Control which environment variables are exposed based on command requirements
----
+______________________________________________________________________
+
+## title: Capabilities description: Control which environment variables are exposed based on command requirements
 
 Capabilities provide fine-grained control over which environment variables are exposed to specific commands. This security feature ensures that sensitive credentials are only available when needed.
 
@@ -41,16 +40,19 @@ GITHUB_ORG: "myorg" @capability("github")
 There are three ways to enable capabilities:
 
 1. **Command-line flag:**
+
    ```bash
    cuenv run -c aws,database -- terraform apply
    ```
 
-2. **Environment variable:**
+1. **Environment variable:**
+
    ```bash
    CUENV_CAPABILITIES=aws,database cuenv run -- terraform apply
    ```
 
-3. **Automatic inference** (based on command mapping):
+1. **Automatic inference** (based on command mapping):
+
    ```bash
    cuenv run -- aws s3 ls  # Automatically gets 'aws' capability
    ```

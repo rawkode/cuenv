@@ -1,7 +1,6 @@
----
-title: Managing Environments
-description: Learn how to manage multiple environments with cuenv
----
+______________________________________________________________________
+
+## title: Managing Environments description: Learn how to manage multiple environments with cuenv
 
 cuenv provides powerful features for managing different environments (development, staging, production) with environment-specific configurations and capability-based filtering.
 
@@ -46,16 +45,19 @@ environment: {
 There are three ways to specify which environment to use:
 
 1. **Command-line flag:**
+
    ```bash
    cuenv run -e production -- node server.js
    ```
 
-2. **Environment variable:**
+1. **Environment variable:**
+
    ```bash
    CUENV_ENV=production cuenv run -- node server.js
    ```
 
-3. **Default environment (no flag):**
+1. **Default environment (no flag):**
+
    ```bash
    cuenv run -- node server.js  # Uses base configuration
    ```
@@ -205,17 +207,20 @@ Commands: {
 ### Using Capabilities
 
 1. **Explicit capabilities:**
+
    ```bash
    cuenv run -c aws,github -- terraform plan
    ```
 
-2. **Automatic inference:**
+1. **Automatic inference:**
+
    ```bash
    # Automatically gets 'aws' capability
    cuenv run -- aws s3 ls
    ```
 
-3. **Environment variable:**
+1. **Environment variable:**
+
    ```bash
    CUENV_CAPABILITIES=aws,database cuenv run -- ./deploy.sh
    ```
@@ -251,6 +256,7 @@ environment: {
 ```
 
 Usage:
+
 ```bash
 # Deploy to US region
 cuenv run -e production-us -- ./deploy.sh
@@ -312,12 +318,14 @@ environment: {
 ### 1. Environment Naming Conventions
 
 Use clear, consistent naming:
+
 - `development` / `dev`
 - `staging` / `stage`
 - `production` / `prod`
 - `testing` / `test`
 
 For multi-region:
+
 - `production-us-east-1`
 - `production-eu-west-1`
 - `staging-us-east-1`

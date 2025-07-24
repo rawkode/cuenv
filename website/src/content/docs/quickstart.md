@@ -1,7 +1,6 @@
----
-title: Quick Start
-description: Get up and running with cuenv in 5 minutes
----
+______________________________________________________________________
+
+## title: Quick Start description: Get up and running with cuenv in 5 minutes
 
 This guide will walk you through creating your first cuenv configuration and using it in a project.
 
