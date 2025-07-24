@@ -1,4 +1,4 @@
-name: website-deploy
+name: deploy
 
 on:
   push:
@@ -7,8 +7,23 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  crates-io:
     runs-on: ubuntu-latest
+    steps:
+      - name: git-checkout
+        uses: actions/checkout@v4
+
+      - name: rust-toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo-publish
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  website:
+    runs-on: ubuntu-latest
+    needs: crates-io
     steps:
       - name: git-checkout
         uses: actions/checkout@v4
@@ -18,9 +33,9 @@ jobs:
         with:
           bun-version: latest
 
-      - name: dependencies-install`
+      - name: dependencies-install
         working-directory: ./website
-        run: cuenv run -- bun install
+        run: bun install
 
       - name: website-build
         working-directory: ./website
