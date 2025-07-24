@@ -371,6 +371,7 @@ dependencies = [
  "serde_json",
  "shellexpand",
  "shlex",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "url",
