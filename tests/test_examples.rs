@@ -175,8 +175,7 @@ Commands: {
     // When running a command with the deploy capability name, should infer aws and docker capabilities
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
-        .arg("run")
-        .arg("--")
+        .arg("exec")
         .arg("echo")
         .arg("deploy")
         .arg("test")
@@ -255,7 +254,7 @@ PORT: "8080"
     #[cfg(unix)]
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
-        .arg("run")
+        .arg("exec")
         .arg("sh")
         .arg("-c")
         .arg("test \"$TEST_FROM_CUE\" = \"cue_value\" && test -z \"$TEST_PARENT_VAR\"")
@@ -265,7 +264,7 @@ PORT: "8080"
     #[cfg(windows)]
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
-        .arg("run")
+        .arg("exec")
         .arg("cmd")
         .arg("/C")
         .arg("if \"%TEST_FROM_CUE%\"==\"cue_value\" (if \"%TEST_PARENT_VAR%\"==\"\" exit 0 else exit 1) else exit 1")

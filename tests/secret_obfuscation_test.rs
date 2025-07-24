@@ -62,7 +62,7 @@ echo "Mixed: public-value and $SECRET_KEY together"
     // Run the script through cuenv
     let output = Command::new(&cuenv_path)
         .current_dir(temp_dir.path())
-        .args(&["run", script_path.to_str().unwrap()])
+        .args(&["exec", script_path.to_str().unwrap()])
         .output()
         .expect("Failed to run cuenv");
 
@@ -108,7 +108,7 @@ SECRET_VAR: "secret-value"
     // Test that exit codes are preserved
     let output = Command::new(&cuenv_path)
         .current_dir(temp_dir.path())
-        .args(&["run", "sh", "--", "-c", "exit 42"])
+        .args(&["exec", "--", "sh", "-c", "exit 42"])
         .output()
         .expect("Failed to run cuenv");
 
@@ -122,9 +122,9 @@ SECRET_VAR: "secret-value"
     let output = Command::new(&cuenv_path)
         .current_dir(temp_dir.path())
         .args(&[
-            "run",
-            "sh",
+            "exec",
             "--",
+            "sh",
             "-c",
             "echo \"Value is: $SECRET_VAR\" >&2",
         ])
