@@ -33,9 +33,8 @@ DEBUG: true
     let output = Command::new(&cuenv_path)
         .current_dir(temp_dir.path())
         .args(&[
-            "run",
+            "exec",
             "sh",
-            "--",
             "-c",
             "echo APP=$APP_NAME PORT=$PORT FULL=$FULL_NAME",
         ])
@@ -43,10 +42,12 @@ DEBUG: true
         .expect("Failed to run cuenv");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         output.status.success(),
-        "Command failed: {}",
-        String::from_utf8_lossy(&output.stderr)
+        "Command failed: stderr={}, stdout={}",
+        stderr,
+        stdout
     );
     assert_eq!(
         stdout.trim(),
@@ -81,9 +82,8 @@ FROM_CUE: "cue-value"
     let output = Command::new(&cuenv_path)
         .current_dir(temp_dir.path())
         .args(&[
-            "run",
+            "exec",
             "sh",
-            "--",
             "-c",
             "echo FROM_CUE=$FROM_CUE PARENT=$PARENT_TEST_VAR",
         ])
@@ -122,9 +122,8 @@ TEST: "value"
     let output = Command::new(&cuenv_path)
         .current_dir(temp_dir.path())
         .args(&[
-            "run",
+            "exec",
             "sh",
-            "--",
             "-c",
             "test -n \"$PATH\" && test -n \"$HOME\" && echo OK",
         ])

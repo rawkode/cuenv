@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use cuenv::errors::{Error, Result};
 use cuenv::platform::{PlatformOps, Shell};
-use cuenv::{directory::DirectoryManager, env_manager::EnvManager, shell_hook::ShellHook};
+use cuenv::{directory::DirectoryManager, env_manager::EnvManager, shell_hook::ShellHook, task_executor::TaskExecutor};
 use std::env;
 use std::path::PathBuf;
 
@@ -50,6 +50,22 @@ enum Commands {
         directory: PathBuf,
     },
     Run {
+        /// Environment to use (e.g., dev, staging, production)
+        #[arg(short = 'e', long = "env")]
+        environment: Option<String>,
+
+        /// Capabilities to enable (can be specified multiple times)
+        #[arg(short = 'c', long = "capability")]
+        capabilities: Vec<String>,
+
+        /// Task name to execute
+        task_name: Option<String>,
+
+        /// Arguments to pass to the task (after --)
+        #[arg(last = true)]
+        task_args: Vec<String>,
+    },
+    Exec {
         /// Environment to use (e.g., dev, staging, production)
         #[arg(short = 'e', long = "env")]
         environment: Option<String>,
@@ -172,6 +188,70 @@ fn main() -> Result<()> {
             println!("Denying directory: {}", directory.display());
         }
         Some(Commands::Run {
+            environment,
+            capabilities,
+            task_name,
+            task_args,
+        }) => {
+            let current_dir = match env::current_dir() {
+                Ok(d) => d,
+                Err(e) => {
+                    return Err(Error::file_system(
+                        PathBuf::from("."),
+                        "get current directory",
+                        e,
+                    ));
+                }
+            };
+            let mut env_manager = EnvManager::new();
+
+            // Use environment variables as fallback if CLI args not provided
+            let env_name = environment.or_else(|| env::var("CUENV_ENV").ok());
+
+            let mut caps = capabilities;
+            if caps.is_empty() {
+                // Check for CUENV_CAPABILITIES env var (comma-separated)
+                if let Ok(env_caps) = env::var("CUENV_CAPABILITIES") {
+                    caps = env_caps
+                        .split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect();
+                }
+            }
+
+            // Load environment with options
+            env_manager.load_env_with_options(&current_dir, env_name, caps, None)?;
+
+            match task_name {
+                Some(name) => {
+                    // Execute the specified task
+                    let executor = TaskExecutor::new(env_manager, current_dir);
+                    let rt = tokio::runtime::Runtime::new().map_err(|e| {
+                        Error::configuration(format!("Failed to create async runtime: {}", e))
+                    })?;
+                    
+                    let status = rt.block_on(executor.execute_task(&name, &task_args))?;
+                    std::process::exit(status);
+                }
+                None => {
+                    // List available tasks
+                    let tasks = env_manager.list_tasks();
+                    if tasks.is_empty() {
+                        println!("No tasks defined in env.cue");
+                    } else {
+                        println!("Available tasks:");
+                        for (name, description) in tasks {
+                            match description {
+                                Some(desc) => println!("  {}: {}", name, desc),
+                                None => println!("  {}", name),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Some(Commands::Exec {
             environment,
             capabilities,
             command,
