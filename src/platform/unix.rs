@@ -1,4 +1,4 @@
-use super::{ExportFormat, PlatformOps, Shell, escape_shell_value};
+use super::{escape_shell_value, ExportFormat, PlatformOps, Shell};
 use std::collections::HashMap;
 use std::env;
 

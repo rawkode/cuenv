@@ -54,7 +54,11 @@
             nixpkgs-fmt.enable = true;
 
             # Rust formatter
-            rustfmt.enable = true;
+            rustfmt = {
+              enable = true;
+              # Use same edition as Cargo.toml
+              edition = "2021";
+            };
 
             # Go formatter
             gofmt.enable = true;
@@ -169,6 +173,42 @@
         # Make treefmt available as a check
         checks = {
           formatting = treefmt.config.build.check self;
+
+          # Run clippy
+          clippy = cuenv.overrideAttrs (oldAttrs: {
+            name = "cuenv-clippy";
+            buildPhase = ''
+              export HOME=$(mktemp -d)
+              export GOPATH="$HOME/go"
+              export GOCACHE="$HOME/go-cache"
+              export CGO_ENABLED=1
+              
+              # Copy vendored dependencies
+              cp -r ${goVendor}/vendor libcue-bridge/
+              chmod -R u+w libcue-bridge
+              
+              cargo clippy --offline -- -D warnings
+            '';
+            installPhase = ''
+              mkdir -p $out
+              touch $out/clippy-passed
+            '';
+          });
+
+          # Run tests
+          tests = cuenv.overrideAttrs (oldAttrs: {
+            name = "cuenv-tests";
+            doCheck = true;
+            checkPhase = ''
+              runHook preCheck
+              cargo test --offline
+              runHook postCheck
+            '';
+            installPhase = ''
+              mkdir -p $out
+              touch $out/tests-passed
+            '';
+          });
         };
 
         # Make formatter available

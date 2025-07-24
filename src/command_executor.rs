@@ -199,12 +199,10 @@ mod tests {
         let args = CommandArguments::from_vec(vec!["cmd".to_string()]);
         let result = executor.execute("unknown", &args).await;
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("no test response configured")
-        );
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("no test response configured"));
     }
 }
 

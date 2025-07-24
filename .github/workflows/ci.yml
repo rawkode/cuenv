@@ -29,22 +29,14 @@ jobs:
       - name: nix-build
         run: nix build .#cuenv
       - name: nix-flake-check
-        run: nix flake check
+        run: nix flake check --print-build-logs
         if: matrix.rust == 'stable'
-      - name: cuenv-test
-        run: nix develop --command cargo test --verbose
       - name: cuenv-test-examples
         run: |
           nix develop --command ./scripts/test-examples.sh
       - name: cuenv-test-integrations
         run: |
           nix develop --command cargo test --test test_examples
-      - name: cuenv-format
-        run: nix develop --command cargo fmt -- --check
-        if: matrix.rust == 'stable'
-      - name: cuenv-lint
-        run: nix develop --command cargo clippy -- -D warnings
-        if: matrix.rust == 'stable'
   coverage:
     runs-on: ubuntu-latest
     needs: test

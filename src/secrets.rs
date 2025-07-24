@@ -595,12 +595,10 @@ mod tests {
         let fail_ref = r#"cuenv-resolver://{"cmd":"failing-cmd","args":[]}"#;
         let result = resolver.resolve(fail_ref).await;
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("no test response configured")
-        );
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("no test response configured"));
     }
 
     // Test that command execution respects rate limiting

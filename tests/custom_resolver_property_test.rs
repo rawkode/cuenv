@@ -389,9 +389,9 @@ async fn test_custom_uppercase_resolver() {
 
 #[tokio::test]
 async fn test_resolver_concurrency() {
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use tokio::time::{Duration, sleep};
+    use std::sync::Arc;
+    use tokio::time::{sleep, Duration};
 
     /// Slow echo executor to test concurrency
     struct SlowEchoExecutor {
