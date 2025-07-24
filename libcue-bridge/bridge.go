@@ -282,88 +282,9 @@ func extractCueData(v cue.Value) map[string]interface{} {
 		result["commands"] = cmds
 	}
 
-	// Extract tasks configuration if present (from env field)
-	// Note: This is deprecated in favor of top-level tasks
-	if tasksField := envRoot.LookupPath(cue.ParsePath("tasks")); tasksField.Exists() {
-		tasks := make(map[string]interface{})
-		iter, _ := tasksField.Fields()
-		for iter.Next() {
-			taskName := iter.Label()
-			taskConfig := make(map[string]interface{})
-			
-			// Extract description
-			if descField := iter.Value().LookupPath(cue.ParsePath("description")); descField.Exists() {
-				var desc string
-				if err := descField.Decode(&desc); err == nil {
-					taskConfig["description"] = desc
-				}
-			}
-			
-			// Extract command
-			if cmdField := iter.Value().LookupPath(cue.ParsePath("command")); cmdField.Exists() {
-				var cmd string
-				if err := cmdField.Decode(&cmd); err == nil {
-					taskConfig["command"] = cmd
-				}
-			}
-			
-			// Extract script
-			if scriptField := iter.Value().LookupPath(cue.ParsePath("script")); scriptField.Exists() {
-				var script string
-				if err := scriptField.Decode(&script); err == nil {
-					taskConfig["script"] = script
-				}
-			}
-			
-			// Extract dependencies
-			if depsField := iter.Value().LookupPath(cue.ParsePath("dependencies")); depsField.Exists() {
-				var deps []string
-				if err := depsField.Decode(&deps); err == nil {
-					taskConfig["dependencies"] = deps
-				}
-			}
-			
-			// Extract workingDir
-			if wdField := iter.Value().LookupPath(cue.ParsePath("workingDir")); wdField.Exists() {
-				var wd string
-				if err := wdField.Decode(&wd); err == nil {
-					taskConfig["workingDir"] = wd
-				}
-			}
-			
-			// Extract shell
-			if shellField := iter.Value().LookupPath(cue.ParsePath("shell")); shellField.Exists() {
-				var shell string
-				if err := shellField.Decode(&shell); err == nil {
-					taskConfig["shell"] = shell
-				}
-			}
-			
-			// Extract inputs
-			if inputsField := iter.Value().LookupPath(cue.ParsePath("inputs")); inputsField.Exists() {
-				var inputs []string
-				if err := inputsField.Decode(&inputs); err == nil {
-					taskConfig["inputs"] = inputs
-				}
-			}
-			
-			// Extract outputs
-			if outputsField := iter.Value().LookupPath(cue.ParsePath("outputs")); outputsField.Exists() {
-				var outputs []string
-				if err := outputsField.Decode(&outputs); err == nil {
-					taskConfig["outputs"] = outputs
-				}
-			}
-			
-			tasks[taskName] = taskConfig
-		}
-		result["tasks"] = tasks
-	}
-
-	// Also check for tasks at the top level (outside env) - PREFERRED location
-	// Top-level tasks will override any env.tasks if both are present
+	// Extract tasks configuration if present (top-level only)
 	if tasksField := v.LookupPath(cue.ParsePath("tasks")); tasksField.Exists() {
-		tasks := result["tasks"].(map[string]interface{})
+		tasks := make(map[string]interface{})
 		iter, _ := tasksField.Fields()
 		for iter.Next() {
 			taskName := iter.Label()
