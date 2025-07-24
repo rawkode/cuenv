@@ -2,7 +2,8 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "cuenv-website",
   "compatibility_date": "2025-07-22",
-	"main": "./dist/_worker.js/index.js",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./dist/_worker.js/index.js",
   "assets": {
     "directory": "./dist"
   },
