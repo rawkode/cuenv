@@ -477,19 +477,16 @@ PRIVATE_KEY: "..." @capability("sensitive")
 ### Common Issues
 
 1. **Environment not loading**
-
    - Check file is named correctly
    - Verify package declaration
    - Enable debug mode
 
 1. **Variables not set**
-
    - Check CUE syntax
    - Verify no validation errors
    - Look for typos in variable names
 
 1. **Secrets not resolving**
-
    - Ensure secret manager is authenticated
    - Check secret reference format
    - Verify permissions
