@@ -38,7 +38,6 @@ impl std::str::FromStr for Shell {
 }
 
 impl Shell {
-
     /// Get the shell name as a string
     pub const fn as_str(&self) -> &'static str {
         match self {

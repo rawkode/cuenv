@@ -80,6 +80,7 @@ extern "C" {
 #endif
 
 extern char* cue_parse_string(char* content);
+extern char* cue_eval_package(char* dir_path, char* package_name);
 extern void cue_free_string(char* s);
 
 #ifdef __cplusplus

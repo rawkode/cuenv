@@ -1,13 +1,11 @@
-package gcp
+package cuenv
 
-import "github.com/rawkode/cuenv"
-
-#GcpSecret: cuenv.#Resolver & {
+#GcpSecret: #Resolver & {
 	project: string
 	secret: string
 	version: string | *"latest"
 	ref: "gcp://\(project)/\(secret)/\(version)"
-	resolver: cuenv.#ExecResolver & {
+	resolver: #ExecResolver & {
 		command: "gcloud"
 		args: [
 			"secrets", "versions", "access", version,

@@ -41,9 +41,11 @@ fn should_load_environment_variables_from_cue_file() {
     let cue_content = r#"
 package env
 
+env: {
 DATABASE_URL: "postgres://localhost:5432/mydb"
 API_KEY: "test-api-key"
 LOG_LEVEL: "debug"
+}
 "#;
     fs::write(temp_dir.path().join("env.cue"), cue_content).unwrap();
 
@@ -108,6 +110,7 @@ fn should_override_global_variables_with_environment_specific() {
     let cue_content = r#"
 package env
 
+env: {
 // Global variables
 DATABASE_URL: "postgres://localhost:5432/dev"
 API_URL: "http://localhost:8080"
@@ -119,6 +122,7 @@ environments: {
         API_URL: "https://api.production.com"
         // LOG_LEVEL not overridden, should use global value
     }
+}
 }
 "#;
     fs::write(temp_dir.path().join("env.cue"), cue_content).unwrap();
@@ -147,6 +151,7 @@ fn should_filter_variables_based_on_capabilities() {
     let cue_content = r#"
 package env
 
+env: {
 // Always included
 BASE_URL: "http://localhost:8080"
 
@@ -160,6 +165,7 @@ DATABASE_URL: {
 REDIS_URL: {
     value: "redis://localhost:6379"
     capability: "cache"
+}
 }
 "#;
     fs::write(temp_dir.path().join("env.cue"), cue_content).unwrap();
@@ -247,6 +253,7 @@ fn should_provide_resolved_environment_to_commands() {
     let cue_content = r#"
 package env
 
+env: {
 DATABASE_URL: "postgres://localhost:5432/mydb"
 APP_NAME: "test-app"
 
@@ -256,6 +263,7 @@ commands: {
         args: ["up"]
         description: "Run database migrations"
     }
+}
 }
 "#;
     fs::write(temp_dir.path().join("env.cue"), cue_content).unwrap();
@@ -311,7 +319,9 @@ fn should_inherit_required_system_variables() {
     let cue_content = r#"
 package env
 
+env: {
 MY_VAR: "my-value"
+}
 "#;
     fs::write(temp_dir.path().join("env.cue"), cue_content).unwrap();
 

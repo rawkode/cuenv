@@ -7,7 +7,6 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 
 use crate::cue_parser::{CommandConfig, CueParser, ParseOptions};
-use crate::directory::DirectoryManager;
 use crate::output_filter::OutputFilter;
 use crate::platform::{PlatformOps, Shell};
 use crate::secrets::SecretManager;
@@ -19,7 +18,6 @@ use crate::platform::UnixPlatform as Platform;
 use crate::platform::WindowsPlatform as Platform;
 
 pub struct EnvManager {
-    directory_manager: DirectoryManager,
     original_env: HashMap<String, String>,
     commands: HashMap<String, CommandConfig>,
 }
@@ -27,7 +25,6 @@ pub struct EnvManager {
 impl EnvManager {
     pub fn new() -> Self {
         Self {
-            directory_manager: DirectoryManager::new(),
             original_env: HashMap::new(),
             commands: HashMap::new(),
         }
@@ -44,17 +41,12 @@ impl EnvManager {
     pub fn load_env(&mut self, dir: &Path) -> Result<()> {
         self.save_original_env();
 
-        let env_files = self.directory_manager.find_env_files(dir)?;
-
-        for env_file in env_files {
-            log::info!("Loading environment from: {}", env_file.display());
-            match self.apply_env_file(&env_file) {
-                Ok(()) => {}
-                Err(e) => return Err(e),
-            }
+        // Use package evaluation approach
+        log::info!("Loading CUE package from: {}", dir.display());
+        match self.apply_cue_package(dir, "env") {
+            Ok(()) => Ok(()),
+            Err(e) => Err(e),
         }
-
-        Ok(())
     }
 
     pub fn load_env_with_options(
@@ -66,18 +58,14 @@ impl EnvManager {
     ) -> Result<()> {
         self.save_original_env();
 
-        let env_files = self.directory_manager.find_env_files(dir)?;
-
-        // First pass: load files to get command mappings
+        // First pass: load package to get command mappings
         let temp_options = ParseOptions {
             environment: environment.clone(),
             capabilities: Vec::new(), // Empty for now to get all commands
         };
 
-        for env_file in &env_files {
-            let parse_result = CueParser::parse_env_file_with_options(env_file, &temp_options)?;
-            self.commands.extend(parse_result.commands);
-        }
+        let parse_result = CueParser::eval_package_with_options(dir, "env", &temp_options)?;
+        self.commands.extend(parse_result.commands);
 
         // If no capabilities were specified, try to infer from the command
         if capabilities.is_empty() {
@@ -85,9 +73,7 @@ impl EnvManager {
                 // Look up the command in our commands configuration
                 if let Some(cmd_config) = self.commands.get(cmd) {
                     if let Some(cmd_caps) = &cmd_config.capabilities {
-                        log::info!(
-                            "Inferred capabilities for command '{cmd}': {cmd_caps:?}"
-                        );
+                        log::info!("Inferred capabilities for command '{cmd}': {cmd_caps:?}");
                         capabilities = cmd_caps.clone();
                     }
                 }
@@ -104,21 +90,17 @@ impl EnvManager {
             capabilities,
         };
 
-        for env_file in env_files {
-            log::info!(
-                "Loading environment from: {} with env={:?}, capabilities={:?}",
-                env_file.display(),
-                options.environment,
-                options.capabilities
-            );
+        log::info!(
+            "Loading CUE package from: {} with env={:?}, capabilities={:?}",
+            dir.display(),
+            options.environment,
+            options.capabilities
+        );
 
-            match self.apply_env_file_with_options(&env_file, &options) {
-                Ok(()) => {}
-                Err(e) => return Err(e),
-            }
+        match self.apply_cue_package_with_options(dir, "env", &options) {
+            Ok(()) => Ok(()),
+            Err(e) => Err(e),
         }
-
-        Ok(())
     }
 
     pub fn unload_env(&self) -> Result<()> {
@@ -139,13 +121,13 @@ impl EnvManager {
         self.original_env = env::vars().collect();
     }
 
-    fn apply_env_file(&self, path: &Path) -> Result<()> {
-        let env_vars = match CueParser::parse_env_file(path) {
+    fn apply_cue_package(&self, dir: &Path, package_name: &str) -> Result<()> {
+        let env_vars = match CueParser::eval_package(dir, package_name) {
             Ok(vars) => vars,
             Err(e) => {
                 return Err(Error::cue_parse_with_source(
-                    path,
-                    format!("Failed to parse env file: {}", path.display()),
+                    dir,
+                    format!("Failed to evaluate CUE package: {}", dir.display()),
                     e,
                 ))
             }
@@ -169,13 +151,18 @@ impl EnvManager {
         Ok(())
     }
 
-    fn apply_env_file_with_options(&mut self, path: &Path, options: &ParseOptions) -> Result<()> {
-        let parse_result = match CueParser::parse_env_file_with_options(path, options) {
+    fn apply_cue_package_with_options(
+        &mut self,
+        dir: &Path,
+        package_name: &str,
+        options: &ParseOptions,
+    ) -> Result<()> {
+        let parse_result = match CueParser::eval_package_with_options(dir, package_name, options) {
             Ok(result) => result,
             Err(e) => {
                 return Err(Error::cue_parse_with_source(
-                    path,
-                    format!("Failed to parse env file: {}", path.display()),
+                    dir,
+                    format!("Failed to evaluate CUE package: {}", dir.display()),
                     e,
                 ))
             }
@@ -471,7 +458,9 @@ mod tests {
             &env_file,
             r#"package env
 
-CUENV_TEST_VAR_UNIQUE: "test_value""#,
+env: {
+    CUENV_TEST_VAR_UNIQUE: "test_value"
+}"#,
         )
         .unwrap();
 
@@ -498,8 +487,10 @@ CUENV_TEST_VAR_UNIQUE: "test_value""#,
             &env_file,
             r#"package env
 
-TEST_FROM_CUE: "cue_value"
-PORT: "8080""#,
+env: {
+    TEST_FROM_CUE: "cue_value"
+    PORT: "8080"
+}"#,
         )
         .unwrap();
 
@@ -545,8 +536,10 @@ PORT: "8080""#,
             &env_file,
             r#"package env
 
-NORMAL_VAR: "normal-value"
-ANOTHER_VAR: "another-value""#,
+env: {
+    NORMAL_VAR: "normal-value"
+    ANOTHER_VAR: "another-value"
+}"#,
         )
         .unwrap();
 
@@ -579,7 +572,9 @@ ANOTHER_VAR: "another-value""#,
             &env_file,
             r#"package env
 
-TEST_VAR: "test""#,
+env: {
+    TEST_VAR: "test"
+}"#,
         )
         .unwrap();
 

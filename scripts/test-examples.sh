@@ -20,27 +20,27 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 CUENV="$PROJECT_ROOT/target/debug/cuenv"
 EXAMPLES_DIR="$PROJECT_ROOT/examples"
 
-# Function to test a CUE file
-test_cue_file() {
-    local file=$1
-    local name=$(basename "$file")
+# Function to test a CUE directory
+test_cue_dir() {
+    local dir=$1
+    local name=$(basename "$dir")
     
     echo -e "\n${YELLOW}Testing $name...${NC}"
     
     # Test basic load
     echo -n "  Load test: "
-    if CUENV_FILE="$name" $CUENV load -d "$EXAMPLES_DIR" > /dev/null 2>&1; then
+    if $CUENV load -d "$dir" > /dev/null 2>&1; then
         echo -e "${GREEN}PASS${NC}"
     else
         echo -e "${RED}FAIL${NC}"
-        CUENV_FILE="$name" $CUENV load -d "$EXAMPLES_DIR" 2>&1 | sed 's/^/    /'
+        $CUENV load -d "$dir" 2>&1 | sed 's/^/    /'
         return 1
     fi
     
     # Test with environment if the file has environment configs
-    if grep -q "environment:" "$file"; then
+    if grep -q "environment:" "$dir/env.cue" 2>/dev/null; then
         echo -n "  Environment test (production): "
-        if CUENV_FILE="$name" $CUENV load -d "$EXAMPLES_DIR" -e production > /dev/null 2>&1; then
+        if $CUENV load -d "$dir" -e production > /dev/null 2>&1; then
             echo -e "${GREEN}PASS${NC}"
         else
             echo -e "${RED}FAIL${NC}"
@@ -49,9 +49,9 @@ test_cue_file() {
     fi
     
     # Test with capabilities if the file has capability tags
-    if grep -q "@capability" "$file"; then
+    if grep -q "@capability" "$dir/env.cue" 2>/dev/null; then
         echo -n "  Capability test (aws): "
-        if CUENV_FILE="$name" $CUENV load -d "$EXAMPLES_DIR" -c aws > /dev/null 2>&1; then
+        if $CUENV load -d "$dir" -c aws > /dev/null 2>&1; then
             echo -e "${GREEN}PASS${NC}"
         else
             echo -e "${RED}FAIL${NC}"
@@ -71,24 +71,15 @@ test_secret_resolution() {
     cat > "$TEMP_DIR/env.cue" << 'EOF'
 package env
 
-#SecretRef: {
-    resolver: {
-        cmd: string
-        args: [...string]
-    }
-    ...
-}
-
-#EchoSecret: #SecretRef & {
-    value: string
-    resolver: {
-        cmd: "echo"
-        args: [value]
+env: {
+    NORMAL_VAR: "plain-value"
+    SECRET_VAR: {
+        resolver: {
+            command: "echo"
+            args: ["resolved-secret"]
+        }
     }
 }
-
-NORMAL_VAR: "plain-value"
-SECRET_VAR: #EchoSecret & { value: "resolved-secret" }
 EOF
 
     echo -n "  Secret resolution test: "
@@ -111,12 +102,31 @@ EOF
 # Run all tests
 echo -e "${YELLOW}Running cuenv example tests${NC}"
 
+# Initialize CUE module at examples level if it doesn't exist
+if [ ! -f "$EXAMPLES_DIR/cue.mod/module.cue" ]; then
+    echo -e "${YELLOW}Initializing CUE module in examples directory...${NC}"
+    (cd "$EXAMPLES_DIR" && cue mod init github.com/rawkode/cuenv-examples) > /dev/null 2>&1 || {
+        echo -e "${RED}Failed to initialize CUE module${NC}"
+        exit 1
+    }
+fi
+
+# Fetch dependencies
+echo -e "${YELLOW}Fetching CUE dependencies...${NC}"
+cd "$EXAMPLES_DIR"
+if ! cue mod tidy 2>&1; then
+    echo -e "${RED}Failed to fetch CUE dependencies${NC}"
+    exit 1
+fi
+
 FAILED=0
 
-# Test each example file
-for cue_file in "$EXAMPLES_DIR"/*.cue; do
-    if ! test_cue_file "$cue_file"; then
-        FAILED=$((FAILED + 1))
+# Test each example directory
+for example_dir in "$EXAMPLES_DIR"/*/; do
+    if [ -d "$example_dir" ] && [ -f "$example_dir/env.cue" ]; then
+        if ! test_cue_dir "$example_dir"; then
+            FAILED=$((FAILED + 1))
+        fi
     fi
 done
 

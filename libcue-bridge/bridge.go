@@ -6,11 +6,14 @@ package main
 import "C"
 import (
 	"encoding/json"
+	"os"
 	"strings"
 	"unsafe"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"cuelang.org/go/cue/load"
+	"cuelang.org/go/mod/modconfig"
 )
 
 //export cue_parse_string
@@ -35,135 +38,8 @@ func cue_parse_string(content *C.char) *C.char {
 		return C.CString(string(errBytes))
 	}
 	
-	// Extract all fields at the root level with metadata
-	result := map[string]interface{}{
-		"variables": make(map[string]interface{}),
-		"metadata": make(map[string]interface{}),
-		"environments": make(map[string]interface{}),
-		"commands": make(map[string]interface{}),
-	}
-	
-	// Get metadata map reference for use throughout
-	metadata := result["metadata"].(map[string]interface{})
-	
-	// Extract environment configurations if present
-	if envField := v.LookupPath(cue.ParsePath("environment")); envField.Exists() {
-		envs := make(map[string]interface{})
-		iter, _ := envField.Fields()
-		for iter.Next() {
-			envName := iter.Label()
-			envVars := make(map[string]interface{})
-			envMeta := make(map[string]interface{})
-			envIter, _ := iter.Value().Fields()
-			for envIter.Next() {
-				key := envIter.Label()
-				val := envIter.Value()
-				
-				// Extract attributes for environment-specific variables
-				attrs := val.Attributes(cue.ValueAttr)
-				varMeta := make(map[string]interface{})
-				
-				for _, attr := range attrs {
-					if attr.Name() == "capability" {
-						if caps, err := attr.String(0); err == nil {
-							varMeta["capability"] = caps
-							// Also store in parent metadata if not already there
-							if _, exists := metadata[key]; !exists {
-								metadata[key] = map[string]interface{}{"capability": caps}
-							}
-						}
-					}
-				}
-				
-				if len(varMeta) > 0 {
-					envMeta[key] = varMeta
-				}
-				
-				// Check if this is a secret type
-				secretRef := extractSecretReference(val)
-				if secretRef != "" {
-					envVars[key] = secretRef
-				} else {
-					// Regular value
-					var goVal interface{}
-					if err := val.Decode(&goVal); err == nil {
-						envVars[key] = goVal
-					}
-				}
-			}
-			envs[envName] = envVars
-		}
-		result["environments"] = envs
-	}
-	
-	// Extract Commands configuration if present
-	if cmdField := v.LookupPath(cue.ParsePath("Commands")); cmdField.Exists() {
-		cmds := make(map[string]interface{})
-		iter, _ := cmdField.Fields()
-		for iter.Next() {
-			cmdName := iter.Label()
-			cmdConfig := make(map[string]interface{})
-			if capsField := iter.Value().LookupPath(cue.ParsePath("capabilities")); capsField.Exists() {
-				var caps []string
-				if err := capsField.Decode(&caps); err == nil {
-					cmdConfig["capabilities"] = caps
-				}
-			}
-			cmds[cmdName] = cmdConfig
-		}
-		result["commands"] = cmds
-	}
-	
-	// Extract variables with capability metadata
-	vars := result["variables"].(map[string]interface{})
-	
-	iter, err := v.Fields()
-	if err != nil {
-		errMsg := map[string]string{"error": err.Error()}
-		errBytes, _ := json.Marshal(errMsg)
-		return C.CString(string(errBytes))
-	}
-	
-	for iter.Next() {
-		key := iter.Label()
-		val := iter.Value()
-		
-		// Skip internal CUE fields, private fields, and special keys
-		if strings.HasPrefix(key, "_") || strings.HasPrefix(key, "#") || 
-		   key == "environment" || key == "Commands" {
-			continue
-		}
-		
-		// Extract attributes (like @capability)
-		attrs := val.Attributes(cue.ValueAttr)
-		varMeta := make(map[string]interface{})
-		
-		for _, attr := range attrs {
-			if attr.Name() == "capability" {
-				if caps, err := attr.String(0); err == nil {
-					varMeta["capability"] = caps
-				}
-			}
-		}
-		
-		// Check if this is a secret type and convert accordingly
-		secretRef := extractSecretReference(val)
-		if secretRef != "" {
-			vars[key] = secretRef
-			if len(varMeta) > 0 {
-				metadata[key] = varMeta
-			}
-		} else {
-			// Convert CUE value to Go value
-			var goVal interface{}
-			if err := val.Decode(&goVal); err == nil {
-				vars[key] = goVal
-				if len(varMeta) > 0 {
-					metadata[key] = varMeta
-				}
-			}
-		}
-	}
+	// Use the shared extraction logic
+	result := extractCueData(v)
 	
 	// Convert to JSON
 	jsonBytes, err := json.Marshal(result)
@@ -233,6 +109,223 @@ func extractSecretReference(val cue.Value) string {
 //export cue_free_string
 func cue_free_string(s *C.char) {
 	C.free(unsafe.Pointer(s))
+}
+
+//export cue_eval_package
+func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
+	goDir := C.GoString(dirPath)
+	goPkg := C.GoString(packageName)
+	
+	// Create a registry for module resolution
+	registry, err := modconfig.NewRegistry(&modconfig.Config{
+		Env: os.Environ(),
+	})
+	if err != nil {
+		errMsg := map[string]string{"error": "Failed to create registry: " + err.Error()}
+		errBytes, _ := json.Marshal(errMsg)
+		return C.CString(string(errBytes))
+	}
+	
+	// Load the CUE package from the directory
+	// CUE will automatically search for module root in parent directories
+	cfg := &load.Config{
+		Dir:      goDir,
+		Package:  goPkg,
+		Registry: registry,
+		Env:      os.Environ(),
+	}
+	
+	// Load all .cue files in the directory
+	instances := load.Instances(nil, cfg)
+	if len(instances) == 0 {
+		errMsg := map[string]string{"error": "No CUE instances found in directory"}
+		errBytes, _ := json.Marshal(errMsg)
+		return C.CString(string(errBytes))
+	}
+	
+	// Check for load errors
+	inst := instances[0]
+	if inst.Err != nil {
+		errMsg := map[string]string{"error": inst.Err.Error()}
+		errBytes, _ := json.Marshal(errMsg)
+		return C.CString(string(errBytes))
+	}
+	
+	// Build the instance
+	ctx := cuecontext.New()
+	v := ctx.BuildInstance(inst)
+	
+	if v.Err() != nil {
+		errMsg := map[string]string{"error": v.Err().Error()}
+		errBytes, _ := json.Marshal(errMsg)
+		return C.CString(string(errBytes))
+	}
+	
+	// Use the same extraction logic as cue_parse_string
+	result := extractCueData(v)
+	
+	// Convert to JSON
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		errMsg := map[string]string{"error": err.Error()}
+		errBytes, _ := json.Marshal(errMsg)
+		return C.CString(string(errBytes))
+	}
+	
+	return C.CString(string(jsonBytes))
+}
+
+// extractCueData extracts the structured data from a CUE value
+func extractCueData(v cue.Value) map[string]interface{} {
+	result := map[string]interface{}{
+		"variables": make(map[string]interface{}),
+		"metadata": make(map[string]interface{}),
+		"environments": make(map[string]interface{}),
+		"commands": make(map[string]interface{}),
+	}
+	
+	// Get metadata map reference for use throughout
+	metadata := result["metadata"].(map[string]interface{})
+	
+	// Look for the 'env' field which contains the environment definition
+	envRoot := v.LookupPath(cue.ParsePath("env"))
+	if !envRoot.Exists() {
+		// Return empty result if no env field
+		return result
+	}
+	
+	// Extract environment configurations if present
+	if envField := envRoot.LookupPath(cue.ParsePath("environment")); envField.Exists() {
+		envs := make(map[string]interface{})
+		iter, _ := envField.Fields()
+		for iter.Next() {
+			envName := iter.Label()
+			envVars := make(map[string]interface{})
+			envMeta := make(map[string]interface{})
+			envIter, _ := iter.Value().Fields()
+			for envIter.Next() {
+				key := envIter.Label()
+				val := envIter.Value()
+				
+				// Extract attributes for environment-specific variables
+				attrs := val.Attributes(cue.ValueAttr)
+				varMeta := make(map[string]interface{})
+				
+				for _, attr := range attrs {
+					if attr.Name() == "capability" {
+						if caps, err := attr.String(0); err == nil {
+							varMeta["capability"] = caps
+							// Also store in parent metadata if not already there
+							if _, exists := metadata[key]; !exists {
+								metadata[key] = map[string]interface{}{"capability": caps}
+							}
+						}
+					}
+				}
+				
+				if len(varMeta) > 0 {
+					envMeta[key] = varMeta
+				}
+				
+				// Check if this is a secret type
+				secretRef := extractSecretReference(val)
+				if secretRef != "" {
+					envVars[key] = secretRef
+				} else {
+					// Regular value
+					var goVal interface{}
+					if err := val.Decode(&goVal); err == nil {
+						envVars[key] = goVal
+					}
+				}
+			}
+			envs[envName] = envVars
+		}
+		result["environments"] = envs
+	}
+	
+	// Extract Commands configuration if present (from env field)
+	if cmdField := envRoot.LookupPath(cue.ParsePath("Commands")); cmdField.Exists() {
+		cmds := make(map[string]interface{})
+		iter, _ := cmdField.Fields()
+		for iter.Next() {
+			cmdName := iter.Label()
+			cmdConfig := make(map[string]interface{})
+			if capsField := iter.Value().LookupPath(cue.ParsePath("capabilities")); capsField.Exists() {
+				var caps []string
+				if err := capsField.Decode(&caps); err == nil {
+					cmdConfig["capabilities"] = caps
+				}
+			}
+			cmds[cmdName] = cmdConfig
+		}
+		result["commands"] = cmds
+	}
+	
+	// Also check for Commands at the top level (outside env)
+	if cmdField := v.LookupPath(cue.ParsePath("Commands")); cmdField.Exists() {
+		cmds := result["commands"].(map[string]interface{})
+		iter, _ := cmdField.Fields()
+		for iter.Next() {
+			cmdName := iter.Label()
+			cmdConfig := make(map[string]interface{})
+			if capsField := iter.Value().LookupPath(cue.ParsePath("capabilities")); capsField.Exists() {
+				var caps []string
+				if err := capsField.Decode(&caps); err == nil {
+					cmdConfig["capabilities"] = caps
+				}
+			}
+			cmds[cmdName] = cmdConfig
+		}
+		result["commands"] = cmds
+	}
+	
+	// Extract variables with capability metadata
+	vars := result["variables"].(map[string]interface{})
+	
+	iter, _ := envRoot.Fields()
+	for iter.Next() {
+		key := iter.Label()
+		val := iter.Value()
+		
+		// Skip internal CUE fields, private fields, and special keys
+		if strings.HasPrefix(key, "_") || strings.HasPrefix(key, "#") || 
+		   key == "environment" || key == "Commands" {
+			continue
+		}
+		
+		// Extract attributes (like @capability)
+		attrs := val.Attributes(cue.ValueAttr)
+		varMeta := make(map[string]interface{})
+		
+		for _, attr := range attrs {
+			if attr.Name() == "capability" {
+				if caps, err := attr.String(0); err == nil {
+					varMeta["capability"] = caps
+				}
+			}
+		}
+		
+		// Check if this is a secret type and convert accordingly
+		secretRef := extractSecretReference(val)
+		if secretRef != "" {
+			vars[key] = secretRef
+			if len(varMeta) > 0 {
+				metadata[key] = varMeta
+			}
+		} else {
+			// Convert CUE value to Go value
+			var goVal interface{}
+			if err := val.Decode(&goVal); err == nil {
+				vars[key] = goVal
+				if len(varMeta) > 0 {
+					metadata[key] = varMeta
+				}
+			}
+		}
+	}
+	
+	return result
 }
 
 func main() {}

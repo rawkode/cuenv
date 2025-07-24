@@ -1,4 +1,4 @@
-module: "github.com/korora-tech/cuenv"
+module: "github.com/rawkode/cuenv"
 language: {
 	version: "v0.13.2"
 }

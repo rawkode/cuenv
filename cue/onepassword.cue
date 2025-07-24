@@ -1,10 +1,8 @@
-package onepassword
+package cuenv
 
-import "github.com/rawkode/cuenv"
-
-#OnePasswordRef: #cuenv.#Resolver & {
+#OnePasswordRef: #Resolver & {
 	ref: string
-	resolver: cuenv.#ExecResolver & {
+	resolver: #ExecResolver & {
 		command: "op"
 		args: [
 			"read",

@@ -81,6 +81,7 @@ fn test_cue_file_with_onepassword_secrets() {
         &env_file,
         r#"package env
 
+env: {
 import "github.com/korora-tech/cuenv/onepassword"
 
 // Database configuration with 1Password secret
@@ -97,6 +98,7 @@ API_ENDPOINT: "https://api.example.com"
 // Regular environment variables
 NODE_ENV: "production"
 LOG_LEVEL: "info"
+}
 "#,
     )
     .unwrap();
@@ -121,6 +123,7 @@ fn test_cue_file_with_inline_resolver_format() {
         &env_file,
         r#"package env
 
+env: {
 // Using the resolver structure directly without import
 DB_PASSWORD: {
     resolver: {
@@ -132,6 +135,7 @@ DB_PASSWORD: {
 // Mixed with regular values
 APP_NAME: "my-app"
 APP_VERSION: "1.0.0"
+}
 "#,
     )
     .unwrap();
@@ -153,6 +157,7 @@ async fn test_onepassword_integration_with_cue() {
         &env_file,
         r#"package env
 
+env: {
 import (
     "github.com/korora-tech/cuenv/pkg/secret/v1"
 )
@@ -163,6 +168,7 @@ DB_PASSWORD: v1.#Resolver & {
 }
 
 APP_NAME: "test-app"
+}
 "#,
     )
     .unwrap();
