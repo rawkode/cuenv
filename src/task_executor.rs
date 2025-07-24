@@ -349,16 +349,16 @@ mod tests {
 
 env: {
     DATABASE_URL: "test"
-    
-    tasks: {
-        "build": {
-            description: "Build the project"
-            command: "echo 'Building...'"
-        }
-        "test": {
-            description: "Run tests"
-            command: "echo 'Testing...'"
-        }
+}
+
+tasks: {
+    "build": {
+        description: "Build the project"
+        command: "echo 'Building...'"
+    }
+    "test": {
+        description: "Run tests"
+        command: "echo 'Testing...'"
     }
 }"#;
 
@@ -377,17 +377,17 @@ env: {
     fn test_task_dependency_resolution() {
         let tasks_cue = r#"package env
 
-env: {
-    tasks: {
-        "build": {
-            description: "Build the project"
-            command: "echo 'Building...'"
-            dependencies: ["test"]
-        }
-        "test": {
-            description: "Run tests"
-            command: "echo 'Testing...'"
-        }
+env: {}
+
+tasks: {
+    "build": {
+        description: "Build the project"
+        command: "echo 'Building...'"
+        dependencies: ["test"]
+    }
+    "test": {
+        description: "Run tests"
+        command: "echo 'Testing...'"
     }
 }"#;
 
@@ -406,16 +406,16 @@ env: {
     fn test_circular_dependency_detection() {
         let tasks_cue = r#"package env
 
-env: {
-    tasks: {
-        "task1": {
-            command: "echo 'Task 1'"
-            dependencies: ["task2"]
-        }
-        "task2": {
-            command: "echo 'Task 2'"
-            dependencies: ["task1"]
-        }
+env: {}
+
+tasks: {
+    "task1": {
+        command: "echo 'Task 1'"
+        dependencies: ["task2"]
+    }
+    "task2": {
+        command: "echo 'Task 2'"
+        dependencies: ["task1"]
     }
 }"#;
 
@@ -431,11 +431,11 @@ env: {
     fn test_missing_task_error() {
         let tasks_cue = r#"package env
 
-env: {
-    tasks: {
-        "build": {
-            command: "echo 'Building...'"
-        }
+env: {}
+
+tasks: {
+    "build": {
+        command: "echo 'Building...'"
     }
 }"#;
 
@@ -451,12 +451,12 @@ env: {
     fn test_missing_dependency_error() {
         let tasks_cue = r#"package env
 
-env: {
-    tasks: {
-        "build": {
-            command: "echo 'Building...'"
-            dependencies: ["nonexistent"]
-        }
+env: {}
+
+tasks: {
+    "build": {
+        command: "echo 'Building...'"
+        dependencies: ["nonexistent"]
     }
 }"#;
 
@@ -472,23 +472,23 @@ env: {
     fn test_complex_dependency_graph() {
         let tasks_cue = r#"package env
 
-env: {
-    tasks: {
-        "deploy": {
-            command: "echo 'Deploying...'"
-            dependencies: ["build", "test"]
-        }
-        "build": {
-            command: "echo 'Building...'"
-            dependencies: ["compile"]
-        }
-        "test": {
-            command: "echo 'Testing...'"
-            dependencies: ["compile"]
-        }
-        "compile": {
-            command: "echo 'Compiling...'"
-        }
+env: {}
+
+tasks: {
+    "deploy": {
+        command: "echo 'Deploying...'"
+        dependencies: ["build", "test"]
+    }
+    "build": {
+        command: "echo 'Building...'"
+        dependencies: ["compile"]
+    }
+    "test": {
+        command: "echo 'Testing...'"
+        dependencies: ["compile"]
+    }
+    "compile": {
+        command: "echo 'Compiling...'"
     }
 }"#;
 
