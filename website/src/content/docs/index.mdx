@@ -1,0 +1,114 @@
+---
+title: cuenv - Environment Management Powered by CUE
+description: A modern direnv alternative that uses CUE files for type-safe environment configuration
+template: splash
+hero:
+  tagline: Type-safe environment management with CUE. Hierarchical loading, secret management, and cross-platform support.
+  image:
+    html: '<div class="hero-image"><span class="gradient-text" style="font-size: 4rem; font-weight: bold;">cuenv</span></div>'
+  actions:
+    - text: Get Started
+      link: /intro/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/rawkode/cuenv
+      icon: github
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## 🚀 Why cuenv?
+
+<div class="animate-fade-in">
+<CardGrid stagger>
+	<Card title="Type-Safe Configuration" icon="seti:config">
+		<span class="gradient-text">Validate at load time</span> with CUE's powerful type system. No more runtime surprises from typos or invalid values.
+	</Card>
+	<Card title="Hierarchical Loading" icon="seti:folder">
+		<span class="gradient-text">Share configurations</span> across projects. Parent directories automatically provide base settings.
+	</Card>
+	<Card title="Secret Management" icon="seti:lock">
+		<span class="gradient-text">Built-in security</span> with 1Password and GCP Secrets Manager. Automatic obfuscation prevents leaks.
+	</Card>
+	<Card title="Cross-Platform" icon="seti:code">
+		<span class="gradient-text">Works everywhere</span> - Linux, macOS, and Windows with native shell integrations.
+	</Card>
+</CardGrid>
+</div>
+
+## ✨ See it in Action
+
+<div class="feature-card">
+
+```cue
+package env
+
+// 🔧 Regular environment variables
+DATABASE_URL: "postgres://localhost/mydb"
+API_KEY: "secret123"
+DEBUG: true
+PORT: 3000
+
+// 🔐 Secret references
+DB_PASSWORD: "op://Personal/database/password"
+STRIPE_KEY: "gcp-secret://my-project/stripe-api-key"
+
+// 🎯 CUE features
+BASE_URL: "https://api.example.com"
+API_ENDPOINT: "\(BASE_URL)/v1"  // String interpolation
+```
+
+</div>
+
+## 🎯 Features at a Glance
+
+<CardGrid>
+	<Card title="Auto-loading" icon="rocket">
+		<strong>Zero friction</strong> - Environment loads automatically when you `cd` into a directory
+	</Card>
+	<Card title="Shell Expansion" icon="terminal">
+		<strong>Feels natural</strong> - Full support for `$HOME`, `${VAR}`, and other shell expansions
+	</Card>
+	<Card title="Environment Inheritance" icon="puzzle">
+		<strong>DRY principle</strong> - Dev, staging, and prod configs with smart inheritance
+	</Card>
+	<Card title="Capability Filtering" icon="setting">
+		<strong>Security first</strong> - AWS credentials only for AWS commands, automatically
+	</Card>
+	<Card title="Hermetic Execution" icon="document">
+		<strong>Clean environments</strong> - Run commands with only the variables you define
+	</Card>
+	<Card title="No Allow Required" icon="check">
+		<strong>Trust by default</strong> - Unlike direnv, no manual approval needed
+	</Card>
+</CardGrid>
+
+## 💻 Get Started in Minutes
+
+<div class="feature-card" style="background: linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.1) 100%);">
+
+```bash
+# 📦 Install using Nix (recommended)
+nix profile install github:rawkode/cuenv
+
+# 🦀 Or using Cargo
+cargo install cuenv
+
+# 🐚 Initialize for your shell
+eval "$(cuenv init bash)"  # or zsh, fish
+
+# ✨ Create your first env.cue
+echo 'package env
+MESSAGE: "Hello from cuenv!"' > env.cue
+
+# 🎉 Watch it work!
+echo $MESSAGE
+```
+
+</div>
+
+<div style="text-align: center; margin-top: 3rem;">
+  <h3 class="gradient-text" style="font-size: 1.5rem;">Ready to modernize your environment management?</h3>
+  <p style="color: #666; margin-top: 1rem;">Join developers who've made the switch to type-safe, secure environment configuration.</p>
+</div>

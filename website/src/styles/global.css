@@ -1,0 +1,222 @@
+/* Rosé Pine Moon palette */
+:root {
+    /* Base colors */
+    --rp-base: #232136;
+    --rp-surface: #2a273f;
+    --rp-overlay: #393552;
+    --rp-muted: #6e6a86;
+    --rp-subtle: #908caa;
+    --rp-text: #e0def4;
+    --rp-love: #eb6f92;
+    --rp-gold: #f6c177;
+    --rp-rose: #ea9a97;
+    --rp-pine: #3e8fb0;
+    --rp-foam: #9ccfd8;
+    --rp-iris: #c4a7e7;
+    --rp-highlight-low: #2a283e;
+    --rp-highlight-med: #44415a;
+    --rp-highlight-high: #56526e;
+}
+
+/* Apply Rosé Pine Moon to Starlight theme */
+:root {
+    /* Background colors */
+    --sl-color-bg: var(--rp-base);
+    --sl-color-bg-nav: var(--rp-surface);
+    --sl-color-bg-sidebar: var(--rp-surface);
+    --sl-color-bg-inline-code: var(--rp-overlay);
+    
+    /* Text colors */
+    --sl-color-white: var(--rp-text);
+    --sl-color-gray-1: var(--rp-text);
+    --sl-color-gray-2: var(--rp-subtle);
+    --sl-color-gray-3: var(--rp-muted);
+    --sl-color-gray-4: var(--rp-highlight-high);
+    --sl-color-gray-5: var(--rp-highlight-med);
+    --sl-color-gray-6: var(--rp-highlight-low);
+    --sl-color-black: var(--rp-base);
+    
+    /* Accent colors */
+    --sl-color-accent: var(--rp-iris);
+    --sl-color-accent-low: var(--rp-overlay);
+    --sl-color-accent-high: var(--rp-iris);
+    
+    /* Text color */
+    --sl-color-text: var(--rp-text);
+    --sl-color-text-accent: var(--rp-iris);
+    
+    /* Border colors */
+    --sl-color-hairline: var(--rp-highlight-low);
+    --sl-color-hairline-light: var(--rp-highlight-med);
+    
+    /* Link colors */
+    --sl-color-text-link: var(--rp-foam);
+}
+
+/* Dark theme overrides (Starlight uses same colors for both themes with Rosé Pine) */
+:root[data-theme='dark'] {
+    --sl-color-bg: var(--rp-base);
+    --sl-color-bg-nav: var(--rp-surface);
+    --sl-color-bg-sidebar: var(--rp-surface);
+    --sl-color-text: var(--rp-text);
+}
+
+/* Apply Rosé Pine Moon to both themes */
+:root .expressive-code .frame {
+    --ec-code-font-size: 0.875rem;
+    --ec-code-line-height: 1.714;
+    --ec-code-padding-inline: 1.5rem;
+
+    /* Rosé Pine Moon colors */
+    --ec-code-selection-background: var(--rp-iris);
+    --ec-code-selection-color: var(--rp-base);
+    --ec-border-color: var(--rp-highlight-low);
+    --ec-border-width: 1px;
+    --ec-border-radius: 0.5rem;
+    --ec-code-background: var(--rp-base);
+    --ec-code-color: var(--rp-text);
+    --ec-header-background: var(--rp-surface);
+    --ec-header-color: var(--rp-subtle);
+    --ec-button-color: var(--rp-subtle);
+    --ec-button-background: transparent;
+    --ec-button-hover-background: var(--rp-overlay);
+    --ec-button-active-background: var(--rp-highlight-med);
+}
+
+/* Rosé Pine Moon syntax highlighting */
+:root .expressive-code {
+    /* Comments */
+    --ec-code-color-comment: var(--rp-muted);
+    
+    /* Keywords, operators */
+    --ec-code-color-keyword: var(--rp-pine);
+    --ec-code-color-builtin: var(--rp-love);
+    
+    /* Functions, methods */
+    --ec-code-color-function: var(--rp-foam);
+    
+    /* Strings */
+    --ec-code-color-string: var(--rp-gold);
+    
+    /* Numbers, constants */
+    --ec-code-color-constant: var(--rp-rose);
+    --ec-code-color-number: var(--rp-rose);
+    
+    /* Variables, properties */
+    --ec-code-color-variable: var(--rp-text);
+    --ec-code-color-property: var(--rp-iris);
+    
+    /* Types, classes */
+    --ec-code-color-type: var(--rp-foam);
+    --ec-code-color-class: var(--rp-foam);
+}
+
+/* Modern, clean window decorations */
+:root .expressive-code {
+    /* Hide macOS-style window buttons */
+    .frame .header::before {
+        display: none !important;
+    }
+    
+    /* Modern title bar styling */
+    .frame .header {
+        padding: 0.625rem 1rem;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+        letter-spacing: 0.01em;
+        border-bottom: 1px solid var(--ec-border-color);
+        background: var(--ec-header-background);
+        color: var(--ec-header-color);
+    }
+    
+    /* Clean border radius and shadow */
+    .frame {
+        border-radius: var(--ec-border-radius) !important;
+        overflow: hidden;
+        border: 1px solid var(--ec-border-color);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+    
+    /* Terminal frames */
+    .frame.is-terminal .header {
+        background: var(--ec-header-background);
+        color: var(--ec-header-color);
+        text-align: center;
+        border-bottom: 1px solid var(--ec-border-color);
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    }
+    
+    /* Editor frames */
+    .frame:not(.is-terminal) .header {
+        background: var(--ec-header-background);
+        color: var(--ec-header-color);
+        padding: 0.625rem 1rem;
+        border-bottom: 1px solid var(--ec-border-color);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    /* Remove all icons from headers */
+    .frame .header::before,
+    .frame .header::after {
+        display: none !important;
+    }
+    
+    /* Code area styling */
+    .frame pre {
+        margin: 0 !important;
+        background: var(--ec-code-background) !important;
+    }
+    
+    /* Smooth transitions */
+    .frame {
+        transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    
+    .frame:hover {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+    
+    /* Copy button styling */
+    .copy button {
+        background: var(--rp-overlay) !important;
+        color: var(--rp-subtle) !important;
+        border: 1px solid var(--rp-highlight-low) !important;
+    }
+    
+    .copy button:hover {
+        background: var(--rp-highlight-med) !important;
+        color: var(--rp-text) !important;
+    }
+    
+    /* Terminal frames specific styling */
+    .frame.is-terminal {
+        background: var(--rp-base);
+    }
+    
+    .frame.is-terminal pre {
+        color: var(--rp-text);
+    }
+}
+
+/* Additional Rosé Pine styling for site elements */
+body {
+    background: var(--rp-base);
+    color: var(--rp-text);
+}
+
+/* Inline code */
+code:not(pre code) {
+    background: var(--rp-overlay) !important;
+    color: var(--rp-iris) !important;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+}
+
+/* Selection colors */
+::selection {
+    background: var(--rp-iris);
+    color: var(--rp-base);
+}
