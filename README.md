@@ -6,19 +6,51 @@
 
 A direnv alternative that uses CUE files for environment configuration.
 
-## Prerequisites
+## Development
 
-cuenv requires Go to be installed for building the libcue bindings:
+Development is only supported through the Nix flake:
 
 ```bash
-# Install Go if not already installed
-# See https://golang.org/doc/install
+# Enter the development shell
+nix develop
+
+# Build the project
+cargo build
 ```
 
 ## Installation
 
+### Using Nix (Recommended)
+
 ```bash
-cargo install --path .
+# Install directly from the GitHub repository
+nix profile install github:rawkode/cuenv
+
+# Or run without installing
+nix run github:rawkode/cuenv -- --help
+
+# Using a specific version/commit
+nix profile install github:rawkode/cuenv/<commit-sha>
+```
+
+### Using Cargo
+
+```bash
+# Install from crates.io
+cargo install cuenv
+```
+
+### Building from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/rawkode/cuenv
+cd cuenv
+
+# Build with Nix
+nix build
+
+# The binary will be available in ./result/bin/cuenv
 ```
 
 ## Setup
@@ -81,30 +113,34 @@ PORT: 3000
 
 ## CUE File Format
 
-Your `env.cue` files must declare `package env` and can contain string, number, or boolean values:
+Your `env.cue` files should use the cuenv package schema:
 
 ```cue
-package env
+package main
 
-// String values
-DATABASE_URL: "postgres://user:pass@host/db"
+import "github.com/rawkode/cuenv/schema"
 
-// Number values  
-PORT: 3000
-TIMEOUT: 30
+#env: schema.#Env & {
+    // String values
+    DATABASE_URL: "postgres://user:pass@host/db"
 
-// Boolean values
-DEBUG: true
-ENABLE_CACHE: false
+    // Number values
+    PORT: 3000
+    TIMEOUT: 30
 
-// Shell expansion is supported
-LOG_PATH: "$HOME/logs/myapp"
+    // Boolean values
+    DEBUG: true
+    ENABLE_CACHE: false
 
-// CUE features are supported
-BASE_URL: "https://api.example.com"
-API_ENDPOINT: "\(BASE_URL)/v1"  // String interpolation
-DEBUG_PORT: PORT + 1            // Computed values
-ENVIRONMENT: *"development" | string  // Defaults
+    // Shell expansion is supported
+    LOG_PATH: "$HOME/logs/myapp"
+
+    // CUE features are supported
+    BASE_URL: "https://api.example.com"
+    API_ENDPOINT: "\(BASE_URL)/v1"  // String interpolation
+    DEBUG_PORT: PORT + 1            // Computed values
+    ENVIRONMENT: *"development" | string  // Defaults
+}
 ```
 
 ## How It Works
@@ -138,31 +174,34 @@ cuenv run bash -- -c 'echo "PARENT_VAR=$PARENT_VAR"'  # Will print: PARENT_VAR=
 When using `cuenv run`, secret references in your CUE files are automatically resolved:
 
 ```cue
-package env
+package main
 
-// Regular environment variables
-DATABASE_HOST: "localhost"
-DATABASE_USER: "myapp"
+import "github.com/rawkode/cuenv/schema"
 
-// Secret references - both formats supported
+#env: schema.#Env & {
+    // Regular environment variables
+    DATABASE_HOST: "localhost"
+    DATABASE_USER: "myapp"
 
-// String format (traditional)
-DATABASE_PASSWORD: "op://Personal/database/password"
-STRIPE_SECRET_KEY: "gcp-secret://my-project/stripe-api-key"
+    // Secret references
+    DATABASE_PASSWORD: op: "Personal/database/password"
+    STRIPE_SECRET_KEY: gcpSecret: {
+        project: "my-project"
+        secret: "stripe-api-key"
+    }
 
-// Structured format (type-safe)
-#OnePasswordRef: { ref: string }
-API_KEY: #OnePasswordRef & { ref: "op://Work/myapp-api-key" }
+    // For 1Password with sections
+    API_KEY: op: "Work/myapp-api-key/section/field"
 
-#GcpSecret: { project: string, secret: string, version?: string }
-JWT_SECRET: #GcpSecret & {
-    project: "prod-project"
-    secret: "jwt-signing-key"
-    version: "latest"
+    JWT_SECRET: gcpSecret: {
+        project: "prod-project"
+        secret: "jwt-signing-key"
+        version: "latest"
+    }
+
+    // You can compose URLs with resolved secrets
+    DATABASE_URL: "postgres://\(DATABASE_USER):\(DATABASE_PASSWORD)@\(DATABASE_HOST):5432/myapp"
 }
-
-// You can compose URLs with resolved secrets
-DATABASE_URL: "postgres://\(DATABASE_USER):\(DATABASE_PASSWORD)@\(DATABASE_HOST):5432/myapp"
 ```
 
 **Requirements:**
@@ -192,14 +231,18 @@ This obfuscation applies to all resolved secrets from 1Password and GCP Secrets 
 cuenv supports environment-specific configurations and capability-based filtering:
 
 ```cue
-package env
+package main
 
-// Base configuration
-DATABASE_URL: "postgresql://localhost:5432/myapp"
-LOG_LEVEL: "info"
+import "github.com/rawkode/cuenv/schema"
+
+#env: schema.#Env & {
+    // Base configuration
+    DATABASE_URL: "postgresql://localhost:5432/myapp"
+    LOG_LEVEL: "info"
+}
 
 // Environment-specific overrides
-environment: {
+#environments: schema.#Environments & {
     production: {
         DATABASE_URL: "postgresql://prod-db:5432/myapp"
         LOG_LEVEL: "warn"
@@ -207,11 +250,15 @@ environment: {
 }
 
 // Capability-tagged variables
-AWS_ACCESS_KEY: "key" @capability("aws")
-AWS_SECRET_KEY: "secret" @capability("aws")
+#capabilities: schema.#Capabilities & {
+    aws: {
+        AWS_ACCESS_KEY: "key"
+        AWS_SECRET_KEY: "secret"
+    }
+}
 
 // Command mappings for automatic capability inference
-Commands: {
+#commands: schema.#Commands & {
     terraform: capabilities: ["aws", "cloudflare"]
     aws: capabilities: ["aws"]
 }
