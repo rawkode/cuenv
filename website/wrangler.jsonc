@@ -7,7 +7,7 @@
   },
 	"routes": [
 		{
-			"pattern": "cuenv.dev/",
+			"pattern": "cuenv.dev",
 			"custom_domain": true,
 		}
 	]
