@@ -179,8 +179,9 @@ mod tests {
 
     #[test]
     fn test_state_management() {
-        // Use a unique prefix for this test
-        env::set_var("CUENV_PREFIX", "TEST_STATE_MGMT");
+        // Use a unique prefix for this test with thread ID to avoid race conditions
+        let thread_id = std::thread::current().id();
+        env::set_var("CUENV_PREFIX", format!("TEST_STATE_MGMT_{:?}", thread_id));
 
         // Clean environment - remove any cuenv state variables
         env::remove_var(StateManager::env_var_name("CUENV_DIR"));
@@ -243,8 +244,9 @@ mod tests {
 
     #[test]
     fn test_should_load_unload() {
-        // Use a unique prefix for this test
-        env::set_var("CUENV_PREFIX", "TEST_SHOULD_LOAD");
+        // Use a unique prefix for this test with thread ID to avoid race conditions
+        let thread_id = std::thread::current().id();
+        env::set_var("CUENV_PREFIX", format!("TEST_SHOULD_LOAD_{:?}", thread_id));
 
         let temp_dir = TempDir::new().unwrap();
         let temp_dir2 = TempDir::new().unwrap();
