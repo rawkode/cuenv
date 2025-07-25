@@ -764,10 +764,13 @@ After (`env.cue`):
 ```cue title="env.cue"
 package env
 
-import "github.com/rawkode/cuenv/cue"
+import "github.com/rawkode/cuenv"
 
-DATABASE_URL: cuenv.#OnePasswordRef & {
-    ref: "op://Personal/MyApp/database_url"
+DATABASE_URL: {
+    resolver: {
+        command: "vault"
+        args: ["kv", "get", "-field=database_url", "secret/myapp"]
+    }
 }
 API_KEY: cuenv.#OnePasswordRef & {
     ref: "op://Work/Stripe/secret_key"
@@ -789,7 +792,7 @@ After (`env.cue`):
 ```cue title="env.cue"
 package env
 
-import "github.com/rawkode/cuenv/cue"
+import "github.com/rawkode/cuenv"
 
 DATABASE_PASSWORD: cuenv.#OnePasswordRef & {
     ref: "op://Personal/Database/password"
@@ -798,3 +801,18 @@ API_KEY: "gcp-secret://my-project/api-key"
 ```
 
 The key difference is that with cuenv, secrets are declarative and only resolved when using `cuenv run`.
+
+## Complete Examples
+
+For complete, working examples of custom secret resolvers, see:
+
+- **[examples/custom-secrets/](https://github.com/rawkode/cuenv/tree/main/examples/custom-secrets)** - Comprehensive examples for various secret management systems
+- **HashiCorp Vault** - Enterprise secret management
+- **AWS Secrets Manager** - Cloud-native AWS secrets
+- **Azure Key Vault** - Microsoft Azure secret management
+- **SOPS** - File-based encryption with git workflows
+- **pass** - Unix password manager integration
+- **Bitwarden** - Popular password manager CLI
+- **Custom transformations** - Advanced patterns and validations
+
+Each example includes both CUE configuration files and detailed setup instructions.
