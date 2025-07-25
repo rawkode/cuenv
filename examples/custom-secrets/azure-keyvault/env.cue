@@ -2,83 +2,42 @@ package env
 
 import "github.com/rawkode/cuenv"
 
-// Example: Azure Key Vault integration
+// Example: Azure Key Vault integration using reusable AzureKeyVaultRef
 // Requires: az CLI installed and authenticated
-// Usage: az login
 env: cuenv.#Env & {
-	// Secret from Azure Key Vault
-	DATABASE_PASSWORD: {
-		resolver: {
-			command: "az"
-			args: [
-				"keyvault", "secret", "show",
-				"--vault-name", "myapp-keyvault",
-				"--name", "database-password",
-				"--query", "value",
-				"--output", "tsv"
-			]
-		}
+	// Database password from Azure Key Vault
+	DATABASE_PASSWORD: cuenv.#AzureKeyVaultRef & {
+		vaultName:  "myapp-keyvault"
+		secretName: "database-password"
 	}
 
-	// API key with specific version
-	API_KEY: {
-		resolver: {
-			command: "az"
-			args: [
-				"keyvault", "secret", "show",
-				"--vault-name", "myapp-keyvault",
-				"--name", "external-api-key",
-				"--version", "latest",
-				"--query", "value",
-				"--output", "tsv"
-			]
-		}
+	// API key from Key Vault
+	API_KEY: cuenv.#AzureKeyVaultRef & {
+		vaultName:  "myapp-keyvault"
+		secretName: "external-api-key"
 	}
 
 	// Certificate from Key Vault (base64 encoded)
-	TLS_CERTIFICATE: {
-		resolver: {
-			command: "az"
-			args: [
-				"keyvault", "certificate", "download",
-				"--vault-name", "myapp-keyvault",
-				"--name", "tls-cert",
-				"--encoding", "base64",
-				"--file", "/dev/stdout"
-			]
-		}
+	TLS_CERTIFICATE: cuenv.#AzureKeyVaultCertRef & {
+		vaultName: "myapp-keyvault"
+		certName:  "tls-cert"
+		format:    "base64"
 	}
 
-	// Environment-specific vaults
+	// Environment-specific secrets
 	environment: {
 		development: {
 			AZURE_KEYVAULT_NAME: "myapp-dev-kv"
-			DATABASE_PASSWORD: {
-				resolver: {
-					command: "az"
-					args: [
-						"keyvault", "secret", "show",
-						"--vault-name", "myapp-dev-kv",
-						"--name", "database-password",
-						"--query", "value",
-						"--output", "tsv"
-					]
-				}
+			DATABASE_PASSWORD: cuenv.#AzureKeyVaultRef & {
+				vaultName:  "myapp-dev-kv"
+				secretName: "database-password"
 			}
 		}
 		production: {
 			AZURE_KEYVAULT_NAME: "myapp-prod-kv"
-			DATABASE_PASSWORD: {
-				resolver: {
-					command: "az"
-					args: [
-						"keyvault", "secret", "show",
-						"--vault-name", "myapp-prod-kv",
-						"--name", "database-password",
-						"--query", "value",
-						"--output", "tsv"
-					]
-				}
+			DATABASE_PASSWORD: cuenv.#AzureKeyVaultRef & {
+				vaultName:  "myapp-prod-kv"
+				secretName: "database-password"
 			}
 		}
 	}

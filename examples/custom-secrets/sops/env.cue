@@ -2,90 +2,54 @@ package env
 
 import "github.com/rawkode/cuenv"
 
-// Example: Mozilla SOPS (Secrets OPerationS) integration
-// Requires: sops CLI installed and configured
-// Usage: Configure age, GPG, or cloud KMS keys
+// Example: SOPS (Mozilla Secrets OPerationS) integration using reusable SOPSRef
+// Requires: sops CLI installed and configured with age/GPG/KMS keys
 env: cuenv.#Env & {
 	// Decrypt SOPS file and extract specific key
-	DATABASE_PASSWORD: {
-		resolver: {
-			command: "sops"
-			args: [
-				"--decrypt", "--extract", '["database"]["password"]',
-				"secrets.yaml"
-			]
-		}
+	DATABASE_PASSWORD: cuenv.#SOPSRef & {
+		file: "secrets.yaml"
+		path: "database.password"
 	}
 
 	// Extract API key from SOPS JSON file
-	API_KEY: {
-		resolver: {
-			command: "sh"
-			args: [
-				"-c",
-				"sops --decrypt secrets.json | jq -r .api_key"
-			]
-		}
+	API_KEY: cuenv.#SOPSJSONRef & {
+		file:    "secrets.json"
+		jsonKey: ".api_key"
 	}
 
 	// Extract from environment-specific SOPS file
-	JWT_SECRET: {
-		resolver: {
-			command: "sops"
-			args: [
-				"--decrypt", "--extract", '["jwt_secret"]',
-				"secrets/production.yaml"
-			]
-		}
+	JWT_SECRET: cuenv.#SOPSRef & {
+		file: "secrets/production.yaml"
+		path: "jwt_secret"
 	}
 
-	// Decrypt entire SOPS file and extract with yq
-	SMTP_PASSWORD: {
-		resolver: {
-			command: "sh"
-			args: [
-				"-c",
-				"sops --decrypt config/secrets.yaml | yq .smtp.password"
-			]
-		}
+	// Extract SMTP password with YAML structure
+	SMTP_PASSWORD: cuenv.#SOPSRef & {
+		file: "config/secrets.yaml"
+		path: "smtp.password"
 	}
 
 	// Environment-specific SOPS files
 	environment: {
 		development: {
 			SOPS_FILE: "secrets/dev.yaml"
-			DATABASE_PASSWORD: {
-				resolver: {
-					command: "sops"
-					args: [
-						"--decrypt", "--extract", '["database"]["password"]',
-						"secrets/dev.yaml"
-					]
-				}
+			DATABASE_PASSWORD: cuenv.#SOPSRef & {
+				file: "secrets/dev.yaml"
+				path: "database.password"
 			}
 		}
 		staging: {
 			SOPS_FILE: "secrets/staging.yaml"
-			DATABASE_PASSWORD: {
-				resolver: {
-					command: "sops"
-					args: [
-						"--decrypt", "--extract", '["database"]["password"]',
-						"secrets/staging.yaml"
-					]
-				}
+			DATABASE_PASSWORD: cuenv.#SOPSRef & {
+				file: "secrets/staging.yaml"
+				path: "database.password"
 			}
 		}
 		production: {
 			SOPS_FILE: "secrets/prod.yaml"
-			DATABASE_PASSWORD: {
-				resolver: {
-					command: "sops"
-					args: [
-						"--decrypt", "--extract", '["database"]["password"]',
-						"secrets/prod.yaml"
-					]
-				}
+			DATABASE_PASSWORD: cuenv.#SOPSRef & {
+				file: "secrets/prod.yaml"
+				path: "database.password"
 			}
 		}
 	}

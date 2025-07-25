@@ -2,35 +2,25 @@ package env
 
 import "github.com/rawkode/cuenv"
 
-// Example: Unix pass (password store) integration
+// Example: Unix pass integration using reusable PassRef
 // Requires: pass CLI installed and initialized
-// Usage: pass init your-gpg-id
 env: cuenv.#Env & {
 	// Get password from pass store
-	DATABASE_PASSWORD: {
-		resolver: {
-			command: "pass"
-			args: ["myapp/database/password"]
-		}
+	DATABASE_PASSWORD: cuenv.#PassRef & {
+		path: "myapp/database/password"
 	}
 
 	// API key from pass with specific path
-	STRIPE_API_KEY: {
-		resolver: {
-			command: "pass"
-			args: ["external/stripe/live-api-key"]
-		}
+	STRIPE_API_KEY: cuenv.#PassRef & {
+		path: "external/stripe/live-api-key"
 	}
 
 	// Multi-line secret (like SSH private key)
-	SSH_PRIVATE_KEY: {
-		resolver: {
-			command: "pass"
-			args: ["infrastructure/ssh/deploy-key"]
-		}
+	SSH_PRIVATE_KEY: cuenv.#PassRef & {
+		path: "infrastructure/ssh/deploy-key"
 	}
 
-	// Get specific line from pass entry (e.g., username and password)
+	// Custom field extraction for structured pass entries
 	SMTP_USERNAME: {
 		resolver: {
 			command: "sh"
@@ -54,27 +44,18 @@ env: cuenv.#Env & {
 	// Environment-specific secrets using pass directory structure
 	environment: {
 		development: {
-			DATABASE_PASSWORD: {
-				resolver: {
-					command: "pass"
-					args: ["myapp/dev/database"]
-				}
+			DATABASE_PASSWORD: cuenv.#PassRef & {
+				path: "myapp/dev/database"
 			}
 		}
 		staging: {
-			DATABASE_PASSWORD: {
-				resolver: {
-					command: "pass"
-					args: ["myapp/staging/database"]
-				}
+			DATABASE_PASSWORD: cuenv.#PassRef & {
+				path: "myapp/staging/database"
 			}
 		}
 		production: {
-			DATABASE_PASSWORD: {
-				resolver: {
-					command: "pass"
-					args: ["myapp/prod/database"]
-				}
+			DATABASE_PASSWORD: cuenv.#PassRef & {
+				path: "myapp/prod/database"
 			}
 		}
 	}

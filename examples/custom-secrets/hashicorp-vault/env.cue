@@ -2,88 +2,52 @@ package env
 
 import "github.com/rawkode/cuenv"
 
-// Example: HashiCorp Vault secret resolution
+// Example: HashiCorp Vault secret resolution using reusable VaultRef
 // Requires: vault CLI installed and authenticated
-// Usage: vault auth -method=userpass username=myuser
 env: cuenv.#Env & {
-	// Database credentials from Vault
-	DATABASE_PASSWORD: {
-		resolver: {
-			command: "vault"
-			args: [
-				"kv", "get", "-field=password",
-				"secret/myapp/database"
-			]
-		}
+	// Database credentials from Vault KV store
+	DATABASE_PASSWORD: cuenv.#VaultRef & {
+		path:  "secret/myapp/database"
+		field: "password"
 	}
 
 	// API key from different Vault path
-	API_KEY: {
-		resolver: {
-			command: "vault"
-			args: [
-				"kv", "get", "-field=api_key", 
-				"secret/external/stripe"
-			]
-		}
+	API_KEY: cuenv.#VaultRef & {
+		path:  "secret/external/stripe"
+		field: "api_key"
 	}
 
 	// JWT signing key from Vault
-	JWT_SIGNING_KEY: {
-		resolver: {
-			command: "vault"
-			args: [
-				"kv", "get", "-field=private_key",
-				"secret/myapp/jwt"
-			]
-		}
+	JWT_SIGNING_KEY: cuenv.#VaultRef & {
+		path:  "secret/myapp/jwt"
+		field: "private_key"
 	}
 
 	// AWS credentials from Vault dynamic secrets
-	AWS_ACCESS_KEY_ID: {
-		resolver: {
-			command: "vault"
-			args: [
-				"read", "-field=access_key",
-				"aws/creds/my-role"
-			]
-		}
+	AWS_ACCESS_KEY_ID: cuenv.#VaultDynamicRef & {
+		path:  "aws/creds/my-role"
+		field: "access_key"
 	}
 
-	AWS_SECRET_ACCESS_KEY: {
-		resolver: {
-			command: "vault"
-			args: [
-				"read", "-field=secret_key",
-				"aws/creds/my-role"
-			]
-		}
+	AWS_SECRET_ACCESS_KEY: cuenv.#VaultDynamicRef & {
+		path:  "aws/creds/my-role"
+		field: "secret_key"
 	}
 
 	// Environment-specific secrets
 	environment: {
 		development: {
 			VAULT_NAMESPACE: "development"
-			DATABASE_PASSWORD: {
-				resolver: {
-					command: "vault"
-					args: [
-						"kv", "get", "-field=password",
-						"secret/dev/database"
-					]
-				}
+			DATABASE_PASSWORD: cuenv.#VaultRef & {
+				path:  "secret/dev/database"
+				field: "password"
 			}
 		}
 		production: {
 			VAULT_NAMESPACE: "production"
-			DATABASE_PASSWORD: {
-				resolver: {
-					command: "vault"
-					args: [
-						"kv", "get", "-field=password",
-						"secret/prod/database"
-					]
-				}
+			DATABASE_PASSWORD: cuenv.#VaultRef & {
+				path:  "secret/prod/database"
+				field: "password"
 			}
 		}
 	}

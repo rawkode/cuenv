@@ -2,55 +2,34 @@ package env
 
 import "github.com/rawkode/cuenv"
 
-// Example: Bitwarden CLI integration
+// Example: Bitwarden CLI integration using reusable BitwardenRef
 // Requires: bw CLI installed and authenticated
-// Usage: bw login && bw unlock
 env: cuenv.#Env & {
 	// Get password from Bitwarden item
-	DATABASE_PASSWORD: {
-		resolver: {
-			command: "bw"
-			args: [
-				"get", "password",
-				"MyApp Database"
-			]
-		}
+	DATABASE_PASSWORD: cuenv.#BitwardenRef & {
+		itemId: "MyApp Database"
+		field:  "password"
 	}
 
 	// Get custom field from Bitwarden item
-	API_KEY: {
-		resolver: {
-			command: "bw"
-			args: [
-				"get", "item", "Stripe API",
-				"--raw"
-			]
-		}
+	API_KEY: cuenv.#BitwardenRef & {
+		itemId: "Stripe API"
+		field:  "password"
 	}
 
-	// Extract specific field using jq
-	OAUTH_CLIENT_SECRET: {
-		resolver: {
-			command: "sh"
-			args: [
-				"-c",
-				"bw get item 'OAuth Client' | jq -r .fields[0].value"
-			]
-		}
+	// Extract specific field using item name
+	OAUTH_CLIENT_SECRET: cuenv.#BitwardenItemRef & {
+		name:  "OAuth Client"
+		field: "client_secret"
 	}
 
 	// Get username from Bitwarden
-	SMTP_USERNAME: {
-		resolver: {
-			command: "bw"
-			args: [
-				"get", "username",
-				"Email SMTP"
-			]
-		}
+	SMTP_USERNAME: cuenv.#BitwardenRef & {
+		itemId: "Email SMTP"
+		field:  "username"
 	}
 
-	// Get TOTP code from Bitwarden
+	// Get TOTP code from Bitwarden (inline example for special use case)
 	MFA_TOKEN: {
 		resolver: {
 			command: "bw"
@@ -65,28 +44,16 @@ env: cuenv.#Env & {
 	environment: {
 		development: {
 			BW_ORGANIZATION_ID: "dev-org-id"
-			DATABASE_PASSWORD: {
-				resolver: {
-					command: "bw"
-					args: [
-						"get", "password",
-						"Dev Database",
-						"--organizationid", "dev-org-id"
-					]
-				}
+			DATABASE_PASSWORD: cuenv.#BitwardenItemRef & {
+				name:  "Dev Database"
+				field: "password"
 			}
 		}
 		production: {
 			BW_ORGANIZATION_ID: "prod-org-id"
-			DATABASE_PASSWORD: {
-				resolver: {
-					command: "bw"
-					args: [
-						"get", "password",
-						"Production Database",
-						"--organizationid", "prod-org-id"
-					]
-				}
+			DATABASE_PASSWORD: cuenv.#BitwardenItemRef & {
+				name:  "Production Database"
+				field: "password"
 			}
 		}
 	}
