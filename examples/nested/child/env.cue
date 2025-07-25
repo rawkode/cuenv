@@ -17,12 +17,15 @@ env: cuenv.#Env & {
 	// values, you would import the parent package explicitly.
 
 	// Additional commands for child
-	Commands: {
-		migrate: {
-			capabilities: ["database"]
+	capabilities: {
+		database: {
+			commands: ["psql", "mysql", "migrate"]
 		}
-		deploy: {
-			capabilities: ["aws", "docker"]
+		aws: {
+			commands: ["aws", "terraform", "pulumi"]
+		}
+		docker: {
+			commands: ["docker", "docker-compose"]
 		}
 	}
 }

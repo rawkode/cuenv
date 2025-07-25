@@ -51,10 +51,13 @@ env: cuenv.#Env & {
     // Add capabilities
     AWS_REGION: "us-east-1" @capability("aws")
 
-    // Define commands with required capabilities
-    Commands: {
-        deploy: {
-            capabilities: ["aws", "docker"]
+    // Define capabilities with associated commands
+    capabilities: {
+        aws: {
+            commands: ["deploy"]
+        }
+        docker: {
+            commands: ["deploy"]
         }
     }
 
@@ -83,6 +86,6 @@ env: cuenv.#Env & {
 4. **Type Safety**: The `#Env` schema provides validation and structure
 5. **CUE Features**: String interpolation, constraints, and defaults work as expected
 6. **Capabilities**: Use `@capability("name")` to tag variables
-7. **Commands**: Define command capability mappings in the `Commands` object
+7. **Capabilities**: Define capability-to-command mappings in the `capabilities` object
 8. **Environments**: Use the `environment` object for environment-specific overrides
 9. **Hooks**: Use the `hooks` object for lifecycle events

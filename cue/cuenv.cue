@@ -10,8 +10,8 @@ package cuenv
 		[=~"^[A-Z][A-Z0-9_]*$"]: string | #Secret
 	}
 
-	// Command definitions with capability requirements
-	Commands?: [string]: #Command
+	// Capability definitions with associated commands
+	capabilities?: [string]: #Capability
 
 	// Task definitions
 	tasks?: [string]: #Task
@@ -40,12 +40,12 @@ package cuenv
 	args: [...string]
 }
 
-// #Command defines a command with its required capabilities
-#Command: {
-	capabilities?: [...string]
+// #Capability defines a capability with its associated commands
+#Capability: {
+	commands?: [...string]
 }
 
-// #Capability is used as an attribute to tag environment variables
+// @capability is used as an attribute to tag environment variables
 // Usage: VAR_NAME: "value" @capability("aws")
 // This is handled as a CUE attribute, not a field
 

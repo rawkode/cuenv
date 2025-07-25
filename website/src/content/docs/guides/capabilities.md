@@ -81,43 +81,28 @@ env: cuenv.#Env & {
     CLOUDFLARE_API_TOKEN: "token" @capability("cloudflare")
     DATABASE_URL: "postgres://..." @capability("database")
 
-    // Map commands to their required capabilities
-    Commands: {
-        // Terraform needs multiple providers
-        terraform: {
-            capabilities: ["aws", "cloudflare", "database"]
-        }
-
-        // AWS CLI needs AWS credentials
+    // Map capabilities to their associated commands
+    capabilities: {
         aws: {
-            capabilities: ["aws"]
+            commands: ["aws", "terraform"]
         }
-
-        // Database tools
-        psql: {
-            capabilities: ["database"]
+        cloudflare: {
+            commands: ["terraform"]
         }
-        mysql: {
-            capabilities: ["database"]
+        database: {
+            commands: ["terraform", "psql", "mysql", "mongosh"]
         }
-        mongosh: {
-            capabilities: ["database"]
+        github: {
+            commands: ["gh"]
         }
-
-        // CI/CD tools
-        gh: {
-            capabilities: ["github"]
+        gitlab: {
+            commands: ["glab"]
         }
-        glab: {
-            capabilities: ["gitlab"]
-        }
-
-        // Container tools
         docker: {
-            capabilities: ["docker"]
+            commands: ["docker"]
         }
-        kubectl: {
-            capabilities: ["kubernetes"]
+        kubernetes: {
+            commands: ["kubectl"]
         }
     }
 }
@@ -184,18 +169,15 @@ env: cuenv.#Env & {
     TEST_DATABASE: "postgres://test-db/test" @capability("test")
     TEST_API_KEY: "test-key" @capability("test")
 
-    Commands: {
-        npm: {
-            capabilities: ["build"]
+    capabilities: {
+        build: {
+            commands: ["npm", "docker"]
         }
-        docker: {
-            capabilities: ["build"]
+        deploy: {
+            commands: ["kubectl"]
         }
-        kubectl: {
-            capabilities: ["deploy"]
-        }
-        jest: {
-            capabilities: ["test"]
+        test: {
+            commands: ["jest"]
         }
     }
 }
@@ -221,18 +203,15 @@ env: cuenv.#Env & {
     AZURE_CLIENT_ID: "id" @capability("azure")
     AZURE_CLIENT_SECRET: "secret" @capability("azure")
 
-    Commands: {
-        terraform: {
-            capabilities: ["aws", "gcp", "azure"]
-        }
+    capabilities: {
         aws: {
-            capabilities: ["aws"]
+            commands: ["terraform", "aws"]
         }
-        gcloud: {
-            capabilities: ["gcp"]
+        gcp: {
+            commands: ["terraform", "gcloud"]
         }
-        az: {
-            capabilities: ["azure"]
+        azure: {
+            commands: ["terraform", "az"]
         }
     }
 }
@@ -319,20 +298,15 @@ env: cuenv.#Env & {
     API_WRITE_KEY: "write-key" @capability("api-write")
     API_ADMIN_KEY: "admin-key" @capability("api-admin")
 
-    Commands: {
-        // Read-only commands
-        "api-client": {
-            capabilities: ["api-read"]
+    capabilities: {
+        "api-read": {
+            commands: ["api-client", "api-sync", "api-admin"]
         }
-
-        // Write commands get read + write
-        "api-sync": {
-            capabilities: ["api-read", "api-write"]
+        "api-write": {
+            commands: ["api-sync", "api-admin"]
         }
-
-        // Admin commands get everything
         "api-admin": {
-            capabilities: ["api-read", "api-write", "api-admin"]
+            commands: ["api-admin"]
         }
     }
 }
@@ -358,10 +332,16 @@ env: cuenv.#Env & {
         if ENVIRONMENT == "production" { #ProdCapabilities }
     }
 
-    // Apply to commands
-    Commands: {
-        "app-server": {
-            capabilities: _capabilities
+    // Apply to capabilities
+    capabilities: {
+        database: {
+            commands: ["app-server"]
+        }
+        redis: {
+            commands: ["app-server"]
+        }
+        debug: {
+            commands: ["app-server"]  // only in dev
         }
     }
 }
@@ -419,7 +399,7 @@ grep -E '@capability\(' env.cue | while read -r line; do
 done
 
 echo -e "\n=== Command Mappings ==="
-grep -A1 "Commands:" env.cue
+grep -A1 "capabilities:" env.cue
 ```
 
 ## Common Use Cases
@@ -440,16 +420,13 @@ env: cuenv.#Env & {
     SERVICE_B_API_KEY: "key-b" @capability("service-b")
     SERVICE_B_URL: "http://service-b:8081" @capability("service-b")
 
-    // Gateway needs access to all services
-    Commands: {
-        "api-gateway": {
-            capabilities: ["service-a", "service-b"]
+    // Map capabilities to commands
+    capabilities: {
+        "service-a": {
+            commands: ["api-gateway", "service-a-worker"]
         }
-        "service-a-worker": {
-            capabilities: ["service-a"]
-        }
-        "service-b-worker": {
-            capabilities: ["service-b"]
+        "service-b": {
+            commands: ["api-gateway", "service-b-worker"]
         }
     }
 }
@@ -493,12 +470,12 @@ env: cuenv.#Env & {
     TF_BACKEND_BUCKET: "terraform-state" @capability("terraform")
     TF_BACKEND_KEY: "prod/terraform.tfstate" @capability("terraform")
 
-    Commands: {
+    capabilities: {
         terraform: {
-            capabilities: ["terraform", "aws-infra"]
+            commands: ["terraform", "terragrunt"]
         }
-        terragrunt: {
-            capabilities: ["terraform", "aws-infra"]
+        "aws-infra": {
+            commands: ["terraform", "terragrunt"]
         }
     }
 }

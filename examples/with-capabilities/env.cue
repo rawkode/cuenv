@@ -19,16 +19,16 @@ env: cuenv.#Env & {
 	DOCKER_REGISTRY: "docker.io"    @capability("docker")
 	DOCKER_IMAGE:    "myapp:latest" @capability("docker")
 
-	// Commands with capabilities
-	Commands: {
-		deploy: {
-			capabilities: ["aws", "docker"]
+	// Capabilities with associated commands
+	capabilities: {
+		aws: {
+			commands: ["aws", "pulumi", "terraform"]
 		}
-		test: {
-			capabilities: []
+		docker: {
+			commands: ["docker", "docker-compose"]
 		}
-		migrate: {
-			capabilities: ["database"]
+		database: {
+			commands: ["psql", "mysql", "migrate"]
 		}
 	}
 
@@ -46,5 +46,5 @@ env: cuenv.#Env & {
 	}
 }
 
-// Commands can also be defined at the top level
-Commands: env.Commands
+// Capabilities can also be defined at the top level
+capabilities: env.capabilities

@@ -311,16 +311,16 @@ env: cuenv.#Env & {
         }
     }
 
-    // Command mappings for automatic capability inference
-    Commands: {
-        terraform: {
-            capabilities: ["aws", "cloudflare"]
-        }
+    // Capability mappings for automatic inference
+    capabilities: {
         aws: {
-            capabilities: ["aws"]
+            commands: ["terraform", "aws", "deploy"]
         }
-        deploy: {
-            capabilities: ["aws", "docker"]
+        cloudflare: {
+            commands: ["terraform"]
+        }
+        docker: {
+            commands: ["deploy"]
         }
     }
 }

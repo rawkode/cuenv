@@ -549,14 +549,16 @@ mod tests {
             DATABASE_URL: "postgres://localhost/mydb"
         }
 
-        Commands: {
-            migrate: {
-                capabilities: ["database"]
+        capabilities: {
+            database: {
+                commands: ["migrate"]
             }
-            deploy: {
-                capabilities: ["aws", "docker"]
+            aws: {
+                commands: ["deploy"]
             }
-            test: {}
+            docker: {
+                commands: ["deploy"]
+            }
         }
         "#;
         let temp_dir = create_test_env(content);

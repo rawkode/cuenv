@@ -280,17 +280,17 @@ DB_URL: "postgres://..." @capability("database")
 ADMIN_TOKEN: "token" @capability("admin", "sensitive")
 ```
 
-### Command Mapping
+### Capability Mapping
 
-Map commands to capabilities:
+Map capabilities to commands:
 
 ```cue
 package env
 
-Commands: {
-    terraform: capabilities: ["aws", "cloudflare"]
-    aws: capabilities: ["aws"]
-    psql: capabilities: ["database"]
+capabilities: {
+    aws: commands: ["aws", "terraform"]
+    cloudflare: commands: ["terraform"]
+    database: commands: ["psql", "mysql", "migrate"]
 }
 ```
 

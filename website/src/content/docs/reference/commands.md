@@ -464,10 +464,10 @@ AWS_SECRET_KEY: "secret" @capability("aws")
 # Database (only with 'database' capability)
 DATABASE_URL: "postgres://..." @capability("database")
 
-# Command mappings
-Commands: {
-    terraform: capabilities: ["aws", "database"]
-    aws: capabilities: ["aws"]
+# Capability mappings
+capabilities: {
+    aws: commands: ["terraform", "aws"]
+    database: commands: ["terraform"]
 }
 EOF
 

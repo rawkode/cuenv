@@ -12,13 +12,10 @@ env: cuenv.#Env & {
 	APP_VERSION: "1.0.0"
 	APP_ENV:     "development"
 
-	// Commands available at root
-	Commands: {
-		test: {
-			capabilities: []
-		}
-		build: {
-			capabilities: ["docker"]
+	// Capabilities available at root
+	capabilities: {
+		docker: {
+			commands: ["docker", "docker-compose"]
 		}
 	}
 }

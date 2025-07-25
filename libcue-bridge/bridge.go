@@ -220,40 +220,45 @@ func extractCueData(v cue.Value) map[string]interface{} {
 		result["environments"] = envs
 	}
 
-	// Extract Commands configuration if present (from env field)
-	if cmdField := envRoot.LookupPath(cue.ParsePath("Commands")); cmdField.Exists() {
-		cmds := make(map[string]interface{})
-		iter, _ := cmdField.Fields()
+	// Extract capabilities configuration if present (from env field)
+	if capField := envRoot.LookupPath(cue.ParsePath("capabilities")); capField.Exists() {
+		caps := make(map[string]interface{})
+		iter, _ := capField.Fields()
 		for iter.Next() {
-			cmdName := iter.Label()
-			cmdConfig := make(map[string]interface{})
-			if capsField := iter.Value().LookupPath(cue.ParsePath("capabilities")); capsField.Exists() {
-				var caps []string
-				if err := capsField.Decode(&caps); err == nil {
-					cmdConfig["capabilities"] = caps
+			capName := iter.Label()
+			capConfig := make(map[string]interface{})
+			if cmdsField := iter.Value().LookupPath(cue.ParsePath("commands")); cmdsField.Exists() {
+				var cmds []string
+				if err := cmdsField.Decode(&cmds); err == nil {
+					capConfig["commands"] = cmds
 				}
 			}
-			cmds[cmdName] = cmdConfig
+			caps[capName] = capConfig
 		}
-		result["commands"] = cmds
+		result["capabilities"] = caps
 	}
 
-	// Also check for Commands at the top level (outside env)
-	if cmdField := v.LookupPath(cue.ParsePath("Commands")); cmdField.Exists() {
-		cmds := result["commands"].(map[string]interface{})
-		iter, _ := cmdField.Fields()
+	// Also check for capabilities at the top level (outside env)
+	if capField := v.LookupPath(cue.ParsePath("capabilities")); capField.Exists() {
+		var caps map[string]interface{}
+		if existing, ok := result["capabilities"].(map[string]interface{}); ok {
+			caps = existing
+		} else {
+			caps = make(map[string]interface{})
+		}
+		iter, _ := capField.Fields()
 		for iter.Next() {
-			cmdName := iter.Label()
-			cmdConfig := make(map[string]interface{})
-			if capsField := iter.Value().LookupPath(cue.ParsePath("capabilities")); capsField.Exists() {
-				var caps []string
-				if err := capsField.Decode(&caps); err == nil {
-					cmdConfig["capabilities"] = caps
+			capName := iter.Label()
+			capConfig := make(map[string]interface{})
+			if cmdsField := iter.Value().LookupPath(cue.ParsePath("commands")); cmdsField.Exists() {
+				var cmds []string
+				if err := cmdsField.Decode(&cmds); err == nil {
+					capConfig["commands"] = cmds
 				}
 			}
-			cmds[cmdName] = cmdConfig
+			caps[capName] = capConfig
 		}
-		result["commands"] = cmds
+		result["capabilities"] = caps
 	}
 
 	// Extract tasks configuration if present (top-level only)
@@ -404,7 +409,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 
 		// Skip internal CUE fields, private fields, and special keys
 		if strings.HasPrefix(key, "_") || strings.HasPrefix(key, "#") ||
-			key == "environment" || key == "Commands" || key == "hooks" || key == "tasks" {
+			key == "environment" || key == "capabilities" || key == "hooks" || key == "tasks" {
 			continue
 		}
 

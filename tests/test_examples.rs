@@ -160,12 +160,12 @@ DATABASE_URL: "postgres://localhost/mydb"
 AWS_ACCESS_KEY: "aws-key" @capability("aws")
 DOCKER_REGISTRY: "docker.io" @capability("docker")
 
-Commands: {
-    deploy: {
-        capabilities: ["aws", "docker"]
+capabilities: {
+    aws: {
+        commands: ["deploy"]
     }
-    test: {
-        capabilities: []
+    docker: {
+        commands: ["deploy"]
     }
 }
 }

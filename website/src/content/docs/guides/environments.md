@@ -237,13 +237,12 @@ env: cuenv.#Env & {
     // Your environment variables
 }
 
-// Map commands to their required capabilities
-Commands: {
-    terraform: capabilities: ["aws", "cloudflare"]
-    aws: capabilities: ["aws"]
-    gh: capabilities: ["github"]
-    psql: capabilities: ["database"]
-    mysql: capabilities: ["database"]
+// Map capabilities to their associated commands
+capabilities: {
+    aws: commands: ["terraform", "aws"]
+    cloudflare: commands: ["terraform"]
+    github: commands: ["gh"]
+    database: commands: ["psql", "mysql"]
 }
 ```
 
