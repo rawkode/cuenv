@@ -591,10 +591,11 @@ mod tests {
         );
 
         let deploy_cmd = &result.commands["deploy"];
-        assert_eq!(
-            deploy_cmd.capabilities.as_ref().unwrap(),
-            &vec!["aws".to_string(), "docker".to_string()]
-        );
+        let mut expected_caps = vec!["aws".to_string(), "docker".to_string()];
+        let mut actual_caps = deploy_cmd.capabilities.as_ref().unwrap().clone();
+        expected_caps.sort();
+        actual_caps.sort();
+        assert_eq!(actual_caps, expected_caps);
 
         let test_cmd = &result.commands["test"];
         assert_eq!(

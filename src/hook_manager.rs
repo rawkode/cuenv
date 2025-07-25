@@ -245,7 +245,7 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
     ) -> Result<bool> {
         for constraint in constraints {
             if !self.check_single_constraint(constraint, env_vars).await? {
-                log::debug!("Constraint not met: {:?}", constraint);
+                log::debug!("Constraint not met: {constraint:?}");
                 return Ok(false);
             }
         }
@@ -273,7 +273,7 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
         command: &str,
         env_vars: &HashMap<String, String>,
     ) -> Result<bool> {
-        log::debug!("Checking if command '{}' exists", command);
+        log::debug!("Checking if command '{command}' exists");
 
         let isolated_env = self.create_isolated_environment(env_vars);
         let args = CommandArguments::from_vec(vec![command.to_string()]);
@@ -283,11 +283,11 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
         match self.executor.execute_with_env("which", &args, env).await {
             Ok(output) => {
                 let exists = output.status.success();
-                log::debug!("Command '{}' exists: {}", command, exists);
+                log::debug!("Command '{command}' exists: {exists}");
                 Ok(exists)
             }
             Err(e) => {
-                log::debug!("Failed to check command '{}': {}", command, e);
+                log::debug!("Failed to check command '{command}': {e}");
                 Ok(false)
             }
         }
@@ -299,7 +299,7 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
         args: Option<&Vec<String>>,
         env_vars: &HashMap<String, String>,
     ) -> Result<bool> {
-        log::debug!("Checking shell command: {} {:?}", command, args);
+        log::debug!("Checking shell command: {command} {args:?}");
 
         let isolated_env = self.create_isolated_environment(env_vars);
         let command_args = CommandArguments::from_vec(args.cloned().unwrap_or_default());
@@ -312,11 +312,11 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
         {
             Ok(output) => {
                 let success = output.status.success();
-                log::debug!("Shell command '{}' succeeded: {}", command, success);
+                log::debug!("Shell command '{command}' succeeded: {success}");
                 Ok(success)
             }
             Err(e) => {
-                log::debug!("Shell command '{}' failed: {}", command, e);
+                log::debug!("Shell command '{command}' failed: {e}");
                 Ok(false)
             }
         }
