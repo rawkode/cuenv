@@ -11,24 +11,18 @@ hooks: {
 				commandExists: {
 					command: "devenv"
 				}
-			},
-			{
-				fileExists: {
-					path: "devenv.nix"
-				}
 			}
 		]
 	}
 
-	// Hook that runs cleanup only if needed
+	// Hook that runs cleanup only if cleanup tool is available
 	onExit: {
 		command: "echo"
 		args: ["🧹 Cleaning up development environment..."]
 		constraints: [
 			{
-				envVarEquals: {
-					var: "CLEANUP_MODE"
-					value: "auto"
+				commandExists: {
+					command: "echo"
 				}
 			}
 		]

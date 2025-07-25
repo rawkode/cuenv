@@ -1,15 +1,17 @@
 # Hook Constraints
 
-This document describes the hook constraints feature in cuenv, which allows hooks to run conditionally based on system state.
+This document describes the hook constraints feature in cuenv, which allows hooks to run conditionally based on the end user's environment.
 
 ## Overview
 
-Hook constraints provide a way to ensure hooks only execute when specific conditions are met. This is particularly useful for:
+Hook constraints provide a way to ensure hooks only execute when required tools are available in the end user's environment. This is particularly useful for:
 
-- Running setup hooks only when required tools are installed
-- Conditional cleanup based on environment state  
-- Avoiding errors when dependencies are missing
-- Creating portable environments that gracefully handle missing components
+- Running setup hooks only when required tools are installed (e.g., devenv, nix, flox)
+- Avoiding errors when dependencies are missing from the user's system
+- Creating portable environments that gracefully handle missing tools
+- Checking complex environment conditions with custom shell commands
+
+Since cuenv runs tasks in an isolated environment where files and environment variables are already defined, constraints focus on validating the external user environment rather than checking internal state.
 
 ## Constraint Types
 
@@ -23,53 +25,10 @@ constraints: [
         commandExists: {
             command: "devenv"
         }
-    }
-]
-```
-
-### FileExists  
-
-Checks if a file or directory exists. Supports shell variable expansion.
-
-```cue
-constraints: [
-    {
-        fileExists: {
-            path: "devenv.nix"
-        }
     },
     {
-        fileExists: {
-            path: "$HOME/.config/myapp/config.yaml"
-        }
-    }
-]
-```
-
-### EnvVarSet
-
-Checks if an environment variable is set (non-empty).
-
-```cue
-constraints: [
-    {
-        envVarSet: {
-            var: "DEVENV_ROOT"
-        }
-    }
-]
-```
-
-### EnvVarEquals
-
-Checks if an environment variable equals a specific value.
-
-```cue
-constraints: [
-    {
-        envVarEquals: {
-            var: "CLEANUP_MODE"
-            value: "auto"
+        commandExists: {
+            command: "nix"
         }
     }
 ]
@@ -77,20 +36,21 @@ constraints: [
 
 ### ShellCommand
 
-Runs an arbitrary shell command and checks if it succeeds (exit code 0).
+Checks if an environment variable is set (non-empty).
+Runs an arbitrary shell command and checks if it succeeds (exit code 0). This is useful for complex environment validation that goes beyond simple command existence.
 
 ```cue
 constraints: [
     {
         shellCommand: {
-            command: "test"
-            args: ["-f", "/tmp/required_file"]
+            command: "docker"
+            args: ["info"]
         }
     },
     {
         shellCommand: {
-            command: "docker"
-            args: ["info"]
+            command: "nix"
+            args: ["--version"]
         }
     }
 ]
@@ -103,35 +63,30 @@ Constraints are defined as an array in the hook configuration. All constraints m
 ```cue
 hooks: {
     onEnter: {
-        command: "setup-dev-env"
-        args: ["--quick"]
+        command: "devenv"
+        args: ["up"]
         constraints: [
             {
                 commandExists: {
-                    command: "docker"
-                }
-            },
-            {
-                fileExists: {
-                    path: "docker-compose.yml"
-                }
-            },
-            {
-                envVarSet: {
-                    var: "DOCKER_HOST"
+                    command: "devenv"
                 }
             }
         ]
     }
     
     onExit: {
-        command: "cleanup"
-        args: []
+        command: "docker-compose"
+        args: ["down"]
         constraints: [
             {
-                envVarEquals: {
-                    var: "AUTO_CLEANUP"
-                    value: "true"
+                commandExists: {
+                    command: "docker-compose"
+                }
+            },
+            {
+                shellCommand: {
+                    command: "docker"
+                    args: ["info"]
                 }
             }
         ]
@@ -144,14 +99,14 @@ hooks: {
 - **All constraints must pass**: If any constraint fails, the hook is skipped
 - **Graceful failure**: Failed constraints don't cause errors, they simply skip hook execution
 - **Logged results**: Constraint failures are logged at debug level for troubleshooting
-- **Environment access**: Constraints can access both cuenv-managed and system environment variables
+- **User environment focus**: Constraints check the end user's environment for required tools
 - **Async execution**: Constraint checking is non-blocking and handles errors gracefully
 
 ## Examples
 
 ### DevEnv Integration
 
-Only run devenv setup if the tool is installed and configuration exists:
+Only run devenv setup if the tool is installed:
 
 ```cue
 hooks: {
@@ -162,11 +117,6 @@ hooks: {
             {
                 commandExists: {
                     command: "devenv"
-                }
-            },
-            {
-                fileExists: {
-                    path: "devenv.nix"
                 }
             }
         ]
@@ -190,14 +140,14 @@ hooks: {
                 }
             },
             {
-                shellCommand: {
-                    command: "docker"
-                    args: ["info"]
+                commandExists: {
+                    command: "docker-compose"
                 }
             },
             {
-                fileExists: {
-                    path: "docker-compose.yml"
+                shellCommand: {
+                    command: "docker"
+                    args: ["info"]
                 }
             }
         ]
@@ -205,25 +155,25 @@ hooks: {
 }
 ```
 
-### Conditional Cleanup
+### Nix Environment Setup
 
-Only run cleanup in specific environments:
+Only run nix-specific setup if nix is available:
 
 ```cue
 hooks: {
-    onExit: {
-        command: "cleanup-temp-files"
-        args: []
+    onEnter: {
+        command: "nix-shell"
+        args: ["--run", "echo 'Nix environment ready'"]
         constraints: [
             {
-                envVarEquals: {
-                    var: "NODE_ENV"
-                    value: "development"
+                commandExists: {
+                    command: "nix"
                 }
             },
             {
-                envVarSet: {
-                    var: "TEMP_DIR"
+                shellCommand: {
+                    command: "nix"
+                    args: ["--version"]
                 }
             }
         ]
@@ -234,7 +184,7 @@ hooks: {
 ## Implementation Notes
 
 - Constraint checking uses the same isolated environment as hook execution
-- File path expansion supports standard shell variables (`$HOME`, `$PWD`, etc.)
 - Command existence checking uses the `which` utility available on most Unix systems
 - Shell commands run with the same environment variables available to hooks
 - Constraint evaluation is fail-safe: errors during checking result in constraint failure rather than hook execution errors
+- Focus is on validating external user environment rather than internal cuenv state

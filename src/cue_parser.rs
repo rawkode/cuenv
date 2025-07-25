@@ -66,12 +66,6 @@ pub enum HookType {
 pub enum HookConstraint {
     /// Check if a command is available in PATH
     CommandExists { command: String },
-    /// Check if a file or directory exists
-    FileExists { path: String },
-    /// Check if an environment variable is set
-    EnvVarSet { var: String },
-    /// Check if an environment variable equals a specific value
-    EnvVarEquals { var: String, value: String },
     /// Run a custom shell command and check if it succeeds (exit code 0)
     ShellCommand { command: String, args: Option<Vec<String>> },
 }
@@ -1013,13 +1007,9 @@ mod tests {
                         }
                     },
                     {
-                        fileExists: {
-                            path: "devenv.nix"
-                        }
-                    },
-                    {
-                        envVarSet: {
-                            var: "DEVENV_ROOT"
+                        shellCommand: {
+                            command: "nix"
+                            args: ["--version"]
                         }
                     }
                 ]
@@ -1035,9 +1025,8 @@ mod tests {
                         }
                     },
                     {
-                        envVarEquals: {
-                            var: "CLEANUP_MODE"
-                            value: "auto"
+                        commandExists: {
+                            command: "cleanup"
                         }
                     }
                 ]
@@ -1059,7 +1048,7 @@ mod tests {
         let on_enter = result.hooks.get("onEnter").unwrap();
         assert_eq!(on_enter.command, "devenv");
         assert_eq!(on_enter.args, vec!["up"]);
-        assert_eq!(on_enter.constraints.len(), 3);
+        assert_eq!(on_enter.constraints.len(), 2);
 
         // Check first constraint - command exists
         if let HookConstraint::CommandExists { command } = &on_enter.constraints[0] {
@@ -1068,18 +1057,12 @@ mod tests {
             panic!("Expected CommandExists constraint");
         }
 
-        // Check second constraint - file exists
-        if let HookConstraint::FileExists { path } = &on_enter.constraints[1] {
-            assert_eq!(path, "devenv.nix");
+        // Check second constraint - shell command
+        if let HookConstraint::ShellCommand { command, args } = &on_enter.constraints[1] {
+            assert_eq!(command, "nix");
+            assert_eq!(args.as_ref().unwrap(), &vec!["--version"]);
         } else {
-            panic!("Expected FileExists constraint");
-        }
-
-        // Check third constraint - env var set
-        if let HookConstraint::EnvVarSet { var } = &on_enter.constraints[2] {
-            assert_eq!(var, "DEVENV_ROOT");
-        } else {
-            panic!("Expected EnvVarSet constraint");
+            panic!("Expected ShellCommand constraint");
         }
 
         // Test onExit hook constraints
@@ -1096,12 +1079,11 @@ mod tests {
             panic!("Expected ShellCommand constraint");
         }
 
-        // Check second constraint - env var equals
-        if let HookConstraint::EnvVarEquals { var, value } = &on_exit.constraints[1] {
-            assert_eq!(var, "CLEANUP_MODE");
-            assert_eq!(value, "auto");
+        // Check second constraint - command exists
+        if let HookConstraint::CommandExists { command } = &on_exit.constraints[1] {
+            assert_eq!(command, "cleanup");
         } else {
-            panic!("Expected EnvVarEquals constraint");
+            panic!("Expected CommandExists constraint");
         }
     }
 

@@ -258,22 +258,6 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
             HookConstraint::CommandExists { command } => {
                 self.check_command_exists(command, env_vars).await
             }
-            HookConstraint::FileExists { path } => {
-                self.check_file_exists(path, env_vars).await
-            }
-            HookConstraint::EnvVarSet { var } => {
-                Ok(env_vars.contains_key(var) || std::env::var(var).is_ok())
-            }
-            HookConstraint::EnvVarEquals { var, value } => {
-                if let Some(env_value) = env_vars.get(var) {
-                    Ok(env_value == value)
-                } else {
-                    match std::env::var(var) {
-                        Ok(env_value) => Ok(env_value == *value),
-                        Err(_) => Ok(false),
-                    }
-                }
-            }
             HookConstraint::ShellCommand { command, args } => {
                 self.check_shell_command(command, args.as_ref(), env_vars).await
             }
@@ -303,27 +287,6 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
                 Ok(false)
             }
         }
-    }
-
-    async fn check_file_exists(
-        &self,
-        path: &str,
-        _env_vars: &HashMap<String, String>,
-    ) -> Result<bool> {
-        log::debug!("Checking if file/directory '{}' exists", path);
-        
-        // Expand shell variables in the path
-        let expanded_path = match shellexpand::full(path) {
-            Ok(expanded) => expanded.to_string(),
-            Err(e) => {
-                log::debug!("Failed to expand path '{}': {}", path, e);
-                return Ok(false);
-            }
-        };
-
-        let exists = std::path::Path::new(&expanded_path).exists();
-        log::debug!("File/directory '{}' exists: {}", expanded_path, exists);
-        Ok(exists)
     }
 
     async fn check_shell_command(
@@ -475,84 +438,6 @@ mod tests {
         // Test non-existing command
         let constraint = HookConstraint::CommandExists {
             command: "nonexistent".to_string(),
-        };
-        let result = manager.check_single_constraint(&constraint, &env_vars).await;
-        assert!(result.is_ok());
-        assert!(!result.unwrap());
-    }
-
-    #[tokio::test]
-    async fn test_constraint_file_exists() {
-        let manager = create_test_manager().await;
-        let env_vars = HashMap::new();
-
-        // Test existing file (we know Cargo.toml exists)
-        let constraint = HookConstraint::FileExists {
-            path: "Cargo.toml".to_string(),
-        };
-        let result = manager.check_single_constraint(&constraint, &env_vars).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap());
-
-        // Test non-existing file
-        let constraint = HookConstraint::FileExists {
-            path: "/definitely/does/not/exist".to_string(),
-        };
-        let result = manager.check_single_constraint(&constraint, &env_vars).await;
-        assert!(result.is_ok());
-        assert!(!result.unwrap());
-    }
-
-    #[tokio::test]
-    async fn test_constraint_env_var_set() {
-        let manager = create_test_manager().await;
-        let mut env_vars = HashMap::new();
-        env_vars.insert("TEST_VAR".to_string(), "test_value".to_string());
-
-        // Test env var from cuenv environment
-        let constraint = HookConstraint::EnvVarSet {
-            var: "TEST_VAR".to_string(),
-        };
-        let result = manager.check_single_constraint(&constraint, &env_vars).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap());
-
-        // Test env var from system environment (PATH should exist)
-        let constraint = HookConstraint::EnvVarSet {
-            var: "PATH".to_string(),
-        };
-        let result = manager.check_single_constraint(&constraint, &HashMap::new()).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap());
-
-        // Test non-existing env var
-        let constraint = HookConstraint::EnvVarSet {
-            var: "NONEXISTENT_VAR".to_string(),
-        };
-        let result = manager.check_single_constraint(&constraint, &HashMap::new()).await;
-        assert!(result.is_ok());
-        assert!(!result.unwrap());
-    }
-
-    #[tokio::test]
-    async fn test_constraint_env_var_equals() {
-        let manager = create_test_manager().await;
-        let mut env_vars = HashMap::new();
-        env_vars.insert("TEST_VAR".to_string(), "expected_value".to_string());
-
-        // Test env var equals expected value
-        let constraint = HookConstraint::EnvVarEquals {
-            var: "TEST_VAR".to_string(),
-            value: "expected_value".to_string(),
-        };
-        let result = manager.check_single_constraint(&constraint, &env_vars).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap());
-
-        // Test env var does not equal expected value
-        let constraint = HookConstraint::EnvVarEquals {
-            var: "TEST_VAR".to_string(),
-            value: "wrong_value".to_string(),
         };
         let result = manager.check_single_constraint(&constraint, &env_vars).await;
         assert!(result.is_ok());
