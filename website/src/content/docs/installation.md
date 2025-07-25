@@ -26,6 +26,77 @@ nix profile install github:rawkode/cuenv
 }
 ```
 
+### Using Home Manager
+
+If you're using [Home Manager](https://github.com/nix-community/home-manager), cuenv provides a dedicated module that simplifies installation and shell integration:
+
+```nix title="flake.nix"
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    home-manager = {
+      url = "github:nix-community/home-manager";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    cuenv.url = "github:rawkode/cuenv";
+  };
+
+  outputs = { self, nixpkgs, home-manager, cuenv, ... }: {
+    homeConfigurations.yourUsername = home-manager.lib.homeManagerConfiguration {
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+      modules = [
+        cuenv.homeManagerModules.default
+        {
+          programs.cuenv = {
+            enable = true;
+
+            # Optional: Specify a custom package
+            # package = cuenv.packages.x86_64-linux.default;
+
+            # Shell integrations are auto-detected based on enabled shells
+            # You can explicitly control them:
+            # enableBashIntegration = true;
+            # enableZshIntegration = true;
+            # enableFishIntegration = true;
+            # enableNushellIntegration = true;  # Experimental
+          };
+
+          # Example: Enable zsh with cuenv
+          programs.zsh.enable = true;
+        }
+      ];
+    };
+  };
+}
+```
+
+Or in a standalone Home Manager module:
+
+```nix title="home.nix"
+{ config, pkgs, ... }:
+{
+  programs.cuenv = {
+    enable = true;
+    # Shell integrations will be enabled automatically
+    # based on which shells you have enabled
+  };
+
+  # Enable your preferred shell
+  programs.bash.enable = true;
+  # or
+  programs.zsh.enable = true;
+  # or
+  programs.fish.enable = true;
+}
+```
+
+The Home Manager module provides:
+
+- Automatic installation of the cuenv package
+- Shell integration configuration based on your enabled shells
+- No manual shell configuration needed - it's all handled automatically
+- Support for bash, zsh, fish, and experimental nushell integration
+
 ### Using Cargo
 
 Install from crates.io using Cargo:
@@ -63,7 +134,11 @@ nix build
 
 ## Shell Setup
 
-After installation, you need to configure your shell to use cuenv. Add the appropriate initialization to your shell configuration file:
+After installation, you need to configure your shell to use cuenv.
+
+> **Note**: If you're using the Home Manager module, shell integration is configured automatically. Skip to [Verify Installation](#verify-installation).
+
+For manual installation, add the appropriate initialization to your shell configuration file:
 
 ### Bash
 

@@ -34,6 +34,48 @@ nix run github:rawkode/cuenv -- --help
 nix profile install github:rawkode/cuenv/<commit-sha>
 ```
 
+#### Home Manager Module
+
+If you're using [Home Manager](https://github.com/nix-community/home-manager), you can use the included module:
+
+```nix
+# In your flake.nix
+{
+  inputs = {
+    cuenv.url = "github:rawkode/cuenv";
+    # ... other inputs
+  };
+
+  outputs = { self, nixpkgs, home-manager, cuenv, ... }: {
+    homeConfigurations.yourUsername = home-manager.lib.homeManagerConfiguration {
+      # ... your configuration
+      modules = [
+        cuenv.homeManagerModules.default
+        {
+          programs.cuenv = {
+            enable = true;
+            # Optional: specify package
+            # package = cuenv.packages.${pkgs.system}.default;
+
+            # Shell integrations (auto-detected based on enabled shells)
+            # enableBashIntegration = true;
+            # enableZshIntegration = true;
+            # enableFishIntegration = true;
+            # enableNushellIntegration = true;  # Experimental
+          };
+        }
+      ];
+    };
+  };
+}
+```
+
+The module will automatically:
+
+- Install the cuenv package
+- Set up shell integration for enabled shells (bash, zsh, fish, nushell)
+- Configure the shell hooks to load CUE environments automatically
+
 ### Using Cargo
 
 ```bash
