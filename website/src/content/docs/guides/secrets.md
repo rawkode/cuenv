@@ -17,7 +17,11 @@ The important bits:
 
 ## Supported Secret Managers
 
-### 1Password
+cuenv supports several secret management systems out of the box, plus custom command-based resolvers for any system.
+
+### Built-in Resolvers
+
+#### 1Password
 
 1Password is a popular password manager that provides a CLI for programmatic access.
 
@@ -131,6 +135,360 @@ SMTP_PASSWORD: "gcp-secret://\(_gcpProject)/smtp-credentials"
 
 // Combined with other values
 SERVICE_ACCOUNT_KEY: "gcp-secret://my-project/service-account-key"
+```
+
+```cue title="env.cue"
+package env
+
+// Use cuenv's built-in structured format
+DATABASE_PASSWORD: cuenv.#OnePasswordRef & {
+    ref: "op://Personal/Database/password"
+}
+
+// Define custom type for GCP secrets (not built-in yet)
+#GcpSecret: {
+    project: string
+    secret: string
+    version?: string | *"latest"
+}
+
+API_SECRET: #GcpSecret & {
+    project: "my-project"
+    secret: "api-secret-key"
+    version: "latest"
+}
+
+SIGNING_KEY: #GcpSecret & {
+    project: "prod-project"
+    secret: "jwt-signing-key"
+    version: "3"  // Pin to specific version
+}
+```
+
+### Custom Command Secret Resolvers
+
+Beyond the built-in resolvers, cuenv supports custom command-based secret resolvers that can integrate with any secret management system. This powerful feature allows you to:
+
+- Integrate with enterprise secret management systems
+- Use custom authentication mechanisms  
+- Support legacy secret storage systems
+- Create specialized secret transformation logic
+
+#### How Custom Resolvers Work
+
+Custom resolvers use the `#Resolver` schema to define a command and arguments that cuenv will execute to retrieve secrets:
+
+```cue title="env.cue"
+package env
+
+import "github.com/rawkode/cuenv"
+
+env: cuenv.#Env & {
+    MY_SECRET: {
+        resolver: {
+            command: "your-secret-command"
+            args: ["--get", "secret-name"]
+        }
+    }
+}
+```
+
+When you run `cuenv run`, it will:
+1. Execute the specified command with the given arguments
+2. Capture the stdout as the secret value
+3. Automatically obfuscate the secret in logs and output
+4. Make the secret available to your application
+
+#### HashiCorp Vault Example
+
+```cue title="env.cue"
+package env
+
+import "github.com/rawkode/cuenv"
+
+env: cuenv.#Env & {
+    // Key-Value secrets
+    DATABASE_PASSWORD: {
+        resolver: {
+            command: "vault"
+            args: [
+                "kv", "get", "-field=password",
+                "secret/myapp/database"
+            ]
+        }
+    }
+
+    // Dynamic AWS credentials from Vault
+    AWS_ACCESS_KEY_ID: {
+        resolver: {
+            command: "vault"
+            args: [
+                "read", "-field=access_key",
+                "aws/creds/my-role"
+            ]
+        }
+    }
+
+    // Environment-specific secrets
+    environment: {
+        production: {
+            DATABASE_PASSWORD: {
+                resolver: {
+                    command: "vault"
+                    args: [
+                        "kv", "get", "-field=password",
+                        "secret/prod/database"
+                    ]
+                }
+            }
+        }
+    }
+}
+```
+
+#### AWS Secrets Manager Example
+
+```cue title="env.cue"
+package env
+
+import "github.com/rawkode/cuenv"
+
+env: cuenv.#Env & {
+    DATABASE_PASSWORD: {
+        resolver: {
+            command: "aws"
+            args: [
+                "secretsmanager", "get-secret-value",
+                "--secret-id", "myapp/database/password", 
+                "--query", "SecretString",
+                "--output", "text"
+            ]
+        }
+    }
+
+    // Extract from JSON secret
+    OAUTH_CLIENT_SECRET: {
+        resolver: {
+            command: "sh"
+            args: [
+                "-c",
+                "aws secretsmanager get-secret-value --secret-id myapp/oauth --query SecretString --output text | jq -r .client_secret"
+            ]
+        }
+    }
+}
+```
+
+#### Azure Key Vault Example
+
+```cue title="env.cue"
+package env
+
+import "github.com/rawkode/cuenv"
+
+env: cuenv.#Env & {
+    DATABASE_PASSWORD: {
+        resolver: {
+            command: "az"
+            args: [
+                "keyvault", "secret", "show",
+                "--vault-name", "myapp-keyvault",
+                "--name", "database-password",
+                "--query", "value",
+                "--output", "tsv"
+            ]
+        }
+    }
+}
+```
+
+#### SOPS (Mozilla Secrets OPerationS) Example
+
+```cue title="env.cue"
+package env
+
+import "github.com/rawkode/cuenv"
+
+env: cuenv.#Env & {
+    DATABASE_PASSWORD: {
+        resolver: {
+            command: "sops"
+            args: [
+                "--decrypt", "--extract", '["database"]["password"]',
+                "secrets.yaml"
+            ]
+        }
+    }
+
+    // Extract from JSON with jq
+    API_KEY: {
+        resolver: {
+            command: "sh"
+            args: [
+                "-c",
+                "sops --decrypt secrets.json | jq -r .api_key"
+            ]
+        }
+    }
+}
+```
+
+#### Unix Pass Example
+
+```cue title="env.cue"
+package env
+
+import "github.com/rawkode/cuenv"
+
+env: cuenv.#Env & {
+    DATABASE_PASSWORD: {
+        resolver: {
+            command: "pass"
+            args: ["myapp/database/password"]
+        }
+    }
+
+    // Get specific line from pass entry
+    SMTP_USERNAME: {
+        resolver: {
+            command: "sh"
+            args: [
+                "-c",
+                "pass email/smtp | head -n 1"
+            ]
+        }
+    }
+}
+```
+
+#### Bitwarden CLI Example
+
+```cue title="env.cue"
+package env
+
+import "github.com/rawkode/cuenv"
+
+env: cuenv.#Env & {
+    DATABASE_PASSWORD: {
+        resolver: {
+            command: "bw"
+            args: [
+                "get", "password",
+                "MyApp Database"
+            ]
+        }
+    }
+
+    // Extract custom field with jq
+    OAUTH_CLIENT_SECRET: {
+        resolver: {
+            command: "sh"
+            args: [
+                "-c",
+                "bw get item 'OAuth Client' | jq -r .fields[0].value"
+            ]
+        }
+    }
+}
+```
+
+#### Advanced Custom Transformations
+
+Custom resolvers can perform complex transformations and validations:
+
+```cue title="env.cue"
+package env
+
+import "github.com/rawkode/cuenv"
+
+env: cuenv.#Env & {
+    // Base64 decode a secret
+    DECODED_SECRET: {
+        resolver: {
+            command: "sh"
+            args: [
+                "-c",
+                "echo 'aGVsbG8gd29ybGQ=' | base64 -d"
+            ]
+        }
+    }
+
+    // Validate secret format
+    VALIDATED_API_KEY: {
+        resolver: {
+            command: "sh"
+            args: [
+                "-c",
+                '''
+                key=$(vault kv get -field=api_key secret/myapp)
+                if [[ ${#key} -lt 32 ]]; then
+                    echo "Error: API key too short" >&2
+                    exit 1
+                fi
+                echo "$key"
+                '''
+            ]
+        }
+    }
+
+    // Composite secret from multiple sources
+    DATABASE_URL: {
+        resolver: {
+            command: "sh"
+            args: [
+                "-c",
+                '''
+                user=$(vault kv get -field=username secret/db)
+                pass=$(vault kv get -field=password secret/db)
+                host=$(consul kv get database/host)
+                echo "postgres://$user:$pass@$host:5432/myapp"
+                '''
+            ]
+        }
+    }
+}
+```
+
+#### Security Best Practices for Custom Resolvers
+
+1. **Command Security**: Only use trusted commands and validate inputs
+2. **Error Handling**: Commands should exit with non-zero status on failure
+3. **Output Formatting**: Commands should output only the secret value (no extra text)
+4. **Authentication**: Ensure CLI tools are properly authenticated before running cuenv
+5. **Least Privilege**: Grant minimal permissions to secret access commands
+6. **Command Injection**: Be careful with shell commands - prefer direct CLI calls when possible
+
+#### Troubleshooting Custom Resolvers
+
+**Command not found:**
+```bash
+# Ensure the command is in PATH
+which vault
+which aws
+which az
+```
+
+**Authentication errors:**
+```bash
+# Verify authentication for each tool
+vault auth -method=userpass username=myuser
+aws sts get-caller-identity
+az account show
+```
+
+**Secret format errors:**
+```bash
+# Test commands manually first
+vault kv get -field=password secret/myapp/database
+aws secretsmanager get-secret-value --secret-id myapp/db --query SecretString --output text
+```
+
+**Permission denied:**
+```bash
+# Check permissions
+vault auth list
+aws iam get-user
+az role assignment list --assignee $(az account show --query user.name --output tsv)
 ```
 
 ## Structured Secret Definitions

@@ -10,6 +10,7 @@ All examples use the `package env` declaration and the `cuenv.#Env` schema:
 - **with-capabilities/** - Capability-based variable filtering and commands
 - **nested/** - Demonstrates directory hierarchy with parent/child configurations
 - **hooks/** - Lifecycle hooks for onEnter and onExit events
+- **custom-secrets/** - Custom command-based secret resolvers for various secret management systems
 
 ## Usage
 
