@@ -73,7 +73,7 @@ hooks: {
             }
         ]
     }
-    
+
     onExit: {
         command: "docker-compose"
         args: ["down"]

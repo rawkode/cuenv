@@ -78,7 +78,10 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
         );
 
         // Check constraints before executing hook
-        if !self.check_constraints(&hook_config.constraints, env_vars).await? {
+        if !self
+            .check_constraints(&hook_config.constraints, env_vars)
+            .await?
+        {
             log::info!(
                 "Skipping hook '{}' due to unmet constraints",
                 hook_config.command
@@ -259,7 +262,8 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
                 self.check_command_exists(command, env_vars).await
             }
             HookConstraint::ShellCommand { command, args } => {
-                self.check_shell_command(command, args.as_ref(), env_vars).await
+                self.check_shell_command(command, args.as_ref(), env_vars)
+                    .await
             }
         }
     }
@@ -270,7 +274,7 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
         env_vars: &HashMap<String, String>,
     ) -> Result<bool> {
         log::debug!("Checking if command '{}' exists", command);
-        
+
         let isolated_env = self.create_isolated_environment(env_vars);
         let args = CommandArguments::from_vec(vec![command.to_string()]);
         let env = EnvironmentVariables::from_map(isolated_env);
@@ -296,12 +300,16 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
         env_vars: &HashMap<String, String>,
     ) -> Result<bool> {
         log::debug!("Checking shell command: {} {:?}", command, args);
-        
+
         let isolated_env = self.create_isolated_environment(env_vars);
         let command_args = CommandArguments::from_vec(args.cloned().unwrap_or_default());
         let env = EnvironmentVariables::from_map(isolated_env);
 
-        match self.executor.execute_with_env(command, &command_args, env).await {
+        match self
+            .executor
+            .execute_with_env(command, &command_args, env)
+            .await
+        {
             Ok(output) => {
                 let success = output.status.success();
                 log::debug!("Shell command '{}' succeeded: {}", command, success);
@@ -401,7 +409,7 @@ mod tests {
     #[tokio::test]
     async fn test_constraint_command_exists() {
         let executor = Arc::new(TestCommandExecutor::new());
-        
+
         // Mock 'which' command to return success for 'echo'
         executor.add_response(
             "which",
@@ -431,7 +439,9 @@ mod tests {
         let constraint = HookConstraint::CommandExists {
             command: "echo".to_string(),
         };
-        let result = manager.check_single_constraint(&constraint, &env_vars).await;
+        let result = manager
+            .check_single_constraint(&constraint, &env_vars)
+            .await;
         assert!(result.is_ok());
         assert!(result.unwrap());
 
@@ -439,7 +449,9 @@ mod tests {
         let constraint = HookConstraint::CommandExists {
             command: "nonexistent".to_string(),
         };
-        let result = manager.check_single_constraint(&constraint, &env_vars).await;
+        let result = manager
+            .check_single_constraint(&constraint, &env_vars)
+            .await;
         assert!(result.is_ok());
         assert!(!result.unwrap());
     }
@@ -447,7 +459,7 @@ mod tests {
     #[tokio::test]
     async fn test_constraint_shell_command() {
         let executor = Arc::new(TestCommandExecutor::new());
-        
+
         // Mock successful command
         executor.add_response(
             "true",
@@ -478,7 +490,9 @@ mod tests {
             command: "true".to_string(),
             args: None,
         };
-        let result = manager.check_single_constraint(&constraint, &env_vars).await;
+        let result = manager
+            .check_single_constraint(&constraint, &env_vars)
+            .await;
         assert!(result.is_ok());
         assert!(result.unwrap());
 
@@ -487,7 +501,9 @@ mod tests {
             command: "false".to_string(),
             args: None,
         };
-        let result = manager.check_single_constraint(&constraint, &env_vars).await;
+        let result = manager
+            .check_single_constraint(&constraint, &env_vars)
+            .await;
         assert!(result.is_ok());
         assert!(!result.unwrap());
     }
@@ -495,7 +511,7 @@ mod tests {
     #[tokio::test]
     async fn test_hook_skipped_when_constraints_not_met() {
         let executor = Arc::new(TestCommandExecutor::new());
-        
+
         // Mock 'which' command to return failure for 'devenv'
         executor.add_response(
             "which",

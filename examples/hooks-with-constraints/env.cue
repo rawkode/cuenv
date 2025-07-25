@@ -11,7 +11,7 @@ hooks: {
 				commandExists: {
 					command: "devenv"
 				}
-			}
+			},
 		]
 	}
 
@@ -24,7 +24,7 @@ hooks: {
 				commandExists: {
 					command: "echo"
 				}
-			}
+			},
 		]
 	}
 }
@@ -42,7 +42,7 @@ env: {
 	environment: {
 		production: {
 			DATABASE_URL: "postgres://prod-db/myapp"
-			API_PORT:     "8080" 
+			API_PORT:     "8080"
 			DEBUG_MODE:   "false"
 			CLEANUP_MODE: "manual"
 		}

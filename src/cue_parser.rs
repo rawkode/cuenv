@@ -67,7 +67,10 @@ pub enum HookConstraint {
     /// Check if a command is available in PATH
     CommandExists { command: String },
     /// Run a custom shell command and check if it succeeds (exit code 0)
-    ShellCommand { command: String, args: Option<Vec<String>> },
+    ShellCommand {
+        command: String,
+        args: Option<Vec<String>>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
