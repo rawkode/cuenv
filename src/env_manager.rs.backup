@@ -310,191 +310,6 @@ impl EnvManager {
         Ok(output)
     }
 
-    pub fn run_command(&self, command: &str, args: &[String]) -> Result<i32> {
-        // Get the loaded environment variables (only the ones from CUE files)
-        let env_from_cue = self.cue_vars.clone();
-
-        // Resolve secrets in the environment variables
-        let (resolved_env, secret_values) = if cfg!(test) {
-            // Skip secret resolution in tests
-            use crate::types::SecretValues;
-            (env_from_cue, SecretValues::new())
-        } else {
-            let secret_manager = SecretManager::new();
-            let rt = match tokio::runtime::Runtime::new() {
-                Ok(runtime) => runtime,
-                Err(e) => {
-                    return Err(Error::configuration(format!(
-                        "Failed to create tokio runtime: {e}"
-                    )));
-                }
-            };
-
-            let resolved_secrets =
-                match rt.block_on(secret_manager.resolve_secrets(env_from_cue.into())) {
-                    Ok(secrets) => secrets,
-                    Err(e) => {
-                        return Err(Error::secret_resolution(
-                            "multiple",
-                            format!("Failed to resolve secrets: {e}"),
-                        ));
-                    }
-                };
-            (
-                resolved_secrets.env_vars.into_inner(),
-                resolved_secrets.secret_values,
-            )
-        };
-
-        // Add minimal required environment variables for basic operation
-        let mut final_env = resolved_env;
-
-        // PATH is needed to find executables
-        if let Some(path) = self.original_env.get("PATH") {
-            final_env.insert("PATH".to_string(), path.clone());
-        }
-
-        // Set up platform-specific environment
-        Platform::setup_environment(&mut final_env);
-
-        // Ensure HOME directory is available (platform-specific)
-        let home_var = Platform::home_env_var();
-        if let Some(home_value) = self.original_env.get(home_var) {
-            final_env.insert(home_var.to_string(), home_value.clone());
-        }
-
-        // Ensure HOME is set on all platforms for compatibility
-        if let Some(home) = self.original_env.get("HOME") {
-            final_env.insert("HOME".to_string(), home.clone());
-        }
-
-        // Create shared secret values for output filtering
-        let mut secret_set = HashSet::new();
-        for secret in secret_values.iter() {
-            secret_set.insert(secret.to_string());
-        }
-        let secrets = Arc::new(Mutex::new(secret_set));
-
-        // Create and execute the command with only the CUE environment
-        let mut cmd = Command::new(command);
-        cmd.args(args)
-            .env_clear() // Clear all environment variables
-            .envs(&final_env) // Set only our CUE-defined vars with resolved secrets
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-
-        let mut child = match cmd.spawn() {
-            Ok(c) => c,
-            Err(e) => {
-                return Err(Error::command_execution(
-                    command,
-                    args.to_vec(),
-                    format!("Failed to spawn command: {e}"),
-                    None,
-                ));
-            }
-        };
-
-        // Set up filtered output streams
-        let stdout = match child.stdout.take() {
-            Some(s) => s,
-            None => {
-                return Err(Error::command_execution(
-                    command,
-                    args.to_vec(),
-                    "Failed to capture stdout".to_string(),
-                    None,
-                ));
-            }
-        };
-        let stderr = match child.stderr.take() {
-            Some(s) => s,
-            None => {
-                return Err(Error::command_execution(
-                    command,
-                    args.to_vec(),
-                    "Failed to capture stderr".to_string(),
-                    None,
-                ));
-            }
-        };
-
-        let stdout_secrets = Arc::clone(&secrets);
-        let stderr_secrets = Arc::clone(&secrets);
-
-        // Spawn threads to handle output filtering
-        let stdout_thread = std::thread::spawn(move || {
-            let mut filter = OutputFilter::new(io::stdout(), stdout_secrets);
-            io::copy(&mut BufReader::new(stdout), &mut filter)
-        });
-
-        let stderr_thread = std::thread::spawn(move || {
-            let mut filter = OutputFilter::new(io::stderr(), stderr_secrets);
-            io::copy(&mut BufReader::new(stderr), &mut filter)
-        });
-
-        // Wait for the process to complete
-        let status = match child.wait() {
-            Ok(s) => s,
-            Err(e) => {
-                return Err(Error::command_execution(
-                    command,
-                    args.to_vec(),
-                    format!("Failed to wait for command: {e}"),
-                    None,
-                ));
-            }
-        };
-
-        // Wait for output threads to complete
-        match stdout_thread.join() {
-            Ok(result) => match result {
-                Ok(_) => {}
-                Err(e) => {
-                    return Err(Error::command_execution(
-                        command,
-                        args.to_vec(),
-                        format!("Failed to process stdout: {e}"),
-                        status.code(),
-                    ));
-                }
-            },
-            Err(_) => {
-                return Err(Error::command_execution(
-                    command,
-                    args.to_vec(),
-                    "stdout thread panicked".to_string(),
-                    status.code(),
-                ));
-            }
-        }
-
-        match stderr_thread.join() {
-            Ok(result) => match result {
-                Ok(_) => {}
-                Err(e) => {
-                    return Err(Error::command_execution(
-                        command,
-                        args.to_vec(),
-                        format!("Failed to process stderr: {e}"),
-                        status.code(),
-                    ));
-                }
-            },
-            Err(_) => {
-                return Err(Error::command_execution(
-                    command,
-                    args.to_vec(),
-                    "stderr thread panicked".to_string(),
-                    status.code(),
-                ));
-            }
-        }
-
-        Ok(status.code().unwrap_or(1))
-    }
-
     /// Run a command with access restrictions in a hermetic environment
     pub fn run_command_with_restrictions(
         &self,
@@ -681,6 +496,204 @@ impl EnvManager {
                     command,
                     args.to_vec(),
                     "stderr processing thread panicked".to_string(),
+                    status.code(),
+                ));
+            }
+        }
+
+        Ok(status.code().unwrap_or(-1))
+    }
+
+    pub fn run_command(&self, command: &str, args: &[String]) -> Result<i32> {
+        // Use the new method with no restrictions for backward compatibility
+        let restrictions = AccessRestrictions::default();
+        self.run_command_with_restrictions(command, args, &restrictions)
+    }
+
+    /// Get a list of configured tasks
+    pub fn list_tasks(&self) -> Vec<(String, Option<String>)> {
+        self.tasks
+            .iter()
+            .map(|(name, task)| (name.clone(), task.description.clone()))
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+        let (resolved_env, secret_values) = if cfg!(test) {
+            // Skip secret resolution in tests
+            use crate::types::SecretValues;
+            (env_from_cue, SecretValues::new())
+        } else {
+            let secret_manager = SecretManager::new();
+            let rt = match tokio::runtime::Runtime::new() {
+                Ok(runtime) => runtime,
+                Err(e) => {
+                    return Err(Error::configuration(format!(
+                        "Failed to create tokio runtime: {e}"
+                    )));
+                }
+            };
+
+            let resolved_secrets =
+                match rt.block_on(secret_manager.resolve_secrets(env_from_cue.into())) {
+                    Ok(secrets) => secrets,
+                    Err(e) => {
+                        return Err(Error::secret_resolution(
+                            "multiple",
+                            format!("Failed to resolve secrets: {e}"),
+                        ));
+                    }
+                };
+            (
+                resolved_secrets.env_vars.into_inner(),
+                resolved_secrets.secret_values,
+            )
+        };
+
+        // Add minimal required environment variables for basic operation
+        let mut final_env = resolved_env;
+
+        // PATH is needed to find executables
+        if let Some(path) = self.original_env.get("PATH") {
+            final_env.insert("PATH".to_string(), path.clone());
+        }
+
+        // Set up platform-specific environment
+        Platform::setup_environment(&mut final_env);
+
+        // Ensure HOME directory is available (platform-specific)
+        let home_var = Platform::home_env_var();
+        if let Some(home_value) = self.original_env.get(home_var) {
+            final_env.insert(home_var.to_string(), home_value.clone());
+        }
+
+        // Ensure HOME is set on all platforms for compatibility
+        if let Some(home) = self.original_env.get("HOME") {
+            final_env.insert("HOME".to_string(), home.clone());
+        }
+
+        // Create shared secret values for output filtering
+        let mut secret_set = HashSet::new();
+        for secret in secret_values.iter() {
+            secret_set.insert(secret.to_string());
+        }
+        let secrets = Arc::new(Mutex::new(secret_set));
+
+        // Create and execute the command with only the CUE environment
+        let mut cmd = Command::new(command);
+        cmd.args(args)
+            .env_clear() // Clear all environment variables
+            .envs(&final_env) // Set only our CUE-defined vars with resolved secrets
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        let mut child = match cmd.spawn() {
+            Ok(c) => c,
+            Err(e) => {
+                return Err(Error::command_execution(
+                    command,
+                    args.to_vec(),
+                    format!("Failed to spawn command: {e}"),
+                    None,
+                ));
+            }
+        };
+
+        // Set up filtered output streams
+        let stdout = match child.stdout.take() {
+            Some(s) => s,
+            None => {
+                return Err(Error::command_execution(
+                    command,
+                    args.to_vec(),
+                    "Failed to capture stdout".to_string(),
+                    None,
+                ));
+            }
+        };
+        let stderr = match child.stderr.take() {
+            Some(s) => s,
+            None => {
+                return Err(Error::command_execution(
+                    command,
+                    args.to_vec(),
+                    "Failed to capture stderr".to_string(),
+                    None,
+                ));
+            }
+        };
+
+        let stdout_secrets = Arc::clone(&secrets);
+        let stderr_secrets = Arc::clone(&secrets);
+
+        // Spawn threads to handle output filtering
+        let stdout_thread = std::thread::spawn(move || {
+            let mut filter = OutputFilter::new(io::stdout(), stdout_secrets);
+            io::copy(&mut BufReader::new(stdout), &mut filter)
+        });
+
+        let stderr_thread = std::thread::spawn(move || {
+            let mut filter = OutputFilter::new(io::stderr(), stderr_secrets);
+            io::copy(&mut BufReader::new(stderr), &mut filter)
+        });
+
+        // Wait for the process to complete
+        let status = match child.wait() {
+            Ok(s) => s,
+            Err(e) => {
+                return Err(Error::command_execution(
+                    command,
+                    args.to_vec(),
+                    format!("Failed to wait for command: {e}"),
+                    None,
+                ));
+            }
+        };
+
+        // Wait for output threads to complete
+        match stdout_thread.join() {
+            Ok(result) => match result {
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(Error::command_execution(
+                        command,
+                        args.to_vec(),
+                        format!("Failed to process stdout: {e}"),
+                        status.code(),
+                    ));
+                }
+            },
+            Err(_) => {
+                return Err(Error::command_execution(
+                    command,
+                    args.to_vec(),
+                    "stdout thread panicked".to_string(),
+                    status.code(),
+                ));
+            }
+        }
+
+        match stderr_thread.join() {
+            Ok(result) => match result {
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(Error::command_execution(
+                        command,
+                        args.to_vec(),
+                        format!("Failed to process stderr: {e}"),
+                        status.code(),
+                    ));
+                }
+            },
+            Err(_) => {
+                return Err(Error::command_execution(
+                    command,
+                    args.to_vec(),
+                    "stderr thread panicked".to_string(),
                     status.code(),
                 ));
             }
