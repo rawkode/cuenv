@@ -1,6 +1,6 @@
 [package]
 name = "cuenv"
-version = "0.2.5"
+version = "0.2.6"
 edition = "2021"
 authors = ["David Flanagan"]
 description = "A direnv alternative that uses CUE files for environment configuration"
