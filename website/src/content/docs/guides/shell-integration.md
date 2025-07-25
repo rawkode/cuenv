@@ -114,7 +114,7 @@ Show when cuenv environment is active:
 ```bash
 # Add to .bashrc after cuenv init
 cuenv_prompt() {
-    if [[ -n "$CUENV_LOADED" ]]; then
+    if [[ -n "$CUENV_DIR" ]]; then
         echo " (cuenv)"
     fi
 }
@@ -130,7 +130,7 @@ setopt PROMPT_SUBST
 PROMPT='%n@%m:%~$(cuenv_prompt) %# '
 
 cuenv_prompt() {
-    if [[ -n "$CUENV_LOADED" ]]; then
+    if [[ -n "$CUENV_DIR" ]]; then
         echo " %F{green}(cuenv)%f"
     fi
 }
@@ -141,7 +141,7 @@ cuenv_prompt() {
 ```fish
 # Add to config.fish
 function fish_prompt
-    if set -q CUENV_LOADED
+    if set -q CUENV_DIR
         echo -n (set_color green)"(cuenv) "(set_color normal)
     end
     # Your existing prompt
@@ -156,7 +156,7 @@ If using [Starship](https://starship.rs/), add a custom module:
 ```toml title="~/.config/starship.toml"
 [custom.cuenv]
 command = 'echo "📦"'
-when = '[[ -n "$CUENV_LOADED" ]]'
+when = '[[ -n "$CUENV_DIR" ]]'
 format = '[$output]($style) '
 style = "bold green"
 ```
@@ -292,7 +292,7 @@ By default, cuenv looks for `env.cue`. To use custom filenames:
 
 ```bash
 # Set in your shell config
-export CUENV_FILE="environment.cue"
+export CUENV_FILENAME="environment.cue"
 ```
 
 ### Disable Auto-loading
@@ -314,7 +314,7 @@ Run custom commands on environment changes:
 ```bash title="~/.bashrc"
 # Bash example
 cuenv_post_load() {
-    echo "Loaded environment from: $CUENV_ROOT"
+    echo "Loaded environment from: $CUENV_DIR"
     # Custom actions here
 }
 
@@ -335,7 +335,7 @@ Ensure cuenv works in new tmux panes/windows:
 
 ```bash title="~/.tmux.conf"
 set-option -g default-command "${SHELL}"
-set-option -g update-environment "CUENV_LOADED CUENV_ROOT"
+set-option -g update-environment "CUENV_DIR CUENV_FILE"
 ```
 
 ### VS Code

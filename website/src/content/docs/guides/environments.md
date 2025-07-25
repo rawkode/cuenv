@@ -505,7 +505,7 @@ env: cuenv.#Env & {
     // Apply detected environment
     if _env == "production" {
         LOG_LEVEL: "error"
-        DEBUG: "false"
+        DEBUG: false
     }
 }
 ```

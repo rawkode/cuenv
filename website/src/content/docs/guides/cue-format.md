@@ -10,17 +10,15 @@ CUE is what JSON should have been. Types, validation, no trailing comma drama. H
 Your `env.cue` needs:
 
 1. `package env` at the top
-2. Variables as key-value pairs
+2. Variables as key-value pairs inside an `env:` field
 3. That's it
 
-No more requirements. We simplified this.
+Variables go inside the `env:` field, and tasks (if any) go at the top level in a `tasks:` field.
 
 ```cue title="env.cue"
 package env
 
-import "github.com/rawkode/cuenv"
-
-env: cuenv.#Env & {
+env: {
     // String values
     APP_NAME: "My Application"
     DATABASE_URL: "postgres://localhost/mydb"
@@ -368,11 +366,11 @@ env: cuenv.#Env & {
     environment: {
         development: {
             LOG_LEVEL: "debug"
-            DEBUG: "true"
+            DEBUG: true
         }
         production: {
             LOG_LEVEL: "error"
-            DEBUG: "false"
+            DEBUG: false
         }
     }
 }
@@ -448,7 +446,7 @@ env: {
 
 ## Tasks
 
-cuenv supports defining tasks that can be executed with the `cuenv task` command. Tasks are defined at the top level of your `env.cue` file in a `tasks:` field.
+cuenv supports defining tasks that can be executed with the `cuenv task` command. Tasks are defined at the top level of your `env.cue` file in a `tasks:` field (not inside the `env:` field).
 
 ### Basic Task Definition
 
@@ -607,3 +605,41 @@ tasks: {
     }
 }
 ```
+
+## Hooks
+
+cuenv supports hooks that run when entering or exiting an environment:
+
+```cue title="env.cue"
+package env
+
+import "github.com/rawkode/cuenv"
+
+// Hook definitions
+hooks: {
+    // Hook that runs when entering the environment
+    onEnter: {
+        command: "echo"
+        args: ["🚀 Environment activated! Database: $DATABASE_URL"]
+    }
+
+    // Hook that runs when exiting the environment
+    onExit: {
+        command: "echo"
+        args: ["👋 Cleaning up environment..."]
+    }
+}
+
+env: cuenv.#Env & {
+    // Regular environment variables
+    DATABASE_URL: "postgres://localhost/mydb"
+    API_KEY: "secret123"
+}
+```
+
+Hook properties:
+
+- `command`: The command to execute
+- `args`: Array of arguments to pass to the command
+
+Hooks have access to all environment variables defined in the `env:` field.
