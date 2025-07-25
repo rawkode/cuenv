@@ -1,52 +1,143 @@
 ---
-title: Introduction to cuenv
-description: Learn about cuenv and why it's the perfect environment management tool for modern development
+title: What is cuenv?
+description: Type-safe environment management powered by CUE
 ---
 
-cuenv is a modern alternative to direnv that leverages the power of CUE (Configure, Unify, Execute) for type-safe environment configuration. It provides automatic environment loading, hierarchical configuration, and built-in secret management.
+Let's be honest. You're here because you want more from your development environment. You want type safety, validation, and tools that understand your configuration is more than just strings.
 
-## What is cuenv?
+## Why CUE for Environment Configuration?
 
-cuenv automatically loads environment variables from `env.cue` files as you navigate through your filesystem. Unlike traditional shell-based solutions, cuenv uses CUE's powerful type system to validate your configuration at load time, preventing common errors before they reach your application.
+**Shell scripts** work great for automation, but configuration deserves a purpose-built language.
 
-## Key Benefits
+**CUE** was designed specifically for configuration:
 
-### Type Safety
+- Type system that catches errors before runtime
+- Schema validation built into the language
+- Unification that makes inheritance natural
+- Extensible beyond just environment variables
 
-With CUE, you get compile-time validation of your environment configuration. No more runtime surprises from typos or incorrect values.
+## What Makes cuenv Different
 
-### Hierarchical Configuration
+cuenv leverages CUE's power to go beyond simple environment management:
 
-cuenv automatically loads parent directory configurations, making it easy to share common settings across multiple projects while allowing project-specific overrides.
+- Define environment variables with real types and constraints
+- Create tasks and workflows alongside your configuration
+- Integrate secrets without custom scripts
+- Validate everything at load time
 
-### Security First
+## Core Features
 
-Built-in integration with secret managers (1Password, GCP Secrets) and automatic obfuscation prevents accidental exposure of sensitive data.
+- **Type-Safe Configuration**: `PORT: 3000` is an int. CUE validates it before it loads.
+- **Native Secret Integration**: `op://` and `gcp-secret://` references are resolved with `cuenv run`.
+- **Efficient**: State is stored in environment variables, not files. No I/O on every prompt.
+- **Beyond Environment**: Define tasks, workflows, and more in the same file.
 
-### Cross-Platform
+## Real Examples
 
-Works seamlessly across Linux, macOS, and Windows with native shell integrations for Bash, Zsh, and Fish.
+### Type Safety That Actually Helps
 
-## How It Works
+```cue
+// This FAILS at load time, not in production
+PORT: "three thousand"  // Error: conflicting values "three thousand" and int
 
-1. **Create an `env.cue` file** in your project directory
-1. **Define your environment variables** using CUE syntax
-1. **Navigate to the directory** and cuenv automatically loads the environment
-1. **Leave the directory** and the environment is restored
+// This works
+PORT: 3000
+WORKERS: 4
+TIMEOUT: 30.5
 
-## Comparison with direnv
+// With constraints
+PORT: int & >=1024 & <=65535  // Must be valid port number
+ENVIRONMENT: "dev" | "staging" | "prod"  // Must be one of these
+```
 
-| Feature                | cuenv           | direnv                  |
-| ---------------------- | --------------- | ----------------------- |
-| Configuration Language | CUE (type-safe) | Shell scripts           |
-| Validation             | Compile-time    | Runtime                 |
-| Secret Management      | Built-in        | Manual                  |
-| Allow Required         | No              | Yes                     |
-| Hierarchical Loading   | Yes             | Limited                 |
-| Cross-Platform         | Yes             | Limited Windows support |
+### Hierarchical Config (That Makes Sense)
 
-## Next Steps
+```bash
+~/work/
+  env.cue         # ORG: "acme", GITHUB_TOKEN: "op://..."
 
-- [Install cuenv](/installation/) and set up your shell
-- Follow the [Quick Start](/quickstart/) guide
-- Learn about the [CUE file format](/guides/cue-format/)
+  backend/
+    env.cue       # TEAM: "backend", AWS_REGION: "us-east-1"
+
+    api/
+      env.cue     # SERVICE: "api", PORT: 8080
+      # Has all: ORG, GITHUB_TOKEN, TEAM, AWS_REGION, SERVICE, PORT
+```
+
+### Secrets Without The Drama
+
+```cue
+// In env.cue
+DATABASE_URL: "postgres://user:password@localhost/dev"  // Local dev
+DATABASE_PASSWORD: "op://Personal/MyApp/db/password"    // Production
+
+// Run your app
+cuenv run -- npm start  # Secrets resolved automatically
+
+// Check what's loaded (secrets are hidden)
+cuenv status
+# DATABASE_PASSWORD=*** (hidden)
+```
+
+## How It Actually Works
+
+1. You `cd` into a directory with `env.cue`
+2. cuenv loads it, validates it, and sets your environment variables.
+3. You `cd` out, and cuenv restores the previous environment.
+
+Behind the scenes:
+
+- Shell hooks catch directory changes.
+- CUE validates and evaluates your config.
+- State is stored in `CUENV_*` environment variables (no file I/O).
+
+## cuenv + direnv: Better Together
+
+Both tools have their strengths:
+
+| Feature               | cuenv               | direnv             |
+| --------------------- | ------------------- | ------------------ |
+| **Config Language**   | CUE (purpose-built) | Shell (flexible)   |
+| **Type Validation**   | Built-in            | Script it yourself |
+| **Secret Management** | Native integration  | Custom scripts     |
+| **Approval Method**   | `cuenv allow` command | File path          |
+| **Performance**       | Env var state       | File-based         |
+| **File Watching**     | Automatic           | `watch_file`       |
+| **Extensibility**     | Tasks, workflows    | Shell commands     |
+| **Platform Support**  | Cross-platform      | Unix-focused       |
+
+## Who Should Use cuenv?
+
+**Perfect for:**
+
+- Teams wanting type-safe configuration
+- Projects with complex environment hierarchies
+- Developers who value validation over flexibility
+- Anyone managing secrets across environments
+- Projects that need more than just env vars (tasks, workflows)
+
+**Consider direnv if:**
+
+- You need maximum flexibility with shell scripts
+- Your configuration logic is complex and procedural
+- You're already invested in `.envrc` workflows
+
+## Get Started
+
+```bash
+# Install it
+cargo install cuenv
+
+# Hook it up
+eval "$(cuenv init bash)"
+
+# Try it
+echo 'package env
+PORT: 8080
+DATABASE_URL: "postgres://localhost/dev"' > env.cue
+
+# That's it
+echo $PORT  # 8080
+```
+
+Next: [See real examples](/quickstart/) or [dive into the details](/guides/cue-format/)

@@ -1,9 +1,9 @@
 ---
 title: Quick Start
-description: Get up and running with cuenv in 5 minutes
+description: From zero to typed environment variables in 2 minutes
 ---
 
-This guide will walk you through creating your first cuenv configuration and using it in a project.
+Skip the theory. Here's how to actually use this thing.
 
 ## Step 1: Create Your First CUE Package
 
@@ -14,38 +14,44 @@ mkdir my-project
 cd my-project
 ```
 
-Create a CUE file with your favorite editor:
+Create an env.cue file with your favorite editor:
 
 ```cue title="env.cue"
 package env
 
-import "github.com/rawkode/cuenv"
+// Application configuration
+APP_NAME: "My Awesome App"
+APP_ENV: "development"
+PORT: 3000
 
-env: cuenv.#Env & {
-    // Application configuration
-    APP_NAME: "My Awesome App"
-    APP_ENV: "development"
-    PORT: 3000
+// Database configuration
+DATABASE_HOST: "localhost"
+DATABASE_PORT: 5432
+DATABASE_NAME: "myapp_dev"
+DATABASE_USER: "myapp"
 
-    // Database configuration
-    DATABASE_HOST: "localhost"
-    DATABASE_PORT: 5432
-    DATABASE_NAME: "myapp_dev"
-    DATABASE_USER: "myapp"
+// API keys (use secrets in production!)
+API_KEY: "dev-api-key-12345"
 
-    // API keys (use secrets in production!)
-    API_KEY: "dev-api-key-12345"
+// Feature flags
+ENABLE_DEBUG: true
+ENABLE_CACHE: false
 
-    // Feature flags
-    ENABLE_DEBUG: true
-    ENABLE_CACHE: false
-
-    // Computed values using CUE
-    DATABASE_URL: "postgres://\(DATABASE_USER)@\(DATABASE_HOST):\(DATABASE_PORT)/\(DATABASE_NAME)"
-}
+// Computed values using CUE
+DATABASE_URL: "postgres://\(DATABASE_USER)@\(DATABASE_HOST):\(DATABASE_PORT)/\(DATABASE_NAME)"
 ```
 
-## Step 2: See It in Action
+## Step 2: Allow the Directory
+
+For security, you need to explicitly allow cuenv to load environments. Run `cuenv allow` in your project directory:
+
+```bash
+cuenv allow
+```
+
+This only needs to be done once for each directory you trust.
+
+## Step 3: See It in Action
 
 Navigate out and back into the directory to see cuenv load your environment:
 
@@ -77,23 +83,19 @@ You can split your configuration across multiple CUE files in the same package:
 cat > database.cue << 'EOF'
 package env
 
-env: {
-    // Database-specific settings
-    DATABASE_POOL_SIZE: 10
-    DATABASE_TIMEOUT: 30
-    DATABASE_SSL: true
-}
+// Database-specific settings
+DATABASE_POOL_SIZE: 10
+DATABASE_TIMEOUT: 30
+DATABASE_SSL: true
 EOF
 
 # Create an app configuration file
 cat > app.cue << 'EOF'
 package env
 
-env: {
-    // App-specific settings
-    APP_VERSION: "1.0.0"
-    APP_TIMEOUT: 60
-}
+// App-specific settings
+APP_VERSION: "1.0.0"
+APP_TIMEOUT: 60
 EOF
 ```
 
@@ -107,6 +109,19 @@ echo $APP_VERSION
 # Output: 1.0.0
 ```
 
+### Automatic File Watching
+
+cuenv automatically watches all loaded CUE files for changes:
+
+```bash
+# Edit any CUE file
+echo 'NEW_VAR: "added"' >> env.cue
+
+# The environment automatically reloads!
+echo $NEW_VAR
+# Output: added
+```
+
 ## Step 4: Using Secrets (Production)
 
 For production environments, use secret references instead of hardcoded values:
@@ -116,18 +131,16 @@ package env
 
 import "github.com/rawkode/cuenv"
 
-env: cuenv.#Env & {
-    // ... other config ...
+// ... other config ...
 
-    // 1Password secret reference
-    DATABASE_PASSWORD: cuenv.#OnePasswordRef & {ref: "op://Personal/myapp-db/password"}
+// 1Password secret reference
+DATABASE_PASSWORD: cuenv.#OnePasswordRef & {ref: "op://Personal/myapp-db/password"}
 
-    // GCP Secret Manager reference
-    API_SECRET: "gcp-secret://my-project/api-secret-key"
+// GCP Secret Manager reference
+API_SECRET: cuenv.#GCPSecretRef & {ref: "gcp-secret://my-project/api-secret-key"}
 
-    // Composed with resolved secrets
-    DATABASE_URL: "postgres://\(DATABASE_USER):\(DATABASE_PASSWORD)@\(DATABASE_HOST):\(DATABASE_PORT)/\(DATABASE_NAME)"
-}
+// Composed with resolved secrets
+DATABASE_URL: "postgres://\(DATABASE_USER):\(DATABASE_PASSWORD)@\(DATABASE_HOST):\(DATABASE_PORT)/\(DATABASE_NAME)"
 ```
 
 Run commands with resolved secrets:
@@ -148,26 +161,22 @@ Create environment-specific overrides:
 ```cue
 package env
 
-import "github.com/rawkode/cuenv"
+// Base configuration
+APP_NAME: "My App"
+PORT: 3000
+LOG_LEVEL: "info"
 
-env: cuenv.#Env & {
-    // Base configuration
-    APP_NAME: "My App"
-    PORT: 3000
-    LOG_LEVEL: "info"
-
-    // Environment-specific overrides
-    environment: {
-        production: {
-            PORT: 8080
-            LOG_LEVEL: "error"
-            DATABASE_HOST: "prod-db.example.com"
-        }
-        staging: {
-            PORT: 3001
-            LOG_LEVEL: "debug"
-            DATABASE_HOST: "staging-db.example.com"
-        }
+// Environment-specific overrides
+environment: {
+    production: {
+        PORT: 8080
+        LOG_LEVEL: "error"
+        DATABASE_HOST: "prod-db.example.com"
+    }
+    staging: {
+        PORT: 3001
+        LOG_LEVEL: "debug"
+        DATABASE_HOST: "staging-db.example.com"
     }
 }
 ```
@@ -195,11 +204,9 @@ CUENV_ENV=staging cuenv run -- echo $DATABASE_HOST
 ```cue
 package env
 
-env: {
-    // Use $HOME and other shell variables
-    LOG_PATH: "$HOME/logs/myapp"
-    CONFIG_PATH: "${HOME}/.config/myapp"
-}
+// Use $HOME and other shell variables
+LOG_PATH: "$HOME/logs/myapp"
+CONFIG_PATH: "${HOME}/.config/myapp"
 ```
 
 ### Boolean Values
@@ -207,11 +214,9 @@ env: {
 ```cue
 package env
 
-env: {
-    // Booleans are converted to "true"/"false" strings
-    ENABLE_FEATURE: true
-    DEBUG_MODE: false
-}
+// Booleans are converted to "true"/"false" strings
+ENABLE_FEATURE: true
+DEBUG_MODE: false
 ```
 
 ### Number Values
@@ -219,12 +224,10 @@ env: {
 ```cue
 package env
 
-env: {
-    // Numbers are converted to strings
-    TIMEOUT: 30
-    MAX_CONNECTIONS: 100
-    PORT: 8080
-}
+// Numbers are converted to strings
+TIMEOUT: 30
+MAX_CONNECTIONS: 100
+PORT: 8080
 ```
 
 ### Using CUE Constraints
@@ -232,11 +235,9 @@ env: {
 ```cue
 package env
 
-env: {
-    // Set defaults with constraints
-    ENVIRONMENT: *"development" | "staging" | "production"
-    PORT: int & >=1024 & <=65535 | *3000
-}
+// Set defaults with constraints
+ENVIRONMENT: *"development" | "staging" | "production"
+PORT: int & >=1024 & <=65535 | *3000
 ```
 
 ## Next Steps

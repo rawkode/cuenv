@@ -59,6 +59,38 @@ eval "$(cuenv init zsh)"
 cuenv init fish | source
 ```
 
+### `cuenv allow`
+
+Allow a directory to load environment files.
+
+```bash
+cuenv allow [directory]
+```
+
+**Arguments:**
+
+- `[directory]` - Directory to allow (default: current directory)
+
+**Examples:**
+
+```bash
+# Allow current directory
+cuenv allow
+
+# Allow specific directory
+cuenv allow /path/to/project
+
+# Allow parent directory
+cuenv allow ..
+```
+
+**Notes:**
+
+- Uses SHA256 hashing to track file content
+- Required before cuenv will load `env.cue` files
+- Changes to allowed files reload automatically
+- Approval persists across sessions
+
 ### `cuenv load`
 
 Manually load environment from a directory.
@@ -141,6 +173,7 @@ cuenv hook <shell>
 
 - Used internally by `cuenv init`
 - Can be used for custom shell integration
+- Outputs shell commands that should be evaluated
 
 ### `cuenv run`
 
@@ -185,6 +218,75 @@ CUENV_ENV=staging cuenv run -- ./deploy.sh
 - Resolves 1Password references (`op://...`)
 - Resolves GCP Secret Manager references (`gcp-secret://...`)
 - Automatically obfuscates secret values in output
+
+### `cuenv export`
+
+Export the current environment in various formats.
+
+```bash
+cuenv export [options]
+```
+
+**Options:**
+
+- `-f`, `--format <format>` - Output format: `shell`, `json`, `dotenv`, `docker`
+- `-e`, `--env <environment>` - Use specific environment
+
+**Examples:**
+
+```bash
+# Export as shell script
+cuenv export -f shell > env.sh
+
+# Export as JSON
+cuenv export -f json > env.json
+
+# Export as .env file
+cuenv export -f dotenv > .env
+
+# Export for Docker
+cuenv export -f docker > docker.env
+```
+
+### `cuenv dump`
+
+Print the current environment state to stdout.
+
+```bash
+cuenv dump
+```
+
+**Notes:**
+
+- Shows all currently loaded environment variables
+- Used for debugging and state inspection
+- Output format is suitable for shell evaluation
+
+### `cuenv prune`
+
+Clean up stale state files and caches.
+
+```bash
+cuenv prune [options]
+```
+
+**Options:**
+
+- `--all` - Remove all state files, not just stale ones
+- `--dry-run` - Show what would be removed without removing
+
+**Examples:**
+
+```bash
+# Remove stale state files
+cuenv prune
+
+# See what would be removed
+cuenv prune --dry-run
+
+# Remove all state files
+cuenv prune --all
+```
 
 ### `cuenv completion`
 

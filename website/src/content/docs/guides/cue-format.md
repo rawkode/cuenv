@@ -1,18 +1,19 @@
 ---
 title: CUE File Format
-description: Learn how to write CUE configuration files for cuenv
+description: Like JSON but with actual features
 ---
 
-CUE (Configure, Unify, Execute) is a powerful configuration language that provides type safety and validation. This guide covers how to use CUE with cuenv.
+CUE is what JSON should have been. Types, validation, no trailing comma drama. Here's how to use it with cuenv.
 
-## Basic Syntax
+## The Basics
 
-Every cuenv configuration file must:
+Your `env.cue` needs:
 
-1. Be named `env.cue`
-1. Declare `package env`
-1. Import the cuenv package for type safety (optional but recommended)
-1. Define environment variables inside an `env:` field
+1. `package env` at the top
+2. Variables as key-value pairs
+3. That's it
+
+No more requirements. We simplified this.
 
 ```cue title="env.cue"
 package env

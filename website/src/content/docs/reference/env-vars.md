@@ -94,13 +94,107 @@ export CUENV_NO_HOOK=1
 unset CUENV_NO_HOOK
 ```
 
+### CUENV_FILE
+
+Custom environment file name.
+
+- **Type:** String
+- **Default:** `env.cue`
+- **Examples:** `environment.cue`, `.env.cue`, `config.cue`
+
+```bash
+# Use custom filename
+export CUENV_FILE="environment.cue"
+
+# Now cuenv looks for environment.cue instead of env.cue
+cuenv load
+```
+
+### CUENV_DISABLE_AUTO
+
+Disables automatic environment loading on directory change.
+
+- **Type:** Boolean (presence check)
+- **Default:** Not set (auto-loading enabled)
+
+```bash
+# Disable automatic loading
+export CUENV_DISABLE_AUTO=1
+
+# Manual loading required
+cd /path/to/project
+cuenv load  # Must be run manually
+```
+
+### CUENV_DEBUG
+
+Enables debug output (alias for CUENV_LOG_LEVEL=debug).
+
+- **Type:** Boolean (presence check)
+- **Default:** Not set
+
+```bash
+# Enable debug mode
+export CUENV_DEBUG=1
+
+# Same as
+export CUENV_LOG_LEVEL=debug
+```
+
 ## Runtime Variables
 
 These variables are set by cuenv during operation.
 
+### CUENV_DIR
+
+The directory containing the currently loaded environment.
+
+- **Type:** String (path)
+- **Set by:** `cuenv` when environment is loaded
+- **Used for:** Tracking current environment directory
+
+```bash
+# Check current environment directory
+echo "Environment directory: $CUENV_DIR"
+```
+
+### CUENV_FILE
+
+The path to the currently loaded environment file.
+
+- **Type:** String (file path)
+- **Set by:** `cuenv` when environment is loaded
+- **Used for:** Identifying exact file loaded
+
+```bash
+# Check loaded file
+echo "Loaded from: $CUENV_FILE"
+```
+
+### CUENV_WATCHES
+
+Colon-separated list of watched files for auto-reload.
+
+- **Type:** String (colon-separated paths)
+- **Set by:** `cuenv` based on file imports and dependencies
+- **Used for:** Tracking files that trigger reload on change
+
+```bash
+# View watched files
+echo "$CUENV_WATCHES" | tr ':' '\n'
+```
+
+### CUENV_DIFF
+
+Base64-encoded environment diff for restoration.
+
+- **Type:** String (base64)
+- **Set by:** `cuenv` when modifying environment
+- **Internal use:** For restoring previous environment state
+
 ### CUENV_ROOT
 
-The directory containing the loaded environment file.
+The directory containing the loaded environment file (legacy, same as CUENV_DIR).
 
 - **Type:** String (path)
 - **Set by:** `cuenv load` when a file is found

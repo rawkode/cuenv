@@ -1,17 +1,19 @@
 ---
 title: Secret Management
-description: Securely manage secrets with 1Password and GCP Secrets Manager integration
+description: Secrets that don't end up in your git history
 ---
 
-cuenv provides built-in integration with popular secret managers, allowing you to reference secrets in your configuration without exposing them in plain text.
+Stop commenting "# TODO: Don't commit this" above your API keys. cuenv has actual secret management that works.
 
-## Overview
+## How It Works
 
-Secrets are only resolved when using the `cuenv run` command. This ensures that:
+Write `op://vault/item/field` or `gcp-secret://project/name`. Run `cuenv run`. Secrets resolve. No plaintext files. No git accidents.
 
-- Regular shell usage doesn't expose secret values
-- Secrets are fetched just-in-time when needed
-- Secret values are automatically obfuscated in command output
+The important bits:
+
+- Secrets only resolve with `cuenv run` (not in your regular shell)
+- Values are hidden in logs/output (shows `***` instead)
+- Zero setup beyond having `op` or `gcloud` installed
 
 ## Supported Secret Managers
 

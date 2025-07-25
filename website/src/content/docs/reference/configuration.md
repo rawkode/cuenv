@@ -104,9 +104,51 @@ export CUENV_CAPABILITIES=aws,database
 
 These variables are set by cuenv during execution:
 
+#### CUENV_DIR
+
+The directory containing the currently loaded environment.
+
+**Set when:** Environment is loaded
+**Example:**
+
+```bash
+echo "Environment directory: $CUENV_DIR"
+```
+
+#### CUENV_FILE
+
+The path to the currently loaded environment file.
+
+**Set when:** Environment is loaded
+**Example:**
+
+```bash
+echo "Loaded from: $CUENV_FILE"
+```
+
+#### CUENV_WATCHES
+
+Colon-separated list of watched files for auto-reload.
+
+**Set when:** Environment is loaded
+**Format:** Colon-separated paths
+**Example:**
+
+```bash
+# View watched files
+echo "$CUENV_WATCHES" | tr ':' '\n'
+```
+
+#### CUENV_DIFF
+
+Base64-encoded environment diff for restoration.
+
+**Set when:** Environment is loaded
+**Internal use:** For restoring previous environment state
+
 #### CUENV_LOADED
 
-Indicates an environment is currently loaded.
+Indicates an environment is currently loaded (legacy).
 
 **Set when:** Environment is loaded
 **Unset when:** Environment is unloaded
@@ -120,7 +162,7 @@ fi
 
 #### CUENV_ROOT
 
-Path to the directory containing the loaded `env.cue`.
+Path to the directory containing the loaded `env.cue` (legacy, same as CUENV_DIR).
 
 **Set when:** Environment is loaded
 **Example:**
@@ -412,14 +454,29 @@ DB_PORT: _config.database.port
 
 ## Performance Tuning
 
-### Caching
+### State Management
 
-cuenv caches parsed configurations:
+cuenv uses environment variables for state management, eliminating file I/O:
+
+- No temporary files to create or clean up
+- State stored in memory (environment variables)
+- Instant loading and unloading
+- Automatic file watching with minimal overhead
+
+### XDG Compliance
+
+cuenv follows XDG Base Directory specifications:
 
 ```bash
-# Cache is stored in
-~/.cache/cuenv/  # Linux/macOS
-%LOCALAPPDATA%\cuenv\cache  # Windows
+# State files (when needed)
+~/.local/state/cuenv/     # Linux
+~/Library/State/cuenv/    # macOS
+%LOCALAPPDATA%\cuenv\     # Windows
+
+# Cache files
+~/.cache/cuenv/           # Linux
+~/Library/Caches/cuenv/   # macOS
+%LOCALAPPDATA%\cuenv\     # Windows
 ```
 
 ### Lazy Loading
@@ -452,7 +509,14 @@ cd /project && cuenv load
 
 ### File Permissions
 
-Recommended permissions:
+cuenv uses SHA256 hashing for secure approval:
+
+- Run `cuenv allow` once per directory
+- SHA256 hash tracks file content changes
+- Approved files reload automatically on changes
+- More secure than path-based approval
+
+Recommended file permissions:
 
 ```bash
 # Restrict env.cue to user

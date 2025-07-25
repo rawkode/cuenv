@@ -1,9 +1,9 @@
 ---
-title: cuenv - Environment Management Powered by CUE
-description: A modern direnv alternative that uses CUE files for type-safe environment configuration
+title: cuenv - Configuration-first environment management
+description: Type-safe environment variables with CUE. Native secrets, tasks, and workflows.
 template: splash
 hero:
-  tagline: Type-safe environment management with CUE. Hierarchical loading, secret management, and cross-platform support.
+  tagline: Because configuration deserves a purpose-built language, not shell scripts.
   image:
     html: '<div class="hero-image"><span class="gradient-text" style="font-size: 4rem; font-weight: bold;">cuenv</span></div>'
   actions:
@@ -18,112 +18,147 @@ hero:
 
 import { Card, CardGrid } from "@astrojs/starlight/components";
 
-## 🚀 Why cuenv?
+## Why CUE for Configuration?
+
+Configuration has evolved from simple key-value pairs to complex hierarchies with validation rules, type constraints, and secret management. Shell scripts were never designed for this.
+
+CUE is purpose-built for configuration:
+
+- **Type system** that catches `DATABSE_URL` before production
+- **Unification** that makes inheritance natural
+- **Validation** built into the language
+- **Extensible** beyond just environment variables
+
+## What cuenv Brings to the Table
 
 <div class="animate-fade-in">
 	<CardGrid stagger>
 		<Card title="Type-Safe Configuration" icon="seti:config">
-			<span class="gradient-text">Validate at load time</span> with CUE's
-			powerful type system. No more runtime surprises from typos or invalid
-			values.
+			CUE catches your typos before they hit prod. `PORT: 3000` is an int.
+			`PORT: "3000"` is a string. cuenv knows the difference.
 		</Card>
-		<Card title="Hierarchical Loading" icon="seti:folder">
-			<span class="gradient-text">Share configurations</span> across projects.
-			Parent directories automatically provide base settings.
+		<Card title="Native Secret Management" icon="seti:lock">
+			`op://` and `gcp-secret://` URIs are resolved via `cuenv run`. No custom
+			scripts or plaintext fallbacks needed.
 		</Card>
-		<Card title="Secret Management" icon="seti:lock">
-			<span class="gradient-text">Built-in security</span> with 1Password and
-			GCP Secrets Manager. Automatic obfuscation prevents leaks.
+		<Card title="Hermetic Execution" icon="document">
+			`cuenv run` executes commands with only the variables you've defined.
+			No more leaked environment variables.
 		</Card>
-		<Card title="Cross-Platform" icon="seti:code">
-			<span class="gradient-text">Works everywhere</span> - Linux, macOS, and
-			Windows with native shell integrations.
+		<Card title="Efficient by Design" icon="seti:code">
+			cuenv avoids file I/O on every prompt, keeping your shell responsive.
+			State is managed cleanly, without temporary files.
 		</Card>
 	</CardGrid>
 </div>
 
-## ✨ See it in Action
+## Beyond Environment Variables
 
 <div class="feature-card">
 
 ```cue
 package env
 
-// 🔧 Regular environment variables
-DATABASE_URL: "postgres://localhost/mydb"
-API_KEY: "secret123"
-DEBUG: true
-PORT: 3000
+// Type-safe environment variables
+PORT: int & >=1024 & <=65535 | *3000
+DEBUG: bool | *false
 
-// 🔐 Secret references
+// Built-in secret management
 DB_PASSWORD: "op://Personal/database/password"
-STRIPE_KEY: "gcp-secret://my-project/stripe-api-key"
+API_KEY: "gcp-secret://my-project/api-key"
 
-// 🎯 CUE features
-BASE_URL: "https://api.example.com"
-API_ENDPOINT: "\(BASE_URL)/v1"  // String interpolation
+// String interpolation and constraints
+DATABASE_HOST: "localhost"
+DATABASE_PORT: 5432
+DATABASE_URL: "postgres://\(DATABASE_HOST):\(DATABASE_PORT)/mydb"
+
+// Define tasks alongside config
+Tasks: {
+    build: {
+        command: "npm run build"
+        env: {
+            NODE_ENV: "production"
+        }
+    }
+    test: {
+        command: "npm test"
+        depends_on: ["build"]
+    }
+}
+
+// Capability-based security
+AWS_ACCESS_KEY: "..." @capability("aws")
+STRIPE_SECRET: "..." @capability("payments")
 ```
 
 </div>
 
-## 🎯 Features at a Glance
+## The Technical Bits
 
 <CardGrid>
-	<Card title="Auto-loading" icon="rocket">
-		<strong>Zero friction</strong> - Environment loads automatically when you
-		`cd` into a directory
+	<Card title="Seamless Integration" icon="rocket">
+		`cd` into directory. Run `cuenv allow` once. Environment loads automatically
+		from then on.
 	</Card>
-	<Card title="Shell Expansion" icon="terminal">
-		<strong>Feels natural</strong> - Full support for `$HOME`, `${VAR}`, and
-		other shell expansions
+	<Card title="Shell Variables Work" icon="terminal">
+		`$HOME`, `${USER}`, command substitution - they all work because we're not
+		trying to reinvent shells.
 	</Card>
-	<Card title="Environment Inheritance" icon="puzzle">
-		<strong>DRY principle</strong> - Dev, staging, and prod configs with smart
-		inheritance
+	<Card title="Inheritance Done Right" icon="puzzle">
+		Parent dirs provide base config. Override what you need.
+		`~/projects/env.cue` + `~/projects/myapp/env.cue` = sanity.
 	</Card>
-	<Card title="Capability Filtering" icon="setting">
-		<strong>Security first</strong> - AWS credentials only for AWS commands,
-		automatically
+	<Card title="Capability-Based Security" icon="setting">
+		Tag AWS creds with `@capability("aws")`. Only `aws` CLI gets them. Not your
+		random Node script.
 	</Card>
 	<Card title="Hermetic Execution" icon="document">
-		<strong>Clean environments</strong> - Run commands with only the variables
-		you define
+		`cuenv run -- cmd` runs with ONLY your defined vars. No leaked system env.
+		Reproducible builds.
 	</Card>
-	<Card title="No Allow Required" icon="check">
-		<strong>Trust by default</strong> - Unlike direnv, no manual approval needed
+	<Card title="Actually Fast" icon="check">
+		No temp files. No file I/O on every prompt. Just env vars. Your shell
+		doesn't lag.
 	</Card>
 </CardGrid>
 
-## 💻 Get Started in Minutes
+## Install This Thing
 
 <div class="feature-card" style="background: linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.1) 100%);">
 
 ```bash
-# 📦 Install using Nix (recommended)
+# Nix (because you're already using it)
 nix profile install github:rawkode/cuenv
 
-# 🦀 Or using Cargo
+# Cargo (for the Rustaceans)
 cargo install cuenv
 
-# 🐚 Initialize for your shell
+# Hook it up
 eval "$(cuenv init bash)"  # or zsh, fish
 
-# ✨ Create your first CUE package
+# Test drive
+mkdir myproject && cd myproject
 echo 'package env
-MESSAGE: "Hello from cuenv!"' > env.cue
+DATABASE_URL: "postgres://localhost/dev"
+PORT: 3000' > env.cue
 
-# 🎉 Watch it work!
-echo $MESSAGE
+# Allow the directory (one time)
+cuenv allow .
+
+# Now it loads automatically
+echo $PORT  # 3000
+
+# Leave and it's gone
+cd .. && echo $PORT  # nothing
 ```
 
 </div>
 
 <div style="text-align: center; margin-top: 3rem;">
-	<h3 class="gradient-text" style="font-size: 1.5rem;">
-		Ready to modernize your environment management?
+	<h3 style="font-size: 1.5rem;">
+		Configuration deserves better than shell scripts.
 	</h3>
 	<p style="color: #666; margin-top: 1rem;">
-		Join developers who've made the switch to type-safe, secure environment
-		configuration.
+		Built with CUE. Extended with tasks. Secured with capabilities.
 	</p>
 </div>

@@ -189,13 +189,24 @@ cuenv() {
 }
 ```
 
-### Directory Caching
+### State Management
 
-cuenv caches directory information to improve performance. The cache is automatically invalidated when:
+cuenv uses environment variables to track state instead of files, providing better performance and reliability:
 
-- `env.cue` files are modified
-- New `env.cue` files are created
-- Existing `env.cue` files are deleted
+- **CUENV_DIR** - Current environment directory
+- **CUENV_FILE** - Loaded environment file path
+- **CUENV_WATCHES** - Files being watched for changes
+- **CUENV_DIFF** - Environment modifications for restoration
+
+The state is automatically managed by the shell hooks and persists across shell sessions.
+
+### File Watching
+
+cuenv automatically watches imported files and reloads the environment when they change:
+
+- Tracks modification times of all imported CUE files
+- Automatically reloads when watched files are modified
+- Minimal performance overhead using efficient file time checks
 
 ## Shell-Specific Features
 

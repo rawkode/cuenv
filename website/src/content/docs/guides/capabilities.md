@@ -1,13 +1,17 @@
 ---
 title: Capabilities
-description: Control which environment variables are exposed based on command requirements
+description: AWS creds for AWS CLI only. Not for that sketchy npm script.
 ---
 
-Capabilities provide fine-grained control over which environment variables are exposed to specific commands. This security feature ensures that sensitive credentials are only available when needed.
+Your AWS credentials shouldn't be available to every random script. Capabilities fix that.
 
-## Understanding Capabilities
+## The Problem
 
-Capabilities act as filters for environment variables. When you tag a variable with a capability, it's only exposed when that capability is explicitly enabled or when running a command that requires it.
+Every tool gets every env var. Your build script has your production database password. That random npm package can read your AWS keys. This is insane.
+
+## The Solution
+
+Tag sensitive vars with capabilities. They only load for the right commands.
 
 ## Basic Usage
 

@@ -1,9 +1,9 @@
 ---
 title: Managing Environments
-description: Learn how to manage multiple environments with cuenv
+description: Dev, staging, prod without the YAML nightmare
 ---
 
-cuenv provides powerful features for managing different environments (development, staging, production) with environment-specific configurations and capability-based filtering.
+One `env.cue` file. Multiple environments. No YAML templating hell.
 
 ## Environment Configuration
 
