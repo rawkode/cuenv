@@ -14,29 +14,33 @@ Define environment-specific overrides in your `env.cue`:
 ```cue title="env.cue"
 package env
 
-// Base configuration - applies to all environments
-APP_NAME: "myapp"
-LOG_LEVEL: "info"
-PORT: 3000
-DATABASE_HOST: "localhost"
+import "github.com/rawkode/cuenv"
 
-// Environment-specific overrides
-environment: {
-    development: {
-        LOG_LEVEL: "debug"
-        DEBUG: true
-        DATABASE_HOST: "localhost"
-    }
-    staging: {
-        LOG_LEVEL: "info"
-        PORT: 3001
-        DATABASE_HOST: "staging-db.internal"
-    }
-    production: {
-        LOG_LEVEL: "error"
-        PORT: 8080
-        DATABASE_HOST: "prod-db.internal"
-        DEBUG: false
+env: cuenv.#Env & {
+    // Base configuration - applies to all environments
+    APP_NAME: "myapp"
+    LOG_LEVEL: "info"
+    PORT: 3000
+    DATABASE_HOST: "localhost"
+
+    // Environment-specific overrides
+    environment: {
+        development: {
+            LOG_LEVEL: "debug"
+            DEBUG: "true"
+            DATABASE_HOST: "localhost"
+        }
+        staging: {
+            LOG_LEVEL: "info"
+            PORT: 3001
+            DATABASE_HOST: "staging-db.internal"
+        }
+        production: {
+            LOG_LEVEL: "error"
+            PORT: 8080
+            DATABASE_HOST: "prod-db.internal"
+            DEBUG: "false"
+        }
     }
 }
 ```
@@ -70,21 +74,25 @@ Environment configurations inherit and override base values:
 ```cue title="env.cue"
 package env
 
-// Base values
-API_URL: "http://localhost:3000"
-CACHE_TTL: 300
-WORKERS: 4
+import "github.com/rawkode/cuenv"
 
-environment: {
-    production: {
-        // Override specific values
-        API_URL: "https://api.example.com"
-        WORKERS: 16
-        // CACHE_TTL remains 300 (inherited)
+env: cuenv.#Env & {
+    // Base values
+    API_URL: "http://localhost:3000"
+    CACHE_TTL: 300
+    WORKERS: 4
 
-        // Add production-only values
-        ENABLE_MONITORING: true
-        SENTRY_DSN: "https://key@sentry.io/project"
+    environment: {
+        production: {
+            // Override specific values
+            API_URL: "https://api.example.com"
+            WORKERS: 16
+            // CACHE_TTL remains 300 (inherited)
+
+            // Add production-only values
+            ENABLE_MONITORING: "true"
+            SENTRY_DSN: "https://key@sentry.io/project"
+        }
     }
 }
 ```
@@ -98,32 +106,34 @@ package env
 
 import "github.com/rawkode/cuenv"
 
-APP_NAME: "myapp"
+env: cuenv.#Env & {
+    APP_NAME: "myapp"
 
-environment: {
-    development: {
-        DATABASE_URL: "postgres://localhost/myapp_dev"
-        API_KEY: "dev-key-12345"  // Hardcoded for dev
-    }
-    staging: {
-        DATABASE_URL: cuenv.#OnePasswordRef & {
-            vault: "Staging"
-            item: "Database"
-            field: "url"
+    environment: {
+        development: {
+            DATABASE_URL: "postgres://localhost/myapp_dev"
+            API_KEY: "dev-key-12345"  // Hardcoded for dev
         }
-        API_KEY: cuenv.#OnePasswordRef & {
-            vault: "Staging"
-            item: "API"
-            field: "key"
+        staging: {
+            DATABASE_URL: cuenv.#OnePasswordRef & {
+                vault: "Staging"
+                item: "Database"
+                field: "url"
+            }
+            API_KEY: cuenv.#OnePasswordRef & {
+                vault: "Staging"
+                item: "API"
+                field: "key"
+            }
         }
-    }
-    production: {
-        DATABASE_URL: cuenv.#OnePasswordRef & {
-            vault: "Production"
-            item: "Database"
-            field: "url"
+        production: {
+            DATABASE_URL: cuenv.#OnePasswordRef & {
+                vault: "Production"
+                item: "Database"
+                field: "url"
+            }
+            API_KEY: "gcp-secret://prod-project/api-key"
         }
-        API_KEY: "gcp-secret://prod-project/api-key"
     }
 }
 ```
@@ -133,26 +143,30 @@ environment: {
 ```cue title="env.cue"
 package env
 
-// Default feature flags
-FEATURE_NEW_UI: false
-FEATURE_BETA_API: false
+import "github.com/rawkode/cuenv"
 
-environment: {
-    development: {
-        // Enable all features in dev
-        FEATURE_NEW_UI: true
-        FEATURE_BETA_API: true
-        FEATURE_DEBUG_PANEL: true
-    }
-    staging: {
-        // Test new features in staging
-        FEATURE_NEW_UI: true
-        FEATURE_BETA_API: false
-    }
-    production: {
-        // Conservative production settings
-        FEATURE_NEW_UI: false
-        FEATURE_BETA_API: false
+env: cuenv.#Env & {
+    // Default feature flags
+    FEATURE_NEW_UI: "false"
+    FEATURE_BETA_API: "false"
+
+    environment: {
+        development: {
+            // Enable all features in dev
+            FEATURE_NEW_UI: "true"
+            FEATURE_BETA_API: "true"
+            FEATURE_DEBUG_PANEL: "true"
+        }
+        staging: {
+            // Test new features in staging
+            FEATURE_NEW_UI: "true"
+            FEATURE_BETA_API: "false"
+        }
+        production: {
+            // Conservative production settings
+            FEATURE_NEW_UI: "false"
+            FEATURE_BETA_API: "false"
+        }
     }
 }
 ```
@@ -162,22 +176,26 @@ environment: {
 ```cue title="env.cue"
 package env
 
-// Service endpoints vary by environment
-environment: {
-    development: {
-        REDIS_URL: "redis://localhost:6379"
-        ELASTICSEARCH_URL: "http://localhost:9200"
-        S3_BUCKET: "myapp-dev"
-    }
-    staging: {
-        REDIS_URL: "redis://redis.staging.internal:6379"
-        ELASTICSEARCH_URL: "https://es.staging.internal:9200"
-        S3_BUCKET: "myapp-staging"
-    }
-    production: {
-        REDIS_URL: "redis://redis-cluster.prod.internal:6379"
-        ELASTICSEARCH_URL: "https://es-cluster.prod.internal:9200"
-        S3_BUCKET: "myapp-production"
+import "github.com/rawkode/cuenv"
+
+env: cuenv.#Env & {
+    // Service endpoints vary by environment
+    environment: {
+        development: {
+            REDIS_URL: "redis://localhost:6379"
+            ELASTICSEARCH_URL: "http://localhost:9200"
+            S3_BUCKET: "myapp-dev"
+        }
+        staging: {
+            REDIS_URL: "redis://redis.staging.internal:6379"
+            ELASTICSEARCH_URL: "https://es.staging.internal:9200"
+            S3_BUCKET: "myapp-staging"
+        }
+        production: {
+            REDIS_URL: "redis://redis-cluster.prod.internal:6379"
+            ELASTICSEARCH_URL: "https://es-cluster.prod.internal:9200"
+            S3_BUCKET: "myapp-production"
+        }
     }
 }
 ```
@@ -191,15 +209,19 @@ Capabilities allow you to control which environment variables are exposed based 
 ```cue title="env.cue"
 package env
 
-// Tag variables with capabilities
-AWS_ACCESS_KEY: "key" @capability("aws")
-AWS_SECRET_KEY: "secret" @capability("aws")
-AWS_REGION: "us-east-1" @capability("aws")
+import "github.com/rawkode/cuenv"
 
-GITHUB_TOKEN: "token" @capability("github")
-GITHUB_ORG: "myorg" @capability("github")
+env: cuenv.#Env & {
+    // Tag variables with capabilities
+    AWS_ACCESS_KEY: "key" @capability("aws")
+    AWS_SECRET_KEY: "secret" @capability("aws")
+    AWS_REGION: "us-east-1" @capability("aws")
 
-DATABASE_URL: "postgres://..." @capability("database")
+    GITHUB_TOKEN: "token" @capability("github")
+    GITHUB_ORG: "myorg" @capability("github")
+
+    DATABASE_URL: "postgres://..." @capability("database")
+}
 ```
 
 ### Command Mapping
@@ -208,6 +230,12 @@ Define which commands automatically get which capabilities:
 
 ```cue title="env.cue"
 package env
+
+import "github.com/rawkode/cuenv"
+
+env: cuenv.#Env & {
+    // Your environment variables
+}
 
 // Map commands to their required capabilities
 Commands: {
@@ -247,25 +275,29 @@ Commands: {
 ```cue title="env.cue"
 package env
 
-// Base configuration
-APP_NAME: "myapp"
-AWS_REGION: "us-east-1"
+import "github.com/rawkode/cuenv"
 
-environment: {
-    "production-us": {
-        AWS_REGION: "us-east-1"
-        API_ENDPOINT: "https://api-us.example.com"
-        DATABASE_REGION: "us-east-1"
-    }
-    "production-eu": {
-        AWS_REGION: "eu-west-1"
-        API_ENDPOINT: "https://api-eu.example.com"
-        DATABASE_REGION: "eu-west-1"
-    }
-    "production-asia": {
-        AWS_REGION: "ap-southeast-1"
-        API_ENDPOINT: "https://api-asia.example.com"
-        DATABASE_REGION: "ap-southeast-1"
+env: cuenv.#Env & {
+    // Base configuration
+    APP_NAME: "myapp"
+    AWS_REGION: "us-east-1"
+
+    environment: {
+        "production-us": {
+            AWS_REGION: "us-east-1"
+            API_ENDPOINT: "https://api-us.example.com"
+            DATABASE_REGION: "us-east-1"
+        }
+        "production-eu": {
+            AWS_REGION: "eu-west-1"
+            API_ENDPOINT: "https://api-eu.example.com"
+            DATABASE_REGION: "eu-west-1"
+        }
+        "production-asia": {
+            AWS_REGION: "ap-southeast-1"
+            API_ENDPOINT: "https://api-asia.example.com"
+            DATABASE_REGION: "ap-southeast-1"
+        }
     }
 }
 ```
@@ -287,26 +319,28 @@ package env
 
 import "github.com/rawkode/cuenv"
 
-// Different development configurations
-environment: {
-    "dev-local": {
-        DATABASE_URL: "postgres://localhost/myapp_dev"
-        REDIS_URL: "redis://localhost:6379"
-        USE_LOCAL_STORAGE: true
-    }
-    "dev-docker": {
-        DATABASE_URL: "postgres://db:5432/myapp_dev"
-        REDIS_URL: "redis://redis:6379"
-        USE_LOCAL_STORAGE: false
-    }
-    "dev-remote": {
-        DATABASE_URL: cuenv.#OnePasswordRef & {
-            vault: "Development"
-            item: "Remote-DB"
-            field: "url"
+env: cuenv.#Env & {
+    // Different development configurations
+    environment: {
+        "dev-local": {
+            DATABASE_URL: "postgres://localhost/myapp_dev"
+            REDIS_URL: "redis://localhost:6379"
+            USE_LOCAL_STORAGE: "true"
         }
-        REDIS_URL: "redis://dev.redis.internal:6379"
-        USE_LOCAL_STORAGE: false
+        "dev-docker": {
+            DATABASE_URL: "postgres://db:5432/myapp_dev"
+            REDIS_URL: "redis://redis:6379"
+            USE_LOCAL_STORAGE: "false"
+        }
+        "dev-remote": {
+            DATABASE_URL: cuenv.#OnePasswordRef & {
+                vault: "Development"
+                item: "Remote-DB"
+                field: "url"
+            }
+            REDIS_URL: "redis://dev.redis.internal:6379"
+            USE_LOCAL_STORAGE: "false"
+        }
     }
 }
 ```
@@ -318,24 +352,26 @@ package env
 
 import "github.com/rawkode/cuenv"
 
-environment: {
-    ci: {
-        NODE_ENV: "test"
-        DATABASE_URL: "postgres://postgres@localhost/test"
-        DISABLE_AUTH: true
-        LOG_LEVEL: "error"
-        // CI-specific tokens
-        CODECOV_TOKEN: "gcp-secret://ci-project/codecov-token"
-    }
-    cd: {
-        // Deployment environment
-        DEPLOY_KEY: cuenv.#OnePasswordRef & {
-            vault: "DevOps"
-            item: "Deploy-Key"
-            field: "private"
+env: cuenv.#Env & {
+    environment: {
+        ci: {
+            NODE_ENV: "test"
+            DATABASE_URL: "postgres://postgres@localhost/test"
+            DISABLE_AUTH: "true"
+            LOG_LEVEL: "error"
+            // CI-specific tokens
+            CODECOV_TOKEN: "gcp-secret://ci-project/codecov-token"
         }
-        DOCKER_REGISTRY: "gcr.io/my-project"
-        KUBECTL_CONTEXT: "production-cluster"
+        cd: {
+            // Deployment environment
+            DEPLOY_KEY: cuenv.#OnePasswordRef & {
+                vault: "DevOps"
+                item: "Deploy-Key"
+                field: "private"
+            }
+            DOCKER_REGISTRY: "gcr.io/my-project"
+            KUBECTL_CONTEXT: "production-cluster"
+        }
     }
 }
 ```
@@ -364,16 +400,23 @@ Use CUE constraints to validate environment values:
 ```cue title="env.cue"
 package env
 
-// Ensure production has required values
-environment: production: {
-    // These fields are required in production
-    DATABASE_URL: string
-    API_KEY: string
-    SENTRY_DSN: string
+import "github.com/rawkode/cuenv"
 
-    // Ensure specific values
-    NODE_ENV: "production"
-    DEBUG: false
+env: cuenv.#Env & {
+    // Base configuration
+
+    environment: {
+        production: {
+            // These fields are required in production
+            DATABASE_URL: string
+            API_KEY: string
+            SENTRY_DSN: string
+
+            // Ensure specific values
+            NODE_ENV: "production"
+            DEBUG: "false"
+        }
+    }
 }
 ```
 
@@ -386,17 +429,19 @@ package env
 
 import "github.com/rawkode/cuenv"
 
-environment: {
-    development: {
-        // OK for development
-        API_KEY: "dev-key-12345"
-    }
-    production: {
-        // Always use secret references
-        API_KEY: cuenv.#OnePasswordRef & {
-            vault: "Production"
-            item: "API"
-            field: "key"
+env: cuenv.#Env & {
+    environment: {
+        development: {
+            // OK for development
+            API_KEY: "dev-key-12345"
+        }
+        production: {
+            // Always use secret references
+            API_KEY: cuenv.#OnePasswordRef & {
+                vault: "Production"
+                item: "API"
+                field: "key"
+            }
         }
     }
 }
@@ -409,16 +454,20 @@ Document environment-specific behavior:
 ```cue title="env.cue"
 package env
 
-environment: {
-    development: {
-        // Sends emails to mailcatcher on port 1025
-        SMTP_HOST: "localhost"
-        SMTP_PORT: 1025
-    }
-    production: {
-        // Uses SendGrid for production emails
-        SMTP_HOST: "smtp.sendgrid.net"
-        SMTP_PORT: 587
+import "github.com/rawkode/cuenv"
+
+env: cuenv.#Env & {
+    environment: {
+        development: {
+            // Sends emails to mailcatcher on port 1025
+            SMTP_HOST: "localhost"
+            SMTP_PORT: 1025
+        }
+        production: {
+            // Uses SendGrid for production emails
+            SMTP_HOST: "smtp.sendgrid.net"
+            SMTP_PORT: 587
+        }
     }
 }
 ```
@@ -432,7 +481,10 @@ Use CUE's power for dynamic configuration:
 ```cue title="env.cue"
 package env
 
-import "strings"
+import (
+    "strings"
+    "github.com/rawkode/cuenv"
+)
 
 // Detect environment from hostname
 _hostname: string | *"dev-machine" // Would be set externally
@@ -449,10 +501,12 @@ _env: {
     }
 }
 
-// Apply detected environment
-if _env == "production" {
-    LOG_LEVEL: "error"
-    DEBUG: false
+env: cuenv.#Env & {
+    // Apply detected environment
+    if _env == "production" {
+        LOG_LEVEL: "error"
+        DEBUG: "false"
+    }
 }
 ```
 
@@ -462,6 +516,8 @@ Compose environments from multiple sources:
 
 ```cue title="env.cue"
 package env
+
+import "github.com/rawkode/cuenv"
 
 // Shared configurations
 #BaseConfig: {
@@ -479,10 +535,14 @@ package env
     DATABASE_POOL_MAX: 10
 }
 
-// Compose environments
-environment: production: #BaseConfig & #AWSConfig & #DatabaseConfig & {
-    AWS_REGION: "us-east-1"
-    DATABASE_POOL_MAX: 50  // Override default
+env: cuenv.#Env & {
+    // Compose environments
+    environment: {
+        production: #BaseConfig & #AWSConfig & #DatabaseConfig & {
+            AWS_REGION: "us-east-1"
+            DATABASE_POOL_MAX: 50  // Override default
+        }
+    }
 }
 ```
 
@@ -493,14 +553,18 @@ Create aliases for common environment combinations:
 ```cue title="env.cue"
 package env
 
-// Define base environments
-environment: {
-    "prod-us": { /* ... */ }
-    "prod-eu": { /* ... */ }
+import "github.com/rawkode/cuenv"
 
-    // Aliases
-    "prod": "prod-us"  // Default production is US
-    "p": "prod-us"     // Short alias
+env: cuenv.#Env & {
+    // Define base environments
+    environment: {
+        "prod-us": { /* ... */ }
+        "prod-eu": { /* ... */ }
+
+        // Aliases
+        "prod": "prod-us"  // Default production is US
+        "p": "prod-us"     // Short alias
+    }
 }
 ```
 

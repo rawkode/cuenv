@@ -19,26 +19,30 @@ Create a CUE file with your favorite editor:
 ```cue title="env.cue"
 package env
 
-// Application configuration
-APP_NAME: "My Awesome App"
-APP_ENV: "development"
-PORT: 3000
+import "github.com/rawkode/cuenv"
 
-// Database configuration
-DATABASE_HOST: "localhost"
-DATABASE_PORT: 5432
-DATABASE_NAME: "myapp_dev"
-DATABASE_USER: "myapp"
+env: cuenv.#Env & {
+    // Application configuration
+    APP_NAME: "My Awesome App"
+    APP_ENV: "development"
+    PORT: 3000
 
-// API keys (use secrets in production!)
-API_KEY: "dev-api-key-12345"
+    // Database configuration
+    DATABASE_HOST: "localhost"
+    DATABASE_PORT: 5432
+    DATABASE_NAME: "myapp_dev"
+    DATABASE_USER: "myapp"
 
-// Feature flags
-ENABLE_DEBUG: true
-ENABLE_CACHE: false
+    // API keys (use secrets in production!)
+    API_KEY: "dev-api-key-12345"
 
-// Computed values using CUE
-DATABASE_URL: "postgres://\(DATABASE_USER)@\(DATABASE_HOST):\(DATABASE_PORT)/\(DATABASE_NAME)"
+    // Feature flags
+    ENABLE_DEBUG: true
+    ENABLE_CACHE: false
+
+    // Computed values using CUE
+    DATABASE_URL: "postgres://\(DATABASE_USER)@\(DATABASE_HOST):\(DATABASE_PORT)/\(DATABASE_NAME)"
+}
 ```
 
 ## Step 2: See It in Action
@@ -73,19 +77,23 @@ You can split your configuration across multiple CUE files in the same package:
 cat > database.cue << 'EOF'
 package env
 
-// Database-specific settings
-DATABASE_POOL_SIZE: 10
-DATABASE_TIMEOUT: 30
-DATABASE_SSL: true
+env: {
+    // Database-specific settings
+    DATABASE_POOL_SIZE: 10
+    DATABASE_TIMEOUT: 30
+    DATABASE_SSL: true
+}
 EOF
 
 # Create an app configuration file
 cat > app.cue << 'EOF'
 package env
 
-// App-specific settings
-APP_VERSION: "1.0.0"
-APP_TIMEOUT: 60
+env: {
+    // App-specific settings
+    APP_VERSION: "1.0.0"
+    APP_TIMEOUT: 60
+}
 EOF
 ```
 
@@ -106,16 +114,20 @@ For production environments, use secret references instead of hardcoded values:
 ```cue
 package env
 
-// ... other config ...
+import "github.com/rawkode/cuenv"
 
-// 1Password secret reference
-DATABASE_PASSWORD: cuenv.#OnePasswordRef & {ref: "op://Personal/myapp-db/password"}
+env: cuenv.#Env & {
+    // ... other config ...
 
-// GCP Secret Manager reference
-API_SECRET: "gcp-secret://my-project/api-secret-key"
+    // 1Password secret reference
+    DATABASE_PASSWORD: cuenv.#OnePasswordRef & {ref: "op://Personal/myapp-db/password"}
 
-// Composed with resolved secrets
-DATABASE_URL: "postgres://\(DATABASE_USER):\(DATABASE_PASSWORD)@\(DATABASE_HOST):\(DATABASE_PORT)/\(DATABASE_NAME)"
+    // GCP Secret Manager reference
+    API_SECRET: "gcp-secret://my-project/api-secret-key"
+
+    // Composed with resolved secrets
+    DATABASE_URL: "postgres://\(DATABASE_USER):\(DATABASE_PASSWORD)@\(DATABASE_HOST):\(DATABASE_PORT)/\(DATABASE_NAME)"
+}
 ```
 
 Run commands with resolved secrets:
@@ -136,22 +148,26 @@ Create environment-specific overrides:
 ```cue
 package env
 
-// Base configuration
-APP_NAME: "My App"
-PORT: 3000
-LOG_LEVEL: "info"
+import "github.com/rawkode/cuenv"
 
-// Environment-specific overrides
-environment: {
-    production: {
-        PORT: 8080
-        LOG_LEVEL: "error"
-        DATABASE_HOST: "prod-db.example.com"
-    }
-    staging: {
-        PORT: 3001
-        LOG_LEVEL: "debug"
-        DATABASE_HOST: "staging-db.example.com"
+env: cuenv.#Env & {
+    // Base configuration
+    APP_NAME: "My App"
+    PORT: 3000
+    LOG_LEVEL: "info"
+
+    // Environment-specific overrides
+    environment: {
+        production: {
+            PORT: 8080
+            LOG_LEVEL: "error"
+            DATABASE_HOST: "prod-db.example.com"
+        }
+        staging: {
+            PORT: 3001
+            LOG_LEVEL: "debug"
+            DATABASE_HOST: "staging-db.example.com"
+        }
     }
 }
 ```
@@ -179,9 +195,11 @@ CUENV_ENV=staging cuenv run -- echo $DATABASE_HOST
 ```cue
 package env
 
-// Use $HOME and other shell variables
-LOG_PATH: "$HOME/logs/myapp"
-CONFIG_PATH: "${HOME}/.config/myapp"
+env: {
+    // Use $HOME and other shell variables
+    LOG_PATH: "$HOME/logs/myapp"
+    CONFIG_PATH: "${HOME}/.config/myapp"
+}
 ```
 
 ### Boolean Values
@@ -189,9 +207,11 @@ CONFIG_PATH: "${HOME}/.config/myapp"
 ```cue
 package env
 
-// Booleans are converted to "true"/"false" strings
-ENABLE_FEATURE: true
-DEBUG_MODE: false
+env: {
+    // Booleans are converted to "true"/"false" strings
+    ENABLE_FEATURE: true
+    DEBUG_MODE: false
+}
 ```
 
 ### Number Values
@@ -199,10 +219,12 @@ DEBUG_MODE: false
 ```cue
 package env
 
-// Numbers are converted to strings
-TIMEOUT: 30
-MAX_CONNECTIONS: 100
-PORT: 8080
+env: {
+    // Numbers are converted to strings
+    TIMEOUT: 30
+    MAX_CONNECTIONS: 100
+    PORT: 8080
+}
 ```
 
 ### Using CUE Constraints
@@ -210,9 +232,11 @@ PORT: 8080
 ```cue
 package env
 
-// Set defaults with constraints
-ENVIRONMENT: *"development" | "staging" | "production"
-PORT: int & >=1024 & <=65535 | *3000
+env: {
+    // Set defaults with constraints
+    ENVIRONMENT: *"development" | "staging" | "production"
+    PORT: int & >=1024 & <=65535 | *3000
+}
 ```
 
 ## Next Steps
