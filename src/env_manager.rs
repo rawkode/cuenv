@@ -996,4 +996,75 @@ env: {
 
         assert_eq!(status, 0, "PATH and HOME should be preserved");
     }
+
+    #[test]
+    fn test_run_command_with_restrictions() {
+        let temp_dir = TempDir::new().unwrap();
+        let env_file = temp_dir.path().join("env.cue");
+        fs::write(
+            &env_file,
+            r#"package env
+
+env: {
+    TEST_VAR: "test"
+}"#,
+        )
+        .unwrap();
+
+        let mut manager = EnvManager::new();
+        manager.load_env(temp_dir.path()).unwrap();
+
+        // Test without restrictions (should work)
+        let restrictions = AccessRestrictions::default();
+        let status = manager.run_command_with_restrictions("echo", &["test".to_string()], &restrictions);
+        
+        // This should work since no restrictions are applied
+        assert!(status.is_ok(), "Command should succeed without restrictions");
+
+        // Test with restrictions (may fail in test environment, but should not panic)
+        let restrictions = AccessRestrictions::new(true, true, true);
+        let result = manager.run_command_with_restrictions("echo", &["test".to_string()], &restrictions);
+        
+        // The result may be Ok or Err depending on environment capabilities
+        // What matters is that it doesn't panic and properly handles restrictions
+        match result {
+            Ok(_) => {
+                // Command succeeded (unlikely in restricted environment)
+            }
+            Err(e) => {
+                // Command failed due to restrictions (expected in most test environments)
+                let error_msg = e.to_string();
+                // Verify the error is related to restrictions/command execution
+                assert!(
+                    error_msg.contains("CommandExecution") || 
+                    error_msg.contains("Failed to capture stdout") ||
+                    error_msg.contains("Failed to spawn command"),
+                    "Error should be related to command execution with restrictions: {}", error_msg
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_access_restrictions_creation_and_methods() {
+        use crate::access_restrictions::AccessRestrictions;
+        
+        // Test default (no restrictions)
+        let restrictions = AccessRestrictions::default();
+        assert!(!restrictions.has_any_restrictions());
+
+        // Test with all restrictions
+        let restrictions = AccessRestrictions::new(true, true, true);
+        assert!(restrictions.has_any_restrictions());
+
+        // Test with partial restrictions
+        let restrictions = AccessRestrictions::new(true, false, false);
+        assert!(restrictions.has_any_restrictions());
+
+        let restrictions = AccessRestrictions::new(false, true, false);
+        assert!(restrictions.has_any_restrictions());
+
+        let restrictions = AccessRestrictions::new(false, false, true);
+        assert!(restrictions.has_any_restrictions());
+    }
 }

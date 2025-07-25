@@ -219,6 +219,29 @@ export PARENT_VAR=123
 cuenv run bash -- -c 'echo "PARENT_VAR=$PARENT_VAR"'  # Will print: PARENT_VAR=
 ```
 
+### Access Restrictions
+
+You can restrict disk, process, and network access when running commands:
+
+```bash
+# Restrict network access (blocks network connections)
+cuenv exec --restrict-network curl https://api.example.com
+
+# Restrict process access (blocks process spawning and IPC)
+cuenv exec --restrict-process bash -c 'echo "No subprocesses allowed"'
+
+# Restrict disk access (blocks filesystem operations outside allowed paths)
+cuenv exec --restrict-disk find /etc -name "*.conf"
+
+# Combine multiple restrictions
+cuenv run --restrict-disk --restrict-network --restrict-process echo "Fully restricted"
+
+# Use with exec command for direct execution
+cuenv exec --restrict-network python3 script.py
+```
+
+**Note:** Access restrictions use Linux namespaces (via `unshare`) and require appropriate system capabilities. On systems without these capabilities, commands with restrictions will fail with permission errors.
+
 ### Secret Resolution
 
 When using `cuenv run`, secret references in your CUE files are automatically resolved:
