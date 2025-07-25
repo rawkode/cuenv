@@ -4,6 +4,9 @@ pub mod docker;
 pub mod podman;
 pub mod buildkit;
 
+#[cfg(test)]
+mod tests;
+
 use crate::cue_parser::{RuntimeConfig, RuntimeType, RuntimeTypeConfig};
 use crate::errors::{Error, Result};
 use async_trait::async_trait;
