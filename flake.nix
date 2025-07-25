@@ -290,8 +290,11 @@
           options.programs.cuenv = {
             enable = mkEnableOption "cuenv, a direnv alternative using CUE files";
 
-            package = mkPackageOption pkgs "cuenv" {
+            package = mkOption {
+              type = types.package;
               default = self.packages.${pkgs.system}.default;
+              defaultText = literalExpression "cuenv";
+              description = "The cuenv package to use.";
             };
 
             enableBashIntegration = mkOption {
