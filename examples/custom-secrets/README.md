@@ -1,57 +1,46 @@
 # Custom Secret Resolvers Examples
 
-This directory demonstrates how to create custom secret resolvers for different secret management systems using cuenv's flexible resolver framework.
-
-## Overview
-
-cuenv supports custom command-based secret resolvers that can integrate with any secret management system via the `#Resolver` schema. This allows you to:
-
-- Integrate with enterprise secret management systems
-- Use custom authentication mechanisms
-- Support legacy secret storage systems
-- Create specialized secret transformation logic
+This directory demonstrates how to create custom secret resolvers using cuenv's flexible resolver framework.
 
 ## Examples
 
-- **`hashicorp-vault/`** - HashiCorp Vault integration
-- **`aws-secrets/`** - AWS Secrets Manager integration  
-- **`azure-keyvault/`** - Azure Key Vault integration
-- **`sops/`** - Mozilla SOPS file-based secrets
-- **`pass/`** - Unix password manager integration
-- **`bitwarden/`** - Bitwarden CLI integration
-- **`custom-transform/`** - Custom transformation and validation
+- **`inline-resolver/`** - Basic inline custom resolver example
+- **`reusable-resolver/`** - Reusable resolver definition pattern
 
 ## How Custom Resolvers Work
 
-1. Define a resolver using the `#Resolver` schema in your CUE environment
-2. Specify the command and arguments to execute for secret resolution
-3. cuenv executes the command and captures the output as the secret value
-4. The resolved secret is obfuscated in logs and command output
+Custom resolvers allow you to integrate with any secret management system by defining:
 
-## Basic Structure
+1. **Command**: The executable to run
+2. **Arguments**: Parameters to pass to the command
+
+## Basic Pattern
 
 ```cue
-package env
+MY_SECRET: {
+    resolver: {
+        command: "your-secret-command"
+        args: ["--get", "secret-name"]
+    }
+}
+```
 
-import "github.com/rawkode/cuenv"
+## Reusable Pattern
 
-env: cuenv.#Env & {
-    MY_SECRET: {
-        resolver: {
-            command: "your-secret-command"
-            args: ["--get", "secret-name"]
-        }
+```cue
+#VaultRef: cuenv.#Secret & {
+    path:  string
+    field: string
+    resolver: {
+        command: "vault"
+        args: ["kv", "get", "-field=\(field)", path]
     }
 }
 ```
 
 ## Usage
 
-To use these examples:
-
 ```bash
-cd examples/custom-secrets/hashicorp-vault
+cd examples/custom-secrets/inline-resolver
 cuenv run -- your-application
 ```
-
-The resolver will be executed automatically when using `cuenv run`, and the secret will be available in your application environment.

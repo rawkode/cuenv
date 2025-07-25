@@ -17,11 +17,7 @@ The important bits:
 
 ## Supported Secret Managers
 
-cuenv supports several secret management systems out of the box, plus custom command-based resolvers for any system.
-
-### Built-in Resolvers
-
-#### 1Password
+### 1Password
 
 1Password is a popular password manager that provides a CLI for programmatic access.
 
@@ -137,303 +133,6 @@ SMTP_PASSWORD: "gcp-secret://\(_gcpProject)/smtp-credentials"
 SERVICE_ACCOUNT_KEY: "gcp-secret://my-project/service-account-key"
 ```
 
-```cue title="env.cue"
-package env
-
-// Use cuenv's built-in structured format
-DATABASE_PASSWORD: cuenv.#OnePasswordRef & {
-    ref: "op://Personal/Database/password"
-}
-
-// Define custom type for GCP secrets (not built-in yet)
-#GcpSecret: {
-    project: string
-    secret: string
-    version?: string | *"latest"
-}
-
-API_SECRET: #GcpSecret & {
-    project: "my-project"
-    secret: "api-secret-key"
-    version: "latest"
-}
-
-SIGNING_KEY: #GcpSecret & {
-    project: "prod-project"
-    secret: "jwt-signing-key"
-    version: "3"  // Pin to specific version
-}
-```
-
-### Custom Command Secret Resolvers
-
-Beyond the built-in resolvers, cuenv supports custom command-based secret resolvers that can integrate with any secret management system. cuenv provides two approaches for custom resolvers:
-
-1. **Reusable Resolver Definitions** - Define custom resolver types that can be reused across your configuration
-2. **Inline Resolvers** - Define resolvers directly on individual secrets for specialized use cases
-
-#### Reusable Resolver Definitions
-
-The preferred approach is to create reusable resolver definitions, similar to the built-in `#OnePasswordRef` and `#GcpSecret` resolvers. This provides consistency, type safety, and easier maintenance.
-
-##### HashiCorp Vault Resolvers
-
-```cue title="env.cue"
-package env
-
-import "github.com/rawkode/cuenv"
-
-env: cuenv.#Env & {
-    // Key-Value secrets from Vault
-    DATABASE_PASSWORD: cuenv.#VaultRef & {
-        path:  "secret/myapp/database"
-        field: "password"
-    }
-
-    // Dynamic AWS credentials from Vault
-    AWS_ACCESS_KEY_ID: cuenv.#VaultDynamicRef & {
-        path:  "aws/creds/my-role"
-        field: "access_key"
-    }
-
-    // Environment-specific secrets
-    environment: {
-        production: {
-            DATABASE_PASSWORD: cuenv.#VaultRef & {
-                path:  "secret/prod/database"
-                field: "password"
-            }
-        }
-    }
-}
-```
-
-##### AWS Secrets Manager Resolvers
-
-```cue title="env.cue"
-package env
-
-import "github.com/rawkode/cuenv"
-
-env: cuenv.#Env & {
-    // Simple secret from AWS Secrets Manager
-    DATABASE_PASSWORD: cuenv.#AWSSecretsRef & {
-        secretId: "myapp/database/password"
-        region:   "us-west-2"  // Optional region override
-    }
-
-    // Extract field from JSON secret
-    OAUTH_CLIENT_SECRET: cuenv.#AWSSecretsJSONRef & {
-        secretId: "myapp/oauth"
-        jsonKey:  "client_secret"
-    }
-}
-```
-
-##### Azure Key Vault Resolvers
-
-```cue title="env.cue"
-package env
-
-import "github.com/rawkode/cuenv"
-
-env: cuenv.#Env & {
-    // Secret from Azure Key Vault
-    DATABASE_PASSWORD: cuenv.#AzureKeyVaultRef & {
-        vaultName:  "myapp-keyvault"
-        secretName: "database-password"
-    }
-
-    // Certificate from Key Vault
-    TLS_CERTIFICATE: cuenv.#AzureKeyVaultCertRef & {
-        vaultName: "myapp-keyvault"
-        certName:  "ssl-certificate"
-        format:    "pem"
-    }
-}
-```
-
-##### SOPS (Mozilla Secrets) Resolvers
-
-```cue title="env.cue"
-package env
-
-import "github.com/rawkode/cuenv"
-
-env: cuenv.#Env & {
-    // SOPS encrypted YAML
-    DATABASE_PASSWORD: cuenv.#SOPSRef & {
-        file: "secrets.yaml"
-        path: "database.password"
-    }
-
-    // SOPS JSON with jq extraction
-    API_KEY: cuenv.#SOPSJSONRef & {
-        file:    "secrets.json"
-        jsonKey: ".api_key"
-    }
-}
-```
-
-##### Unix Pass Resolvers
-
-```cue title="env.cue"
-package env
-
-import "github.com/rawkode/cuenv"
-
-env: cuenv.#Env & {
-    // Simple password from pass
-    DATABASE_PASSWORD: cuenv.#PassRef & {
-        path: "myapp/database/password"
-    }
-
-    // Custom field extraction (for complex pass entries)
-    SMTP_USERNAME: cuenv.#PassFieldRef & {
-        path:  "email/smtp"
-        field: "username"
-    }
-}
-```
-
-##### Bitwarden CLI Resolvers
-
-```cue title="env.cue"
-package env
-
-import "github.com/rawkode/cuenv"
-
-env: cuenv.#Env & {
-    // Password by item ID
-    DATABASE_PASSWORD: cuenv.#BitwardenRef & {
-        itemId: "12345678-1234-5678-9abc-123456789012"
-        field:  "password"
-    }
-
-    // Field by item name
-    API_KEY: cuenv.#BitwardenItemRef & {
-        name:  "Stripe API Key"
-        field: "password"
-    }
-}
-```
-
-#### Inline Custom Resolvers
-
-For specialized use cases that don't fit the standard resolver patterns, you can define custom resolvers inline:
-
-```cue title="env.cue"
-package env
-
-import "github.com/rawkode/cuenv"
-
-env: cuenv.#Env & {
-    // Base64 decode a secret
-    DECODED_SECRET: {
-        resolver: {
-            command: "sh"
-            args: [
-                "-c",
-                "echo 'aGVsbG8gd29ybGQ=' | base64 -d"
-            ]
-        }
-    }
-
-    // Validate secret format
-    VALIDATED_API_KEY: {
-        resolver: {
-            command: "sh"
-            args: [
-                "-c",
-                '''
-                key=$(vault kv get -field=api_key secret/myapp)
-                if [[ ${#key} -lt 32 ]]; then
-                    echo "Error: API key too short" >&2
-                    exit 1
-                fi
-                echo "$key"
-                '''
-            ]
-        }
-    }
-
-    // Composite secret from multiple sources
-    DATABASE_URL: {
-        resolver: {
-            command: "sh"
-            args: [
-                "-c",
-                '''
-                user=$(vault kv get -field=username secret/db)
-                pass=$(vault kv get -field=password secret/db)
-                host=$(consul kv get database/host)
-                echo "postgres://$user:$pass@$host:5432/myapp"
-                '''
-            ]
-        }
-    }
-}
-```
-
-When you run `cuenv run`, it will:
-1. Execute the specified command with the given arguments
-2. Capture the stdout as the secret value
-3. Automatically obfuscate the secret in logs and output
-4. Make the secret available to your application
-
-#### Available Resolver Types
-
-cuenv includes these built-in resolver types:
-
-- `#OnePasswordRef` - 1Password secret references
-- `#GcpSecret` - Google Cloud Secret Manager
-- `#VaultRef` - HashiCorp Vault KV secrets
-- `#VaultDynamicRef` - HashiCorp Vault dynamic secrets
-- `#AWSSecretsRef` - AWS Secrets Manager
-- `#AWSSecretsJSONRef` - AWS Secrets Manager with JSON extraction
-- `#AzureKeyVaultRef` - Azure Key Vault secrets
-- `#AzureKeyVaultCertRef` - Azure Key Vault certificates
-- `#SOPSRef` - SOPS encrypted files
-- `#SOPSJSONRef` - SOPS with JSON extraction
-- `#PassRef` - Unix pass password store
-- `#PassFieldRef` - Unix pass with field extraction
-- `#BitwardenRef` - Bitwarden by item ID
-- `#BitwardenItemRef` - Bitwarden by item name
-
-#### Security Best Practices for Custom Resolvers
-
-1. **Command Security**: Only use trusted commands and validate inputs
-2. **Error Handling**: Commands should exit with non-zero status on failure
-3. **Output Formatting**: Commands should output only the secret value (no extra text)
-4. **Authentication**: Ensure CLI tools are properly authenticated before running cuenv
-5. **Least Privilege**: Grant minimal permissions to secret access commands
-6. **Command Injection**: Be careful with shell commands - prefer direct CLI calls when possible
-
-#### Troubleshooting Custom Resolvers
-
-**Command not found:**
-```bash
-# Ensure the command is in PATH
-which vault
-which aws
-which az
-```
-
-**Authentication errors:**
-```bash
-# Verify authentication for each tool
-vault status
-aws sts get-caller-identity
-az account show
-```
-
-**Secret format errors:**
-```bash
-# Test commands manually first
-vault kv get -field=password secret/myapp/database
-aws secretsmanager get-secret-value --secret-id myapp/db --query SecretString --output text
-```
-
 ## Structured Secret Definitions
 
 For better type safety and documentation, you can use structured format for secrets:
@@ -465,6 +164,58 @@ SIGNING_KEY: #GcpSecret & {
     project: "prod-project"
     secret: "jwt-signing-key"
     version: "3"  // Pin to specific version
+}
+```
+
+### Custom Command Secret Resolvers
+
+For integrating with other secret management systems, you can create custom command-based resolvers.
+
+#### Inline Resolvers
+
+Define custom resolvers directly on individual secrets:
+
+```cue title="env.cue"
+package env
+
+import "github.com/rawkode/cuenv"
+
+env: cuenv.#Env & {
+    // Custom resolver for HashiCorp Vault
+    DATABASE_PASSWORD: {
+        resolver: {
+            command: "vault"
+            args: ["kv", "get", "-field=password", "secret/myapp/database"]
+        }
+    }
+}
+```
+
+#### Reusable Resolver Definitions
+
+For better reusability, create custom resolver types:
+
+```cue title="env.cue"
+package env
+
+import "github.com/rawkode/cuenv"
+
+// Define a reusable resolver
+#VaultRef: cuenv.#Secret & {
+    path:  string
+    field: string
+    resolver: {
+        command: "vault"
+        args: ["kv", "get", "-field=\(field)", path]
+    }
+}
+
+env: cuenv.#Env & {
+    // Use the reusable resolver
+    DATABASE_PASSWORD: #VaultRef & {
+        path:  "secret/myapp/database"
+        field: "password"
+    }
 }
 ```
 
@@ -707,13 +458,10 @@ After (`env.cue`):
 ```cue title="env.cue"
 package env
 
-import "github.com/rawkode/cuenv"
+import "github.com/rawkode/cuenv/cue"
 
-DATABASE_URL: {
-    resolver: {
-        command: "vault"
-        args: ["kv", "get", "-field=database_url", "secret/myapp"]
-    }
+DATABASE_URL: cuenv.#OnePasswordRef & {
+    ref: "op://Personal/MyApp/database_url"
 }
 API_KEY: cuenv.#OnePasswordRef & {
     ref: "op://Work/Stripe/secret_key"
@@ -735,7 +483,7 @@ After (`env.cue`):
 ```cue title="env.cue"
 package env
 
-import "github.com/rawkode/cuenv"
+import "github.com/rawkode/cuenv/cue"
 
 DATABASE_PASSWORD: cuenv.#OnePasswordRef & {
     ref: "op://Personal/Database/password"
@@ -744,18 +492,3 @@ API_KEY: "gcp-secret://my-project/api-key"
 ```
 
 The key difference is that with cuenv, secrets are declarative and only resolved when using `cuenv run`.
-
-## Complete Examples
-
-For complete, working examples of custom secret resolvers, see:
-
-- **[examples/custom-secrets/](https://github.com/rawkode/cuenv/tree/main/examples/custom-secrets)** - Comprehensive examples for various secret management systems
-- **HashiCorp Vault** - Enterprise secret management
-- **AWS Secrets Manager** - Cloud-native AWS secrets
-- **Azure Key Vault** - Microsoft Azure secret management
-- **SOPS** - File-based encryption with git workflows
-- **pass** - Unix password manager integration
-- **Bitwarden** - Popular password manager CLI
-- **Custom transformations** - Advanced patterns and validations
-
-Each example includes both CUE configuration files and detailed setup instructions.
