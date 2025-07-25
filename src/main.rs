@@ -109,6 +109,8 @@ enum Commands {
     },
     /// Prune stale state
     Prune,
+    /// Clear task cache
+    ClearCache,
 }
 
 fn main() -> Result<()> {
@@ -494,6 +496,16 @@ fn main() -> Result<()> {
                 println!("Pruned cuenv state");
             } else {
                 println!("No cuenv state to prune");
+            }
+        }
+        Some(Commands::ClearCache) => {
+            let task_cache = cuenv::task_cache::TaskCache::new();
+            match task_cache.clear() {
+                Ok(()) => println!("✓ Task cache cleared"),
+                Err(e) => {
+                    eprintln!("Failed to clear task cache: {e}");
+                    return Err(e);
+                }
             }
         }
         None => {
