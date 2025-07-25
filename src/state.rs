@@ -220,6 +220,15 @@ mod tests {
         .unwrap();
 
         // Check loaded state
+        // Debug: check if the env var is actually set
+        let cuenv_dir_var = StateManager::env_var_name("CUENV_DIR");
+        let cuenv_dir_value = env::var(&cuenv_dir_var);
+        assert!(
+            cuenv_dir_value.is_ok(),
+            "CUENV_DIR env var not set: {}",
+            cuenv_dir_var
+        );
+
         assert!(StateManager::is_loaded());
         assert_eq!(StateManager::current_dir(), Some(dir.to_path_buf()));
 

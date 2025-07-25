@@ -63,16 +63,16 @@ env: {
     // Type-safe environment variables
     PORT: int & >=1024 & <=65535 | *3000
     DEBUG: bool | *false
-    
+
     // Built-in secret management
     DB_PASSWORD: "op://Personal/database/password"
     API_KEY: "gcp-secret://my-project/api-key"
-    
+
     // String interpolation and constraints
     DATABASE_HOST: "localhost"
     DATABASE_PORT: 5432
     DATABASE_URL: "postgres://\(DATABASE_HOST):\(DATABASE_PORT)/mydb"
-    
+
     // Capability-based security
     AWS_ACCESS_KEY: "..." @capability("aws")
     STRIPE_SECRET: "..." @capability("payments")

@@ -92,7 +92,6 @@ impl CueCache {
 mod tests {
     use super::*;
     use crate::cue_parser::ParseResult;
-    use std::collections::HashMap;
     use tempfile::TempDir;
 
     #[test]

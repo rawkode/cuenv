@@ -261,6 +261,33 @@ func extractCueData(v cue.Value) map[string]interface{} {
 		result["capabilities"] = caps
 	}
 
+	// Build command-to-capabilities mapping from all collected capabilities
+	if capsData, ok := result["capabilities"].(map[string]interface{}); ok && len(capsData) > 0 {
+		commands := make(map[string]interface{})
+		for capName, capConfig := range capsData {
+			if capMap, ok := capConfig.(map[string]interface{}); ok {
+				if cmds, ok := capMap["commands"].([]string); ok {
+					for _, cmd := range cmds {
+						if cmdConfig, exists := commands[cmd]; exists {
+							// Command already exists, append capability
+							if cmdMap, ok := cmdConfig.(map[string]interface{}); ok {
+								if caps, ok := cmdMap["capabilities"].([]string); ok {
+									cmdMap["capabilities"] = append(caps, capName)
+								}
+							}
+						} else {
+							// New command
+							commands[cmd] = map[string]interface{}{
+								"capabilities": []string{capName},
+							}
+						}
+					}
+				}
+			}
+		}
+		result["commands"] = commands
+	}
+
 	// Extract tasks configuration if present (top-level only)
 	if tasksField := v.LookupPath(cue.ParsePath("tasks")); tasksField.Exists() {
 		tasks := make(map[string]interface{})

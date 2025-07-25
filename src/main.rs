@@ -158,7 +158,7 @@ fn main() -> Result<()> {
             }
         }
         Some(Commands::Unload) => {
-            let env_manager = EnvManager::new();
+            let mut env_manager = EnvManager::new();
             match env_manager.unload_env() {
                 Ok(()) => {}
                 Err(e) => return Err(e),

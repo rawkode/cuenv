@@ -557,7 +557,7 @@ mod tests {
                 commands: ["deploy"]
             }
             docker: {
-                commands: ["deploy"]
+                commands: ["deploy", "test"]
             }
         }
         "#;
@@ -583,7 +583,10 @@ mod tests {
         );
 
         let test_cmd = &result.commands["test"];
-        assert!(test_cmd.capabilities.is_none());
+        assert_eq!(
+            test_cmd.capabilities.as_ref().unwrap(),
+            &vec!["docker".to_string()]
+        );
     }
 
     #[test]

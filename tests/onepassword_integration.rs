@@ -173,19 +173,4 @@ async fn test_multiple_onepassword_secrets() {
     assert!(resolved.secret_values.contains("my-super-secret-password"));
 }
 
-// Platform-specific module for creating ExitStatus
-mod exit_status {
-    #[cfg(unix)]
-    pub fn from_raw(code: i32) -> std::process::ExitStatus {
-        use std::os::unix::process::ExitStatusExt;
-        std::process::ExitStatus::from_raw(code)
-    }
-
-    #[cfg(windows)]
-    pub fn from_raw(code: i32) -> std::process::ExitStatus {
-        use std::os::windows::process::ExitStatusExt;
-        std::process::ExitStatus::from_raw(code as u32)
-    }
-}
-
 // Import the platform-specific function

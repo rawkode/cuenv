@@ -27,6 +27,7 @@ use crate::platform::WindowsPlatform as Platform;
 
 pub struct EnvManager {
     original_env: HashMap<String, String>,
+    cue_vars: HashMap<String, String>,
     commands: HashMap<String, CommandConfig>,
     tasks: HashMap<String, TaskConfig>,
     hooks: HashMap<String, HookConfig>,
@@ -36,6 +37,7 @@ impl EnvManager {
     pub fn new() -> Self {
         Self {
             original_env: HashMap::new(),
+            cue_vars: HashMap::new(),
             commands: HashMap::new(),
             tasks: HashMap::new(),
             hooks: HashMap::new(),
@@ -116,7 +118,7 @@ impl EnvManager {
         }
     }
 
-    pub fn unload_env(&self) -> Result<()> {
+    pub fn unload_env(&mut self) -> Result<()> {
         // Execute onExit hooks before unloading environment
         let exit_hooks: Vec<_> = self
             .hooks
@@ -164,6 +166,9 @@ impl EnvManager {
             }
         }
 
+        // Clear CUE vars
+        self.cue_vars.clear();
+
         Ok(())
     }
 
@@ -201,6 +206,7 @@ impl EnvManager {
 
         // Build the new environment
         let mut new_env = self.original_env.clone();
+        self.cue_vars.clear();
         for (key, value) in parse_result.variables {
             let expanded_value = match shellexpand::full(&value) {
                 Ok(expanded) => expanded.to_string(),
@@ -214,6 +220,7 @@ impl EnvManager {
 
             log::debug!("Setting {key}={expanded_value}");
             new_env.insert(key.clone(), expanded_value.clone());
+            self.cue_vars.insert(key.clone(), expanded_value.clone());
             env::set_var(key, expanded_value);
         }
 
@@ -304,15 +311,7 @@ impl EnvManager {
 
     pub fn run_command(&self, command: &str, args: &[String]) -> Result<i32> {
         // Get the loaded environment variables (only the ones from CUE files)
-        let mut env_from_cue = HashMap::new();
-        let current_env: HashMap<String, String> = env::vars().collect();
-
-        // Only include variables that were added or modified by CUE
-        for (key, value) in &current_env {
-            if !self.original_env.contains_key(key) || self.original_env.get(key) != Some(value) {
-                env_from_cue.insert(key.clone(), value.clone());
-            }
-        }
+        let env_from_cue = self.cue_vars.clone();
 
         // Resolve secrets in the environment variables
         let (resolved_env, secret_values) = if cfg!(test) {
@@ -692,11 +691,11 @@ env: {
         )
         .unwrap();
 
-        // Set a variable that should NOT be passed to the child
-        env::set_var("TEST_PARENT_VAR", "should_not_exist");
-
         let mut manager = EnvManager::new();
         manager.load_env(temp_dir.path()).unwrap();
+
+        // Set a variable AFTER loading env, so it's not in original_env
+        env::set_var("TEST_PARENT_VAR", "should_not_exist");
 
         // Run a command that checks for our variables
         #[cfg(unix)]
