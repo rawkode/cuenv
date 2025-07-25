@@ -1,6 +1,8 @@
 use clap::{Parser, Subcommand};
 use cuenv::errors::{Error, Result};
 use cuenv::platform::{PlatformOps, Shell};
+use cuenv::shell::ShellType;
+use cuenv::state::StateManager;
 use cuenv::{
     directory::DirectoryManager, env_manager::EnvManager, shell_hook::ShellHook,
     task_executor::TaskExecutor,
@@ -80,6 +82,23 @@ enum Commands {
         /// Arguments to pass to the command
         args: Vec<String>,
     },
+    /// Generate shell hook
+    Hook {
+        /// Shell name (defaults to current shell)
+        shell: Option<String>,
+    },
+    /// Export environment variables for the current directory
+    Export {
+        /// Shell format (defaults to current shell)
+        shell: Option<String>,
+    },
+    /// Dump complete environment
+    Dump {
+        /// Shell format (defaults to current shell)
+        shell: Option<String>,
+    },
+    /// Prune stale state
+    Prune,
 }
 
 fn main() -> Result<()> {
@@ -294,6 +313,137 @@ fn main() -> Result<()> {
 
             // Exit with the same status code as the child process
             std::process::exit(status);
+        }
+        Some(Commands::Hook { shell }) => {
+            let shell_type = match shell {
+                Some(s) => ShellType::from_name(&s),
+                None => {
+                    // Try to detect from $0
+                    if let Some(arg0) = env::args().next() {
+                        ShellType::detect_from_arg(&arg0)
+                    } else {
+                        // Fallback to platform detection
+                        match Platform::get_current_shell() {
+                            Ok(Shell::Bash) => ShellType::Bash,
+                            Ok(Shell::Zsh) => ShellType::Zsh,
+                            Ok(Shell::Fish) => ShellType::Fish,
+                            Ok(Shell::PowerShell) => ShellType::PowerShell,
+                            Ok(Shell::Cmd) => ShellType::Cmd,
+                            _ => ShellType::Bash,
+                        }
+                    }
+                }
+            };
+
+            let shell_impl = shell_type.as_shell();
+
+            // Check if we should load/unload based on current directory
+            let current_dir = env::current_dir()?;
+
+            if StateManager::should_unload(&current_dir) {
+                // Output unload commands
+                if let Ok(Some(diff)) = StateManager::get_diff() {
+                    for key in diff.removed() {
+                        println!("{}", shell_impl.unset(key));
+                    }
+                    for (key, _) in diff.added_or_changed() {
+                        if diff.prev.contains_key(key) {
+                            // Restore original value
+                            if let Some(orig_value) = diff.prev.get(key) {
+                                println!("{}", shell_impl.export(key, orig_value));
+                            }
+                        } else {
+                            // Variable was added, remove it
+                            println!("{}", shell_impl.unset(key));
+                        }
+                    }
+                }
+                StateManager::unload()
+                    .map_err(|e| Error::configuration(format!("Failed to unload state: {}", e)))?;
+            } else if current_dir.join("env.cue").exists() {
+                // Check if directory is allowed
+                let dir_manager = DirectoryManager::new();
+                if dir_manager
+                    .is_directory_allowed(&current_dir)
+                    .unwrap_or(false)
+                {
+                    // Check if files have changed and reload if needed
+                    if StateManager::files_changed() || StateManager::should_load(&current_dir) {
+                        // Need to load/reload
+                        let mut env_manager = EnvManager::new();
+                        if let Err(e) = env_manager.load_env(&current_dir) {
+                            eprintln!("# cuenv: failed to load environment: {}", e);
+                        } else {
+                            // Output export commands
+                            if let Ok(Some(diff)) = StateManager::get_diff() {
+                                for (key, value) in diff.added_or_changed() {
+                                    println!("{}", shell_impl.export(key, value));
+                                }
+                                for key in diff.removed() {
+                                    println!("{}", shell_impl.unset(key));
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    eprintln!("# cuenv: Directory not allowed. Run 'cuenv allow {}' to allow this directory.", current_dir.display());
+                }
+            }
+        }
+        Some(Commands::Export { shell }) => {
+            let shell_type = match shell {
+                Some(s) => ShellType::from_name(&s),
+                None => match Platform::get_current_shell() {
+                    Ok(Shell::Bash) => ShellType::Bash,
+                    Ok(Shell::Zsh) => ShellType::Zsh,
+                    Ok(Shell::Fish) => ShellType::Fish,
+                    Ok(Shell::PowerShell) => ShellType::PowerShell,
+                    Ok(Shell::Cmd) => ShellType::Cmd,
+                    _ => ShellType::Bash,
+                },
+            };
+
+            let shell_impl = shell_type.as_shell();
+
+            // Output current cuenv state as exports
+            if let Ok(Some(diff)) = StateManager::get_diff() {
+                for (key, value) in &diff.next {
+                    if !diff.prev.contains_key(key) || diff.prev.get(key) != Some(value) {
+                        println!("{}", shell_impl.export(key, value));
+                    }
+                }
+            } else {
+                eprintln!("# No cuenv environment loaded");
+            }
+        }
+        Some(Commands::Dump { shell }) => {
+            let shell_type = match shell {
+                Some(s) => ShellType::from_name(&s),
+                None => match Platform::get_current_shell() {
+                    Ok(Shell::Bash) => ShellType::Bash,
+                    Ok(Shell::Zsh) => ShellType::Zsh,
+                    Ok(Shell::Fish) => ShellType::Fish,
+                    Ok(Shell::PowerShell) => ShellType::PowerShell,
+                    Ok(Shell::Cmd) => ShellType::Cmd,
+                    _ => ShellType::Bash,
+                },
+            };
+
+            let shell_impl = shell_type.as_shell();
+
+            // Dump entire environment
+            let current_env: std::collections::HashMap<String, String> = env::vars().collect();
+            println!("{}", shell_impl.dump(&current_env));
+        }
+        Some(Commands::Prune) => {
+            // For now, just unload if there's state
+            if StateManager::is_loaded() {
+                StateManager::unload()
+                    .map_err(|e| Error::configuration(format!("Failed to unload state: {}", e)))?;
+                println!("Pruned cuenv state");
+            } else {
+                println!("No cuenv state to prune");
+            }
         }
         None => {
             let current_dir = match DirectoryManager::get_current_directory() {

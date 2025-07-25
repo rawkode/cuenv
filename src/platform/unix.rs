@@ -17,6 +17,11 @@ impl PlatformOps for UnixPlatform {
             }
         }
 
+        // Fallback for fish shell
+        if env::var("FISH_VERSION").is_ok() {
+            return Ok(Shell::Fish);
+        }
+
         // Try to detect from parent process
         if let Ok(ppid) = std::fs::read_to_string("/proc/self/stat") {
             if let Some(ppid_str) = ppid.split_whitespace().nth(3) {

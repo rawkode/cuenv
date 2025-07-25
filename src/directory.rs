@@ -1,7 +1,9 @@
 use crate::errors::{Error, Result};
+use crate::xdg::XdgPaths;
+use sha2::{Digest, Sha256};
 use std::env;
 use std::fs::{self, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 
 pub struct DirectoryManager;
@@ -33,15 +35,27 @@ impl DirectoryManager {
             return Ok(()); // Already allowed
         }
 
-        // Append to allowed file
+        // Calculate hash of env.cue if it exists
+        let env_cue = canonical_dir.join("env.cue");
+        let hash = if env_cue.exists() {
+            self.calculate_file_hash(&env_cue)?
+        } else {
+            String::new()
+        };
+
+        // Append to allowed file with hash
         let mut file = OpenOptions::new()
             .create(true)
             .append(true)
             .open(&allowed_file)
             .map_err(|e| Error::file_system(allowed_file.clone(), "open allowed file", e))?;
 
-        writeln!(file, "{}", canonical_dir.display())
-            .map_err(|e| Error::file_system(allowed_file, "write to allowed file", e))?;
+        if hash.is_empty() {
+            writeln!(file, "{}", canonical_dir.display())
+        } else {
+            writeln!(file, "{}:{}", canonical_dir.display(), hash)
+        }
+        .map_err(|e| Error::file_system(allowed_file, "write to allowed file", e))?;
 
         Ok(())
     }
@@ -100,8 +114,33 @@ impl DirectoryManager {
         for line in reader.lines() {
             let line =
                 line.map_err(|e| Error::file_system(allowed_file.clone(), "read allowed file", e))?;
-            if line.trim() == canonical_dir.to_string_lossy() {
-                return Ok(true);
+            let line = line.trim();
+
+            // Parse line which can be either "path" or "path:hash"
+            let (allowed_path, allowed_hash) = if let Some(colon_pos) = line.rfind(':') {
+                (
+                    line[..colon_pos].to_string(),
+                    Some(line[colon_pos + 1..].to_string()),
+                )
+            } else {
+                (line.to_string(), None)
+            };
+
+            if allowed_path == canonical_dir.to_string_lossy() {
+                // Path matches, now check hash if present
+                if let Some(expected_hash) = allowed_hash {
+                    let env_cue = canonical_dir.join("env.cue");
+                    if env_cue.exists() {
+                        let actual_hash = self.calculate_file_hash(&env_cue)?;
+                        return Ok(actual_hash == expected_hash);
+                    } else {
+                        // env.cue doesn't exist but hash was expected
+                        return Ok(false);
+                    }
+                } else {
+                    // No hash requirement, directory is allowed
+                    return Ok(true);
+                }
             }
         }
 
@@ -109,20 +148,37 @@ impl DirectoryManager {
     }
 
     fn get_allowed_file(&self) -> Result<PathBuf> {
-        let config_dir = dirs::config_dir()
-            .ok_or_else(|| {
-                Error::configuration("Could not determine config directory".to_string())
-            })?
-            .join("cuenv");
+        let allowed_file = XdgPaths::allowed_file();
+        let data_dir = allowed_file.parent().unwrap();
 
-        // Create config directory if it doesn't exist
-        if !config_dir.exists() {
-            fs::create_dir_all(&config_dir).map_err(|e| {
-                Error::file_system(config_dir.clone(), "create config directory", e)
+        // Create data directory if it doesn't exist
+        if !data_dir.exists() {
+            fs::create_dir_all(data_dir).map_err(|e| {
+                Error::file_system(data_dir.to_path_buf(), "create data directory", e)
             })?;
         }
 
-        Ok(config_dir.join("allowed"))
+        Ok(allowed_file)
+    }
+
+    fn calculate_file_hash(&self, file_path: &Path) -> Result<String> {
+        let mut file = fs::File::open(file_path)
+            .map_err(|e| Error::file_system(file_path.to_path_buf(), "open file for hashing", e))?;
+
+        let mut hasher = Sha256::new();
+        let mut buffer = [0; 8192];
+
+        loop {
+            let n = file.read(&mut buffer).map_err(|e| {
+                Error::file_system(file_path.to_path_buf(), "read file for hashing", e)
+            })?;
+            if n == 0 {
+                break;
+            }
+            hasher.update(&buffer[..n]);
+        }
+
+        Ok(format!("{:x}", hasher.finalize()))
     }
 }
 

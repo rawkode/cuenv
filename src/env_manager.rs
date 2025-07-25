@@ -8,10 +8,13 @@ use std::sync::{Arc, Mutex};
 
 use crate::command_executor::CommandExecutor;
 use crate::cue_parser::{CommandConfig, CueParser, HookConfig, HookType, ParseOptions, TaskConfig};
+use crate::env_diff::EnvDiff;
+use crate::file_times::FileTimes;
 use crate::hook_manager::HookManager;
 use crate::output_filter::OutputFilter;
 use crate::platform::{PlatformOps, Shell};
 use crate::secrets::SecretManager;
+use crate::state::StateManager;
 use crate::types::{CommandArguments, EnvironmentVariables};
 use async_trait::async_trait;
 use tokio::runtime::Runtime;
@@ -196,6 +199,8 @@ impl EnvManager {
         self.tasks.extend(parse_result.tasks);
         self.hooks.extend(parse_result.hooks);
 
+        // Build the new environment
+        let mut new_env = self.original_env.clone();
         for (key, value) in parse_result.variables {
             let expanded_value = match shellexpand::full(&value) {
                 Ok(expanded) => expanded.to_string(),
@@ -208,8 +213,30 @@ impl EnvManager {
             };
 
             log::debug!("Setting {key}={expanded_value}");
+            new_env.insert(key.clone(), expanded_value.clone());
             env::set_var(key, expanded_value);
         }
+
+        // Create environment diff
+        let diff = EnvDiff::new(self.original_env.clone(), new_env);
+
+        // Create file watches
+        let mut watches = FileTimes::new();
+        let env_cue = dir.join("env.cue");
+        if env_cue.exists() {
+            watches.watch(&env_cue);
+        }
+
+        // Save state
+        StateManager::load(
+            dir,
+            &env_cue,
+            options.environment.as_deref(),
+            &options.capabilities,
+            &diff,
+            &watches,
+        )
+        .map_err(|e| Error::configuration(format!("Failed to save state: {e}")))?;
 
         Ok(())
     }

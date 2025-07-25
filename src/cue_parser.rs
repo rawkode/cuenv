@@ -1,5 +1,5 @@
 use crate::errors::{Error, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
@@ -35,12 +35,12 @@ struct VariableMetadata {
     capability: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommandConfig {
     pub capabilities: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskConfig {
     pub description: Option<String>,
     pub command: Option<String>,
@@ -53,7 +53,7 @@ pub struct TaskConfig {
     pub outputs: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum HookType {
     #[default]
@@ -61,7 +61,7 @@ pub enum HookType {
     OnExit,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HookConfig {
     pub command: String,
     pub args: Vec<String>,
@@ -90,6 +90,7 @@ pub struct ParseOptions {
     pub capabilities: Vec<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ParseResult {
     pub variables: HashMap<String, String>,
     pub commands: HashMap<String, CommandConfig>,
