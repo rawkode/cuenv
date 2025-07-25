@@ -12,6 +12,7 @@ pub mod hook_manager;
 pub mod memory;
 pub mod output_filter;
 pub mod platform;
+pub mod runtime;
 pub mod secrets;
 pub mod shell;
 pub mod shell_hook;

@@ -49,8 +49,78 @@ pub struct TaskConfig {
     #[serde(rename = "workingDir")]
     pub working_dir: Option<String>,
     pub shell: Option<String>,
+    pub runtime: Option<RuntimeConfig>,
     pub inputs: Option<Vec<String>>,
     pub outputs: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeConfig {
+    #[serde(rename = "type")]
+    pub runtime_type: RuntimeType,
+    pub config: Option<RuntimeTypeConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RuntimeType {
+    Host,
+    Nix,
+    Docker,
+    Podman,
+    Buildkit,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RuntimeTypeConfig {
+    Nix(NixRuntimeConfig),
+    Docker(DockerRuntimeConfig),
+    Podman(PodmanRuntimeConfig),
+    Buildkit(BuildkitRuntimeConfig),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NixRuntimeConfig {
+    pub shell: Option<String>,
+    pub flake: Option<String>,
+    pub pure: Option<bool>,
+    pub args: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DockerRuntimeConfig {
+    pub image: String,
+    #[serde(rename = "workDir")]
+    pub work_dir: Option<String>,
+    pub env: Option<HashMap<String, String>>,
+    pub volumes: Option<Vec<String>>,
+    pub network: Option<String>,
+    pub args: Option<Vec<String>>,
+    pub rm: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PodmanRuntimeConfig {
+    pub image: String,
+    #[serde(rename = "workDir")]
+    pub work_dir: Option<String>,
+    pub env: Option<HashMap<String, String>>,
+    pub volumes: Option<Vec<String>>,
+    pub network: Option<String>,
+    pub args: Option<Vec<String>>,
+    pub rm: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BuildkitRuntimeConfig {
+    pub image: String,
+    pub dockerfile: Option<String>,
+    pub context: Option<String>,
+    #[serde(rename = "buildArgs")]
+    pub build_args: Option<HashMap<String, String>>,
+    pub target: Option<String>,
+    pub args: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]

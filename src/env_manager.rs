@@ -512,6 +512,116 @@ impl EnvManager {
         &self.tasks
     }
 
+    /// Get environment variables for task execution (including resolved secrets)
+    pub async fn get_task_environment_async(&self) -> Result<HashMap<String, String>> {
+        // Get the loaded environment variables (only the ones from CUE files)
+        let env_from_cue = self.cue_vars.clone();
+
+        // Resolve secrets in the environment variables
+        let (resolved_env, _secret_values) = if cfg!(test) {
+            // Skip secret resolution in tests
+            use crate::types::SecretValues;
+            (env_from_cue, SecretValues::new())
+        } else {
+            let secret_manager = SecretManager::new();
+            let resolved_secrets = secret_manager.resolve_secrets(env_from_cue.into()).await
+                .map_err(|e| Error::secret_resolution(
+                    "multiple",
+                    format!("Failed to resolve secrets: {e}"),
+                ))?;
+            (
+                resolved_secrets.env_vars.into_inner(),
+                resolved_secrets.secret_values,
+            )
+        };
+
+        // Add minimal required environment variables for basic operation
+        let mut final_env = resolved_env;
+
+        // PATH is needed to find executables
+        if let Some(path) = self.original_env.get("PATH") {
+            final_env.insert("PATH".to_string(), path.clone());
+        }
+
+        // Set up platform-specific environment
+        Platform::setup_environment(&mut final_env);
+
+        // Ensure HOME directory is available (platform-specific)
+        let home_var = Platform::home_env_var();
+        if let Some(home_value) = self.original_env.get(home_var) {
+            final_env.insert(home_var.to_string(), home_value.clone());
+        }
+
+        // Ensure HOME is set on all platforms for compatibility
+        if let Some(home) = self.original_env.get("HOME") {
+            final_env.insert("HOME".to_string(), home.clone());
+        }
+
+        Ok(final_env)
+    }
+
+    /// Get environment variables for task execution (including resolved secrets)
+    pub fn get_task_environment(&self) -> Result<HashMap<String, String>> {
+        // Get the loaded environment variables (only the ones from CUE files)
+        let env_from_cue = self.cue_vars.clone();
+
+        // Resolve secrets in the environment variables
+        let (resolved_env, _secret_values) = if cfg!(test) {
+            // Skip secret resolution in tests
+            use crate::types::SecretValues;
+            (env_from_cue, SecretValues::new())
+        } else {
+            let secret_manager = SecretManager::new();
+            let rt = match tokio::runtime::Runtime::new() {
+                Ok(runtime) => runtime,
+                Err(e) => {
+                    return Err(Error::configuration(format!(
+                        "Failed to create tokio runtime: {e}"
+                    )));
+                }
+            };
+
+            let resolved_secrets =
+                match rt.block_on(secret_manager.resolve_secrets(env_from_cue.into())) {
+                    Ok(secrets) => secrets,
+                    Err(e) => {
+                        return Err(Error::secret_resolution(
+                            "multiple",
+                            format!("Failed to resolve secrets: {e}"),
+                        ));
+                    }
+                };
+            (
+                resolved_secrets.env_vars.into_inner(),
+                resolved_secrets.secret_values,
+            )
+        };
+
+        // Add minimal required environment variables for basic operation
+        let mut final_env = resolved_env;
+
+        // PATH is needed to find executables
+        if let Some(path) = self.original_env.get("PATH") {
+            final_env.insert("PATH".to_string(), path.clone());
+        }
+
+        // Set up platform-specific environment
+        Platform::setup_environment(&mut final_env);
+
+        // Ensure HOME directory is available (platform-specific)
+        let home_var = Platform::home_env_var();
+        if let Some(home_value) = self.original_env.get(home_var) {
+            final_env.insert(home_var.to_string(), home_value.clone());
+        }
+
+        // Ensure HOME is set on all platforms for compatibility
+        if let Some(home) = self.original_env.get("HOME") {
+            final_env.insert("HOME".to_string(), home.clone());
+        }
+
+        Ok(final_env)
+    }
+
     fn execute_on_enter_hooks(&self) -> Result<()> {
         // Filter for onEnter hooks
         let on_enter_hooks: Vec<(&String, &HookConfig)> = self

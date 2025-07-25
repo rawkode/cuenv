@@ -1,9 +1,9 @@
 use crate::cue_parser::TaskConfig;
 use crate::env_manager::EnvManager;
 use crate::errors::{Error, Result};
+use crate::runtime::{create_runtime_executor, default_runtime_executor};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use tokio::task::JoinSet;
 
@@ -46,6 +46,9 @@ impl TaskExecutor {
         // Build execution plan
         let plan = self.build_execution_plan(task_names)?;
 
+        // Get environment variables for task execution
+        let env_vars = self.env_manager.get_task_environment_async().await?;
+
         // Execute tasks level by level
         for level in &plan.levels {
             let mut join_set = JoinSet::new();
@@ -56,11 +59,12 @@ impl TaskExecutor {
                 let task_config = plan.tasks.get(task_name).unwrap().clone();
                 let working_dir = self.working_dir.clone();
                 let task_args = args.to_vec();
+                let env_vars = env_vars.clone();
                 let failed_tasks = Arc::clone(&failed_tasks);
                 let task_name = task_name.clone();
 
                 join_set.spawn(async move {
-                    match Self::execute_single_task(&task_config, &working_dir, &task_args).await {
+                    match Self::execute_single_task(&task_config, &working_dir, &env_vars, &task_args).await {
                         Ok(status) => {
                             if status != 0 {
                                 failed_tasks
@@ -259,44 +263,9 @@ impl TaskExecutor {
     async fn execute_single_task(
         task_config: &TaskConfig,
         working_dir: &Path,
+        env_vars: &std::collections::HashMap<String, String>,
         args: &[String],
     ) -> Result<i32> {
-        // Determine what to execute
-        let (shell, script_content) = match (&task_config.command, &task_config.script) {
-            (Some(command), None) => {
-                // Add user args to the command
-                let full_command = if args.is_empty() {
-                    command.clone()
-                } else {
-                    format!("{} {}", command, args.join(" "))
-                };
-                (
-                    task_config
-                        .shell
-                        .clone()
-                        .unwrap_or_else(|| "sh".to_string()),
-                    full_command,
-                )
-            }
-            (None, Some(script)) => (
-                task_config
-                    .shell
-                    .clone()
-                    .unwrap_or_else(|| "sh".to_string()),
-                script.clone(),
-            ),
-            (Some(_), Some(_)) => {
-                return Err(Error::configuration(
-                    "Task cannot have both 'command' and 'script' defined".to_string(),
-                ));
-            }
-            (None, None) => {
-                return Err(Error::configuration(
-                    "Task must have either 'command' or 'script' defined".to_string(),
-                ));
-            }
-        };
-
         // Determine working directory
         let exec_dir = if let Some(task_wd) = &task_config.working_dir {
             let mut dir = working_dir.to_path_buf();
@@ -306,25 +275,35 @@ impl TaskExecutor {
             working_dir.to_path_buf()
         };
 
-        // Execute the task
-        let mut cmd = Command::new(&shell);
-        cmd.arg("-c")
-            .arg(&script_content)
-            .current_dir(&exec_dir)
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit());
+        // Get runtime executor
+        let runtime_executor = if let Some(runtime_config) = &task_config.runtime {
+            create_runtime_executor(runtime_config)?
+        } else {
+            default_runtime_executor()
+        };
 
-        let output = cmd.output().map_err(|e| {
-            Error::command_execution(
-                &shell,
-                vec!["-c".to_string(), script_content.clone()],
-                format!("Failed to execute task: {e}"),
-                None,
+        // Check if runtime is available
+        if !runtime_executor.is_available() {
+            return Err(Error::configuration(format!(
+                "Runtime '{}' is not available on this system",
+                runtime_executor.name()
+            )));
+        }
+
+        // Get environment variables for task execution
+        // let env_vars = env_manager.get_task_environment()?;
+
+        // Execute the task using the runtime
+        runtime_executor
+            .execute(
+                task_config.command.as_deref(),
+                task_config.script.as_deref(),
+                task_config.shell.as_deref(),
+                &exec_dir,
+                env_vars,
+                args,
             )
-        })?;
-
-        Ok(output.status.code().unwrap_or(1))
+            .await
     }
 
     /// List all available tasks

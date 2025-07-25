@@ -90,9 +90,111 @@ package cuenv
 	// Shell to use for execution (e.g., "bash", "sh", "zsh")
 	shell?: string
 
+	// Runtime environment configuration (optional)
+	runtime?: #Runtime
+
 	// Input files/patterns (for future implementation)
 	inputs?: [...string]
 
 	// Output files/patterns (for future implementation)
 	outputs?: [...string]
+}
+
+// #Runtime defines the runtime environment for task execution
+#Runtime: {
+	// Runtime type
+	type: #RuntimeType
+
+	// Runtime-specific configuration
+	config?: #RuntimeConfig
+}
+
+// #RuntimeType defines the supported runtime environments
+#RuntimeType: "host" | "nix" | "docker" | "podman" | "buildkit"
+
+// #RuntimeConfig defines runtime-specific configuration
+#RuntimeConfig: {
+	// Nix runtime configuration
+	if type == "nix" {
+		// Nix shell expression or flake reference
+		shell?: string
+
+		// Nix flake reference (e.g., "github:org/repo" or ".")
+		flake?: string
+
+		// Pure nix-shell (no external environment)
+		pure?: bool
+
+		// Additional nix arguments
+		args?: [...string]
+	}
+
+	// Docker runtime configuration
+	if type == "docker" {
+		// Docker image to use
+		image: string
+
+		// Working directory inside container
+		workDir?: string
+
+		// Environment variables to pass to container
+		env?: [string]: string
+
+		// Volume mounts (host:container format)
+		volumes?: [...string]
+
+		// Network mode
+		network?: string
+
+		// Additional docker run arguments
+		args?: [...string]
+
+		// Remove container after execution
+		rm?: bool
+	}
+
+	// Podman runtime configuration
+	if type == "podman" {
+		// Podman image to use
+		image: string
+
+		// Working directory inside container
+		workDir?: string
+
+		// Environment variables to pass to container
+		env?: [string]: string
+
+		// Volume mounts (host:container format)
+		volumes?: [...string]
+
+		// Network mode
+		network?: string
+
+		// Additional podman run arguments
+		args?: [...string]
+
+		// Remove container after execution
+		rm?: bool
+	}
+
+	// BuildKit LLB runtime configuration
+	if type == "buildkit" {
+		// Base image for the build context
+		image: string
+
+		// Dockerfile content or reference
+		dockerfile?: string
+
+		// Build context path
+		context?: string
+
+		// Build arguments
+		buildArgs?: [string]: string
+
+		// Target stage in multi-stage build
+		target?: string
+
+		// Additional buildctl arguments
+		args?: [...string]
+	}
 }
