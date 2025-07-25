@@ -1,8 +1,9 @@
+---
+title: Hook Constraints
+description: Hook constraints for conditional execution based on user environment
+---
+
 # Hook Constraints
-
-This document describes the hook constraints feature in cuenv, which allows hooks to run conditionally based on the end user's environment.
-
-## Overview
 
 Hook constraints provide a way to ensure hooks only execute when required tools are available in the end user's environment. This is particularly useful for:
 
@@ -36,7 +37,6 @@ constraints: [
 
 ### ShellCommand
 
-Checks if an environment variable is set (non-empty).
 Runs an arbitrary shell command and checks if it succeeds (exit code 0). This is useful for complex environment validation that goes beyond simple command existence.
 
 ```cue
