@@ -59,36 +59,37 @@ CUE is purpose-built for configuration:
 ```cue
 package env
 
-// Type-safe environment variables
-PORT: int & >=1024 & <=65535 | *3000
-DEBUG: bool | *false
-
-// Built-in secret management
-DB_PASSWORD: "op://Personal/database/password"
-API_KEY: "gcp-secret://my-project/api-key"
-
-// String interpolation and constraints
-DATABASE_HOST: "localhost"
-DATABASE_PORT: 5432
-DATABASE_URL: "postgres://\(DATABASE_HOST):\(DATABASE_PORT)/mydb"
-
-// Define tasks alongside config
-Tasks: {
-    build: {
-        command: "npm run build"
-        env: {
-            NODE_ENV: "production"
-        }
-    }
-    test: {
-        command: "npm test"
-        depends_on: ["build"]
-    }
+env: {
+    // Type-safe environment variables
+    PORT: int & >=1024 & <=65535 | *3000
+    DEBUG: bool | *false
+    
+    // Built-in secret management
+    DB_PASSWORD: "op://Personal/database/password"
+    API_KEY: "gcp-secret://my-project/api-key"
+    
+    // String interpolation and constraints
+    DATABASE_HOST: "localhost"
+    DATABASE_PORT: 5432
+    DATABASE_URL: "postgres://\(DATABASE_HOST):\(DATABASE_PORT)/mydb"
+    
+    // Capability-based security
+    AWS_ACCESS_KEY: "..." @capability("aws")
+    STRIPE_SECRET: "..." @capability("payments")
 }
 
-// Capability-based security
-AWS_ACCESS_KEY: "..." @capability("aws")
-STRIPE_SECRET: "..." @capability("payments")
+// Define tasks alongside config
+tasks: {
+    build: {
+        description: "Build the project"
+        command: "npm run build"
+    }
+    test: {
+        description: "Run tests"
+        command: "npm test"
+        dependencies: ["build"]
+    }
+}
 ```
 
 </div>
@@ -139,8 +140,11 @@ eval "$(cuenv init bash)"  # or zsh, fish
 # Test drive
 mkdir myproject && cd myproject
 echo 'package env
-DATABASE_URL: "postgres://localhost/dev"
-PORT: 3000' > env.cue
+
+env: {
+    DATABASE_URL: "postgres://localhost/dev"
+    PORT: 3000
+}' > env.cue
 
 # Allow the directory (one time)
 cuenv allow .
