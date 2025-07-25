@@ -5,7 +5,7 @@ This example demonstrates using an inline custom command resolver for secret man
 ## Configuration
 
 ```cue
-DATABASE_PASSWORD: {
+DATABASE_PASSWORD: cuenv.#Secret & {
     resolver: {
         command: "vault"
         args: ["kv", "get", "-field=password", "secret/myapp/database"]

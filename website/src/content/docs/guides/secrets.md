@@ -182,7 +182,7 @@ import "github.com/rawkode/cuenv"
 
 env: cuenv.#Env & {
     // Custom resolver for HashiCorp Vault
-    DATABASE_PASSWORD: {
+    DATABASE_PASSWORD: cuenv.#Secret & {
         resolver: {
             command: "vault"
             args: ["kv", "get", "-field=password", "secret/myapp/database"]
