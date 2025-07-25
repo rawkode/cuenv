@@ -62,10 +62,27 @@ pub enum HookType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum HookConstraint {
+    /// Check if a command is available in PATH
+    CommandExists { command: String },
+    /// Check if a file or directory exists
+    FileExists { path: String },
+    /// Check if an environment variable is set
+    EnvVarSet { var: String },
+    /// Check if an environment variable equals a specific value
+    EnvVarEquals { var: String, value: String },
+    /// Run a custom shell command and check if it succeeds (exit code 0)
+    ShellCommand { command: String, args: Option<Vec<String>> },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HookConfig {
     pub command: String,
     pub args: Vec<String>,
     pub url: Option<String>,
+    #[serde(default)]
+    pub constraints: Vec<HookConstraint>,
     #[serde(skip)]
     pub hook_type: HookType,
 }
@@ -978,5 +995,141 @@ mod tests {
         let hook = result.hooks.get("onExit").unwrap();
         assert_eq!(hook.command, "stop-server");
         assert_eq!(hook.args, vec!["--graceful"]);
+    }
+
+    #[test]
+    fn test_parse_hooks_with_constraints() {
+        let content = r#"
+        package env
+
+        hooks: {
+            onEnter: {
+                command: "devenv"
+                args: ["up"]
+                constraints: [
+                    {
+                        commandExists: {
+                            command: "devenv"
+                        }
+                    },
+                    {
+                        fileExists: {
+                            path: "devenv.nix"
+                        }
+                    },
+                    {
+                        envVarSet: {
+                            var: "DEVENV_ROOT"
+                        }
+                    }
+                ]
+            }
+            onExit: {
+                command: "cleanup.sh"
+                args: []
+                constraints: [
+                    {
+                        shellCommand: {
+                            command: "test"
+                            args: ["-f", "/tmp/cleanup_needed"]
+                        }
+                    },
+                    {
+                        envVarEquals: {
+                            var: "CLEANUP_MODE"
+                            value: "auto"
+                        }
+                    }
+                ]
+            }
+        }
+
+        env: {
+            DATABASE_URL: "postgres://localhost/mydb"
+        }
+        "#;
+        let temp_dir = create_test_env(content);
+        let options = ParseOptions::default();
+        let result =
+            CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+
+        assert_eq!(result.hooks.len(), 2);
+
+        // Test onEnter hook constraints
+        let on_enter = result.hooks.get("onEnter").unwrap();
+        assert_eq!(on_enter.command, "devenv");
+        assert_eq!(on_enter.args, vec!["up"]);
+        assert_eq!(on_enter.constraints.len(), 3);
+
+        // Check first constraint - command exists
+        if let HookConstraint::CommandExists { command } = &on_enter.constraints[0] {
+            assert_eq!(command, "devenv");
+        } else {
+            panic!("Expected CommandExists constraint");
+        }
+
+        // Check second constraint - file exists
+        if let HookConstraint::FileExists { path } = &on_enter.constraints[1] {
+            assert_eq!(path, "devenv.nix");
+        } else {
+            panic!("Expected FileExists constraint");
+        }
+
+        // Check third constraint - env var set
+        if let HookConstraint::EnvVarSet { var } = &on_enter.constraints[2] {
+            assert_eq!(var, "DEVENV_ROOT");
+        } else {
+            panic!("Expected EnvVarSet constraint");
+        }
+
+        // Test onExit hook constraints
+        let on_exit = result.hooks.get("onExit").unwrap();
+        assert_eq!(on_exit.command, "cleanup.sh");
+        assert!(on_exit.args.is_empty());
+        assert_eq!(on_exit.constraints.len(), 2);
+
+        // Check first constraint - shell command
+        if let HookConstraint::ShellCommand { command, args } = &on_exit.constraints[0] {
+            assert_eq!(command, "test");
+            assert_eq!(args.as_ref().unwrap(), &vec!["-f", "/tmp/cleanup_needed"]);
+        } else {
+            panic!("Expected ShellCommand constraint");
+        }
+
+        // Check second constraint - env var equals
+        if let HookConstraint::EnvVarEquals { var, value } = &on_exit.constraints[1] {
+            assert_eq!(var, "CLEANUP_MODE");
+            assert_eq!(value, "auto");
+        } else {
+            panic!("Expected EnvVarEquals constraint");
+        }
+    }
+
+    #[test]
+    fn test_parse_hooks_with_no_constraints() {
+        let content = r#"
+        package env
+
+        hooks: {
+            onEnter: {
+                command: "echo"
+                args: ["No constraints"]
+            }
+        }
+
+        env: {
+            API_KEY: "secret123"
+        }
+        "#;
+        let temp_dir = create_test_env(content);
+        let options = ParseOptions::default();
+        let result =
+            CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+
+        assert_eq!(result.hooks.len(), 1);
+        let hook = result.hooks.get("onEnter").unwrap();
+        assert_eq!(hook.command, "echo");
+        assert_eq!(hook.args, vec!["No constraints"]);
+        assert!(hook.constraints.is_empty());
     }
 }
