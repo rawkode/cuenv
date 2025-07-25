@@ -1,8 +1,4 @@
 use crate::errors::{Error, Result};
-use std::path::{Path, PathBuf};
-
-use crate::cue_parser::{CueParser, HookConfig, HookType, ParseOptions};
-use crate::platform::{escape_cmd_value, escape_shell_value};
 
 pub struct ShellHook;
 
@@ -25,7 +21,34 @@ impl ShellHook {
         r#"
 _cuenv_hook() {
     local previous_exit_status=$?
-    eval "$(cuenv hook bash)"
+    local current_dir="$PWD"
+    local cuenv_file="$PWD/.cuenv_current"
+    local cuenv_allowed="$HOME/.config/cuenv/allowed"
+    
+    # Check if current directory has env.cue
+    if [[ -f "$current_dir/env.cue" ]]; then
+        # Check if directory is allowed
+        if [[ -f "$cuenv_allowed" ]] && grep -q "^$current_dir$" "$cuenv_allowed"; then
+            # Load environment if not already loaded for this directory
+            if [[ ! -f "$cuenv_file" ]] || [[ "$(cat "$cuenv_file" 2>/dev/null)" != "$current_dir" ]]; then
+                eval "$(cuenv load)"
+                echo "$current_dir" > "$cuenv_file"
+            fi
+        else
+            echo "cuenv: Directory not allowed. Run 'cuenv allow' to allow this directory." >&2
+        fi
+    else
+        # If we have a .cuenv_current file, we need to unload
+        if [[ -f "$cuenv_file" ]]; then
+            local previous_dir="$(cat "$cuenv_file")"
+            # Only unload if we're leaving a directory that had env.cue
+            if [[ "$previous_dir" != "$current_dir" ]] && [[ -f "$previous_dir/env.cue" ]]; then
+                eval "$(cuenv unload)"
+                rm -f "$cuenv_file"
+            fi
+        fi
+    fi
+    
     return $previous_exit_status
 }
 
@@ -39,7 +62,33 @@ fi
     fn zsh_hook() -> String {
         r#"
 _cuenv_hook() {
-    eval "$(cuenv hook zsh)"
+    local current_dir="$PWD"
+    local cuenv_file="$PWD/.cuenv_current"
+    local cuenv_allowed="$HOME/.config/cuenv/allowed"
+    
+    # Check if current directory has env.cue
+    if [[ -f "$current_dir/env.cue" ]]; then
+        # Check if directory is allowed
+        if [[ -f "$cuenv_allowed" ]] && grep -q "^$current_dir$" "$cuenv_allowed"; then
+            # Load environment if not already loaded for this directory
+            if [[ ! -f "$cuenv_file" ]] || [[ "$(cat "$cuenv_file" 2>/dev/null)" != "$current_dir" ]]; then
+                eval "$(cuenv load)"
+                echo "$current_dir" > "$cuenv_file"
+            fi
+        else
+            echo "cuenv: Directory not allowed. Run 'cuenv allow' to allow this directory." >&2
+        fi
+    else
+        # If we have a .cuenv_current file, we need to unload
+        if [[ -f "$cuenv_file" ]]; then
+            local previous_dir="$(cat "$cuenv_file")"
+            # Only unload if we're leaving a directory that had env.cue
+            if [[ "$previous_dir" != "$current_dir" ]] && [[ -f "$previous_dir/env.cue" ]]; then
+                eval "$(cuenv unload)"
+                rm -f "$cuenv_file"
+            fi
+        fi
+    fi
 }
 
 typeset -ag precmd_functions
@@ -53,7 +102,34 @@ fi
     fn fish_hook() -> String {
         r#"
 function _cuenv_hook --on-variable PWD
-    cuenv hook fish | source
+    set current_dir "$PWD"
+    set cuenv_file "$PWD/.cuenv_current"
+    set cuenv_allowed "$HOME/.config/cuenv/allowed"
+    
+    # Check if current directory has env.cue
+    if test -f "$current_dir/env.cue"
+        # Check if directory is allowed
+        if test -f "$cuenv_allowed"; and grep -q "^$current_dir\$" "$cuenv_allowed"
+            # Load environment if not already loaded for this directory
+            if not test -f "$cuenv_file"
+                or test (cat "$cuenv_file" 2>/dev/null) != "$current_dir"
+                cuenv load | source
+                echo "$current_dir" > "$cuenv_file"
+            end
+        else
+            echo "cuenv: Directory not allowed. Run 'cuenv allow' to allow this directory." >&2
+        end
+    else
+        # If we have a .cuenv_current file, we need to unload
+        if test -f "$cuenv_file"
+            set previous_dir (cat "$cuenv_file")
+            # Only unload if we're leaving a directory that had env.cue
+            if test "$previous_dir" != "$current_dir"; and test -f "$previous_dir/env.cue"
+                cuenv unload | source
+                rm -f "$cuenv_file"
+            end
+        end
+    end
 end
 
 _cuenv_hook
@@ -64,9 +140,38 @@ _cuenv_hook
     fn powershell_hook() -> String {
         r#"
 function Invoke-CuenvHook {
-    $output = cuenv hook powershell
-    if ($output) {
-        Invoke-Expression $output
+    $currentDir = $PWD.Path
+    $cuenvFile = Join-Path $currentDir ".cuenv_current"
+    $cuenvAllowed = Join-Path $env:USERPROFILE ".config\cuenv\allowed"
+    
+    # Check if current directory has env.cue
+    if (Test-Path (Join-Path $currentDir "env.cue")) {
+        # Check if directory is allowed
+        if ((Test-Path $cuenvAllowed) -and (Get-Content $cuenvAllowed | Select-String -Pattern "^$([regex]::Escape($currentDir))$")) {
+            # Load environment if not already loaded for this directory
+            if (-not (Test-Path $cuenvFile) -or ((Get-Content $cuenvFile -ErrorAction SilentlyContinue) -ne $currentDir)) {
+                $output = cuenv load
+                if ($output) {
+                    Invoke-Expression $output
+                }
+                Set-Content -Path $cuenvFile -Value $currentDir
+            }
+        } else {
+            Write-Error "cuenv: Directory not allowed. Run 'cuenv allow' to allow this directory."
+        }
+    } else {
+        # If we have a .cuenv_current file, we need to unload
+        if (Test-Path $cuenvFile) {
+            $previousDir = Get-Content $cuenvFile
+            # Only unload if we're leaving a directory that had env.cue
+            if ($previousDir -ne $currentDir -and (Test-Path (Join-Path $previousDir "env.cue"))) {
+                $output = cuenv unload
+                if ($output) {
+                    Invoke-Expression $output
+                }
+                Remove-Item $cuenvFile -Force
+            }
+        }
     }
 }
 
@@ -88,328 +193,40 @@ Invoke-CuenvHook
 REM Add this to your CMD startup script or call manually:
 REM cuenv_hook.cmd
 
-for /f "tokens=*" %%i in ('cuenv hook cmd') do (
-    %%i
+set current_dir=%CD%
+set cuenv_file=%CD%\.cuenv_current
+set cuenv_allowed=%USERPROFILE%\.config\cuenv\allowed
+
+REM Check if current directory has env.cue
+if exist "%current_dir%\env.cue" (
+    REM Check if directory is allowed
+    findstr /b /e /c:"%current_dir%" "%cuenv_allowed%" >nul 2>&1
+    if %errorlevel% equ 0 (
+        REM Load environment if not already loaded
+        if not exist "%cuenv_file%" (
+            for /f "tokens=*" %%i in ('cuenv load') do %%i
+            echo %current_dir% > "%cuenv_file%"
+        ) else (
+            set /p prev_dir=<"%cuenv_file%"
+            if not "%prev_dir%"=="%current_dir%" (
+                for /f "tokens=*" %%i in ('cuenv load') do %%i
+                echo %current_dir% > "%cuenv_file%"
+            )
+        )
+    ) else (
+        echo cuenv: Directory not allowed. Run 'cuenv allow' to allow this directory. >&2
+    )
+) else (
+    REM Unload if leaving a directory with env.cue
+    if exist "%cuenv_file%" (
+        set /p prev_dir=<"%cuenv_file%"
+        if exist "%prev_dir%\env.cue" (
+            for /f "tokens=*" %%i in ('cuenv unload') do %%i
+            del "%cuenv_file%"
+        )
+    )
 )
 "#
         .to_string()
-    }
-
-    pub fn generate_hook_output(shell: &str, current_dir: &Path) -> Result<String> {
-        let cuenv_file = current_dir.join(".cuenv_current");
-        // Check if current directory has any .cue files (indicating a CUE package)
-        let has_cue_package = std::fs::read_dir(current_dir)
-            .map(|entries| {
-                entries.filter_map(|e| e.ok()).any(|entry| {
-                    entry
-                        .path()
-                        .extension()
-                        .and_then(|ext| ext.to_str())
-                        .map(|ext| ext == "cue")
-                        .unwrap_or(false)
-                })
-            })
-            .unwrap_or(false);
-
-        // Check if we have a previous environment stored
-        let previous_dir = if cuenv_file.exists() {
-            match std::fs::read_to_string(&cuenv_file) {
-                Ok(content) => {
-                    let dir = PathBuf::from(content.trim());
-                    // Check if previous dir has CUE package
-                    let has_prev_package = std::fs::read_dir(&dir)
-                        .map(|entries| {
-                            entries.filter_map(|e| e.ok()).any(|entry| {
-                                entry
-                                    .path()
-                                    .extension()
-                                    .and_then(|ext| ext.to_str())
-                                    .map(|ext| ext == "cue")
-                                    .unwrap_or(false)
-                            })
-                        })
-                        .unwrap_or(false);
-                    if dir != current_dir && has_prev_package {
-                        Some(dir)
-                    } else {
-                        None
-                    }
-                }
-                Err(_) => None,
-            }
-        } else {
-            None
-        };
-
-        let mut hook_commands = String::new();
-
-        // If we're leaving a previous environment
-        if let Some(prev_dir) = previous_dir {
-            // Load hooks from the previous directory
-            let options = ParseOptions::default();
-            match CueParser::eval_package_with_options(&prev_dir, "env", &options) {
-                Ok(parse_result) => {
-                    // Filter for onExit hooks
-                    let exit_hooks: Vec<_> = parse_result
-                        .hooks
-                        .iter()
-                        .filter(|(_, config)| config.hook_type == HookType::OnExit)
-                        .collect();
-
-                    if !exit_hooks.is_empty() {
-                        log::debug!(
-                            "Generating onExit hook commands for: {}",
-                            prev_dir.display()
-                        );
-                        for (name, config) in exit_hooks {
-                            // Generate shell command to execute the hook
-                            hook_commands
-                                .push_str(&Self::generate_hook_command(shell, name, config)?);
-                            hook_commands.push('\n');
-                        }
-                    }
-                }
-                Err(e) => {
-                    log::warn!(
-                        "Failed to load hooks from previous dir {}: {}",
-                        prev_dir.display(),
-                        e
-                    );
-                }
-            }
-        }
-
-        // Generate the shell-specific hook output
-        let env_output =
-            Self::generate_shell_specific_output(shell, current_dir, &cuenv_file, has_cue_package)?;
-
-        // Combine hook commands with environment management
-        if hook_commands.is_empty() {
-            Ok(env_output)
-        } else {
-            Ok(format!("{hook_commands}{env_output}"))
-        }
-    }
-
-    fn generate_hook_command(shell: &str, name: &str, config: &HookConfig) -> Result<String> {
-        match shell {
-            "bash" | "zsh" => {
-                let args = config
-                    .args
-                    .iter()
-                    .map(|arg| escape_shell_value(arg))
-                    .collect::<Vec<_>>()
-                    .join(" ");
-
-                if let Some(url) = &config.url {
-                    Ok(format!("# onExit hook: {name}\ncurl -s '{url}' | sh"))
-                } else {
-                    Ok(format!("# onExit hook: {name}\n{} {args}", config.command))
-                }
-            }
-            "fish" => {
-                let args = config
-                    .args
-                    .iter()
-                    .map(|arg| escape_shell_value(arg))
-                    .collect::<Vec<_>>()
-                    .join(" ");
-
-                if let Some(url) = &config.url {
-                    Ok(format!("# onExit hook: {name}\ncurl -s '{url}' | sh"))
-                } else {
-                    Ok(format!("# onExit hook: {name}\n{} {args}", config.command))
-                }
-            }
-            "powershell" => {
-                let args = config
-                    .args
-                    .iter()
-                    .map(|arg| format!("'{}'", arg.replace("'", "''")))
-                    .collect::<Vec<_>>()
-                    .join(" ");
-
-                if let Some(url) = &config.url {
-                    Ok(format!(
-                        "# onExit hook: {name}\nInvoke-WebRequest -Uri '{url}' -UseBasicParsing | Select-Object -ExpandProperty Content | Invoke-Expression"
-                    ))
-                } else {
-                    Ok(format!(
-                        "# onExit hook: {name}\n& '{}' {args}",
-                        config.command
-                    ))
-                }
-            }
-            "cmd" => {
-                let args = config
-                    .args
-                    .iter()
-                    .map(|arg| escape_cmd_value(arg))
-                    .collect::<Vec<_>>()
-                    .join(" ");
-
-                if let Some(url) = &config.url {
-                    Ok(format!("REM onExit hook: {name}\ncurl -s \"{url}\" | cmd"))
-                } else {
-                    Ok(format!(
-                        "REM onExit hook: {name}\n{} {args}",
-                        config.command
-                    ))
-                }
-            }
-            _ => Err(Error::unsupported(
-                "shell",
-                format!("unsupported shell: {shell}"),
-            )),
-        }
-    }
-
-    fn generate_shell_specific_output(
-        shell: &str,
-        current_dir: &Path,
-        cuenv_file: &Path,
-        has_cue_package: bool,
-    ) -> Result<String> {
-        match shell {
-            "bash" | "zsh" => {
-                if has_cue_package {
-                    Ok(format!(
-                        r#"
-if [[ ! -f "{}" ]] || [[ "$(cat "{}" 2>/dev/null)" != "{}" ]]; then
-    cuenv load
-    echo "{}" > "{}"
-fi
-"#,
-                        cuenv_file.display(),
-                        cuenv_file.display(),
-                        current_dir.display(),
-                        current_dir.display(),
-                        cuenv_file.display()
-                    ))
-                } else if cuenv_file.exists() {
-                    Ok(format!(
-                        r#"
-if [[ -f "{}" ]]; then
-    cuenv unload
-    rm -f "{}"
-fi
-"#,
-                        cuenv_file.display(),
-                        cuenv_file.display()
-                    ))
-                } else {
-                    Ok(String::new())
-                }
-            }
-            "fish" => {
-                if has_cue_package {
-                    Ok(format!(
-                        r#"
-if not test -f "{}"
-    or test (cat "{}" 2>/dev/null) != "{}"
-    cuenv load | source
-    echo "{}" > "{}"
-end
-"#,
-                        cuenv_file.display(),
-                        cuenv_file.display(),
-                        current_dir.display(),
-                        current_dir.display(),
-                        cuenv_file.display()
-                    ))
-                } else if cuenv_file.exists() {
-                    Ok(format!(
-                        r#"
-if test -f "{}"
-    cuenv unload | source
-    rm -f "{}"
-end
-"#,
-                        cuenv_file.display(),
-                        cuenv_file.display()
-                    ))
-                } else {
-                    Ok(String::new())
-                }
-            }
-            "powershell" => {
-                if has_cue_package {
-                    Ok(format!(
-                        r#"
-if (-not (Test-Path "{}") -or ((Get-Content "{}" 2>$null) -ne "{}")) {{
-    $output = cuenv load
-    if ($output) {{
-        Invoke-Expression $output
-    }}
-    Set-Content -Path "{}" -Value "{}"
-}}
-"#,
-                        cuenv_file.display(),
-                        cuenv_file.display(),
-                        current_dir.display(),
-                        cuenv_file.display(),
-                        current_dir.display()
-                    ))
-                } else if cuenv_file.exists() {
-                    Ok(format!(
-                        r#"
-if (Test-Path "{}") {{
-    $output = cuenv unload
-    if ($output) {{
-        Invoke-Expression $output
-    }}
-    Remove-Item "{}"
-}}
-"#,
-                        cuenv_file.display(),
-                        cuenv_file.display()
-                    ))
-                } else {
-                    Ok(String::new())
-                }
-            }
-            "cmd" => {
-                if has_cue_package {
-                    Ok(format!(
-                        r#"
-@echo off
-if not exist "{}" goto :load
-set /p current_dir=<"{}"
-if not "%current_dir%"=="{}" goto :load
-goto :end
-
-:load
-cuenv load
-echo {}> "{}"
-
-:end
-"#,
-                        cuenv_file.display(),
-                        cuenv_file.display(),
-                        current_dir.display(),
-                        current_dir.display(),
-                        cuenv_file.display()
-                    ))
-                } else if cuenv_file.exists() {
-                    Ok(format!(
-                        r#"
-@echo off
-if exist "{}" (
-    cuenv unload
-    del "{}"
-)
-"#,
-                        cuenv_file.display(),
-                        cuenv_file.display()
-                    ))
-                } else {
-                    Ok(String::new())
-                }
-            }
-            _ => Err(Error::unsupported(
-                "shell",
-                format!("unsupported shell: {shell}"),
-            )),
-        }
     }
 }

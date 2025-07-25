@@ -38,9 +38,6 @@ enum Commands {
     },
     Unload,
     Status,
-    Hook {
-        shell: String,
-    },
     Init {
         shell: String,
     },
@@ -164,31 +161,33 @@ fn main() -> Result<()> {
                 Err(e) => return Err(e),
             }
         }
-        Some(Commands::Hook { shell }) => {
-            let current_dir = match env::current_dir() {
-                Ok(d) => d,
-                Err(e) => {
-                    return Err(Error::file_system(
-                        PathBuf::from("."),
-                        "get current directory",
-                        e,
-                    ));
-                }
-            };
-            match ShellHook::generate_hook_output(&shell, &current_dir) {
-                Ok(output) => print!("{output}"),
-                Err(e) => return Err(e),
-            }
-        }
         Some(Commands::Init { shell }) => match ShellHook::generate_hook(&shell) {
             Ok(output) => print!("{output}"),
             Err(e) => return Err(e),
         },
         Some(Commands::Allow { directory }) => {
-            println!("Allowing directory: {}", directory.display());
+            let dir_manager = DirectoryManager::new();
+            let abs_dir = if directory.is_absolute() {
+                directory
+            } else {
+                env::current_dir()?.join(directory)
+            };
+            match dir_manager.allow_directory(&abs_dir) {
+                Ok(()) => println!("✓ Allowed directory: {}", abs_dir.display()),
+                Err(e) => return Err(e),
+            }
         }
         Some(Commands::Deny { directory }) => {
-            println!("Denying directory: {}", directory.display());
+            let dir_manager = DirectoryManager::new();
+            let abs_dir = if directory.is_absolute() {
+                directory
+            } else {
+                env::current_dir()?.join(directory)
+            };
+            match dir_manager.deny_directory(&abs_dir) {
+                Ok(()) => println!("✓ Denied directory: {}", abs_dir.display()),
+                Err(e) => return Err(e),
+            }
         }
         Some(Commands::Run {
             environment,

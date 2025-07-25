@@ -14,6 +14,7 @@ use crate::platform::{PlatformOps, Shell};
 use crate::secrets::SecretManager;
 use crate::types::{CommandArguments, EnvironmentVariables};
 use async_trait::async_trait;
+use tokio::runtime::Runtime;
 
 // Import the platform-specific implementation
 #[cfg(unix)]
@@ -113,6 +114,43 @@ impl EnvManager {
     }
 
     pub fn unload_env(&self) -> Result<()> {
+        // Execute onExit hooks before unloading environment
+        let exit_hooks: Vec<_> = self
+            .hooks
+            .iter()
+            .filter(|(_, config)| config.hook_type == HookType::OnExit)
+            .collect();
+
+        if !exit_hooks.is_empty() {
+            log::info!("Executing {} onExit hooks", exit_hooks.len());
+            let rt = Runtime::new()
+                .map_err(|e| Error::configuration(format!("Failed to create runtime: {e}")))?;
+
+            // Create command executor and hook manager
+            let executor = Arc::new(crate::command_executor::SystemCommandExecutor);
+            let hook_manager = match HookManager::new(executor) {
+                Ok(hm) => hm,
+                Err(e) => {
+                    log::error!("Failed to create hook manager: {e}");
+                    return Err(Error::configuration(format!(
+                        "Failed to create hook manager: {e}"
+                    )));
+                }
+            };
+
+            // Get current environment variables for hook execution
+            let current_env_vars: HashMap<String, String> = env::vars().collect();
+
+            for (name, config) in exit_hooks {
+                log::debug!("Executing onExit hook: {name}");
+                match rt.block_on(hook_manager.execute_hook(config, &current_env_vars)) {
+                    Ok(_) => log::info!("Successfully executed onExit hook: {name}"),
+                    Err(e) => log::error!("Failed to execute onExit hook {name}: {e}"),
+                }
+            }
+        }
+
+        // Restore original environment
         let current_env: Vec<(String, String)> = env::vars().collect();
 
         for (key, _) in current_env {

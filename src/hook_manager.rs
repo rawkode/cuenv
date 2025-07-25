@@ -106,11 +106,13 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
             .map_err(|e| anyhow!("Hook execution failed: {}", e))?;
 
         if !output.stdout.is_empty() {
-            log::debug!("Hook stdout: {}", String::from_utf8_lossy(&output.stdout));
+            // Print hook output to stdout so users can see it
+            print!("{}", String::from_utf8_lossy(&output.stdout));
         }
 
         if !output.stderr.is_empty() {
-            log::debug!("Hook stderr: {}", String::from_utf8_lossy(&output.stderr));
+            // Print hook stderr to stderr
+            eprint!("{}", String::from_utf8_lossy(&output.stderr));
         }
 
         Ok(())
@@ -138,17 +140,13 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
             .map_err(|e| anyhow!("Remote hook execution failed: {}", e))?;
 
         if !output.stdout.is_empty() {
-            log::debug!(
-                "Remote hook stdout: {}",
-                String::from_utf8_lossy(&output.stdout)
-            );
+            // Print hook output to stdout so users can see it
+            print!("{}", String::from_utf8_lossy(&output.stdout));
         }
 
         if !output.stderr.is_empty() {
-            log::debug!(
-                "Remote hook stderr: {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
+            // Print hook stderr to stderr
+            eprint!("{}", String::from_utf8_lossy(&output.stderr));
         }
 
         Ok(())
