@@ -12,7 +12,7 @@ impl Shell for TcshShell {
     }
 
     fn unset(&self, key: &str) -> String {
-        format!("unsetenv {}", key)
+        format!("unsetenv {key}")
     }
 
     fn escape(&self, s: &str) -> String {

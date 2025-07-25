@@ -281,8 +281,7 @@
         }
       ) // {
       # Home Manager module
-      homeManagerModules.default = self.homeManagerModules.cuenv;
-      homeManagerModules.cuenv = { config, lib, pkgs, ... }:
+      homeManagerModules.default = { config, lib, pkgs, ... }:
         with lib;
         let
           cfg = config.programs.cuenv;

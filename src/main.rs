@@ -359,7 +359,7 @@ fn main() -> Result<()> {
                     }
                 }
                 StateManager::unload()
-                    .map_err(|e| Error::configuration(format!("Failed to unload state: {}", e)))?;
+                    .map_err(|e| Error::configuration(format!("Failed to unload state: {e}")))?;
             } else if current_dir.join("env.cue").exists() {
                 // Check if directory is allowed
                 let dir_manager = DirectoryManager::new();
@@ -372,7 +372,7 @@ fn main() -> Result<()> {
                         // Need to load/reload
                         let mut env_manager = EnvManager::new();
                         if let Err(e) = env_manager.load_env(&current_dir) {
-                            eprintln!("# cuenv: failed to load environment: {}", e);
+                            eprintln!("# cuenv: failed to load environment: {e}");
                         } else {
                             // Output export commands
                             if let Ok(Some(diff)) = StateManager::get_diff() {
@@ -439,7 +439,7 @@ fn main() -> Result<()> {
             // For now, just unload if there's state
             if StateManager::is_loaded() {
                 StateManager::unload()
-                    .map_err(|e| Error::configuration(format!("Failed to unload state: {}", e)))?;
+                    .map_err(|e| Error::configuration(format!("Failed to unload state: {e}")))?;
                 println!("Pruned cuenv state");
             } else {
                 println!("No cuenv state to prune");

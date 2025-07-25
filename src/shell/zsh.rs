@@ -21,7 +21,7 @@ fi"#
     }
 
     fn unset(&self, key: &str) -> String {
-        format!("unset {}", key)
+        format!("unset {key}")
     }
 
     fn escape(&self, s: &str) -> String {

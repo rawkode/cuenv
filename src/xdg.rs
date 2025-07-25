@@ -72,7 +72,7 @@ impl XdgPaths {
         cue_file.hash(&mut hasher);
         let hash = hasher.finish();
 
-        Self::cache_dir().join(format!("{:x}.json", hash))
+        Self::cache_dir().join(format!("{hash:x}.json"))
     }
 }
 

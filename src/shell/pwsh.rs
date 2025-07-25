@@ -17,10 +17,7 @@ function global:prompt {
     }
 
     fn unset(&self, key: &str) -> String {
-        format!(
-            r#"Remove-Item -Path Env:\{} -ErrorAction SilentlyContinue"#,
-            key
-        )
+        format!(r#"Remove-Item -Path Env:\{key} -ErrorAction SilentlyContinue"#)
     }
 
     fn escape(&self, s: &str) -> String {

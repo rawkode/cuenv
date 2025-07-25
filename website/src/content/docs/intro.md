@@ -95,16 +95,16 @@ Behind the scenes:
 
 Both tools have their strengths:
 
-| Feature               | cuenv               | direnv             |
-| --------------------- | ------------------- | ------------------ |
-| **Config Language**   | CUE (purpose-built) | Shell (flexible)   |
-| **Type Validation**   | Built-in            | Script it yourself |
-| **Secret Management** | Native integration  | Custom scripts     |
+| Feature               | cuenv                 | direnv             |
+| --------------------- | --------------------- | ------------------ |
+| **Config Language**   | CUE (purpose-built)   | Shell (flexible)   |
+| **Type Validation**   | Built-in              | Script it yourself |
+| **Secret Management** | Native integration    | Custom scripts     |
 | **Approval Method**   | `cuenv allow` command | File path          |
-| **Performance**       | Env var state       | File-based         |
-| **File Watching**     | Automatic           | `watch_file`       |
-| **Extensibility**     | Tasks, workflows    | Shell commands     |
-| **Platform Support**  | Cross-platform      | Unix-focused       |
+| **Performance**       | Env var state         | File-based         |
+| **File Watching**     | Automatic             | `watch_file`       |
+| **Extensibility**     | Tasks, workflows      | Shell commands     |
+| **Platform Support**  | Cross-platform        | Unix-focused       |
 
 ## Who Should Use cuenv?
 

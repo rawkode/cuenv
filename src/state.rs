@@ -23,19 +23,30 @@ pub struct CuenvState {
 pub struct StateManager;
 
 impl StateManager {
+    /// Get the environment variable name with optional prefix
+    pub(crate) fn env_var_name(base: &str) -> String {
+        if let Ok(prefix) = env::var("CUENV_PREFIX") {
+            format!("{prefix}_{base}")
+        } else {
+            base.to_string()
+        }
+    }
+
     /// Check if an environment is currently loaded
     pub fn is_loaded() -> bool {
-        env::var("CUENV_DIR").is_ok()
+        env::var(Self::env_var_name("CUENV_DIR")).is_ok()
     }
 
     /// Get the currently loaded directory
     pub fn current_dir() -> Option<PathBuf> {
-        env::var("CUENV_DIR").ok().and_then(|dir| {
-            // Remove the leading '-' that direnv uses
-            dir.strip_prefix('-')
-                .map(|s| PathBuf::from(s))
-                .or_else(|| Some(PathBuf::from(dir)))
-        })
+        env::var(Self::env_var_name("CUENV_DIR"))
+            .ok()
+            .and_then(|dir| {
+                // Remove the leading '-' that direnv uses
+                dir.strip_prefix('-')
+                    .map(PathBuf::from)
+                    .or_else(|| Some(PathBuf::from(dir)))
+            })
     }
 
     /// Load state for a directory
@@ -48,18 +59,21 @@ impl StateManager {
         watches: &FileTimes,
     ) -> Result<()> {
         // Set CUENV_DIR with leading '-' like direnv
-        env::set_var("CUENV_DIR", format!("-{}", dir.display()));
+        env::set_var(
+            Self::env_var_name("CUENV_DIR"),
+            format!("-{}", dir.display()),
+        );
 
         // Set CUENV_FILE
-        env::set_var("CUENV_FILE", file.display().to_string());
+        env::set_var(Self::env_var_name("CUENV_FILE"), file.display().to_string());
 
         // Set CUENV_DIFF
         let diff_encoded = gzenv::encode(diff).context("Failed to encode environment diff")?;
-        env::set_var("CUENV_DIFF", diff_encoded);
+        env::set_var(Self::env_var_name("CUENV_DIFF"), diff_encoded);
 
         // Set CUENV_WATCHES
         let watches_encoded = gzenv::encode(watches).context("Failed to encode file watches")?;
-        env::set_var("CUENV_WATCHES", watches_encoded);
+        env::set_var(Self::env_var_name("CUENV_WATCHES"), watches_encoded);
 
         // Store additional state
         let state = CuenvState {
@@ -70,7 +84,7 @@ impl StateManager {
         };
 
         let state_encoded = gzenv::encode(&state).context("Failed to encode state")?;
-        env::set_var("CUENV_STATE", state_encoded);
+        env::set_var(Self::env_var_name("CUENV_STATE"), state_encoded);
 
         Ok(())
     }
@@ -78,7 +92,7 @@ impl StateManager {
     /// Unload the current environment
     pub fn unload() -> Result<()> {
         // Get the diff to revert changes
-        if let Ok(diff_encoded) = env::var("CUENV_DIFF") {
+        if let Ok(diff_encoded) = env::var(Self::env_var_name("CUENV_DIFF")) {
             if let Ok(diff) = gzenv::decode::<EnvDiff>(&diff_encoded) {
                 // Apply the reverse diff to restore original environment
                 diff.reverse().apply();
@@ -86,18 +100,18 @@ impl StateManager {
         }
 
         // Remove cuenv state variables
-        env::remove_var("CUENV_DIR");
-        env::remove_var("CUENV_FILE");
-        env::remove_var("CUENV_DIFF");
-        env::remove_var("CUENV_WATCHES");
-        env::remove_var("CUENV_STATE");
+        env::remove_var(Self::env_var_name("CUENV_DIR"));
+        env::remove_var(Self::env_var_name("CUENV_FILE"));
+        env::remove_var(Self::env_var_name("CUENV_DIFF"));
+        env::remove_var(Self::env_var_name("CUENV_WATCHES"));
+        env::remove_var(Self::env_var_name("CUENV_STATE"));
 
         Ok(())
     }
 
     /// Get the current state
     pub fn get_state() -> Result<Option<CuenvState>> {
-        match env::var("CUENV_STATE") {
+        match env::var(Self::env_var_name("CUENV_STATE")) {
             Ok(encoded) => {
                 let state = gzenv::decode(&encoded).context("Failed to decode state")?;
                 Ok(Some(state))
@@ -108,7 +122,7 @@ impl StateManager {
 
     /// Get the environment diff
     pub fn get_diff() -> Result<Option<EnvDiff>> {
-        match env::var("CUENV_DIFF") {
+        match env::var(Self::env_var_name("CUENV_DIFF")) {
             Ok(encoded) => {
                 let diff = gzenv::decode(&encoded).context("Failed to decode diff")?;
                 Ok(Some(diff))
@@ -119,7 +133,7 @@ impl StateManager {
 
     /// Get the file watches
     pub fn get_watches() -> Result<Option<FileTimes>> {
-        match env::var("CUENV_WATCHES") {
+        match env::var(Self::env_var_name("CUENV_WATCHES")) {
             Ok(encoded) => {
                 let watches = gzenv::decode(&encoded).context("Failed to decode watches")?;
                 Ok(Some(watches))
@@ -165,12 +179,15 @@ mod tests {
 
     #[test]
     fn test_state_management() {
+        // Use a unique prefix for this test
+        env::set_var("CUENV_PREFIX", "TEST_STATE_MGMT");
+
         // Clean environment - remove any cuenv state variables
-        env::remove_var("CUENV_DIR");
-        env::remove_var("CUENV_FILE");
-        env::remove_var("CUENV_DIFF");
-        env::remove_var("CUENV_WATCHES");
-        env::remove_var("CUENV_STATE");
+        env::remove_var(StateManager::env_var_name("CUENV_DIR"));
+        env::remove_var(StateManager::env_var_name("CUENV_FILE"));
+        env::remove_var(StateManager::env_var_name("CUENV_DIFF"));
+        env::remove_var(StateManager::env_var_name("CUENV_WATCHES"));
+        env::remove_var(StateManager::env_var_name("CUENV_STATE"));
 
         let temp_dir = TempDir::new().unwrap();
         let dir = temp_dir.path();
@@ -219,10 +236,16 @@ mod tests {
         // Unload
         StateManager::unload().unwrap();
         assert!(!StateManager::is_loaded());
+
+        // Clean up prefix
+        env::remove_var("CUENV_PREFIX");
     }
 
     #[test]
     fn test_should_load_unload() {
+        // Use a unique prefix for this test
+        env::set_var("CUENV_PREFIX", "TEST_SHOULD_LOAD");
+
         let temp_dir = TempDir::new().unwrap();
         let temp_dir2 = TempDir::new().unwrap();
         let root = temp_dir.path();
@@ -230,11 +253,11 @@ mod tests {
         let other = temp_dir2.path(); // Use a completely different temp directory
 
         // Clean state
-        env::remove_var("CUENV_DIR");
-        env::remove_var("CUENV_FILE");
-        env::remove_var("CUENV_DIFF");
-        env::remove_var("CUENV_WATCHES");
-        env::remove_var("CUENV_STATE");
+        env::remove_var(StateManager::env_var_name("CUENV_DIR"));
+        env::remove_var(StateManager::env_var_name("CUENV_FILE"));
+        env::remove_var(StateManager::env_var_name("CUENV_DIFF"));
+        env::remove_var(StateManager::env_var_name("CUENV_WATCHES"));
+        env::remove_var(StateManager::env_var_name("CUENV_STATE"));
 
         // Create subdirectory
         fs::create_dir_all(&subdir).unwrap();
@@ -243,7 +266,10 @@ mod tests {
         assert!(StateManager::should_load(root));
 
         // Simulate loading root
-        env::set_var("CUENV_DIR", format!("-{}", root.display()));
+        env::set_var(
+            StateManager::env_var_name("CUENV_DIR"),
+            format!("-{}", root.display()),
+        );
 
         // Should not reload same directory
         assert!(!StateManager::should_load(root));
@@ -258,6 +284,7 @@ mod tests {
         assert!(StateManager::should_unload(&other));
 
         // Clean up
-        env::remove_var("CUENV_DIR");
+        env::remove_var(StateManager::env_var_name("CUENV_DIR"));
+        env::remove_var("CUENV_PREFIX");
     }
 }
