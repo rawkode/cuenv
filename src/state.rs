@@ -176,11 +176,17 @@ mod tests {
     use serial_test::serial;
     use std::collections::HashMap;
     use std::fs;
+    use std::sync::Mutex;
     use tempfile::TempDir;
+
+    // Mutex to ensure state tests don't interfere with each other
+    static STATE_TEST_MUTEX: Mutex<()> = Mutex::new(());
 
     #[test]
     #[serial]
     fn test_state_management() {
+        let _lock = STATE_TEST_MUTEX.lock().unwrap();
+        
         // Use a unique prefix for this test with thread ID to avoid race conditions
         let thread_id = std::thread::current().id();
         let test_prefix = format!("TEST_STATE_MGMT_{:?}", thread_id);
@@ -278,6 +284,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_should_load_unload() {
+        let _lock = STATE_TEST_MUTEX.lock().unwrap();
+        
         // Use a unique prefix for this test with thread ID to avoid race conditions
         let thread_id = std::thread::current().id();
         let test_prefix = format!("TEST_SHOULD_LOAD_{:?}", thread_id);
