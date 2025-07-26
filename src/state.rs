@@ -230,11 +230,25 @@ mod tests {
         );
 
         assert!(StateManager::is_loaded());
-        assert_eq!(StateManager::current_dir(), Some(dir.to_path_buf()));
+
+        // Compare canonical paths to handle symlinks and path resolution differences
+        let current_dir = StateManager::current_dir().unwrap();
+        let expected_dir = dir.to_path_buf();
+
+        // In build environments, paths might be resolved differently, so compare canonical forms
+        let current_canonical = current_dir.canonicalize().unwrap_or(current_dir);
+        let expected_canonical = expected_dir.canonicalize().unwrap_or(expected_dir);
+
+        assert_eq!(current_canonical, expected_canonical);
 
         // Get state
         let state = StateManager::get_state().unwrap().unwrap();
-        assert_eq!(state.dir, dir);
+
+        // Compare canonical paths to handle symlinks and path resolution differences
+        let state_dir_canonical = state.dir.canonicalize().unwrap_or(state.dir.clone());
+        let expected_dir_canonical = dir.canonicalize().unwrap_or(dir.to_path_buf());
+        assert_eq!(state_dir_canonical, expected_dir_canonical);
+
         assert_eq!(state.file, file);
         assert_eq!(state.environment, Some("dev".to_string()));
         assert_eq!(state.capabilities, vec!["cap1".to_string()]);
