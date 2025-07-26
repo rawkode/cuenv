@@ -221,72 +221,77 @@ cuenv run bash -- -c 'echo "PARENT_VAR=$PARENT_VAR"'  # Will print: PARENT_VAR=
 
 ### Access Restrictions
 
-You can restrict disk, process, and network access when running commands using Landlock (Linux Security Module):
+You can configure disk and network access restrictions for tasks using the `security` section in your CUE task definitions. This uses Landlock (Linux Security Module) for enforcement:
 
+```cue
+tasks: {
+  "secure-build": {
+    description: "Build the project with restricted filesystem access"
+    command:     "echo 'Building project securely...' && sleep 1 && echo 'Build complete!'"
+    security: {
+      restrictDisk: true
+      readOnlyPaths: ["/usr", "/lib", "/bin"]
+      readWritePaths: ["/tmp", "./build"]
+    }
+  }
+  "network-task": {
+    description: "Task that needs network access but with restrictions"
+    command:     "echo 'Downloading dependencies...' && curl --version"
+    security: {
+      restrictNetwork: true
+      allowedHosts: ["api.example.com", "registry.npmjs.org"]
+    }
+  }
+  "fully-restricted": {
+    description: "Task with both disk and network restrictions"
+    command:     "echo 'Running in secure sandbox'"
+    security: {
+      restrictDisk: true
+      restrictNetwork: true
+      readOnlyPaths: ["/usr/bin", "/bin"]
+      readWritePaths: ["/tmp"]
+      allowedHosts: ["localhost"]
+    }
+  }
+  "unrestricted": {
+    description: "Task without security restrictions"
+    command:     "echo 'Running without restrictions' && ls -la /"
+  }
+}
+```
+
+**Running tasks with security restrictions:**
 ```bash
-# Restrict filesystem access with explicit allowlists
-cuenv exec --restrict-disk \
-  --read-only /bin --read-only /usr/bin --read-only /lib --read-only /usr/lib \
-  --read-write /tmp \
-  find /tmp -name "*.txt"
+# Run a task with disk restrictions
+cuenv run secure-build
 
-# Allow access to specific paths only
-cuenv exec --restrict-disk \
-  --read-only /usr/bin --read-only /lib --read-only /usr/lib \
-  --read-only /home/user/project \
-  --read-write /home/user/project/output \
-  ./build.sh
+# Run a task with network restrictions  
+cuenv run network-task
 
-# Restrict network access (limited Landlock support)
-cuenv exec --restrict-network python3 script.py  # Will show informative error
-
-# Restrict process spawning (not supported by Landlock)
-cuenv exec --restrict-process bash -c 'echo "Process restrictions need other tools"'
-
-# Filesystem restrictions work by explicitly allowing paths
-cuenv run --restrict-disk \
-  --read-only /bin --read-only /usr/bin --read-only /lib --read-only /usr/lib \
-  --read-only /etc --read-write /tmp \
-  build-task
+# Run a fully restricted task
+cuenv run fully-restricted
 ```
 
 **Landlock Requirements:**
 - Linux kernel 5.13+ (for filesystem restrictions)
-- Linux kernel 5.19+ (for network restrictions - not yet implemented)
+- Linux kernel 5.19+ (for network restrictions - basic support)
 - Appropriate permissions to use Landlock LSM
 
-**Security Model:** When `--restrict-disk` is used, you must explicitly allow all paths your command needs access to. This includes:
+**Security Configuration Options:**
+- `restrictDisk`: Enable filesystem access restrictions
+- `restrictNetwork`: Enable network access restrictions  
+- `readOnlyPaths`: Array of paths allowed for reading
+- `readWritePaths`: Array of paths allowed for reading and writing
+- `denyPaths`: Array of paths explicitly denied (overrides allow lists)
+- `allowedHosts`: Array of network hosts/CIDRs allowed for connections
+
+**Security Model:** When disk restrictions are enabled, you must explicitly allow all paths your task needs access to. This includes:
 - Executable paths (`/bin`, `/usr/bin`)
 - Library paths (`/lib`, `/usr/lib`, `/lib64`, `/usr/lib64`) 
 - Configuration paths (`/etc` if needed)
 - Working directories and output paths
 
-**Common Usage Patterns:**
-```bash
-# Basic command execution with minimal system access
-cuenv exec --restrict-disk \
-  --read-only /bin --read-only /usr/bin \
-  --read-only /lib --read-only /usr/lib --read-only /lib64 --read-only /usr/lib64 \
-  --read-write /tmp \
-  echo "Hello, restricted world!"
-
-# Development environment with project access
-cuenv exec --restrict-disk \
-  --read-only /bin --read-only /usr/bin \
-  --read-only /lib --read-only /usr/lib --read-only /lib64 --read-only /usr/lib64 \
-  --read-only /etc \
-  --read-only "$(pwd)" \
-  --read-write "$(pwd)/target" --read-write /tmp \
-  cargo build
-
-# Secure script execution
-cuenv exec --restrict-disk \
-  --read-only /bin --read-only /usr/bin \
-  --read-only /lib --read-only /usr/lib \
-  --read-only /home/user/scripts \
-  --read-write /home/user/data \
-  python3 /home/user/scripts/process_data.py
-```
+**Note:** Network restrictions are currently limited by Landlock V2 capabilities. The implementation will be enhanced in future versions to provide more granular network access control.
 
 **Note:** Network and process restrictions are not yet fully implemented with Landlock. Use system-level controls or container runtimes for those restrictions.
 
