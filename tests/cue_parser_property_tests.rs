@@ -87,7 +87,7 @@ fn cue_with_environments(
     if !environments.is_empty() {
         content.push_str("\n    environment: {\n");
         for (env_name, vars) in environments {
-            content.push_str(&format!("        {}: {{\n", env_name));
+            content.push_str(&format!("        {env_name}: {{\n"));
             for (key, value) in vars {
                 content.push_str(&format!(
                     "            {}: \"{}\"\n",
@@ -217,14 +217,14 @@ proptest! {
         } else {
             // Filter active - variables without capabilities + variables with matching capabilities
             let expected_count = unique_vars.iter()
-                .filter(|(_, _, cap)| cap.is_none() || all_capabilities.contains(&cap.as_ref().unwrap()))
+                .filter(|(_, _, cap)| cap.is_none() || all_capabilities.contains(cap.as_ref().unwrap()))
                 .count();
 
             prop_assert_eq!(result.variables.len(), expected_count);
 
             // Check that appropriate variables were parsed
             for (key, value, cap) in &unique_vars {
-                if cap.is_none() || all_capabilities.contains(&cap.as_ref().unwrap()) {
+                if cap.is_none() || all_capabilities.contains(cap.as_ref().unwrap()) {
                     prop_assert_eq!(
                         result.variables.get(key).map(|s| s.as_str()),
                         Some(value.as_str())
@@ -431,7 +431,7 @@ proptest! {
             .replace('\n', "\\n")
             .replace('\t', "\\t");
 
-        let content = format!("package env\n\nenv: {{\n    {}: \"{}\"\n}}\n", key, escaped_value);
+        let content = format!("package env\n\nenv: {{\n    {key}: \"{escaped_value}\"\n}}\n");
         fs::write(&cue_file, content).unwrap();
 
         let options = ParseOptions::default();
@@ -480,10 +480,10 @@ proptest! {
         }
 
         // Write environment with overrides
-        content.push_str(&format!("\n    environment: {{\n        {}: {{\n", env_name));
+        content.push_str(&format!("\n    environment: {{\n        {env_name}: {{\n"));
         for &idx in &valid_indices {
             let key = &base_keys[idx];
-            content.push_str(&format!("            {}: \"OVERRIDDEN_{}\"\n", key, key));
+            content.push_str(&format!("            {key}: \"OVERRIDDEN_{key}\"\n"));
         }
         content.push_str("        }\n    }\n}\n");
 
@@ -502,7 +502,7 @@ proptest! {
         // Check overrides
         for (key, base_value) in &base_vars {
             let expected_value = if valid_indices.iter().any(|&i| &base_keys[i] == key) {
-                format!("OVERRIDDEN_{}", key)
+                format!("OVERRIDDEN_{key}")
             } else {
                 base_value.clone()
             };

@@ -1,3 +1,4 @@
+use crate::constants::ENV_PACKAGE_NAME;
 use crate::errors::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -51,6 +52,26 @@ pub struct TaskConfig {
     pub shell: Option<String>,
     pub inputs: Option<Vec<String>>,
     pub outputs: Option<Vec<String>>,
+    pub security: Option<SecurityConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityConfig {
+    #[serde(rename = "restrictDisk")]
+    pub restrict_disk: Option<bool>,
+    #[serde(rename = "restrictNetwork")]
+    pub restrict_network: Option<bool>,
+    #[serde(rename = "readOnlyPaths")]
+    pub read_only_paths: Option<Vec<String>>,
+    #[serde(rename = "readWritePaths")]
+    pub read_write_paths: Option<Vec<String>>,
+    #[serde(rename = "denyPaths")]
+    pub deny_paths: Option<Vec<String>>,
+    #[serde(rename = "allowedHosts")]
+    pub allowed_hosts: Option<Vec<String>>,
+    /// Automatically infer disk restrictions from task inputs/outputs
+    #[serde(rename = "inferFromInputsOutputs")]
+    pub infer_from_inputs_outputs: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -126,7 +147,7 @@ impl CueParser {
         options: &ParseOptions,
     ) -> Result<ParseResult> {
         // Only allow loading the "env" package
-        if package_name != "env" {
+        if package_name != ENV_PACKAGE_NAME {
             return Err(Error::configuration(format!(
                 "Only 'env' package is supported, got '{package_name}'. Please ensure your .cue files use 'package env'"
             )));
@@ -349,8 +370,7 @@ mod tests {
         let err_msg = result.unwrap_err().to_string();
         assert!(
             err_msg.contains("Only 'env' package is supported"),
-            "Error message was: {}",
-            err_msg
+            "Error message was: {err_msg}"
         );
 
         // Test that env package is accepted

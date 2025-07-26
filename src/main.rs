@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use cuenv::constants::{CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR, ENV_CUE_FILENAME};
 use cuenv::errors::{Error, Result};
 use cuenv::platform::{PlatformOps, Shell};
 use cuenv::shell::ShellType;
@@ -66,6 +67,10 @@ enum Commands {
         /// Arguments to pass to the task (after --)
         #[arg(last = true)]
         task_args: Vec<String>,
+
+        /// Run in audit mode to see file and network access without restrictions
+        #[arg(long)]
+        audit: bool,
     },
     Exec {
         /// Environment to use (e.g., dev, staging, production)
@@ -81,6 +86,10 @@ enum Commands {
 
         /// Arguments to pass to the command
         args: Vec<String>,
+
+        /// Run in audit mode to see file and network access without restrictions
+        #[arg(long)]
+        audit: bool,
     },
     /// Generate shell hook
     Hook {
@@ -128,12 +137,12 @@ fn main() -> Result<()> {
             let mut env_manager = EnvManager::new();
 
             // Use environment variables as fallback if CLI args not provided
-            let env_name = environment.or_else(|| env::var("CUENV_ENV").ok());
+            let env_name = environment.or_else(|| env::var(CUENV_ENV_VAR).ok());
 
             let mut caps = capabilities;
             if caps.is_empty() {
                 // Check for CUENV_CAPABILITIES env var (comma-separated)
-                if let Ok(env_caps) = env::var("CUENV_CAPABILITIES") {
+                if let Ok(env_caps) = env::var(CUENV_CAPABILITIES_VAR) {
                     caps = env_caps
                         .split(',')
                         .map(|s| s.trim().to_string())
@@ -213,6 +222,7 @@ fn main() -> Result<()> {
             capabilities,
             task_name,
             task_args,
+            audit,
         }) => {
             let current_dir = match env::current_dir() {
                 Ok(d) => d,
@@ -227,12 +237,12 @@ fn main() -> Result<()> {
             let mut env_manager = EnvManager::new();
 
             // Use environment variables as fallback if CLI args not provided
-            let env_name = environment.or_else(|| env::var("CUENV_ENV").ok());
+            let env_name = environment.or_else(|| env::var(CUENV_ENV_VAR).ok());
 
             let mut caps = capabilities;
             if caps.is_empty() {
                 // Check for CUENV_CAPABILITIES env var (comma-separated)
-                if let Ok(env_caps) = env::var("CUENV_CAPABILITIES") {
+                if let Ok(env_caps) = env::var(CUENV_CAPABILITIES_VAR) {
                     caps = env_caps
                         .split(',')
                         .map(|s| s.trim().to_string())
@@ -246,14 +256,38 @@ fn main() -> Result<()> {
 
             match task_name {
                 Some(name) => {
-                    // Execute the specified task
-                    let executor = TaskExecutor::new(env_manager, current_dir);
-                    let rt = tokio::runtime::Runtime::new().map_err(|e| {
-                        Error::configuration(format!("Failed to create async runtime: {e}"))
-                    })?;
+                    // Check if this is a defined task first
+                    if env_manager.get_task(&name).is_some() {
+                        // Execute the specified task
+                        let executor = TaskExecutor::new(env_manager, current_dir);
+                        let rt = tokio::runtime::Runtime::new().map_err(|e| {
+                            Error::configuration(format!("Failed to create async runtime: {e}"))
+                        })?;
 
-                    let status = rt.block_on(executor.execute_task(&name, &task_args))?;
-                    std::process::exit(status);
+                        let status = if audit {
+                            rt.block_on(executor.execute_task_with_audit(&name, &task_args))?
+                        } else {
+                            rt.block_on(executor.execute_task(&name, &task_args))?
+                        };
+                        std::process::exit(status);
+                    } else {
+                        // Treat as direct command execution without restrictions
+                        // For restrictions, use task definitions with security config
+                        let mut args = vec![name];
+                        args.extend(task_args);
+
+                        // For direct command execution, use the first argument as command
+                        if args.is_empty() {
+                            return Err(Error::configuration("No command provided".to_string()));
+                        }
+
+                        let command = &args[0];
+                        let command_args = &args[1..];
+
+                        // Execute the command without restrictions for direct execution
+                        let status = env_manager.run_command(command, command_args)?;
+                        std::process::exit(status);
+                    }
                 }
                 None => {
                     // List available tasks
@@ -277,6 +311,7 @@ fn main() -> Result<()> {
             capabilities,
             command,
             args,
+            audit,
         }) => {
             let current_dir = match env::current_dir() {
                 Ok(d) => d,
@@ -291,12 +326,12 @@ fn main() -> Result<()> {
             let mut env_manager = EnvManager::new();
 
             // Use environment variables as fallback if CLI args not provided
-            let env_name = environment.or_else(|| env::var("CUENV_ENV").ok());
+            let env_name = environment.or_else(|| env::var(CUENV_ENV_VAR).ok());
 
             let mut caps = capabilities;
             if caps.is_empty() {
                 // Check for CUENV_CAPABILITIES env var (comma-separated)
-                if let Ok(env_caps) = env::var("CUENV_CAPABILITIES") {
+                if let Ok(env_caps) = env::var(CUENV_CAPABILITIES_VAR) {
                     caps = env_caps
                         .split(',')
                         .map(|s| s.trim().to_string())
@@ -309,10 +344,25 @@ fn main() -> Result<()> {
             env_manager.load_env_with_options(&current_dir, env_name, caps, Some(&command))?;
 
             // Execute the command with the loaded environment
-            let status = env_manager.run_command(&command, &args)?;
+            if audit {
+                // For exec audit mode, create a temporary restriction object
+                use cuenv::access_restrictions::AccessRestrictions;
+                let _restrictions = AccessRestrictions::default();
 
-            // Exit with the same status code as the child process
-            std::process::exit(status);
+                // Use the env_manager's run_command but with audit monitoring
+                println!("🔍 Running command in audit mode...");
+
+                // Create a simple audit by running the command and capturing output
+                // For a more comprehensive audit, we'd need to integrate strace monitoring
+                // into the env_manager's run_command method
+                println!("⚠️  Basic audit mode - run with task definition for full system call monitoring");
+                let status = env_manager.run_command(&command, &args)?;
+                std::process::exit(status);
+            } else {
+                // Execute without restrictions for direct exec
+                let status = env_manager.run_command(&command, &args)?;
+                std::process::exit(status);
+            }
         }
         Some(Commands::Hook { shell }) => {
             let shell_type = match shell {
@@ -360,7 +410,7 @@ fn main() -> Result<()> {
                 }
                 StateManager::unload()
                     .map_err(|e| Error::configuration(format!("Failed to unload state: {e}")))?;
-            } else if current_dir.join("env.cue").exists() {
+            } else if current_dir.join(ENV_CUE_FILENAME).exists() {
                 // Check if directory is allowed
                 let dir_manager = DirectoryManager::new();
                 if dir_manager

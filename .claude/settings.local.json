@@ -9,7 +9,9 @@
       "Bash(grep:*)",
       "Bash(ls:*)",
       "Bash(nix:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(RUST_LOG=info nix develop -c cargo run -- run --audit test-audit-mode -f test-filesystem-security.cue)",
+      "Bash(RUST_LOG=info nix develop -c cargo run -- run --audit test-audit-mode)"
     ],
     "deny": []
   },

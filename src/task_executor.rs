@@ -33,7 +33,13 @@ impl TaskExecutor {
 
     /// Execute a single task by name
     pub async fn execute_task(&self, task_name: &str, args: &[String]) -> Result<i32> {
-        self.execute_tasks_with_dependencies(&[task_name.to_string()], args)
+        self.execute_tasks_with_dependencies(&[task_name.to_string()], args, false)
+            .await
+    }
+
+    /// Execute a single task by name with audit mode
+    pub async fn execute_task_with_audit(&self, task_name: &str, args: &[String]) -> Result<i32> {
+        self.execute_tasks_with_dependencies(&[task_name.to_string()], args, true)
             .await
     }
 
@@ -42,6 +48,7 @@ impl TaskExecutor {
         &self,
         task_names: &[String],
         args: &[String],
+        audit_mode: bool,
     ) -> Result<i32> {
         // Build execution plan
         let plan = self.build_execution_plan(task_names)?;
@@ -60,7 +67,14 @@ impl TaskExecutor {
                 let task_name = task_name.clone();
 
                 join_set.spawn(async move {
-                    match Self::execute_single_task(&task_config, &working_dir, &task_args).await {
+                    match Self::execute_single_task(
+                        &task_config,
+                        &working_dir,
+                        &task_args,
+                        audit_mode,
+                    )
+                    .await
+                    {
                         Ok(status) => {
                             if status != 0 {
                                 failed_tasks
@@ -260,6 +274,7 @@ impl TaskExecutor {
         task_config: &TaskConfig,
         working_dir: &Path,
         args: &[String],
+        audit_mode: bool,
     ) -> Result<i32> {
         // Determine what to execute
         let (shell, script_content) = match (&task_config.command, &task_config.script) {
@@ -314,6 +329,24 @@ impl TaskExecutor {
             .stdin(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit());
+
+        // Apply security restrictions if configured
+        if let Some(security) = &task_config.security {
+            use crate::access_restrictions::AccessRestrictions;
+            let mut restrictions =
+                AccessRestrictions::from_security_config_with_task(security, task_config);
+
+            if audit_mode {
+                restrictions.enable_audit_mode();
+                println!("🔍 Running task in audit mode...");
+
+                let (exit_code, audit_report) = restrictions.run_with_audit(&mut cmd)?;
+                audit_report.print_summary();
+                return Ok(exit_code);
+            } else if restrictions.has_any_restrictions() {
+                restrictions.apply_to_command(&mut cmd)?;
+            }
+        }
 
         let output = cmd.output().map_err(|e| {
             Error::command_execution(

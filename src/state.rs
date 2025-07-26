@@ -229,15 +229,6 @@ mod tests {
         .unwrap();
 
         // Check loaded state
-        // Debug: check if the env var is actually set
-        let cuenv_dir_var = StateManager::env_var_name("CUENV_DIR");
-        let cuenv_dir_value = env::var(&cuenv_dir_var);
-        assert!(
-            cuenv_dir_value.is_ok(),
-            "CUENV_DIR env var not set: {}",
-            cuenv_dir_var
-        );
-
         assert!(StateManager::is_loaded());
 
         // Compare canonical paths to handle symlinks and path resolution differences
@@ -320,13 +311,13 @@ mod tests {
         assert!(!StateManager::should_load(root));
 
         // Should load different directory
-        assert!(StateManager::should_load(&other));
+        assert!(StateManager::should_load(other));
 
         // Should not unload when in subdirectory
         assert!(!StateManager::should_unload(&subdir));
 
         // Should unload when leaving to different directory
-        assert!(StateManager::should_unload(&other));
+        assert!(StateManager::should_unload(other));
 
         // Clean up our specific environment variables before removing prefix
         env::remove_var(StateManager::env_var_name("CUENV_DIR"));

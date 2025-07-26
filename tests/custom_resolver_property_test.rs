@@ -39,7 +39,7 @@ impl CommandExecutor for EchoExecutor {
             Err(Error::command_execution(
                 cmd,
                 args.clone().into_inner(),
-                format!("Unsupported command: {}", cmd),
+                format!("Unsupported command: {cmd}"),
                 None,
             ))
         }
@@ -119,7 +119,7 @@ proptest! {
     ) {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
-            let s = format!("{}{}{}", prefix, content, suffix);
+            let s = format!("{prefix}{content}{suffix}");
             test_echo_resolver_impl(&s).await
         }).unwrap();
     }
@@ -145,7 +145,7 @@ async fn test_echo_resolver_impl(test_string: &str) -> anyhow::Result<()> {
         "args": [test_string]
     });
 
-    let resolver_ref = format!("cuenv-resolver://{}", json_obj);
+    let resolver_ref = format!("cuenv-resolver://{json_obj}");
 
     let mut env_vars = HashMap::new();
     env_vars.insert("TEST_VAR".to_string(), resolver_ref.clone());
@@ -165,8 +165,7 @@ async fn test_echo_resolver_impl(test_string: &str) -> anyhow::Result<()> {
     let expected_value = test_string.trim();
     assert_eq!(
         resolved_value, expected_value,
-        "Echo resolver should return trimmed input. Input: {:?}, Expected (trimmed): {:?}, Got: {:?}",
-        test_string, expected_value, resolved_value
+        "Echo resolver should return trimmed input. Input: {test_string:?}, Expected (trimmed): {expected_value:?}, Got: {resolved_value:?}"
     );
 
     // Verify it's tracked as a secret (using the trimmed value)
@@ -193,7 +192,7 @@ async fn test_echo_resolver_multi_args_impl(args: Vec<String>) -> anyhow::Result
         "args": args
     });
 
-    let resolver_ref = format!("cuenv-resolver://{}", json_obj);
+    let resolver_ref = format!("cuenv-resolver://{json_obj}");
 
     let mut env_vars = HashMap::new();
     env_vars.insert("TEST_VAR".to_string(), resolver_ref);
@@ -211,8 +210,7 @@ async fn test_echo_resolver_multi_args_impl(args: Vec<String>) -> anyhow::Result
 
     assert_eq!(
         resolved_value, &expected,
-        "Echo resolver should join args with spaces and trim. Args: {:?}, Expected (trimmed): {:?}, Got: {:?}",
-        args, expected, resolved_value
+        "Echo resolver should join args with spaces and trim. Args: {args:?}, Expected (trimmed): {expected:?}, Got: {resolved_value:?}"
     );
 
     Ok(())
@@ -247,7 +245,7 @@ async fn test_dynamic_resolver_impl(
     #[async_trait]
     impl CommandExecutor for DynamicExecutor {
         async fn execute(&self, cmd: &str, args: &CommandArguments) -> Result<Output> {
-            if cmd == &self.command {
+            if cmd == self.command {
                 let input = args.as_slice().join(" ");
                 let output = match self.transform.as_str() {
                     "upper" => input.to_uppercase(),
@@ -266,7 +264,7 @@ async fn test_dynamic_resolver_impl(
                 Err(Error::command_execution(
                     cmd,
                     args.clone().into_inner(),
-                    format!("Unsupported command: {}", cmd),
+                    format!("Unsupported command: {cmd}"),
                     None,
                 ))
             }
@@ -296,7 +294,7 @@ async fn test_dynamic_resolver_impl(
         "args": args
     });
 
-    let resolver_ref = format!("cuenv-resolver://{}", json_obj);
+    let resolver_ref = format!("cuenv-resolver://{json_obj}");
 
     let mut env_vars = HashMap::new();
     env_vars.insert("TEST_VAR".to_string(), resolver_ref);
@@ -457,11 +455,8 @@ async fn test_resolver_concurrency() {
     let mut env_vars = HashMap::new();
     for i in 0..10 {
         env_vars.insert(
-            format!("SECRET_{}", i),
-            format!(
-                r#"cuenv-resolver://{{"cmd":"echo","args":["secret-{}"]}}"#,
-                i
-            ),
+            format!("SECRET_{i}"),
+            format!(r#"cuenv-resolver://{{"cmd":"echo","args":["secret-{i}"]}}"#),
         );
     }
 
@@ -474,12 +469,12 @@ async fn test_resolver_concurrency() {
     assert_eq!(resolved.env_vars.len(), 10);
     for i in 0..10 {
         assert_eq!(
-            resolved.env_vars.get(&format!("SECRET_{}", i)).unwrap(),
-            &format!("secret-{}", i)
+            resolved.env_vars.get(&format!("SECRET_{i}")).unwrap(),
+            &format!("secret-{i}")
         );
     }
 
     // Verify concurrency was limited
     let max = max_concurrent.load(Ordering::SeqCst);
-    assert!(max <= 3, "Max concurrent executions {} should be <= 3", max);
+    assert!(max <= 3, "Max concurrent executions {max} should be <= 3");
 }

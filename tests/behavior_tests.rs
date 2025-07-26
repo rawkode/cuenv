@@ -54,7 +54,7 @@ LOG_LEVEL: "debug"
     let result = env_manager.load_env(temp_dir.path());
 
     // Then: The environment variables should be loaded correctly
-    assert!(result.is_ok(), "Failed to load environment: {:?}", result);
+    assert!(result.is_ok(), "Failed to load environment: {result:?}");
 
     // And: The variables should be set in the environment
     // Note: In real implementation, we'd check the loaded variables
@@ -137,7 +137,7 @@ environments: {
     );
 
     // Then: Loading should succeed
-    assert!(result.is_ok(), "Failed to load environment: {:?}", result);
+    assert!(result.is_ok(), "Failed to load environment: {result:?}");
 
     // Note: In real implementation, we'd verify the overrides
     // For now, we just verify no error occurred
@@ -180,7 +180,7 @@ REDIS_URL: {
     );
 
     // Then: Loading should succeed
-    assert!(result.is_ok(), "Failed to load environment: {:?}", result);
+    assert!(result.is_ok(), "Failed to load environment: {result:?}");
 
     // Note: In real implementation, we'd verify:
     // - BASE_URL is included (no capability required)
@@ -203,7 +203,7 @@ async fn should_handle_secret_resolution_failures_gracefully() {
                 // Simulate resolution failure by returning None
                 Ok(None)
             } else {
-                Ok(Some(format!("resolved-{}", reference)))
+                Ok(Some(format!("resolved-{reference}")))
             }
         }
     }
@@ -274,7 +274,7 @@ commands: {
         env_manager.load_env_with_options(temp_dir.path(), None, vec![], Some("db-migrate"));
 
     // Then: Loading should succeed
-    assert!(result.is_ok(), "Failed to load environment: {:?}", result);
+    assert!(result.is_ok(), "Failed to load environment: {result:?}");
 
     // Note: In real implementation, the command would receive:
     // - DATABASE_URL and APP_NAME in its environment
@@ -301,7 +301,7 @@ fn should_mask_secrets_in_command_output() {
     let mut filter = OutputFilter::new(&mut output, secrets);
 
     // When: Writing output containing secrets
-    write!(filter, "Connecting with password: super-secret-password\n").unwrap();
+    writeln!(filter, "Connecting with password: super-secret-password").unwrap();
     write!(filter, "Using API key: api-key-12345 for auth").unwrap();
 
     // Then: Secrets should be masked in the output
@@ -330,7 +330,7 @@ MY_VAR: "my-value"
     let result = env_manager.load_env(temp_dir.path());
 
     // Then: Loading should succeed
-    assert!(result.is_ok(), "Failed to load environment: {:?}", result);
+    assert!(result.is_ok(), "Failed to load environment: {result:?}");
 
     // Note: In real implementation, we'd verify:
     // - PATH is preserved from system environment

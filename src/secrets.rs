@@ -266,7 +266,7 @@ mod tests {
                     self.call_count.fetch_add(1, Ordering::SeqCst);
                     sleep(self.delay).await;
                     let suffix = reference.strip_prefix("cuenv-resolver://").unwrap();
-                    let secret = format!("secret-{}", suffix);
+                    let secret = format!("secret-{suffix}");
                     Ok(Some(secret))
                 } else {
                     Ok(None)
@@ -286,10 +286,7 @@ mod tests {
 
         let mut env_vars = EnvironmentVariables::new();
         for i in 0..20 {
-            env_vars.insert(
-                format!("SECRET_{}", i),
-                format!("cuenv-resolver://value-{}", i),
-            );
+            env_vars.insert(format!("SECRET_{i}"), format!("cuenv-resolver://value-{i}"));
         }
         env_vars.insert("NORMAL_VAR".to_string(), "plain-value".to_string());
 
@@ -310,8 +307,8 @@ mod tests {
 
         // Verify secret values
         for i in 0..20 {
-            let key = format!("SECRET_{}", i);
-            let expected = format!("secret-value-{}", i);
+            let key = format!("SECRET_{i}");
+            let expected = format!("secret-value-{i}");
             assert_eq!(resolved.env_vars.get(&key).unwrap(), &expected);
             assert!(resolved.secret_values.contains(&expected));
         }
@@ -328,8 +325,8 @@ mod tests {
         for i in 0..10 {
             test_executor.add_simple_response(
                 "echo",
-                &[format!("test-{}", i)],
-                &format!("result-{}", i),
+                &[format!("test-{i}")],
+                &format!("result-{i}"),
             );
         }
 
@@ -344,8 +341,8 @@ mod tests {
         let mut env_vars = EnvironmentVariables::new();
         for i in 0..10 {
             env_vars.insert(
-                format!("SECRET_{}", i),
-                format!(r#"cuenv-resolver://{{"cmd":"echo","args":["test-{}"]}}"#, i),
+                format!("SECRET_{i}"),
+                format!(r#"cuenv-resolver://{{"cmd":"echo","args":["test-{i}"]}}"#),
             );
         }
 
@@ -358,8 +355,8 @@ mod tests {
         // Verify the values
         for i in 0..10 {
             assert_eq!(
-                resolved.env_vars.get(&format!("SECRET_{}", i)).unwrap(),
-                &format!("result-{}", i)
+                resolved.env_vars.get(&format!("SECRET_{i}")).unwrap(),
+                &format!("result-{i}")
             );
         }
     }
@@ -378,11 +375,10 @@ mod tests {
                     if let Ok(idx) = idx_str.parse::<usize>() {
                         if self.fail_indices.contains(&idx) {
                             return Err(Error::configuration(format!(
-                                "Simulated failure for index {}",
-                                idx
+                                "Simulated failure for index {idx}"
                             )));
                         }
-                        return Ok(Some(format!("secret-{}", idx)));
+                        return Ok(Some(format!("secret-{idx}")));
                     }
                 }
                 Ok(None)
@@ -401,7 +397,7 @@ mod tests {
 
         let mut env_vars = EnvironmentVariables::new();
         for i in 0..20 {
-            env_vars.insert(format!("SECRET_{}", i), format!("cuenv-resolver://{}", i));
+            env_vars.insert(format!("SECRET_{i}"), format!("cuenv-resolver://{i}"));
         }
 
         let resolved = manager.resolve_secrets(env_vars).await.unwrap();
@@ -473,8 +469,8 @@ mod tests {
         let mut env_vars = EnvironmentVariables::new();
         for i in 0..5 {
             env_vars.insert(
-                format!("SECRET_{}", i),
-                format!(r#"cuenv-resolver://{{"cmd":"echo","args":["test"]}}"#),
+                format!("SECRET_{i}"),
+                r#"cuenv-resolver://{"cmd":"echo","args":["test"]}"#.to_string(),
             );
         }
 
@@ -496,7 +492,7 @@ mod tests {
             };
 
             let json = serde_json::to_string(&config).unwrap();
-            let reference = format!("cuenv-resolver://{}", json);
+            let reference = format!("cuenv-resolver://{json}");
 
             let parsed = CommandResolver::parse_resolver_reference(&reference);
             prop_assert!(parsed.is_some());
@@ -541,10 +537,7 @@ mod tests {
 
         let mut env_vars = EnvironmentVariables::new();
         for i in 0..1000 {
-            env_vars.insert(
-                format!("SECRET_{}", i),
-                format!("cuenv-resolver://value-{}", i),
-            );
+            env_vars.insert(format!("SECRET_{i}"), format!("cuenv-resolver://value-{i}"));
         }
 
         let start = std::time::Instant::now();
@@ -613,8 +606,8 @@ mod tests {
         for i in 0..10 {
             test_executor.add_simple_response(
                 "slow-cmd",
-                &[format!("arg-{}", i)],
-                &format!("result-{}", i),
+                &[format!("arg-{i}")],
+                &format!("result-{i}"),
             );
         }
 
@@ -624,10 +617,8 @@ mod tests {
         // Create multiple secret references
         let mut tasks = Vec::new();
         for i in 0..10 {
-            let resolver_ref = format!(
-                r#"cuenv-resolver://{{"cmd":"slow-cmd","args":["arg-{}"]}}"#,
-                i
-            );
+            let resolver_ref =
+                format!(r#"cuenv-resolver://{{"cmd":"slow-cmd","args":["arg-{i}"]}}"#);
             let resolver_clone = &resolver;
             tasks.push(async move { resolver_clone.resolve(&resolver_ref).await });
         }
@@ -640,7 +631,7 @@ mod tests {
         // All should succeed
         for (i, result) in results.iter().enumerate() {
             assert!(result.is_ok());
-            assert_eq!(result.as_ref().unwrap(), &Some(format!("result-{}", i)));
+            assert_eq!(result.as_ref().unwrap(), &Some(format!("result-{i}")));
         }
     }
 }

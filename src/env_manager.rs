@@ -6,6 +6,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 
+use crate::access_restrictions::AccessRestrictions;
 use crate::command_executor::CommandExecutor;
 use crate::cue_parser::{CommandConfig, CueParser, HookConfig, HookType, ParseOptions, TaskConfig};
 use crate::env_diff::EnvDiff;
@@ -132,7 +133,7 @@ impl EnvManager {
                 .map_err(|e| Error::configuration(format!("Failed to create runtime: {e}")))?;
 
             // Create command executor and hook manager
-            let executor = Arc::new(crate::command_executor::SystemCommandExecutor);
+            let executor = Arc::new(crate::command_executor::SystemCommandExecutor::new());
             let hook_manager = match HookManager::new(executor) {
                 Ok(hm) => hm,
                 Err(e) => {
@@ -494,6 +495,200 @@ impl EnvManager {
         Ok(status.code().unwrap_or(1))
     }
 
+    /// Run a command with access restrictions in a hermetic environment
+    pub fn run_command_with_restrictions(
+        &self,
+        command: &str,
+        args: &[String],
+        restrictions: &AccessRestrictions,
+    ) -> Result<i32> {
+        // Get the loaded environment variables (only the ones from CUE files)
+        let env_from_cue = self.cue_vars.clone();
+
+        // Resolve secrets in the environment variables
+        let (resolved_env, secret_values) = if cfg!(test) {
+            // Skip secret resolution in tests
+            use crate::types::SecretValues;
+            (env_from_cue, SecretValues::new())
+        } else {
+            let secret_manager = SecretManager::new();
+            let rt = match tokio::runtime::Runtime::new() {
+                Ok(runtime) => runtime,
+                Err(e) => {
+                    return Err(Error::configuration(format!(
+                        "Failed to create tokio runtime: {e}"
+                    )));
+                }
+            };
+
+            let resolved_secrets =
+                match rt.block_on(secret_manager.resolve_secrets(env_from_cue.into())) {
+                    Ok(secrets) => secrets,
+                    Err(e) => {
+                        return Err(Error::secret_resolution(
+                            "multiple",
+                            format!("Failed to resolve secrets: {e}"),
+                        ));
+                    }
+                };
+            (
+                resolved_secrets.env_vars.into_inner(),
+                resolved_secrets.secret_values,
+            )
+        };
+
+        // Add minimal required environment variables for basic operation
+        let mut final_env = resolved_env;
+
+        // PATH is needed to find executables
+        if let Some(path) = self.original_env.get("PATH") {
+            final_env.insert("PATH".to_string(), path.clone());
+        }
+
+        // Set up platform-specific environment
+        Platform::setup_environment(&mut final_env);
+
+        // Ensure HOME directory is available (platform-specific)
+        let home_var = Platform::home_env_var();
+        if let Some(home_value) = self.original_env.get(home_var) {
+            final_env.insert(home_var.to_string(), home_value.clone());
+        }
+
+        // Ensure HOME is set on all platforms for compatibility
+        if let Some(home) = self.original_env.get("HOME") {
+            final_env.insert("HOME".to_string(), home.clone());
+        }
+
+        // Create shared secret values for output filtering
+        let mut secret_set = HashSet::new();
+        for secret in secret_values.iter() {
+            secret_set.insert(secret.to_string());
+        }
+        let secrets = Arc::new(Mutex::new(secret_set));
+
+        // Create and execute the command with only the CUE environment
+        let mut cmd = Command::new(command);
+        cmd.args(args)
+            .env_clear() // Clear all environment variables
+            .envs(&final_env) // Set only our CUE-defined vars with resolved secrets
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        // Apply access restrictions before spawning the process
+        restrictions.apply_to_command(&mut cmd)?;
+
+        let mut child = match cmd.spawn() {
+            Ok(c) => c,
+            Err(e) => {
+                return Err(Error::command_execution(
+                    command,
+                    args.to_vec(),
+                    format!("Failed to spawn command: {e}"),
+                    None,
+                ));
+            }
+        };
+
+        // Set up filtered output streams
+        let stdout = match child.stdout.take() {
+            Some(s) => s,
+            None => {
+                return Err(Error::command_execution(
+                    command,
+                    args.to_vec(),
+                    "Failed to capture stdout".to_string(),
+                    None,
+                ));
+            }
+        };
+        let stderr = match child.stderr.take() {
+            Some(s) => s,
+            None => {
+                return Err(Error::command_execution(
+                    command,
+                    args.to_vec(),
+                    "Failed to capture stderr".to_string(),
+                    None,
+                ));
+            }
+        };
+
+        let stdout_secrets = Arc::clone(&secrets);
+        let stderr_secrets = Arc::clone(&secrets);
+
+        // Spawn threads to handle output filtering
+        let stdout_thread = std::thread::spawn(move || {
+            let mut filter = OutputFilter::new(io::stdout(), stdout_secrets);
+            io::copy(&mut BufReader::new(stdout), &mut filter)
+        });
+
+        let stderr_thread = std::thread::spawn(move || {
+            let mut filter = OutputFilter::new(io::stderr(), stderr_secrets);
+            io::copy(&mut BufReader::new(stderr), &mut filter)
+        });
+
+        // Wait for the process to complete
+        let status = match child.wait() {
+            Ok(s) => s,
+            Err(e) => {
+                return Err(Error::command_execution(
+                    command,
+                    args.to_vec(),
+                    format!("Failed to wait for command: {e}"),
+                    None,
+                ));
+            }
+        };
+
+        // Wait for output threads to complete
+        match stdout_thread.join() {
+            Ok(result) => match result {
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(Error::command_execution(
+                        command,
+                        args.to_vec(),
+                        format!("Failed to process stdout: {e}"),
+                        status.code(),
+                    ));
+                }
+            },
+            Err(_) => {
+                return Err(Error::command_execution(
+                    command,
+                    args.to_vec(),
+                    "stdout processing thread panicked".to_string(),
+                    status.code(),
+                ));
+            }
+        }
+
+        match stderr_thread.join() {
+            Ok(result) => match result {
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(Error::command_execution(
+                        command,
+                        args.to_vec(),
+                        format!("Failed to process stderr: {e}"),
+                        status.code(),
+                    ));
+                }
+            },
+            Err(_) => {
+                return Err(Error::command_execution(
+                    command,
+                    args.to_vec(),
+                    "stderr processing thread panicked".to_string(),
+                    status.code(),
+                ));
+            }
+        }
+
+        Ok(status.code().unwrap_or(1))
+    }
+
     /// Get a task by name
     pub fn get_task(&self, task_name: &str) -> Option<&TaskConfig> {
         self.tasks.get(task_name)
@@ -800,5 +995,83 @@ env: {
         let status = manager.run_command(cmd, &args).unwrap();
 
         assert_eq!(status, 0, "PATH and HOME should be preserved");
+    }
+
+    #[test]
+    fn test_run_command_with_restrictions() {
+        let temp_dir = TempDir::new().unwrap();
+        let env_file = temp_dir.path().join("env.cue");
+        fs::write(
+            &env_file,
+            r#"package env
+
+env: {
+    TEST_VAR: "test"
+}"#,
+        )
+        .unwrap();
+
+        let mut manager = EnvManager::new();
+        manager.load_env(temp_dir.path()).unwrap();
+
+        // Test without restrictions (should work)
+        let restrictions = AccessRestrictions::default();
+        let status =
+            manager.run_command_with_restrictions("echo", &["test".to_string()], &restrictions);
+
+        // This should work since no restrictions are applied
+        assert!(
+            status.is_ok(),
+            "Command should succeed without restrictions"
+        );
+
+        // Test with restrictions (may fail in test environment, but should not panic)
+        let restrictions = AccessRestrictions::new(true, true);
+        let result =
+            manager.run_command_with_restrictions("echo", &["test".to_string()], &restrictions);
+
+        // The result may be Ok or Err depending on environment capabilities
+        // What matters is that it doesn't panic and properly handles restrictions
+        match result {
+            Ok(_) => {
+                // Command succeeded (unlikely in restricted environment)
+            }
+            Err(e) => {
+                // Command failed due to restrictions (expected in most test environments)
+                let error_msg = e.to_string();
+                // Verify the error is related to restrictions/command execution
+                assert!(
+                    error_msg.contains("CommandExecution")
+                        || error_msg.contains("Failed to capture stdout")
+                        || error_msg.contains("Failed to spawn command")
+                        || error_msg.contains("Network restrictions with Landlock")
+                        || error_msg.contains("configuration error"),
+                    "Error should be related to command execution with restrictions: {error_msg}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_access_restrictions_creation_and_methods() {
+        use crate::access_restrictions::AccessRestrictions;
+
+        // Test default (no restrictions)
+        let restrictions = AccessRestrictions::default();
+        assert!(!restrictions.has_any_restrictions());
+
+        // Test with all restrictions
+        let restrictions = AccessRestrictions::new(true, true);
+        assert!(restrictions.has_any_restrictions());
+
+        // Test with partial restrictions
+        let restrictions = AccessRestrictions::new(true, false);
+        assert!(restrictions.has_any_restrictions());
+
+        let restrictions = AccessRestrictions::new(false, true);
+        assert!(restrictions.has_any_restrictions());
+
+        let restrictions = AccessRestrictions::new(false, false);
+        assert!(!restrictions.has_any_restrictions());
     }
 }

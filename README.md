@@ -219,6 +219,86 @@ export PARENT_VAR=123
 cuenv run bash -- -c 'echo "PARENT_VAR=$PARENT_VAR"'  # Will print: PARENT_VAR=
 ```
 
+### Access Restrictions
+
+You can configure disk and network access restrictions for tasks using the `security` section in your CUE task definitions. This uses Landlock (Linux Security Module) for enforcement:
+
+```cue
+tasks: {
+  "secure-build": {
+    description: "Build the project with restricted filesystem access"
+    command:     "echo 'Building project securely...' && sleep 1 && echo 'Build complete!'"
+    security: {
+      restrictDisk: true
+      readOnlyPaths: ["/usr", "/lib", "/bin"]
+      readWritePaths: ["/tmp", "./build"]
+    }
+  }
+  "network-task": {
+    description: "Task that needs network access but with restrictions"
+    command:     "echo 'Downloading dependencies...' && curl --version"
+    security: {
+      restrictNetwork: true
+      allowedHosts: ["api.example.com", "registry.npmjs.org"]
+    }
+  }
+  "fully-restricted": {
+    description: "Task with both disk and network restrictions"
+    command:     "echo 'Running in secure sandbox'"
+    security: {
+      restrictDisk: true
+      restrictNetwork: true
+      readOnlyPaths: ["/usr/bin", "/bin"]
+      readWritePaths: ["/tmp"]
+      allowedHosts: ["localhost"]
+    }
+  }
+  "unrestricted": {
+    description: "Task without security restrictions"
+    command:     "echo 'Running without restrictions' && ls -la /"
+  }
+}
+```
+
+**Running tasks with security restrictions:**
+
+```bash
+# Run a task with disk restrictions
+cuenv run secure-build
+
+# Run a task with network restrictions
+cuenv run network-task
+
+# Run a fully restricted task
+cuenv run fully-restricted
+```
+
+**Landlock Requirements:**
+
+- Linux kernel 5.13+ (for filesystem restrictions)
+- Linux kernel 5.19+ (for network restrictions - basic support)
+- Appropriate permissions to use Landlock LSM
+
+**Security Configuration Options:**
+
+- `restrictDisk`: Enable filesystem access restrictions
+- `restrictNetwork`: Enable network access restrictions
+- `readOnlyPaths`: Array of paths allowed for reading
+- `readWritePaths`: Array of paths allowed for reading and writing
+- `denyPaths`: Array of paths explicitly denied (overrides allow lists)
+- `allowedHosts`: Array of network hosts/CIDRs allowed for connections
+
+**Security Model:** When disk restrictions are enabled, you must explicitly allow all paths your task needs access to. This includes:
+
+- Executable paths (`/bin`, `/usr/bin`)
+- Library paths (`/lib`, `/usr/lib`, `/lib64`, `/usr/lib64`)
+- Configuration paths (`/etc` if needed)
+- Working directories and output paths
+
+**Note:** Network restrictions are currently limited by Landlock V2 capabilities. The implementation will be enhanced in future versions to provide more granular network access control.
+
+**Note:** Network and process restrictions are not yet fully implemented with Landlock. Use system-level controls or container runtimes for those restrictions.
+
 ### Secret Resolution
 
 When using `cuenv run`, secret references in your CUE files are automatically resolved:

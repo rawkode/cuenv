@@ -41,7 +41,7 @@ impl CommandExecutor for OnePasswordTestExecutor {
                 _ => Ok(Output {
                     status: exit_status_from_code(1),
                     stdout: Vec::new(),
-                    stderr: format!("[ERROR] item \"{}\" not found\n", reference).into_bytes(),
+                    stderr: format!("[ERROR] item \"{reference}\" not found\n").into_bytes(),
                 }),
             }
         } else if cmd == "echo" {
@@ -55,7 +55,7 @@ impl CommandExecutor for OnePasswordTestExecutor {
             Err(Error::command_execution(
                 cmd,
                 args_slice.to_vec(),
-                format!("Unexpected command: {} {:?}", cmd, args_slice),
+                format!("Unexpected command: {cmd} {args_slice:?}"),
                 None,
             ))
         }

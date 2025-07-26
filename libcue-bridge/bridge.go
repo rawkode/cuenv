@@ -372,6 +372,61 @@ func extractCueData(v cue.Value) map[string]interface{} {
 				}
 			}
 
+			// Extract security configuration
+			if securityField := iter.Value().LookupPath(cue.ParsePath("security")); securityField.Exists() {
+				security := make(map[string]interface{})
+
+				// Extract restrictDisk
+				if rdField := securityField.LookupPath(cue.ParsePath("restrictDisk")); rdField.Exists() {
+					var restrictDisk bool
+					if err := rdField.Decode(&restrictDisk); err == nil {
+						security["restrictDisk"] = restrictDisk
+					}
+				}
+
+				// Extract restrictNetwork
+				if rnField := securityField.LookupPath(cue.ParsePath("restrictNetwork")); rnField.Exists() {
+					var restrictNetwork bool
+					if err := rnField.Decode(&restrictNetwork); err == nil {
+						security["restrictNetwork"] = restrictNetwork
+					}
+				}
+
+				// Extract readOnlyPaths
+				if roField := securityField.LookupPath(cue.ParsePath("readOnlyPaths")); roField.Exists() {
+					var readOnlyPaths []string
+					if err := roField.Decode(&readOnlyPaths); err == nil {
+						security["readOnlyPaths"] = readOnlyPaths
+					}
+				}
+
+				// Extract readWritePaths
+				if rwField := securityField.LookupPath(cue.ParsePath("readWritePaths")); rwField.Exists() {
+					var readWritePaths []string
+					if err := rwField.Decode(&readWritePaths); err == nil {
+						security["readWritePaths"] = readWritePaths
+					}
+				}
+
+				// Extract allowedHosts
+				if ahField := securityField.LookupPath(cue.ParsePath("allowedHosts")); ahField.Exists() {
+					var allowedHosts []string
+					if err := ahField.Decode(&allowedHosts); err == nil {
+						security["allowedHosts"] = allowedHosts
+					}
+				}
+
+				// Extract allowNew
+				if anField := securityField.LookupPath(cue.ParsePath("allowNew")); anField.Exists() {
+					var allowNew bool
+					if err := anField.Decode(&allowNew); err == nil {
+						security["allowNew"] = allowNew
+					}
+				}
+
+				taskConfig["security"] = security
+			}
+
 			tasks[taskName] = taskConfig
 		}
 		result["tasks"] = tasks
