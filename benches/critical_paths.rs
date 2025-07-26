@@ -7,7 +7,7 @@ fn benchmark_environment_variables(c: &mut Criterion) {
 
     // Benchmark creating environment variables
     group.bench_function("new", |b| {
-        b.iter(|| EnvironmentVariables::new());
+        b.iter(EnvironmentVariables::new);
     });
 
     // Benchmark inserting variables
@@ -15,7 +15,7 @@ fn benchmark_environment_variables(c: &mut Criterion) {
         b.iter(|| {
             let mut env = EnvironmentVariables::new();
             for i in 0..100 {
-                env.insert(format!("VAR_{}", i), format!("value_{}", i));
+                env.insert(format!("VAR_{i}"), format!("value_{i}"));
             }
             black_box(env)
         });
@@ -27,8 +27,8 @@ fn benchmark_environment_variables(c: &mut Criterion) {
         let mut env2 = EnvironmentVariables::new();
 
         for i in 0..50 {
-            env1.insert(format!("VAR_A_{}", i), format!("value_a_{}", i));
-            env2.insert(format!("VAR_B_{}", i), format!("value_b_{}", i));
+            env1.insert(format!("VAR_A_{i}"), format!("value_a_{i}"));
+            env2.insert(format!("VAR_B_{i}"), format!("value_b_{i}"));
         }
 
         b.iter(|| {
@@ -42,8 +42,8 @@ fn benchmark_environment_variables(c: &mut Criterion) {
     group.bench_function("filter_prefix", |b| {
         let mut env = EnvironmentVariables::new();
         for i in 0..100 {
-            env.insert(format!("PREFIX_{}", i), format!("value_{}", i));
-            env.insert(format!("OTHER_{}", i), format!("value_{}", i));
+            env.insert(format!("PREFIX_{i}"), format!("value_{i}"));
+            env.insert(format!("OTHER_{i}"), format!("value_{i}"));
         }
 
         b.iter(|| env.filter(|k, _| k.starts_with("PREFIX_")));
@@ -57,7 +57,7 @@ fn benchmark_command_arguments(c: &mut Criterion) {
 
     // Benchmark creating arguments
     group.bench_function("from_vec_10", |b| {
-        let args: Vec<String> = (0..10).map(|i| format!("arg_{}", i)).collect();
+        let args: Vec<String> = (0..10).map(|i| format!("arg_{i}")).collect();
         b.iter(|| CommandArguments::from_vec(args.clone()));
     });
 
@@ -66,7 +66,7 @@ fn benchmark_command_arguments(c: &mut Criterion) {
         b.iter(|| {
             let mut args = CommandArguments::new();
             for i in 0..100 {
-                args.push(format!("arg_{}", i));
+                args.push(format!("arg_{i}"));
             }
             black_box(args)
         });
@@ -82,7 +82,7 @@ fn benchmark_capabilities(c: &mut Criterion) {
     group.bench_function("contains_in_100", |b| {
         let mut caps = Capabilities::new();
         for i in 0..100 {
-            caps.add(format!("capability_{}", i));
+            caps.add(format!("capability_{i}"));
         }
 
         b.iter(|| caps.contains("capability_50"));
@@ -90,12 +90,11 @@ fn benchmark_capabilities(c: &mut Criterion) {
 
     // Benchmark adding capabilities with deduplication
     group.bench_function("add_dedupe", |b| {
-        let mut caps = Capabilities::new();
-        caps.add("existing");
-
         b.iter(|| {
+            let mut caps = Capabilities::new();
+            caps.add("existing");
             caps.add("existing"); // Should not add duplicate
-            black_box(&caps)
+            black_box(caps)
         });
     });
 
@@ -109,7 +108,7 @@ fn benchmark_newtype_conversions(c: &mut Criterion) {
     group.bench_function("hashmap_to_env", |b| {
         let mut map = HashMap::new();
         for i in 0..50 {
-            map.insert(format!("VAR_{}", i), format!("value_{}", i));
+            map.insert(format!("VAR_{i}"), format!("value_{i}"));
         }
 
         b.iter(|| EnvironmentVariables::from_map(map.clone()));
@@ -119,7 +118,7 @@ fn benchmark_newtype_conversions(c: &mut Criterion) {
     group.bench_function("env_into_inner", |b| {
         let mut env = EnvironmentVariables::new();
         for i in 0..50 {
-            env.insert(format!("VAR_{}", i), format!("value_{}", i));
+            env.insert(format!("VAR_{i}"), format!("value_{i}"));
         }
 
         b.iter_with_setup(|| env.clone(), |env| black_box(env.into_inner()));

@@ -1,3 +1,4 @@
+use crate::constants::{AUDIT_IGNORED_PATH_PREFIXES, AUDIT_LOG_PATH, LD_SO_CACHE};
 use crate::errors::{Error, Result};
 use std::path::PathBuf;
 use std::process::Command;
@@ -16,37 +17,43 @@ impl AuditReport {
     pub fn print_summary(&self) {
         println!("🔍 Audit Report:");
         println!("================");
-        
+
         if !self.accessed_files.is_empty() {
-            println!("\n📁 File Access ({} unique paths):", self.accessed_files.len());
+            println!(
+                "\n📁 File Access ({} unique paths):",
+                self.accessed_files.len()
+            );
             for file in &self.accessed_files {
-                println!("  • {}", file);
+                println!("  • {file}");
             }
         }
-        
+
         if !self.network_connections.is_empty() {
-            println!("\n🌐 Network Access ({} unique connections):", self.network_connections.len());
+            println!(
+                "\n🌐 Network Access ({} unique connections):",
+                self.network_connections.len()
+            );
             for conn in &self.network_connections {
-                println!("  • {}", conn);
+                println!("  • {conn}");
             }
         }
-        
+
         if self.accessed_files.is_empty() && self.network_connections.is_empty() {
             println!("  No file or network access detected");
         }
-        
+
         println!("\n💡 Recommendations:");
         if !self.accessed_files.is_empty() {
             println!("  Add to security.readOnlyPaths or security.readWritePaths:");
             for file in &self.accessed_files {
-                println!("    - \"{}\"", file);
+                println!("    - \"{file}\"");
             }
         }
-        
+
         if !self.network_connections.is_empty() {
             println!("  Add to security.allowedHosts:");
             for conn in &self.network_connections {
-                println!("    - \"{}\"", conn);
+                println!("    - \"{conn}\"");
             }
         }
     }
@@ -72,6 +79,18 @@ pub struct AccessRestrictions {
 }
 
 impl AccessRestrictions {
+    /// Check if Landlock is supported on the current system
+    #[cfg(target_os = "linux")]
+    pub fn is_landlock_supported() -> bool {
+        // For now, we'll check by trying to create a ruleset
+        use landlock::Ruleset;
+        Ruleset::default().create().is_ok()
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    pub fn is_landlock_supported() -> bool {
+        false
+    }
     /// Create new restrictions configuration
     pub fn new(restrict_disk: bool, restrict_network: bool) -> Self {
         Self {
@@ -129,7 +148,7 @@ impl AccessRestrictions {
     pub fn run_with_audit(&self, cmd: &mut Command) -> Result<(i32, AuditReport)> {
         if !cfg!(target_os = "linux") {
             return Err(Error::configuration(
-                "Audit mode is only supported on Linux systems".to_string()
+                "Audit mode is only supported on Linux systems".to_string(),
             ));
         }
 
@@ -140,14 +159,14 @@ impl AccessRestrictions {
             .arg("-e") // Filter system calls
             .arg("trace=file,network") // Monitor file and network calls
             .arg("-o") // Output to file
-            .arg("/tmp/cuenv_audit.log")
+            .arg(AUDIT_LOG_PATH)
             .arg("--");
 
         // Add the original command and arguments
         if let Some(program) = cmd.get_program().to_str() {
             strace_cmd.arg(program);
         }
-        
+
         for arg in cmd.get_args() {
             if let Some(arg_str) = arg.to_str() {
                 strace_cmd.arg(arg_str);
@@ -155,10 +174,8 @@ impl AccessRestrictions {
         }
 
         // Copy environment and working directory
-        strace_cmd.envs(cmd.get_envs().filter_map(|(k, v)| {
-            Some((k, v?))
-        }));
-        
+        strace_cmd.envs(cmd.get_envs().filter_map(|(k, v)| Some((k, v?))));
+
         if let Some(current_dir) = cmd.get_current_dir() {
             strace_cmd.current_dir(current_dir);
         }
@@ -174,22 +191,22 @@ impl AccessRestrictions {
         })?;
 
         // Parse the audit log
-        let audit_report = self.parse_audit_log("/tmp/cuenv_audit.log")?;
-        
+        let audit_report = self.parse_audit_log(AUDIT_LOG_PATH)?;
+
         // Clean up the audit log
-        let _ = std::fs::remove_file("/tmp/cuenv_audit.log");
+        let _ = std::fs::remove_file(AUDIT_LOG_PATH);
 
         Ok((output.status.code().unwrap_or(1), audit_report))
     }
 
     /// Parse strace output to generate audit report
     fn parse_audit_log(&self, log_path: &str) -> Result<AuditReport> {
-        use std::fs;
         use std::collections::HashSet;
-        
+        use std::fs;
+
         let mut accessed_files = HashSet::new();
         let mut network_connections = HashSet::new();
-        
+
         if let Ok(content) = fs::read_to_string(log_path) {
             for line in content.lines() {
                 // Parse file access patterns
@@ -198,7 +215,7 @@ impl AccessRestrictions {
                         accessed_files.insert(path);
                     }
                 }
-                
+
                 // Parse network connection patterns
                 if line.contains("connect(") || line.contains("bind(") {
                     if let Some(addr) = extract_network_address(line) {
@@ -207,7 +224,7 @@ impl AccessRestrictions {
                 }
             }
         }
-        
+
         Ok(AuditReport {
             accessed_files: accessed_files.into_iter().collect(),
             network_connections: network_connections.into_iter().collect(),
@@ -222,39 +239,39 @@ impl AccessRestrictions {
     /// Create AccessRestrictions from a SecurityConfig
     pub fn from_security_config(security: &crate::cue_parser::SecurityConfig) -> Self {
         use std::path::PathBuf;
-        
+
         Self {
             restrict_disk: security.restrict_disk.unwrap_or(false),
             restrict_network: security.restrict_network.unwrap_or(false),
-            read_only_paths: security.read_only_paths
+            read_only_paths: security
+                .read_only_paths
                 .as_ref()
                 .map(|paths| paths.iter().map(PathBuf::from).collect())
                 .unwrap_or_default(),
-            read_write_paths: security.read_write_paths
+            read_write_paths: security
+                .read_write_paths
                 .as_ref()
                 .map(|paths| paths.iter().map(PathBuf::from).collect())
                 .unwrap_or_default(),
-            deny_paths: security.deny_paths
+            deny_paths: security
+                .deny_paths
                 .as_ref()
                 .map(|paths| paths.iter().map(PathBuf::from).collect())
                 .unwrap_or_default(),
-            allowed_hosts: security.allowed_hosts
-                .as_ref()
-                .cloned()
-                .unwrap_or_default(),
+            allowed_hosts: security.allowed_hosts.as_ref().cloned().unwrap_or_default(),
             audit_mode: false,
         }
     }
 
     /// Create AccessRestrictions from a SecurityConfig with optional task context for inference
     pub fn from_security_config_with_task(
-        security: &crate::cue_parser::SecurityConfig, 
-        task_config: &crate::cue_parser::TaskConfig
+        security: &crate::cue_parser::SecurityConfig,
+        task_config: &crate::cue_parser::TaskConfig,
     ) -> Self {
         use std::path::PathBuf;
-        
+
         let mut restrictions = Self::from_security_config(security);
-        
+
         // If inference is enabled, add paths from inputs and outputs
         if security.infer_from_inputs_outputs.unwrap_or(false) {
             // Add inputs as read-only paths
@@ -263,20 +280,20 @@ impl AccessRestrictions {
                     restrictions.add_read_only_path(PathBuf::from(input));
                 }
             }
-            
+
             // Add outputs as read-write paths
             if let Some(outputs) = &task_config.outputs {
                 for output in outputs {
                     restrictions.add_read_write_path(PathBuf::from(output));
                 }
             }
-            
+
             // If we have inputs or outputs, enable disk restrictions automatically
             if task_config.inputs.is_some() || task_config.outputs.is_some() {
                 restrictions.restrict_disk = true;
             }
         }
-        
+
         restrictions
     }
 
@@ -286,7 +303,6 @@ impl AccessRestrictions {
         if !self.has_any_restrictions() {
             return Ok(());
         }
-
         // Apply platform-specific restrictions
         #[cfg(target_os = "linux")]
         self.apply_landlock_restrictions(cmd)?;
@@ -306,112 +322,132 @@ impl AccessRestrictions {
     #[cfg(target_os = "linux")]
     fn apply_landlock_restrictions(&self, cmd: &mut Command) -> Result<()> {
         use landlock::{
-            ABI,
+            Access, AccessFs, AccessNet, NetPort, PathBeneath, PathFd, Ruleset, RulesetAttr,
+            RulesetCreatedAttr, RulesetStatus, ABI,
         };
         use std::os::unix::process::CommandExt;
 
-        // Check available Landlock ABI version
-        let _abi = match ABI::V2 {
-            ABI::V2 => {
-                log::info!("Landlock V2 available, network restrictions supported");
-                ABI::V2
-            }
-            _ => match ABI::V1 {
-                ABI::V1 => {
-                    log::info!("Landlock V1 available, filesystem restrictions only");
-                    if self.restrict_network {
-                        return Err(Error::configuration(
-                            "Network restrictions require Landlock V2 (Linux kernel 5.19+). \
-                            Current system only supports Landlock V1.".to_string()
-                        ));
-                    }
-                    ABI::V1
+        // Clone the necessary data for the pre_exec closure
+        let restrict_disk = self.restrict_disk;
+        let restrict_network = self.restrict_network;
+        let read_only_paths = self.read_only_paths.clone();
+        let read_write_paths = self.read_write_paths.clone();
+        let allowed_hosts = self.allowed_hosts.clone();
+
+        // SAFETY: The pre_exec closure is only executed in the child process after fork()
+        // but before exec(). The cloned data is moved into the closure, ensuring it
+        // remains valid for the duration of the closure execution. The closure does not
+        // access any mutable state from the parent process and only performs system calls
+        // to set up Landlock restrictions. If the closure returns an error, the child
+        // process will terminate without executing the target command.
+        unsafe {
+            cmd.pre_exec(move || {
+                // Use the highest ABI we want to support
+                let abi = ABI::V4;
+
+                log::debug!("Applying Landlock restrictions in child process");
+
+                // Build the ruleset
+                let mut ruleset = Ruleset::default();
+
+                // Add filesystem access handling if needed
+                if restrict_disk {
+                    let handled_fs = AccessFs::from_all(abi);
+                    ruleset = ruleset.handle_access(handled_fs).map_err(|e| {
+                        std::io::Error::other(format!(
+                            "Failed to configure filesystem access handling: {e}"
+                        ))
+                    })?;
                 }
-                _ => {
-                    return Err(Error::configuration(
-                        "Landlock is not supported on this system. Requires Linux kernel 5.13+.".to_string()
+
+                // Add network access handling if needed (V2 or higher required)
+                if restrict_network {
+                    // Handle both TCP bind and connect
+                    ruleset = ruleset
+                        .handle_access(AccessNet::BindTcp | AccessNet::ConnectTcp)
+                        .map_err(|e| {
+                            std::io::Error::other(format!(
+                                "Failed to configure network access handling: {e}"
+                            ))
+                        })?;
+                }
+
+                // Create the ruleset
+                let mut ruleset = ruleset.create().map_err(|e| {
+                    std::io::Error::other(format!("Failed to create Landlock ruleset: {e}"))
+                })?;
+
+                // Add filesystem rules
+                if restrict_disk {
+                    // Add read-only paths
+                    for path in &read_only_paths {
+                        if let Ok(path_fd) = PathFd::new(path) {
+                            let read_access =
+                                AccessFs::ReadFile | AccessFs::ReadDir | AccessFs::Execute;
+                            let rule = PathBeneath::new(path_fd, read_access);
+                            ruleset = ruleset.add_rule(rule).map_err(|e| {
+                                std::io::Error::other(format!(
+                                    "Failed to add read-only rule for {}: {e}",
+                                    path.display()
+                                ))
+                            })?;
+                        }
+                    }
+
+                    // Add read-write paths
+                    for path in &read_write_paths {
+                        if let Ok(path_fd) = PathFd::new(path) {
+                            let rule = PathBeneath::new(path_fd, AccessFs::from_all(abi));
+                            ruleset = ruleset.add_rule(rule).map_err(|e| {
+                                std::io::Error::other(format!(
+                                    "Failed to add read-write rule for {}: {e}",
+                                    path.display()
+                                ))
+                            })?;
+                        }
+                    }
+                }
+
+                // Add network rules (requires ABI V2 or higher)
+                if restrict_network {
+                    // Parse and add allowed hosts (ports)
+                    for host in &allowed_hosts {
+                        // Try to parse as port number
+                        if let Ok(port) = host.parse::<u16>() {
+                            // Allow both bind and connect on this port
+                            let bind_rule = NetPort::new(port, AccessNet::BindTcp);
+                            let connect_rule = NetPort::new(port, AccessNet::ConnectTcp);
+
+                            ruleset = ruleset.add_rule(bind_rule).map_err(|e| {
+                                std::io::Error::other(format!(
+                                    "Failed to add bind rule for port {port}: {e}"
+                                ))
+                            })?;
+
+                            ruleset = ruleset.add_rule(connect_rule).map_err(|e| {
+                                std::io::Error::other(format!(
+                                    "Failed to add connect rule for port {port}: {e}"
+                                ))
+                            })?;
+                        }
+                    }
+                }
+
+                // Apply the restrictions to this process (which will be the child)
+                let status = ruleset.restrict_self().map_err(|e| {
+                    std::io::Error::other(format!("Failed to apply Landlock restrictions: {e}"))
+                })?;
+
+                if status.ruleset == RulesetStatus::NotEnforced {
+                    return Err(std::io::Error::other(
+                        "Landlock is not supported by the running kernel.",
                     ));
                 }
-            }
-        };
-        
-        // Create a pre-exec closure that applies Landlock restrictions to the child process
-        if self.restrict_disk {
-            let read_only_paths = self.read_only_paths.clone();
-            let read_write_paths = self.read_write_paths.clone();
-            
-            unsafe {
-                cmd.pre_exec(move || {
-                    Self::apply_landlock_filesystem_restrictions(&read_only_paths, &read_write_paths)
-                });
-            }
+
+                Ok(())
+            });
         }
 
-        // Note: Network restrictions with Landlock V2 are more complex and would require
-        // a different approach. For now, we'll focus on filesystem restrictions.
-        if self.restrict_network {
-            return Err(Error::configuration(
-                "Network restrictions with Landlock are complex and not yet fully implemented. \
-                Consider using system-level controls like iptables or network namespaces \
-                for network isolation.".to_string()
-            ));
-        }
-
-        Ok(())
-    }
-
-    /// Apply Landlock filesystem restrictions in child process
-    #[cfg(target_os = "linux")]
-    fn apply_landlock_filesystem_restrictions(
-        read_only_paths: &[PathBuf],
-        read_write_paths: &[PathBuf],
-    ) -> std::io::Result<()> {
-        use landlock::{
-            AccessFs, PathBeneath, PathFd, Ruleset, RulesetAttr, RulesetCreatedAttr,
-        };
-
-        // If no paths are specified, apply very restrictive mode
-        // Create a new Landlock ruleset for filesystem restrictions
-        let fs_access = AccessFs::Execute | AccessFs::WriteFile | AccessFs::ReadFile | 
-                       AccessFs::ReadDir | AccessFs::RemoveDir | AccessFs::RemoveFile | 
-                       AccessFs::MakeChar | AccessFs::MakeDir | AccessFs::MakeReg | 
-                       AccessFs::MakeSock | AccessFs::MakeFifo | AccessFs::MakeBlock | 
-                       AccessFs::MakeSym;
-        
-        let mut ruleset = Ruleset::default()
-            .handle_access(fs_access)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to create Landlock ruleset: {e}")))?
-            .create()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to create Landlock ruleset: {e}")))?;
-
-        // Add user-specified read-only paths
-        for path in read_only_paths {
-            let path_fd = PathFd::new(path)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to open path {}: {e}", path.display())))?;
-            ruleset = ruleset
-                .add_rule(PathBeneath::new(path_fd, AccessFs::ReadFile | AccessFs::ReadDir | AccessFs::Execute))
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to add read-only rule for {}: {e}", path.display())))?;
-        }
-
-        // Add user-specified read-write paths
-        for path in read_write_paths {
-            let path_fd = PathFd::new(path)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to open path {}: {e}", path.display())))?;
-            ruleset = ruleset
-                .add_rule(PathBeneath::new(
-                    path_fd,
-                    AccessFs::ReadFile | AccessFs::ReadDir | AccessFs::WriteFile | AccessFs::RemoveFile | 
-                    AccessFs::RemoveDir | AccessFs::MakeChar | AccessFs::MakeDir | AccessFs::MakeReg | 
-                    AccessFs::MakeSock | AccessFs::MakeFifo | AccessFs::MakeBlock | AccessFs::MakeSym | 
-                    AccessFs::Execute,
-                ))
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to add read-write rule for {}: {e}", path.display())))?;
-        }
-
-        // Apply the Landlock policy to this process (which will be the child)
-        ruleset.restrict_self()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to apply Landlock restrictions: {e}")))?;
-        
         Ok(())
     }
 
@@ -434,11 +470,11 @@ fn extract_file_path(line: &str) -> Option<String> {
         if let Some(end) = line[start + 1..].find('"') {
             let path = &line[start + 1..start + 1 + end];
             // Filter out common system paths that aren't interesting for user restrictions
-            if !path.starts_with("/proc/") 
-                && !path.starts_with("/sys/") 
-                && !path.starts_with("/dev/")
-                && !path.starts_with("/tmp/")
-                && path != "/etc/ld.so.cache" {
+            if !AUDIT_IGNORED_PATH_PREFIXES
+                .iter()
+                .any(|prefix| path.starts_with(prefix))
+                && path != LD_SO_CACHE
+            {
                 return Some(path.to_string());
             }
         }
@@ -482,7 +518,7 @@ mod tests {
             vec![PathBuf::from("/etc/passwd")],
             vec!["localhost".to_string()],
         );
-        
+
         assert!(restrictions.restrict_disk);
         assert!(restrictions.restrict_network);
         assert_eq!(restrictions.read_only_paths.len(), 1);
@@ -516,10 +552,10 @@ mod tests {
         let restrictions = AccessRestrictions::default();
         let mut cmd = Command::new("echo");
         cmd.arg("test");
-        
+
         let result = restrictions.apply_to_command(&mut cmd);
         assert!(result.is_ok());
-        
+
         // Command should be unchanged
         assert_eq!(cmd.get_program(), "echo");
     }
@@ -530,10 +566,10 @@ mod tests {
         let mut restrictions = AccessRestrictions::new(true, false);
         restrictions.add_read_only_path("/tmp");
         restrictions.add_read_write_path("/var/tmp");
-        
+
         let mut cmd = Command::new("echo");
         cmd.arg("test");
-        
+
         // This might fail if Landlock is not available, but shouldn't panic
         let _result = restrictions.apply_to_command(&mut cmd);
         // We can't easily test the actual Landlock functionality without kernel support
@@ -545,9 +581,12 @@ mod tests {
         let restrictions = AccessRestrictions::new(true, false);
         let mut cmd = Command::new("echo");
         cmd.arg("test");
-        
+
         let result = restrictions.apply_to_command(&mut cmd);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("only supported on Linux"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("only supported on Linux"));
     }
 }

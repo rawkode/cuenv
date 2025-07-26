@@ -133,7 +133,7 @@ impl EnvManager {
                 .map_err(|e| Error::configuration(format!("Failed to create runtime: {e}")))?;
 
             // Create command executor and hook manager
-            let executor = Arc::new(crate::command_executor::SystemCommandExecutor);
+            let executor = Arc::new(crate::command_executor::SystemCommandExecutor::new());
             let hook_manager = match HookManager::new(executor) {
                 Ok(hm) => hm,
                 Err(e) => {
@@ -1016,15 +1016,20 @@ env: {
 
         // Test without restrictions (should work)
         let restrictions = AccessRestrictions::default();
-        let status = manager.run_command_with_restrictions("echo", &["test".to_string()], &restrictions);
-        
+        let status =
+            manager.run_command_with_restrictions("echo", &["test".to_string()], &restrictions);
+
         // This should work since no restrictions are applied
-        assert!(status.is_ok(), "Command should succeed without restrictions");
+        assert!(
+            status.is_ok(),
+            "Command should succeed without restrictions"
+        );
 
         // Test with restrictions (may fail in test environment, but should not panic)
         let restrictions = AccessRestrictions::new(true, true);
-        let result = manager.run_command_with_restrictions("echo", &["test".to_string()], &restrictions);
-        
+        let result =
+            manager.run_command_with_restrictions("echo", &["test".to_string()], &restrictions);
+
         // The result may be Ok or Err depending on environment capabilities
         // What matters is that it doesn't panic and properly handles restrictions
         match result {
@@ -1036,12 +1041,12 @@ env: {
                 let error_msg = e.to_string();
                 // Verify the error is related to restrictions/command execution
                 assert!(
-                    error_msg.contains("CommandExecution") || 
-                    error_msg.contains("Failed to capture stdout") ||
-                    error_msg.contains("Failed to spawn command") ||
-                    error_msg.contains("Network restrictions with Landlock") ||
-                    error_msg.contains("configuration error"),
-                    "Error should be related to command execution with restrictions: {}", error_msg
+                    error_msg.contains("CommandExecution")
+                        || error_msg.contains("Failed to capture stdout")
+                        || error_msg.contains("Failed to spawn command")
+                        || error_msg.contains("Network restrictions with Landlock")
+                        || error_msg.contains("configuration error"),
+                    "Error should be related to command execution with restrictions: {error_msg}"
                 );
             }
         }
@@ -1050,7 +1055,7 @@ env: {
     #[test]
     fn test_access_restrictions_creation_and_methods() {
         use crate::access_restrictions::AccessRestrictions;
-        
+
         // Test default (no restrictions)
         let restrictions = AccessRestrictions::default();
         assert!(!restrictions.has_any_restrictions());

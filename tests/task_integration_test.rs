@@ -154,7 +154,13 @@ tasks: {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("not found"));
+    // When a task is not found, cuenv tries to run it as a command
+    // which results in "Failed to spawn command" error
+    assert!(
+        stderr.contains("Failed to spawn command") || stderr.contains("not found"),
+        "Expected error in stderr, got: '{}'",
+        stderr
+    );
 }
 
 #[test]

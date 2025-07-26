@@ -67,7 +67,14 @@ impl TaskExecutor {
                 let task_name = task_name.clone();
 
                 join_set.spawn(async move {
-                    match Self::execute_single_task(&task_config, &working_dir, &task_args, audit_mode).await {
+                    match Self::execute_single_task(
+                        &task_config,
+                        &working_dir,
+                        &task_args,
+                        audit_mode,
+                    )
+                    .await
+                    {
                         Ok(status) => {
                             if status != 0 {
                                 failed_tasks
@@ -326,12 +333,13 @@ impl TaskExecutor {
         // Apply security restrictions if configured
         if let Some(security) = &task_config.security {
             use crate::access_restrictions::AccessRestrictions;
-            let mut restrictions = AccessRestrictions::from_security_config_with_task(security, task_config);
-            
+            let mut restrictions =
+                AccessRestrictions::from_security_config_with_task(security, task_config);
+
             if audit_mode {
                 restrictions.enable_audit_mode();
                 println!("🔍 Running task in audit mode...");
-                
+
                 let (exit_code, audit_report) = restrictions.run_with_audit(&mut cmd)?;
                 audit_report.print_summary();
                 return Ok(exit_code);

@@ -1,4 +1,5 @@
 use crate::errors::{Error, Result};
+use crate::retry::convenience::retry_command;
 use crate::types::{CommandArguments, EnvironmentVariables};
 use async_trait::async_trait;
 #[cfg(test)]
@@ -24,11 +25,57 @@ pub trait CommandExecutor: Send + Sync {
 }
 
 /// Production implementation that executes real commands
-pub struct SystemCommandExecutor;
+pub struct SystemCommandExecutor {
+    /// Whether to use retry logic for transient failures
+    pub enable_retry: bool,
+}
+
+impl Default for SystemCommandExecutor {
+    fn default() -> Self {
+        Self { enable_retry: true }
+    }
+}
+
+impl SystemCommandExecutor {
+    /// Create a new SystemCommandExecutor with retry enabled
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create a SystemCommandExecutor without retry logic
+    pub fn without_retry() -> Self {
+        Self {
+            enable_retry: false,
+        }
+    }
+}
 
 #[async_trait]
 impl CommandExecutor for SystemCommandExecutor {
     async fn execute(&self, cmd: &str, args: &CommandArguments) -> Result<Output> {
+        if self.enable_retry {
+            retry_command(|| async { self.execute_once(cmd, args) }).await
+        } else {
+            self.execute_once(cmd, args)
+        }
+    }
+
+    async fn execute_with_env(
+        &self,
+        cmd: &str,
+        args: &CommandArguments,
+        env: EnvironmentVariables,
+    ) -> Result<Output> {
+        if self.enable_retry {
+            retry_command(|| async { self.execute_with_env_once(cmd, args, env.clone()) }).await
+        } else {
+            self.execute_with_env_once(cmd, args, env)
+        }
+    }
+}
+
+impl SystemCommandExecutor {
+    fn execute_once(&self, cmd: &str, args: &CommandArguments) -> Result<Output> {
         match std::process::Command::new(cmd)
             .args(args.as_slice())
             .output()
@@ -43,7 +90,7 @@ impl CommandExecutor for SystemCommandExecutor {
         }
     }
 
-    async fn execute_with_env(
+    fn execute_with_env_once(
         &self,
         cmd: &str,
         args: &CommandArguments,
@@ -78,6 +125,13 @@ pub struct TestResponse {
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
     pub status_code: i32,
+}
+
+#[cfg(test)]
+impl Default for TestCommandExecutor {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]
@@ -133,8 +187,7 @@ impl CommandExecutor for TestCommandExecutor {
                 stderr: response.stderr.clone(),
             }),
             None => Err(Error::configuration(format!(
-                "no test response configured for command: {}",
-                key
+                "no test response configured for command: {key}"
             ))),
         }
     }
@@ -156,7 +209,7 @@ pub struct CommandExecutorFactory;
 impl CommandExecutorFactory {
     /// Create a production command executor
     pub fn system() -> Box<dyn CommandExecutor> {
-        Box::new(SystemCommandExecutor)
+        Box::new(SystemCommandExecutor::new())
     }
 
     /// Create a test command executor

@@ -261,11 +261,12 @@ tasks: {
 ```
 
 **Running tasks with security restrictions:**
+
 ```bash
 # Run a task with disk restrictions
 cuenv run secure-build
 
-# Run a task with network restrictions  
+# Run a task with network restrictions
 cuenv run network-task
 
 # Run a fully restricted task
@@ -273,21 +274,24 @@ cuenv run fully-restricted
 ```
 
 **Landlock Requirements:**
+
 - Linux kernel 5.13+ (for filesystem restrictions)
 - Linux kernel 5.19+ (for network restrictions - basic support)
 - Appropriate permissions to use Landlock LSM
 
 **Security Configuration Options:**
+
 - `restrictDisk`: Enable filesystem access restrictions
-- `restrictNetwork`: Enable network access restrictions  
+- `restrictNetwork`: Enable network access restrictions
 - `readOnlyPaths`: Array of paths allowed for reading
 - `readWritePaths`: Array of paths allowed for reading and writing
 - `denyPaths`: Array of paths explicitly denied (overrides allow lists)
 - `allowedHosts`: Array of network hosts/CIDRs allowed for connections
 
 **Security Model:** When disk restrictions are enabled, you must explicitly allow all paths your task needs access to. This includes:
+
 - Executable paths (`/bin`, `/usr/bin`)
-- Library paths (`/lib`, `/usr/lib`, `/lib64`, `/usr/lib64`) 
+- Library paths (`/lib`, `/usr/lib`, `/lib64`, `/usr/lib64`)
 - Configuration paths (`/etc` if needed)
 - Working directories and output paths
 

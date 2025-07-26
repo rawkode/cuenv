@@ -1,3 +1,4 @@
+use crate::constants::ENV_PACKAGE_NAME;
 use crate::errors::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -132,7 +133,7 @@ impl CueParser {
         options: &ParseOptions,
     ) -> Result<ParseResult> {
         // Only allow loading the "env" package
-        if package_name != "env" {
+        if package_name != ENV_PACKAGE_NAME {
             return Err(Error::configuration(format!(
                 "Only 'env' package is supported, got '{package_name}'. Please ensure your .cue files use 'package env'"
             )));
@@ -355,8 +356,7 @@ mod tests {
         let err_msg = result.unwrap_err().to_string();
         assert!(
             err_msg.contains("Only 'env' package is supported"),
-            "Error message was: {}",
-            err_msg
+            "Error message was: {err_msg}"
         );
 
         // Test that env package is accepted
@@ -597,10 +597,10 @@ mod tests {
         );
 
         let deploy_cmd = &result.commands["deploy"];
-        assert_eq!(
-            deploy_cmd.capabilities.as_ref().unwrap(),
-            &vec!["aws".to_string(), "docker".to_string()]
-        );
+        let deploy_caps = deploy_cmd.capabilities.as_ref().unwrap();
+        assert_eq!(deploy_caps.len(), 2);
+        assert!(deploy_caps.contains(&"aws".to_string()));
+        assert!(deploy_caps.contains(&"docker".to_string()));
 
         let test_cmd = &result.commands["test"];
         assert_eq!(

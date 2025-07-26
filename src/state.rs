@@ -173,15 +173,17 @@ impl StateManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::collections::HashMap;
     use std::fs;
     use tempfile::TempDir;
 
     #[test]
+    #[serial]
     fn test_state_management() {
         // Use a unique prefix for this test with thread ID to avoid race conditions
         let thread_id = std::thread::current().id();
-        env::set_var("CUENV_PREFIX", format!("TEST_STATE_MGMT_{:?}", thread_id));
+        env::set_var("CUENV_PREFIX", format!("TEST_STATE_MGMT_{thread_id:?}"));
 
         // Clean environment - remove any cuenv state variables
         env::remove_var(StateManager::env_var_name("CUENV_DIR"));
@@ -220,15 +222,6 @@ mod tests {
         .unwrap();
 
         // Check loaded state
-        // Debug: check if the env var is actually set
-        let cuenv_dir_var = StateManager::env_var_name("CUENV_DIR");
-        let cuenv_dir_value = env::var(&cuenv_dir_var);
-        assert!(
-            cuenv_dir_value.is_ok(),
-            "CUENV_DIR env var not set: {}",
-            cuenv_dir_var
-        );
-
         assert!(StateManager::is_loaded());
         assert_eq!(StateManager::current_dir(), Some(dir.to_path_buf()));
 
@@ -252,10 +245,11 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_should_load_unload() {
         // Use a unique prefix for this test with thread ID to avoid race conditions
         let thread_id = std::thread::current().id();
-        env::set_var("CUENV_PREFIX", format!("TEST_SHOULD_LOAD_{:?}", thread_id));
+        env::set_var("CUENV_PREFIX", format!("TEST_SHOULD_LOAD_{thread_id:?}"));
 
         let temp_dir = TempDir::new().unwrap();
         let temp_dir2 = TempDir::new().unwrap();
@@ -286,13 +280,13 @@ mod tests {
         assert!(!StateManager::should_load(root));
 
         // Should load different directory
-        assert!(StateManager::should_load(&other));
+        assert!(StateManager::should_load(other));
 
         // Should not unload when in subdirectory
         assert!(!StateManager::should_unload(&subdir));
 
         // Should unload when leaving to different directory
-        assert!(StateManager::should_unload(&other));
+        assert!(StateManager::should_unload(other));
 
         // Clean up
         env::remove_var(StateManager::env_var_name("CUENV_DIR"));

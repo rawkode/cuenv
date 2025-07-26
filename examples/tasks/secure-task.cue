@@ -30,7 +30,7 @@ tasks: {
 		description: "Task with both disk and network restrictions"
 		command:     "echo 'Running in secure sandbox'"
 		security: {
-			restrictDisk: true
+			restrictDisk:    true
 			restrictNetwork: true
 			readOnlyPaths: ["/usr/bin", "/bin"]
 			readWritePaths: ["/tmp"]

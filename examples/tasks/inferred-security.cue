@@ -14,11 +14,11 @@ tasks: {
 		command:     "cat input.txt | sort > output.txt && echo 'Processing complete'"
 		inputs: [
 			"./input.txt",
-			"./config.json"
+			"./config.json",
 		]
 		outputs: [
 			"./output.txt",
-			"./logs/"
+			"./logs/",
 		]
 		security: {
 			// Automatically infer disk restrictions from inputs/outputs
@@ -32,15 +32,15 @@ tasks: {
 		command:     "echo 'Building...' && mkdir -p build && echo 'Built' > build/result.txt"
 		inputs: [
 			"./src/",
-			"./package.json"
+			"./package.json",
 		]
 		outputs: [
 			"./build/",
-			"./dist/"
+			"./dist/",
 		]
 		security: {
 			inferFromInputsOutputs: true
-			restrictNetwork:         true
+			restrictNetwork:        true
 			allowedHosts: ["registry.npmjs.org", "api.github.com"]
 		}
 	}

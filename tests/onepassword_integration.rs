@@ -43,11 +43,8 @@ impl CommandExecutor for OnePasswordTestExecutor {
                 Ok(Output {
                     status: exit_status_from_code(1),
                     stdout: Vec::new(),
-                    stderr: format!(
-                        "[ERROR] 2024/01/01 00:00:00 item \"{}\" not found\n",
-                        reference
-                    )
-                    .into_bytes(),
+                    stderr: format!("[ERROR] 2024/01/01 00:00:00 item \"{reference}\" not found\n")
+                        .into_bytes(),
                 })
             }
         } else {

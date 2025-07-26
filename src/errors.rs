@@ -88,29 +88,23 @@ impl fmt::Display for Error {
             } => {
                 let args_str = args.join(" ");
                 match exit_code {
-                    Some(code) => write!(
-                        f,
-                        "command '{}{}' failed with exit code {}: {}",
-                        command,
+                    Some(code) => {
                         if args_str.is_empty() {
-                            String::new()
+                            write!(
+                                f,
+                                "command '{command}' failed with exit code {code}: {message}"
+                            )
                         } else {
-                            format!(" {args_str}")
-                        },
-                        code,
-                        message
-                    ),
-                    None => write!(
-                        f,
-                        "command '{}{}' failed: {}",
-                        command,
+                            write!(f, "command '{command} {args_str}' failed with exit code {code}: {message}")
+                        }
+                    }
+                    None => {
                         if args_str.is_empty() {
-                            String::new()
+                            write!(f, "command '{command}' failed: {message}")
                         } else {
-                            format!(" {args_str}")
-                        },
-                        message
-                    ),
+                            write!(f, "command '{command} {args_str}' failed: {message}")
+                        }
+                    }
                 }
             }
             Error::Configuration { message } => {

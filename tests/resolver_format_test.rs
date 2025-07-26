@@ -31,9 +31,9 @@ fn test_resolver_format_documentation() {
     // The Go bridge extracts resolver.command and resolver.args and converts to JSON with "cmd" field
     // This is the format that SecretManager expects and processes
 
-    println!("CUE format (raw):\n{}", cue_format);
-    println!("\nCUE format (with schema):\n{}", cue_with_schema);
-    println!("\nInternal format:\n{}", internal_format);
+    println!("CUE format (raw):\n{cue_format}");
+    println!("\nCUE format (with schema):\n{cue_with_schema}");
+    println!("\nInternal format:\n{internal_format}");
 }
 
 #[test]
@@ -53,13 +53,11 @@ fn test_onepassword_reference_format() {
     ];
 
     for example in examples {
-        println!("1Password reference: {}", example);
+        println!("1Password reference: {example}");
 
         // This would become:
-        let resolver_format = format!(
-            r#"cuenv-resolver://{{"cmd":"op","args":["read","{}"]}}"#,
-            example
-        );
-        println!("  -> {}\n", resolver_format);
+        let resolver_format =
+            format!(r#"cuenv-resolver://{{"cmd":"op","args":["read","{example}"]}}"#);
+        println!("  -> {resolver_format}\n");
     }
 }

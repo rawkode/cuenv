@@ -1,4 +1,5 @@
 use crate::cue_parser::ParseResult;
+use crate::retry::{retry_blocking, RetryConfig};
 use crate::xdg::XdgPaths;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -32,11 +33,12 @@ impl CueCache {
             Err(_) => return None,
         };
 
-        // Read cache file
-        let cache_content = match fs::read_to_string(&cache_file) {
-            Ok(content) => content,
-            Err(_) => return None,
-        };
+        // Read cache file with retry for transient failures
+        let cache_content =
+            match retry_blocking(RetryConfig::fast(), || fs::read_to_string(&cache_file)) {
+                Ok(content) => content,
+                Err(_) => return None,
+            };
 
         // Deserialize cache
         let cached: CachedParseResult = match serde_json::from_str(&cache_content) {
@@ -57,9 +59,10 @@ impl CueCache {
         let cache_file = XdgPaths::cache_file(&cue_file.to_path_buf());
         let cache_dir = cache_file.parent().unwrap();
 
-        // Create cache directory if it doesn't exist
+        // Create cache directory if it doesn't exist with retry
         if !cache_dir.exists() {
-            fs::create_dir_all(cache_dir)?;
+            retry_blocking(RetryConfig::fast(), || fs::create_dir_all(cache_dir))
+                .map_err(|e| std::io::Error::other(e.to_string()))?;
         }
 
         // Get modification time of source file
@@ -71,9 +74,12 @@ impl CueCache {
             mtime: source_mtime,
         };
 
-        // Serialize and save
+        // Serialize and save with retry
         let cache_content = serde_json::to_string(&cached)?;
-        fs::write(&cache_file, cache_content)?;
+        retry_blocking(RetryConfig::fast(), || {
+            fs::write(&cache_file, &cache_content)
+        })
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
 
         Ok(())
     }
