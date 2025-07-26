@@ -176,12 +176,15 @@ mod tests {
     use std::collections::HashMap;
     use std::fs;
     use tempfile::TempDir;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn test_state_management() {
         // Use a unique prefix for this test with thread ID to avoid race conditions
         let thread_id = std::thread::current().id();
-        env::set_var("CUENV_PREFIX", format!("TEST_STATE_MGMT_{:?}", thread_id));
+        let test_prefix = format!("TEST_STATE_MGMT_{:?}", thread_id);
+        env::set_var("CUENV_PREFIX", &test_prefix);
 
         // Clean environment - remove any cuenv state variables
         env::remove_var(StateManager::env_var_name("CUENV_DIR"));
@@ -261,15 +264,24 @@ mod tests {
         StateManager::unload().unwrap();
         assert!(!StateManager::is_loaded());
 
-        // Clean up prefix
+        // Clean up our specific environment variables before removing prefix
+        env::remove_var(StateManager::env_var_name("CUENV_DIR"));
+        env::remove_var(StateManager::env_var_name("CUENV_FILE"));
+        env::remove_var(StateManager::env_var_name("CUENV_DIFF"));
+        env::remove_var(StateManager::env_var_name("CUENV_WATCHES"));
+        env::remove_var(StateManager::env_var_name("CUENV_STATE"));
+        
+        // Finally remove the prefix
         env::remove_var("CUENV_PREFIX");
     }
 
     #[test]
+    #[serial]
     fn test_should_load_unload() {
         // Use a unique prefix for this test with thread ID to avoid race conditions
         let thread_id = std::thread::current().id();
-        env::set_var("CUENV_PREFIX", format!("TEST_SHOULD_LOAD_{:?}", thread_id));
+        let test_prefix = format!("TEST_SHOULD_LOAD_{:?}", thread_id);
+        env::set_var("CUENV_PREFIX", &test_prefix);
 
         let temp_dir = TempDir::new().unwrap();
         let temp_dir2 = TempDir::new().unwrap();
@@ -308,8 +320,14 @@ mod tests {
         // Should unload when leaving to different directory
         assert!(StateManager::should_unload(&other));
 
-        // Clean up
+        // Clean up our specific environment variables before removing prefix
         env::remove_var(StateManager::env_var_name("CUENV_DIR"));
+        env::remove_var(StateManager::env_var_name("CUENV_FILE"));
+        env::remove_var(StateManager::env_var_name("CUENV_DIFF"));
+        env::remove_var(StateManager::env_var_name("CUENV_WATCHES"));
+        env::remove_var(StateManager::env_var_name("CUENV_STATE"));
+        
+        // Finally remove the prefix
         env::remove_var("CUENV_PREFIX");
     }
 }
