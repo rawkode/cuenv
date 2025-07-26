@@ -1,13 +1,12 @@
 #[cfg(all(test, target_os = "linux"))]
 mod landlock_edge_cases {
     use cuenv::access_restrictions::AccessRestrictions;
-    use std::path::PathBuf;
     use std::process::Command;
 
     #[test]
     #[ignore] // Requires Landlock support
     fn test_empty_allowlist_blocks_everything() {
-        let mut restrictions = AccessRestrictions::new(true, false);
+        let restrictions = AccessRestrictions::new(true, false);
         // No paths added - should block everything
 
         let mut cmd = Command::new("ls");
