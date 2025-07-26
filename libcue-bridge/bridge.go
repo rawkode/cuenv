@@ -390,6 +390,13 @@ func extractCueData(v cue.Value) map[string]interface{} {
 					onEnter["url"] = url
 				}
 			}
+			// Extract constraints
+			if constraintsField := onEnterField.LookupPath(cue.ParsePath("constraints")); constraintsField.Exists() {
+				var constraints []interface{}
+				if err := constraintsField.Decode(&constraints); err == nil {
+					onEnter["constraints"] = constraints
+				}
+			}
 			if len(onEnter) > 0 {
 				hooks["onEnter"] = onEnter
 			}
@@ -414,6 +421,13 @@ func extractCueData(v cue.Value) map[string]interface{} {
 				var url string
 				if err := urlField.Decode(&url); err == nil {
 					onExit["url"] = url
+				}
+			}
+			// Extract constraints
+			if constraintsField := onExitField.LookupPath(cue.ParsePath("constraints")); constraintsField.Exists() {
+				var constraints []interface{}
+				if err := constraintsField.Decode(&constraints); err == nil {
+					onExit["constraints"] = constraints
 				}
 			}
 			if len(onExit) > 0 {
