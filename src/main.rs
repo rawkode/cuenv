@@ -4,6 +4,7 @@ use cuenv::errors::{Error, Result};
 use cuenv::platform::{PlatformOps, Shell};
 use cuenv::shell::ShellType;
 use cuenv::state::StateManager;
+use cuenv::sync_env::InstanceLock;
 use cuenv::{
     directory::DirectoryManager, env_manager::EnvManager, shell_hook::ShellHook,
     task_executor::TaskExecutor,
@@ -116,6 +117,9 @@ enum Commands {
 fn main() -> Result<()> {
     env_logger::init();
 
+    // Initialize cleanup handling for proper resource management
+    cuenv::cleanup::init_cleanup_handler();
+
     let cli = Cli::parse();
 
     match cli.command {
@@ -124,6 +128,16 @@ fn main() -> Result<()> {
             environment,
             capabilities,
         }) => {
+            // Acquire instance lock to prevent concurrent modifications
+            let _lock = match InstanceLock::acquire() {
+                Ok(lock) => lock,
+                Err(e) => {
+                    return Err(Error::Configuration {
+                        message: e.to_string(),
+                    })
+                }
+            };
+
             let dir = match directory {
                 Some(d) => d,
                 None => match env::current_dir() {
@@ -170,6 +184,16 @@ fn main() -> Result<()> {
             }
         }
         Some(Commands::Unload) => {
+            // Acquire instance lock to prevent concurrent modifications
+            let _lock = match InstanceLock::acquire() {
+                Ok(lock) => lock,
+                Err(e) => {
+                    return Err(Error::Configuration {
+                        message: e.to_string(),
+                    })
+                }
+            };
+
             let mut env_manager = EnvManager::new();
             match env_manager.unload_env() {
                 Ok(()) => {}
