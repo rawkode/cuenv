@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"unsafe"
 
@@ -285,6 +286,17 @@ func extractCueData(v cue.Value) map[string]interface{} {
 				}
 			}
 		}
+
+		// Sort capabilities for each command to ensure deterministic ordering
+		for _, cmdConfig := range commands {
+			if cmdMap, ok := cmdConfig.(map[string]interface{}); ok {
+				if caps, ok := cmdMap["capabilities"].([]string); ok {
+					sort.Strings(caps)
+					cmdMap["capabilities"] = caps
+				}
+			}
+		}
+
 		result["commands"] = commands
 	}
 
