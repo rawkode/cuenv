@@ -176,14 +176,21 @@ mod tests {
     use serial_test::serial;
     use std::collections::HashMap;
     use std::fs;
+    use std::sync::Mutex;
     use tempfile::TempDir;
+
+    // Mutex to ensure state tests don't interfere with each other
+    static STATE_TEST_MUTEX: Mutex<()> = Mutex::new(());
 
     #[test]
     #[serial]
     fn test_state_management() {
+        let _lock = STATE_TEST_MUTEX.lock().unwrap();
+
         // Use a unique prefix for this test with thread ID to avoid race conditions
         let thread_id = std::thread::current().id();
-        env::set_var("CUENV_PREFIX", format!("TEST_STATE_MGMT_{thread_id:?}"));
+        let test_prefix = format!("TEST_STATE_MGMT_{:?}", thread_id);
+        env::set_var("CUENV_PREFIX", &test_prefix);
 
         // Clean environment - remove any cuenv state variables
         env::remove_var(StateManager::env_var_name("CUENV_DIR"));
@@ -223,11 +230,25 @@ mod tests {
 
         // Check loaded state
         assert!(StateManager::is_loaded());
-        assert_eq!(StateManager::current_dir(), Some(dir.to_path_buf()));
+
+        // Compare canonical paths to handle symlinks and path resolution differences
+        let current_dir = StateManager::current_dir().unwrap();
+        let expected_dir = dir.to_path_buf();
+
+        // In build environments, paths might be resolved differently, so compare canonical forms
+        let current_canonical = current_dir.canonicalize().unwrap_or(current_dir);
+        let expected_canonical = expected_dir.canonicalize().unwrap_or(expected_dir);
+
+        assert_eq!(current_canonical, expected_canonical);
 
         // Get state
         let state = StateManager::get_state().unwrap().unwrap();
-        assert_eq!(state.dir, dir);
+
+        // Compare canonical paths to handle symlinks and path resolution differences
+        let state_dir_canonical = state.dir.canonicalize().unwrap_or(state.dir.clone());
+        let expected_dir_canonical = dir.canonicalize().unwrap_or(dir.to_path_buf());
+        assert_eq!(state_dir_canonical, expected_dir_canonical);
+
         assert_eq!(state.file, file);
         assert_eq!(state.environment, Some("dev".to_string()));
         assert_eq!(state.capabilities, vec!["cap1".to_string()]);
@@ -240,16 +261,26 @@ mod tests {
         StateManager::unload().unwrap();
         assert!(!StateManager::is_loaded());
 
-        // Clean up prefix
+        // Clean up our specific environment variables before removing prefix
+        env::remove_var(StateManager::env_var_name("CUENV_DIR"));
+        env::remove_var(StateManager::env_var_name("CUENV_FILE"));
+        env::remove_var(StateManager::env_var_name("CUENV_DIFF"));
+        env::remove_var(StateManager::env_var_name("CUENV_WATCHES"));
+        env::remove_var(StateManager::env_var_name("CUENV_STATE"));
+
+        // Finally remove the prefix
         env::remove_var("CUENV_PREFIX");
     }
 
     #[test]
     #[serial]
     fn test_should_load_unload() {
+        let _lock = STATE_TEST_MUTEX.lock().unwrap();
+
         // Use a unique prefix for this test with thread ID to avoid race conditions
         let thread_id = std::thread::current().id();
-        env::set_var("CUENV_PREFIX", format!("TEST_SHOULD_LOAD_{thread_id:?}"));
+        let test_prefix = format!("TEST_SHOULD_LOAD_{:?}", thread_id);
+        env::set_var("CUENV_PREFIX", &test_prefix);
 
         let temp_dir = TempDir::new().unwrap();
         let temp_dir2 = TempDir::new().unwrap();
@@ -288,8 +319,14 @@ mod tests {
         // Should unload when leaving to different directory
         assert!(StateManager::should_unload(other));
 
-        // Clean up
+        // Clean up our specific environment variables before removing prefix
         env::remove_var(StateManager::env_var_name("CUENV_DIR"));
+        env::remove_var(StateManager::env_var_name("CUENV_FILE"));
+        env::remove_var(StateManager::env_var_name("CUENV_DIFF"));
+        env::remove_var(StateManager::env_var_name("CUENV_WATCHES"));
+        env::remove_var(StateManager::env_var_name("CUENV_STATE"));
+
+        // Finally remove the prefix
         env::remove_var("CUENV_PREFIX");
     }
 }

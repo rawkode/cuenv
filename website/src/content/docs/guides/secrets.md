@@ -167,6 +167,58 @@ SIGNING_KEY: #GcpSecret & {
 }
 ```
 
+### Custom Command Secret Resolvers
+
+For integrating with other secret management systems, you can create custom command-based resolvers.
+
+#### Inline Resolvers
+
+Define custom resolvers directly on individual secrets:
+
+```cue title="env.cue"
+package env
+
+import "github.com/rawkode/cuenv"
+
+env: cuenv.#Env & {
+    // Custom resolver for HashiCorp Vault
+    DATABASE_PASSWORD: cuenv.#Secret & {
+        resolver: {
+            command: "vault"
+            args: ["kv", "get", "-field=password", "secret/myapp/database"]
+        }
+    }
+}
+```
+
+#### Reusable Resolver Definitions
+
+For better reusability, create custom resolver types:
+
+```cue title="env.cue"
+package env
+
+import "github.com/rawkode/cuenv"
+
+// Define a reusable resolver
+#VaultRef: cuenv.#Secret & {
+    path:  string
+    field: string
+    resolver: {
+        command: "vault"
+        args: ["kv", "get", "-field=\(field)", path]
+    }
+}
+
+env: cuenv.#Env & {
+    // Use the reusable resolver
+    DATABASE_PASSWORD: #VaultRef & {
+        path:  "secret/myapp/database"
+        field: "password"
+    }
+}
+```
+
 ## Using Secrets with cuenv run
 
 Secrets are only resolved when using the `cuenv run` command:

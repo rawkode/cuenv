@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"unsafe"
 
@@ -285,6 +286,17 @@ func extractCueData(v cue.Value) map[string]interface{} {
 				}
 			}
 		}
+
+		// Sort capabilities for each command to ensure deterministic ordering
+		for _, cmdConfig := range commands {
+			if cmdMap, ok := cmdConfig.(map[string]interface{}); ok {
+				if caps, ok := cmdMap["capabilities"].([]string); ok {
+					sort.Strings(caps)
+					cmdMap["capabilities"] = caps
+				}
+			}
+		}
+
 		result["commands"] = commands
 	}
 
@@ -445,6 +457,13 @@ func extractCueData(v cue.Value) map[string]interface{} {
 					onEnter["url"] = url
 				}
 			}
+			// Extract constraints
+			if constraintsField := onEnterField.LookupPath(cue.ParsePath("constraints")); constraintsField.Exists() {
+				var constraints []interface{}
+				if err := constraintsField.Decode(&constraints); err == nil {
+					onEnter["constraints"] = constraints
+				}
+			}
 			if len(onEnter) > 0 {
 				hooks["onEnter"] = onEnter
 			}
@@ -469,6 +488,13 @@ func extractCueData(v cue.Value) map[string]interface{} {
 				var url string
 				if err := urlField.Decode(&url); err == nil {
 					onExit["url"] = url
+				}
+			}
+			// Extract constraints
+			if constraintsField := onExitField.LookupPath(cue.ParsePath("constraints")); constraintsField.Exists() {
+				var constraints []interface{}
+				if err := constraintsField.Decode(&constraints); err == nil {
+					onExit["constraints"] = constraints
 				}
 			}
 			if len(onExit) > 0 {

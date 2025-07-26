@@ -1,5 +1,5 @@
 use crate::command_executor::CommandExecutor;
-use crate::cue_parser::HookConfig;
+use crate::cue_parser::{HookConfig, HookConstraint};
 use crate::types::{CommandArguments, EnvironmentVariables};
 use anyhow::{anyhow, Result};
 use lru::LruCache;
@@ -70,11 +70,24 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
             .map_err(|e| anyhow!("Failed to acquire semaphore: {}", e))?;
 
         log::debug!(
-            "Executing hook: type={:?}, command={}, url={:?}",
+            "Executing hook: type={:?}, command={}, url={:?}, constraints={:?}",
             hook_config.hook_type,
             hook_config.command,
-            hook_config.url
+            hook_config.url,
+            hook_config.constraints
         );
+
+        // Check constraints before executing hook
+        if !self
+            .check_constraints(&hook_config.constraints, env_vars)
+            .await?
+        {
+            log::info!(
+                "Skipping hook '{}' due to unmet constraints",
+                hook_config.command
+            );
+            return Ok(());
+        }
 
         if let Some(url) = &hook_config.url {
             self.execute_remote_hook(url, env_vars).await
@@ -225,6 +238,90 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
         isolated_env
     }
 
+    async fn check_constraints(
+        &self,
+        constraints: &[HookConstraint],
+        env_vars: &HashMap<String, String>,
+    ) -> Result<bool> {
+        for constraint in constraints {
+            if !self.check_single_constraint(constraint, env_vars).await? {
+                log::debug!("Constraint not met: {constraint:?}");
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    async fn check_single_constraint(
+        &self,
+        constraint: &HookConstraint,
+        env_vars: &HashMap<String, String>,
+    ) -> Result<bool> {
+        match constraint {
+            HookConstraint::CommandExists { command } => {
+                self.check_command_exists(command, env_vars).await
+            }
+            HookConstraint::ShellCommand { command, args } => {
+                self.check_shell_command(command, args.as_ref(), env_vars)
+                    .await
+            }
+        }
+    }
+
+    async fn check_command_exists(
+        &self,
+        command: &str,
+        env_vars: &HashMap<String, String>,
+    ) -> Result<bool> {
+        log::debug!("Checking if command '{command}' exists");
+
+        let isolated_env = self.create_isolated_environment(env_vars);
+        let args = CommandArguments::from_vec(vec![command.to_string()]);
+        let env = EnvironmentVariables::from_map(isolated_env);
+
+        // Use 'which' command to check if the command exists
+        match self.executor.execute_with_env("which", &args, env).await {
+            Ok(output) => {
+                let exists = output.status.success();
+                log::debug!("Command '{command}' exists: {exists}");
+                Ok(exists)
+            }
+            Err(e) => {
+                log::debug!("Failed to check command '{command}': {e}");
+                Ok(false)
+            }
+        }
+    }
+
+    async fn check_shell_command(
+        &self,
+        command: &str,
+        args: Option<&Vec<String>>,
+        env_vars: &HashMap<String, String>,
+    ) -> Result<bool> {
+        log::debug!("Checking shell command: {command} {args:?}");
+
+        let isolated_env = self.create_isolated_environment(env_vars);
+        let command_args = CommandArguments::from_vec(args.cloned().unwrap_or_default());
+        let env = EnvironmentVariables::from_map(isolated_env);
+
+        match self
+            .executor
+            .execute_with_env(command, &command_args, env)
+            .await
+        {
+            Ok(output) => {
+                let success = output.status.success();
+                log::debug!("Shell command '{command}' succeeded: {success}");
+                Ok(success)
+            }
+            Err(e) => {
+                log::debug!("Shell command '{command}' failed: {e}");
+                Ok(false)
+            }
+        }
+    }
+
     // Test helper methods
     #[cfg(test)]
     pub fn new_with_config(
@@ -271,6 +368,7 @@ mod tests {
             command: "echo".to_string(),
             args: vec!["test".to_string()],
             url: None,
+            constraints: Vec::new(),
             hook_type: crate::cue_parser::HookType::OnEnter,
         };
 
@@ -306,5 +404,140 @@ mod tests {
         let result = manager.fetch_url_content("https://example.com").await;
         // This may fail due to network, but should at least parse the URL correctly
         assert!(result.is_err() || result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_constraint_command_exists() {
+        let executor = Arc::new(TestCommandExecutor::new());
+
+        // Mock 'which' command to return success for 'echo'
+        executor.add_response(
+            "which",
+            &["echo".to_string()],
+            crate::command_executor::TestResponse {
+                stdout: b"/bin/echo\n".to_vec(),
+                stderr: Vec::new(),
+                status_code: 0,
+            },
+        );
+
+        // Mock 'which' command to return failure for 'nonexistent'
+        executor.add_response(
+            "which",
+            &["nonexistent".to_string()],
+            crate::command_executor::TestResponse {
+                stdout: Vec::new(),
+                stderr: b"which: no nonexistent in (/usr/bin:/bin)\n".to_vec(),
+                status_code: 1,
+            },
+        );
+
+        let manager = HookManager::new(executor).unwrap();
+        let env_vars = HashMap::new();
+
+        // Test existing command
+        let constraint = HookConstraint::CommandExists {
+            command: "echo".to_string(),
+        };
+        let result = manager
+            .check_single_constraint(&constraint, &env_vars)
+            .await;
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+
+        // Test non-existing command
+        let constraint = HookConstraint::CommandExists {
+            command: "nonexistent".to_string(),
+        };
+        let result = manager
+            .check_single_constraint(&constraint, &env_vars)
+            .await;
+        assert!(result.is_ok());
+        assert!(!result.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_constraint_shell_command() {
+        let executor = Arc::new(TestCommandExecutor::new());
+
+        // Mock successful command
+        executor.add_response(
+            "true",
+            &[],
+            crate::command_executor::TestResponse {
+                stdout: Vec::new(),
+                stderr: Vec::new(),
+                status_code: 0,
+            },
+        );
+
+        // Mock failing command
+        executor.add_response(
+            "false",
+            &[],
+            crate::command_executor::TestResponse {
+                stdout: Vec::new(),
+                stderr: Vec::new(),
+                status_code: 1,
+            },
+        );
+
+        let manager = HookManager::new(executor).unwrap();
+        let env_vars = HashMap::new();
+
+        // Test successful shell command
+        let constraint = HookConstraint::ShellCommand {
+            command: "true".to_string(),
+            args: None,
+        };
+        let result = manager
+            .check_single_constraint(&constraint, &env_vars)
+            .await;
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+
+        // Test failing shell command
+        let constraint = HookConstraint::ShellCommand {
+            command: "false".to_string(),
+            args: None,
+        };
+        let result = manager
+            .check_single_constraint(&constraint, &env_vars)
+            .await;
+        assert!(result.is_ok());
+        assert!(!result.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_hook_skipped_when_constraints_not_met() {
+        let executor = Arc::new(TestCommandExecutor::new());
+
+        // Mock 'which' command to return failure for 'devenv'
+        executor.add_response(
+            "which",
+            &["devenv".to_string()],
+            crate::command_executor::TestResponse {
+                stdout: Vec::new(),
+                stderr: b"which: no devenv in (/usr/bin:/bin)\n".to_vec(),
+                status_code: 1,
+            },
+        );
+
+        let manager = HookManager::new(executor).unwrap();
+
+        let hook_config = HookConfig {
+            command: "devenv".to_string(),
+            args: vec!["up".to_string()],
+            url: None,
+            constraints: vec![HookConstraint::CommandExists {
+                command: "devenv".to_string(),
+            }],
+            hook_type: crate::cue_parser::HookType::OnEnter,
+        };
+
+        let env_vars = HashMap::new();
+        // This should succeed (not error) but skip execution due to unmet constraint
+        let result = manager.execute_hook(&hook_config, &env_vars).await;
+        assert!(result.is_ok());
     }
 }
