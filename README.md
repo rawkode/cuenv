@@ -221,26 +221,74 @@ cuenv run bash -- -c 'echo "PARENT_VAR=$PARENT_VAR"'  # Will print: PARENT_VAR=
 
 ### Access Restrictions
 
-You can restrict disk, process, and network access when running commands:
+You can restrict disk, process, and network access when running commands using Landlock (Linux Security Module):
 
 ```bash
-# Restrict network access (blocks network connections)
-cuenv exec --restrict-network curl https://api.example.com
+# Restrict filesystem access with explicit allowlists
+cuenv exec --restrict-disk \
+  --read-only /bin --read-only /usr/bin --read-only /lib --read-only /usr/lib \
+  --read-write /tmp \
+  find /tmp -name "*.txt"
 
-# Restrict process access (blocks process spawning and IPC)
-cuenv exec --restrict-process bash -c 'echo "No subprocesses allowed"'
+# Allow access to specific paths only
+cuenv exec --restrict-disk \
+  --read-only /usr/bin --read-only /lib --read-only /usr/lib \
+  --read-only /home/user/project \
+  --read-write /home/user/project/output \
+  ./build.sh
 
-# Restrict disk access (blocks filesystem operations outside allowed paths)
-cuenv exec --restrict-disk find /etc -name "*.conf"
+# Restrict network access (limited Landlock support)
+cuenv exec --restrict-network python3 script.py  # Will show informative error
 
-# Combine multiple restrictions
-cuenv run --restrict-disk --restrict-network --restrict-process echo "Fully restricted"
+# Restrict process spawning (not supported by Landlock)
+cuenv exec --restrict-process bash -c 'echo "Process restrictions need other tools"'
 
-# Use with exec command for direct execution
-cuenv exec --restrict-network python3 script.py
+# Filesystem restrictions work by explicitly allowing paths
+cuenv run --restrict-disk \
+  --read-only /bin --read-only /usr/bin --read-only /lib --read-only /usr/lib \
+  --read-only /etc --read-write /tmp \
+  build-task
 ```
 
-**Note:** Access restrictions use Linux namespaces (via `unshare`) and require appropriate system capabilities. On systems without these capabilities, commands with restrictions will fail with permission errors.
+**Landlock Requirements:**
+- Linux kernel 5.13+ (for filesystem restrictions)
+- Linux kernel 5.19+ (for network restrictions - not yet implemented)
+- Appropriate permissions to use Landlock LSM
+
+**Security Model:** When `--restrict-disk` is used, you must explicitly allow all paths your command needs access to. This includes:
+- Executable paths (`/bin`, `/usr/bin`)
+- Library paths (`/lib`, `/usr/lib`, `/lib64`, `/usr/lib64`) 
+- Configuration paths (`/etc` if needed)
+- Working directories and output paths
+
+**Common Usage Patterns:**
+```bash
+# Basic command execution with minimal system access
+cuenv exec --restrict-disk \
+  --read-only /bin --read-only /usr/bin \
+  --read-only /lib --read-only /usr/lib --read-only /lib64 --read-only /usr/lib64 \
+  --read-write /tmp \
+  echo "Hello, restricted world!"
+
+# Development environment with project access
+cuenv exec --restrict-disk \
+  --read-only /bin --read-only /usr/bin \
+  --read-only /lib --read-only /usr/lib --read-only /lib64 --read-only /usr/lib64 \
+  --read-only /etc \
+  --read-only "$(pwd)" \
+  --read-write "$(pwd)/target" --read-write /tmp \
+  cargo build
+
+# Secure script execution
+cuenv exec --restrict-disk \
+  --read-only /bin --read-only /usr/bin \
+  --read-only /lib --read-only /usr/lib \
+  --read-only /home/user/scripts \
+  --read-write /home/user/data \
+  python3 /home/user/scripts/process_data.py
+```
+
+**Note:** Network and process restrictions are not yet fully implemented with Landlock. Use system-level controls or container runtimes for those restrictions.
 
 ### Secret Resolution
 

@@ -1038,7 +1038,9 @@ env: {
                 assert!(
                     error_msg.contains("CommandExecution") || 
                     error_msg.contains("Failed to capture stdout") ||
-                    error_msg.contains("Failed to spawn command"),
+                    error_msg.contains("Failed to spawn command") ||
+                    error_msg.contains("Network restrictions with Landlock") ||
+                    error_msg.contains("configuration error"),
                     "Error should be related to command execution with restrictions: {}", error_msg
                 );
             }
