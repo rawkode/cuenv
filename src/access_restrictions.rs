@@ -7,8 +7,6 @@ use std::process::Command;
 pub struct AccessRestrictions {
     /// Restrict disk access (filesystem operations)
     pub restrict_disk: bool,
-    /// Restrict process access (process spawning and IPC)
-    pub restrict_process: bool,
     /// Restrict network access (network connections)
     pub restrict_network: bool,
     /// Paths that are allowed for reading
@@ -23,10 +21,9 @@ pub struct AccessRestrictions {
 
 impl AccessRestrictions {
     /// Create new restrictions configuration
-    pub fn new(restrict_disk: bool, restrict_process: bool, restrict_network: bool) -> Self {
+    pub fn new(restrict_disk: bool, restrict_network: bool) -> Self {
         Self {
             restrict_disk,
-            restrict_process,
             restrict_network,
             read_only_paths: Vec::new(),
             read_write_paths: Vec::new(),
@@ -38,7 +35,6 @@ impl AccessRestrictions {
     /// Create restrictions with explicit path and network allowlists
     pub fn with_allowlists(
         restrict_disk: bool,
-        restrict_process: bool,
         restrict_network: bool,
         read_only_paths: Vec<PathBuf>,
         read_write_paths: Vec<PathBuf>,
@@ -47,7 +43,6 @@ impl AccessRestrictions {
     ) -> Self {
         Self {
             restrict_disk,
-            restrict_process,
             restrict_network,
             read_only_paths,
             read_write_paths,
@@ -76,6 +71,32 @@ impl AccessRestrictions {
         self.allowed_hosts.push(host.into());
     }
 
+    /// Create AccessRestrictions from a SecurityConfig
+    pub fn from_security_config(security: &crate::cue_parser::SecurityConfig) -> Self {
+        use std::path::PathBuf;
+        
+        Self {
+            restrict_disk: security.restrict_disk.unwrap_or(false),
+            restrict_network: security.restrict_network.unwrap_or(false),
+            read_only_paths: security.read_only_paths
+                .as_ref()
+                .map(|paths| paths.iter().map(PathBuf::from).collect())
+                .unwrap_or_default(),
+            read_write_paths: security.read_write_paths
+                .as_ref()
+                .map(|paths| paths.iter().map(PathBuf::from).collect())
+                .unwrap_or_default(),
+            deny_paths: security.deny_paths
+                .as_ref()
+                .map(|paths| paths.iter().map(PathBuf::from).collect())
+                .unwrap_or_default(),
+            allowed_hosts: security.allowed_hosts
+                .as_ref()
+                .cloned()
+                .unwrap_or_default(),
+        }
+    }
+
     /// Apply restrictions to a command before execution
     /// This is the main entry point for applying platform-specific restrictions
     pub fn apply_to_command(&self, cmd: &mut Command) -> Result<()> {
@@ -95,52 +116,61 @@ impl AccessRestrictions {
 
     /// Check if any restrictions are enabled
     pub fn has_any_restrictions(&self) -> bool {
-        self.restrict_disk || self.restrict_process || self.restrict_network
+        self.restrict_disk || self.restrict_network
     }
 
     /// Apply Landlock-based restrictions on Linux
     #[cfg(target_os = "linux")]
     fn apply_landlock_restrictions(&self, cmd: &mut Command) -> Result<()> {
         use landlock::{
-            Access, AccessFs, PathBeneath, PathFd, Ruleset, RulesetAttr, ABI,
+            ABI,
         };
         use std::os::unix::process::CommandExt;
 
-        // Check Landlock support
-        let abi = ABI::V1;
+        // Check available Landlock ABI version
+        let _abi = match ABI::V2 {
+            ABI::V2 => {
+                log::info!("Landlock V2 available, network restrictions supported");
+                ABI::V2
+            }
+            _ => match ABI::V1 {
+                ABI::V1 => {
+                    log::info!("Landlock V1 available, filesystem restrictions only");
+                    if self.restrict_network {
+                        return Err(Error::configuration(
+                            "Network restrictions require Landlock V2 (Linux kernel 5.19+). \
+                            Current system only supports Landlock V1.".to_string()
+                        ));
+                    }
+                    ABI::V1
+                }
+                _ => {
+                    return Err(Error::configuration(
+                        "Landlock is not supported on this system. Requires Linux kernel 5.13+.".to_string()
+                    ));
+                }
+            }
+        };
         
-        // We'll create a pre-exec closure that applies Landlock restrictions to the child process
+        // Create a pre-exec closure that applies Landlock restrictions to the child process
         if self.restrict_disk {
             let read_only_paths = self.read_only_paths.clone();
             let read_write_paths = self.read_write_paths.clone();
             
             unsafe {
                 cmd.pre_exec(move || {
-                    Self::apply_landlock_filesystem_restrictions(&read_only_paths, &read_write_paths, abi)
+                    Self::apply_landlock_filesystem_restrictions(&read_only_paths, &read_write_paths)
                 });
             }
         }
 
+        // Note: Network restrictions with Landlock V2 are more complex and would require
+        // a different approach. For now, we'll focus on filesystem restrictions.
         if self.restrict_network {
-            // Landlock v2 supports network restrictions, but it's not as comprehensive
-            // For now, we'll show a more informative message about limitations
-            log::warn!("Network restrictions with Landlock require kernel 5.19+ and are limited in scope");
-            
-            // We could add network restrictions here if we detect Landlock v2+ support
-            // For now, return an error with guidance
             return Err(Error::configuration(
-                "Network restrictions with Landlock are not yet fully implemented. \
-                Consider using process isolation or firewall rules for network control.".to_string()
-            ));
-        }
-
-        if self.restrict_process {
-            // Landlock doesn't handle process restrictions directly
-            // We'd need to use other mechanisms like seccomp, namespaces, or rlimits
-            return Err(Error::configuration(
-                "Process restrictions are not supported by Landlock. \
-                Consider using system-level controls like systemd or container runtimes \
-                for process isolation.".to_string()
+                "Network restrictions with Landlock are complex and not yet fully implemented. \
+                Consider using system-level controls like iptables or network namespaces \
+                for network isolation.".to_string()
             ));
         }
 
@@ -152,20 +182,18 @@ impl AccessRestrictions {
     fn apply_landlock_filesystem_restrictions(
         read_only_paths: &[PathBuf],
         read_write_paths: &[PathBuf],
-        _abi: landlock::ABI,
     ) -> std::io::Result<()> {
         use landlock::{
-            Access, AccessFs, PathBeneath, PathFd, Ruleset, RulesetAttr, RulesetCreatedAttr,
+            AccessFs, PathBeneath, PathFd, Ruleset, RulesetAttr, RulesetCreatedAttr,
         };
 
-        // If no paths are specified, don't apply any restrictions
-        // This avoids the complexity of trying to determine what should be allowed by default
-        if read_only_paths.is_empty() && read_write_paths.is_empty() {
-            return Ok(());
-        }
-
+        // If no paths are specified, apply very restrictive mode
         // Create a new Landlock ruleset for filesystem restrictions
-        let fs_access = AccessFs::Execute | AccessFs::WriteFile | AccessFs::ReadFile | AccessFs::ReadDir | AccessFs::RemoveDir | AccessFs::RemoveFile | AccessFs::MakeChar | AccessFs::MakeDir | AccessFs::MakeReg | AccessFs::MakeSock | AccessFs::MakeFifo | AccessFs::MakeBlock | AccessFs::MakeSym;
+        let fs_access = AccessFs::Execute | AccessFs::WriteFile | AccessFs::ReadFile | 
+                       AccessFs::ReadDir | AccessFs::RemoveDir | AccessFs::RemoveFile | 
+                       AccessFs::MakeChar | AccessFs::MakeDir | AccessFs::MakeReg | 
+                       AccessFs::MakeSock | AccessFs::MakeFifo | AccessFs::MakeBlock | 
+                       AccessFs::MakeSym;
         
         let mut ruleset = Ruleset::default()
             .handle_access(fs_access)
@@ -189,7 +217,10 @@ impl AccessRestrictions {
             ruleset = ruleset
                 .add_rule(PathBeneath::new(
                     path_fd,
-                    AccessFs::ReadFile | AccessFs::ReadDir | AccessFs::WriteFile | AccessFs::RemoveFile | AccessFs::RemoveDir | AccessFs::MakeChar | AccessFs::MakeDir | AccessFs::MakeReg | AccessFs::MakeSock | AccessFs::MakeFifo | AccessFs::MakeBlock | AccessFs::MakeSym | AccessFs::Execute,
+                    AccessFs::ReadFile | AccessFs::ReadDir | AccessFs::WriteFile | AccessFs::RemoveFile | 
+                    AccessFs::RemoveDir | AccessFs::MakeChar | AccessFs::MakeDir | AccessFs::MakeReg | 
+                    AccessFs::MakeSock | AccessFs::MakeFifo | AccessFs::MakeBlock | AccessFs::MakeSym | 
+                    AccessFs::Execute,
                 ))
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to add read-write rule for {}: {e}", path.display())))?;
         }
@@ -219,9 +250,8 @@ mod tests {
 
     #[test]
     fn test_access_restrictions_creation() {
-        let restrictions = AccessRestrictions::new(true, false, true);
+        let restrictions = AccessRestrictions::new(true, true);
         assert!(restrictions.restrict_disk);
-        assert!(!restrictions.restrict_process);
         assert!(restrictions.restrict_network);
         assert!(restrictions.has_any_restrictions());
     }
@@ -230,7 +260,6 @@ mod tests {
     fn test_access_restrictions_with_allowlists() {
         let restrictions = AccessRestrictions::with_allowlists(
             true,
-            false,
             true,
             vec![PathBuf::from("/tmp")],
             vec![PathBuf::from("/var/tmp")],
@@ -239,7 +268,6 @@ mod tests {
         );
         
         assert!(restrictions.restrict_disk);
-        assert!(!restrictions.restrict_process);
         assert!(restrictions.restrict_network);
         assert_eq!(restrictions.read_only_paths.len(), 1);
         assert_eq!(restrictions.read_write_paths.len(), 1);
@@ -255,7 +283,7 @@ mod tests {
 
     #[test]
     fn test_add_paths_and_hosts() {
-        let mut restrictions = AccessRestrictions::new(true, false, true);
+        let mut restrictions = AccessRestrictions::new(true, true);
         restrictions.add_read_only_path("/usr/lib");
         restrictions.add_read_write_path("/tmp");
         restrictions.add_deny_path("/etc/shadow");
@@ -283,7 +311,7 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn test_landlock_restrictions_available() {
-        let mut restrictions = AccessRestrictions::new(true, false, false);
+        let mut restrictions = AccessRestrictions::new(true, false);
         restrictions.add_read_only_path("/tmp");
         restrictions.add_read_write_path("/var/tmp");
         
@@ -298,7 +326,7 @@ mod tests {
     #[cfg(not(target_os = "linux"))]
     #[test]
     fn test_non_linux_restrictions_fail() {
-        let restrictions = AccessRestrictions::new(true, false, false);
+        let restrictions = AccessRestrictions::new(true, false);
         let mut cmd = Command::new("echo");
         cmd.arg("test");
         

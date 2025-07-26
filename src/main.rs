@@ -1,5 +1,4 @@
 use clap::{Parser, Subcommand};
-use cuenv::access_restrictions::AccessRestrictions;
 use cuenv::errors::{Error, Result};
 use cuenv::platform::{PlatformOps, Shell};
 use cuenv::shell::ShellType;
@@ -61,34 +60,6 @@ enum Commands {
         #[arg(short = 'c', long = "capability")]
         capabilities: Vec<String>,
 
-        /// Restrict disk access (blocks file system operations outside allowed paths)
-        #[arg(long = "restrict-disk")]
-        restrict_disk: bool,
-
-        /// Restrict process access (blocks process spawning and inter-process communication)
-        #[arg(long = "restrict-process")]
-        restrict_process: bool,
-
-        /// Restrict network access (blocks network connections)
-        #[arg(long = "restrict-network")]
-        restrict_network: bool,
-
-        /// Paths that are allowed for reading (can be specified multiple times)
-        #[arg(long = "read-only")]
-        read_only_paths: Vec<PathBuf>,
-
-        /// Paths that are allowed for reading and writing (can be specified multiple times)
-        #[arg(long = "read-write")]
-        read_write_paths: Vec<PathBuf>,
-
-        /// Paths that are explicitly denied (can be specified multiple times)
-        #[arg(long = "deny-path")]
-        deny_paths: Vec<PathBuf>,
-
-        /// Network hosts/CIDRs that are allowed (can be specified multiple times)
-        #[arg(long = "allow-host")]
-        allowed_hosts: Vec<String>,
-
         /// Task name to execute
         task_name: Option<String>,
 
@@ -104,34 +75,6 @@ enum Commands {
         /// Capabilities to enable (can be specified multiple times)
         #[arg(short = 'c', long = "capability")]
         capabilities: Vec<String>,
-
-        /// Restrict disk access (blocks file system operations outside allowed paths)
-        #[arg(long = "restrict-disk")]
-        restrict_disk: bool,
-
-        /// Restrict process access (blocks process spawning and inter-process communication)
-        #[arg(long = "restrict-process")]
-        restrict_process: bool,
-
-        /// Restrict network access (blocks network connections)
-        #[arg(long = "restrict-network")]
-        restrict_network: bool,
-
-        /// Paths that are allowed for reading (can be specified multiple times)
-        #[arg(long = "read-only")]
-        read_only_paths: Vec<PathBuf>,
-
-        /// Paths that are allowed for reading and writing (can be specified multiple times)
-        #[arg(long = "read-write")]
-        read_write_paths: Vec<PathBuf>,
-
-        /// Paths that are explicitly denied (can be specified multiple times)
-        #[arg(long = "deny-path")]
-        deny_paths: Vec<PathBuf>,
-
-        /// Network hosts/CIDRs that are allowed (can be specified multiple times)
-        #[arg(long = "allow-host")]
-        allowed_hosts: Vec<String>,
 
         /// Command to run
         command: String,
@@ -268,13 +211,6 @@ fn main() -> Result<()> {
         Some(Commands::Run {
             environment,
             capabilities,
-            restrict_disk,
-            restrict_process,
-            restrict_network,
-            read_only_paths,
-            read_write_paths,
-            deny_paths,
-            allowed_hosts,
             task_name,
             task_args,
         }) => {
@@ -321,21 +257,11 @@ fn main() -> Result<()> {
                         let status = rt.block_on(executor.execute_task(&name, &task_args))?;
                         std::process::exit(status);
                     } else {
-                        // Treat as direct command execution
+                        // Treat as direct command execution without restrictions
+                        // For restrictions, use task definitions with security config
                         let mut args = vec![name];
                         args.extend(task_args);
                         
-                        // Create access restrictions from flags
-                        let restrictions = AccessRestrictions::with_allowlists(
-                            restrict_disk,
-                            restrict_process,
-                            restrict_network,
-                            read_only_paths,
-                            read_write_paths,
-                            deny_paths,
-                            allowed_hosts,
-                        );
-
                         // For direct command execution, use the first argument as command
                         if args.is_empty() {
                             return Err(Error::configuration("No command provided".to_string()));
@@ -344,13 +270,8 @@ fn main() -> Result<()> {
                         let command = &args[0];
                         let command_args = &args[1..];
 
-                        // Execute the command with restrictions
-                        let status = if restrictions.has_any_restrictions() {
-                            env_manager.run_command_with_restrictions(command, command_args, &restrictions)?
-                        } else {
-                            env_manager.run_command(command, command_args)?
-                        };
-                        
+                        // Execute the command without restrictions for direct execution
+                        let status = env_manager.run_command(command, command_args)?;
                         std::process::exit(status);
                     }
                 }
@@ -374,13 +295,6 @@ fn main() -> Result<()> {
         Some(Commands::Exec {
             environment,
             capabilities,
-            restrict_disk,
-            restrict_process,
-            restrict_network,
-            read_only_paths,
-            read_write_paths,
-            deny_paths,
-            allowed_hosts,
             command,
             args,
         }) => {
@@ -414,23 +328,9 @@ fn main() -> Result<()> {
             // Load environment with options and command for inference
             env_manager.load_env_with_options(&current_dir, env_name, caps, Some(&command))?;
 
-            // Create access restrictions from flags
-            let restrictions = AccessRestrictions::with_allowlists(
-                restrict_disk,
-                restrict_process,
-                restrict_network,
-                read_only_paths,
-                read_write_paths,
-                deny_paths,
-                allowed_hosts,
-            );
-
-            // Execute the command with the loaded environment and restrictions
-            let status = if restrictions.has_any_restrictions() {
-                env_manager.run_command_with_restrictions(&command, &args, &restrictions)?
-            } else {
-                env_manager.run_command(&command, &args)?
-            };
+            // Execute the command with the loaded environment (no restrictions for direct exec)
+            // For restrictions, use task definitions with security config
+            let status = env_manager.run_command(&command, &args)?;
 
             // Exit with the same status code as the child process
             std::process::exit(status);

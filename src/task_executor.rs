@@ -315,6 +315,15 @@ impl TaskExecutor {
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit());
 
+        // Apply security restrictions if configured
+        if let Some(security) = &task_config.security {
+            use crate::access_restrictions::AccessRestrictions;
+            let restrictions = AccessRestrictions::from_security_config(security);
+            if restrictions.has_any_restrictions() {
+                restrictions.apply_to_command(&mut cmd)?;
+            }
+        }
+
         let output = cmd.output().map_err(|e| {
             Error::command_execution(
                 &shell,

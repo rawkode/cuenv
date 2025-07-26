@@ -1022,7 +1022,7 @@ env: {
         assert!(status.is_ok(), "Command should succeed without restrictions");
 
         // Test with restrictions (may fail in test environment, but should not panic)
-        let restrictions = AccessRestrictions::new(true, true, true);
+        let restrictions = AccessRestrictions::new(true, true);
         let result = manager.run_command_with_restrictions("echo", &["test".to_string()], &restrictions);
         
         // The result may be Ok or Err depending on environment capabilities
@@ -1056,17 +1056,17 @@ env: {
         assert!(!restrictions.has_any_restrictions());
 
         // Test with all restrictions
-        let restrictions = AccessRestrictions::new(true, true, true);
+        let restrictions = AccessRestrictions::new(true, true);
         assert!(restrictions.has_any_restrictions());
 
         // Test with partial restrictions
-        let restrictions = AccessRestrictions::new(true, false, false);
+        let restrictions = AccessRestrictions::new(true, false);
         assert!(restrictions.has_any_restrictions());
 
-        let restrictions = AccessRestrictions::new(false, true, false);
+        let restrictions = AccessRestrictions::new(false, true);
         assert!(restrictions.has_any_restrictions());
 
-        let restrictions = AccessRestrictions::new(false, false, true);
-        assert!(restrictions.has_any_restrictions());
+        let restrictions = AccessRestrictions::new(false, false);
+        assert!(!restrictions.has_any_restrictions());
     }
 }

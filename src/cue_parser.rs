@@ -51,6 +51,23 @@ pub struct TaskConfig {
     pub shell: Option<String>,
     pub inputs: Option<Vec<String>>,
     pub outputs: Option<Vec<String>>,
+    pub security: Option<SecurityConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityConfig {
+    #[serde(rename = "restrictDisk")]
+    pub restrict_disk: Option<bool>,
+    #[serde(rename = "restrictNetwork")]
+    pub restrict_network: Option<bool>,
+    #[serde(rename = "readOnlyPaths")]
+    pub read_only_paths: Option<Vec<String>>,
+    #[serde(rename = "readWritePaths")]
+    pub read_write_paths: Option<Vec<String>>,
+    #[serde(rename = "denyPaths")]
+    pub deny_paths: Option<Vec<String>>,
+    #[serde(rename = "allowedHosts")]
+    pub allowed_hosts: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
