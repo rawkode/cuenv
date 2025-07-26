@@ -68,6 +68,9 @@ pub struct SecurityConfig {
     pub deny_paths: Option<Vec<String>>,
     #[serde(rename = "allowedHosts")]
     pub allowed_hosts: Option<Vec<String>>,
+    /// Automatically infer disk restrictions from task inputs/outputs
+    #[serde(rename = "inferFromInputsOutputs")]
+    pub infer_from_inputs_outputs: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]

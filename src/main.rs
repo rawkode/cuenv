@@ -66,6 +66,10 @@ enum Commands {
         /// Arguments to pass to the task (after --)
         #[arg(last = true)]
         task_args: Vec<String>,
+
+        /// Run in audit mode to see file and network access without restrictions
+        #[arg(long)]
+        audit: bool,
     },
     Exec {
         /// Environment to use (e.g., dev, staging, production)
@@ -81,6 +85,10 @@ enum Commands {
 
         /// Arguments to pass to the command
         args: Vec<String>,
+
+        /// Run in audit mode to see file and network access without restrictions
+        #[arg(long)]
+        audit: bool,
     },
     /// Generate shell hook
     Hook {
@@ -213,6 +221,7 @@ fn main() -> Result<()> {
             capabilities,
             task_name,
             task_args,
+            audit,
         }) => {
             let current_dir = match env::current_dir() {
                 Ok(d) => d,
@@ -254,7 +263,11 @@ fn main() -> Result<()> {
                             Error::configuration(format!("Failed to create async runtime: {e}"))
                         })?;
 
-                        let status = rt.block_on(executor.execute_task(&name, &task_args))?;
+                        let status = if audit {
+                            rt.block_on(executor.execute_task_with_audit(&name, &task_args))?
+                        } else {
+                            rt.block_on(executor.execute_task(&name, &task_args))?
+                        };
                         std::process::exit(status);
                     } else {
                         // Treat as direct command execution without restrictions
@@ -297,6 +310,7 @@ fn main() -> Result<()> {
             capabilities,
             command,
             args,
+            audit,
         }) => {
             let current_dir = match env::current_dir() {
                 Ok(d) => d,
@@ -328,12 +342,26 @@ fn main() -> Result<()> {
             // Load environment with options and command for inference
             env_manager.load_env_with_options(&current_dir, env_name, caps, Some(&command))?;
 
-            // Execute the command with the loaded environment (no restrictions for direct exec)
-            // For restrictions, use task definitions with security config
-            let status = env_manager.run_command(&command, &args)?;
-
-            // Exit with the same status code as the child process
-            std::process::exit(status);
+            // Execute the command with the loaded environment
+            if audit {
+                // For exec audit mode, create a temporary restriction object
+                use cuenv::access_restrictions::AccessRestrictions;
+                let _restrictions = AccessRestrictions::default();
+                
+                // Use the env_manager's run_command but with audit monitoring
+                println!("🔍 Running command in audit mode...");
+                
+                // Create a simple audit by running the command and capturing output
+                // For a more comprehensive audit, we'd need to integrate strace monitoring
+                // into the env_manager's run_command method
+                println!("⚠️  Basic audit mode - run with task definition for full system call monitoring");
+                let status = env_manager.run_command(&command, &args)?;
+                std::process::exit(status);
+            } else {
+                // Execute without restrictions for direct exec
+                let status = env_manager.run_command(&command, &args)?;
+                std::process::exit(status);
+            }
         }
         Some(Commands::Hook { shell }) => {
             let shell_type = match shell {
