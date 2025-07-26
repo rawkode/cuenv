@@ -286,7 +286,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 				}
 			}
 		}
-		
+
 		// Sort capabilities for each command to ensure deterministic ordering
 		for _, cmdConfig := range commands {
 			if cmdMap, ok := cmdConfig.(map[string]interface{}); ok {
@@ -296,7 +296,7 @@ func extractCueData(v cue.Value) map[string]interface{} {
 				}
 			}
 		}
-		
+
 		result["commands"] = commands
 	}
 
