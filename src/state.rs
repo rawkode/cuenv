@@ -173,10 +173,10 @@ impl StateManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::collections::HashMap;
     use std::fs;
     use tempfile::TempDir;
-    use serial_test::serial;
 
     #[test]
     #[serial]
@@ -270,7 +270,7 @@ mod tests {
         env::remove_var(StateManager::env_var_name("CUENV_DIFF"));
         env::remove_var(StateManager::env_var_name("CUENV_WATCHES"));
         env::remove_var(StateManager::env_var_name("CUENV_STATE"));
-        
+
         // Finally remove the prefix
         env::remove_var("CUENV_PREFIX");
     }
@@ -326,7 +326,7 @@ mod tests {
         env::remove_var(StateManager::env_var_name("CUENV_DIFF"));
         env::remove_var(StateManager::env_var_name("CUENV_WATCHES"));
         env::remove_var(StateManager::env_var_name("CUENV_STATE"));
-        
+
         // Finally remove the prefix
         env::remove_var("CUENV_PREFIX");
     }
