@@ -8,8 +8,8 @@ use cuenv::{
     directory::DirectoryManager, env_manager::EnvManager, shell_hook::ShellHook,
     task_executor::TaskExecutor,
 };
-use std::env;
 use std::path::PathBuf;
+use std::env;
 
 // Import the platform-specific implementation
 #[cfg(unix)]
@@ -73,6 +73,22 @@ enum Commands {
         #[arg(long = "restrict-network")]
         restrict_network: bool,
 
+        /// Paths that are allowed for reading (can be specified multiple times)
+        #[arg(long = "read-only")]
+        read_only_paths: Vec<PathBuf>,
+
+        /// Paths that are allowed for reading and writing (can be specified multiple times)
+        #[arg(long = "read-write")]
+        read_write_paths: Vec<PathBuf>,
+
+        /// Paths that are explicitly denied (can be specified multiple times)
+        #[arg(long = "deny-path")]
+        deny_paths: Vec<PathBuf>,
+
+        /// Network hosts/CIDRs that are allowed (can be specified multiple times)
+        #[arg(long = "allow-host")]
+        allowed_hosts: Vec<String>,
+
         /// Task name to execute
         task_name: Option<String>,
 
@@ -100,6 +116,22 @@ enum Commands {
         /// Restrict network access (blocks network connections)
         #[arg(long = "restrict-network")]
         restrict_network: bool,
+
+        /// Paths that are allowed for reading (can be specified multiple times)
+        #[arg(long = "read-only")]
+        read_only_paths: Vec<PathBuf>,
+
+        /// Paths that are allowed for reading and writing (can be specified multiple times)
+        #[arg(long = "read-write")]
+        read_write_paths: Vec<PathBuf>,
+
+        /// Paths that are explicitly denied (can be specified multiple times)
+        #[arg(long = "deny-path")]
+        deny_paths: Vec<PathBuf>,
+
+        /// Network hosts/CIDRs that are allowed (can be specified multiple times)
+        #[arg(long = "allow-host")]
+        allowed_hosts: Vec<String>,
 
         /// Command to run
         command: String,
@@ -239,6 +271,10 @@ fn main() -> Result<()> {
             restrict_disk,
             restrict_process,
             restrict_network,
+            read_only_paths,
+            read_write_paths,
+            deny_paths,
+            allowed_hosts,
             task_name,
             task_args,
         }) => {
@@ -290,7 +326,15 @@ fn main() -> Result<()> {
                         args.extend(task_args);
                         
                         // Create access restrictions from flags
-                        let restrictions = AccessRestrictions::new(restrict_disk, restrict_process, restrict_network);
+                        let restrictions = AccessRestrictions::with_allowlists(
+                            restrict_disk,
+                            restrict_process,
+                            restrict_network,
+                            read_only_paths,
+                            read_write_paths,
+                            deny_paths,
+                            allowed_hosts,
+                        );
 
                         // For direct command execution, use the first argument as command
                         if args.is_empty() {
@@ -333,6 +377,10 @@ fn main() -> Result<()> {
             restrict_disk,
             restrict_process,
             restrict_network,
+            read_only_paths,
+            read_write_paths,
+            deny_paths,
+            allowed_hosts,
             command,
             args,
         }) => {
@@ -367,7 +415,15 @@ fn main() -> Result<()> {
             env_manager.load_env_with_options(&current_dir, env_name, caps, Some(&command))?;
 
             // Create access restrictions from flags
-            let restrictions = AccessRestrictions::new(restrict_disk, restrict_process, restrict_network);
+            let restrictions = AccessRestrictions::with_allowlists(
+                restrict_disk,
+                restrict_process,
+                restrict_network,
+                read_only_paths,
+                read_write_paths,
+                deny_paths,
+                allowed_hosts,
+            );
 
             // Execute the command with the loaded environment and restrictions
             let status = if restrictions.has_any_restrictions() {
