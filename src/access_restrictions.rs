@@ -102,78 +102,101 @@ impl AccessRestrictions {
     #[cfg(target_os = "linux")]
     fn apply_landlock_restrictions(&self, cmd: &mut Command) -> Result<()> {
         use landlock::{
-            Access, AccessFs, PathBeneath, PathFd, Ruleset, RulesetAttr, RulesetCreatedAttr, ABI,
+            Access, AccessFs, PathBeneath, PathFd, Ruleset, RulesetAttr, ABI,
         };
+        use std::os::unix::process::CommandExt;
 
-        // Check if Landlock is supported on this kernel
+        // Check Landlock support
         let abi = ABI::V1;
         
+        // We'll create a pre-exec closure that applies Landlock restrictions to the child process
         if self.restrict_disk {
-            // Create a new Landlock ruleset for filesystem restrictions
-            let mut ruleset = Ruleset::default()
-                .handle_access(AccessFs::from_all(abi))
-                .map_err(|e| Error::configuration(format!("Failed to create Landlock ruleset: {e}")))?
-                .create()
-                .map_err(|e| Error::configuration(format!("Failed to create Landlock ruleset: {e}")))?;
-
-            // Add read-only paths
-            for path in &self.read_only_paths {
-                let path_fd = PathFd::new(path)
-                    .map_err(|e| Error::configuration(format!("Failed to open path {}: {e}", path.display())))?;
-                ruleset = ruleset
-                    .add_rule(PathBeneath::new(path_fd, AccessFs::ReadFile | AccessFs::ReadDir))
-                    .map_err(|e| Error::configuration(format!("Failed to add read-only rule for {}: {e}", path.display())))?;
+            let read_only_paths = self.read_only_paths.clone();
+            let read_write_paths = self.read_write_paths.clone();
+            
+            unsafe {
+                cmd.pre_exec(move || {
+                    Self::apply_landlock_filesystem_restrictions(&read_only_paths, &read_write_paths, abi)
+                });
             }
-
-            // Add read-write paths
-            for path in &self.read_write_paths {
-                let path_fd = PathFd::new(path)
-                    .map_err(|e| Error::configuration(format!("Failed to open path {}: {e}", path.display())))?;
-                ruleset = ruleset
-                    .add_rule(PathBeneath::new(
-                        path_fd,
-                        AccessFs::ReadFile | AccessFs::ReadDir | AccessFs::WriteFile | AccessFs::RemoveFile | AccessFs::RemoveDir | AccessFs::MakeChar | AccessFs::MakeDir | AccessFs::MakeReg | AccessFs::MakeSock | AccessFs::MakeFifo | AccessFs::MakeBlock | AccessFs::MakeSym,
-                    ))
-                    .map_err(|e| Error::configuration(format!("Failed to add read-write rule for {}: {e}", path.display())))?;
-            }
-
-            // The Landlock restriction will be applied when we execute the command
-            // We need to wrap the command execution with Landlock enforcement
-            self.wrap_command_with_landlock(cmd, ruleset)?;
         }
 
-        // Note: Landlock doesn't directly support network restrictions in the same way
-        // For network restrictions, we would need to use other mechanisms
         if self.restrict_network {
+            // Landlock v2 supports network restrictions, but it's not as comprehensive
+            // For now, we'll show a more informative message about limitations
+            log::warn!("Network restrictions with Landlock require kernel 5.19+ and are limited in scope");
+            
+            // We could add network restrictions here if we detect Landlock v2+ support
+            // For now, return an error with guidance
             return Err(Error::configuration(
-                "Network restrictions using Landlock are not yet implemented. Use process isolation instead.".to_string()
+                "Network restrictions with Landlock are not yet fully implemented. \
+                Consider using process isolation or firewall rules for network control.".to_string()
             ));
         }
 
-        // Process restrictions would require additional mechanisms beyond Landlock
         if self.restrict_process {
+            // Landlock doesn't handle process restrictions directly
+            // We'd need to use other mechanisms like seccomp, namespaces, or rlimits
             return Err(Error::configuration(
-                "Process restrictions are not yet implemented with Landlock. Use system-level controls instead.".to_string()
+                "Process restrictions are not supported by Landlock. \
+                Consider using system-level controls like systemd or container runtimes \
+                for process isolation.".to_string()
             ));
         }
 
         Ok(())
     }
 
-    /// Wrap command execution with Landlock enforcement
+    /// Apply Landlock filesystem restrictions in child process
     #[cfg(target_os = "linux")]
-    fn wrap_command_with_landlock(&self, _cmd: &mut Command, ruleset: landlock::RulesetCreated) -> Result<()> {
-        // For now, we'll use a simple approach: apply the Landlock policy in a pre-exec hook
-        // This is not ideal as it applies to the parent process, but it's a starting point
+    fn apply_landlock_filesystem_restrictions(
+        read_only_paths: &[PathBuf],
+        read_write_paths: &[PathBuf],
+        _abi: landlock::ABI,
+    ) -> std::io::Result<()> {
+        use landlock::{
+            Access, AccessFs, PathBeneath, PathFd, Ruleset, RulesetAttr, RulesetCreatedAttr,
+        };
+
+        // If no paths are specified, don't apply any restrictions
+        // This avoids the complexity of trying to determine what should be allowed by default
+        if read_only_paths.is_empty() && read_write_paths.is_empty() {
+            return Ok(());
+        }
+
+        // Create a new Landlock ruleset for filesystem restrictions
+        let fs_access = AccessFs::Execute | AccessFs::WriteFile | AccessFs::ReadFile | AccessFs::ReadDir | AccessFs::RemoveDir | AccessFs::RemoveFile | AccessFs::MakeChar | AccessFs::MakeDir | AccessFs::MakeReg | AccessFs::MakeSock | AccessFs::MakeFifo | AccessFs::MakeBlock | AccessFs::MakeSym;
         
-        // In a real implementation, we'd want to fork and apply Landlock in the child process
-        // before exec'ing the target command. For now, we'll document this limitation.
-        
-        log::warn!("Landlock disk restrictions will be applied to the current process. This is a limitation of the current implementation.");
-        
-        // Apply the Landlock policy
+        let mut ruleset = Ruleset::default()
+            .handle_access(fs_access)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to create Landlock ruleset: {e}")))?
+            .create()
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to create Landlock ruleset: {e}")))?;
+
+        // Add user-specified read-only paths
+        for path in read_only_paths {
+            let path_fd = PathFd::new(path)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to open path {}: {e}", path.display())))?;
+            ruleset = ruleset
+                .add_rule(PathBeneath::new(path_fd, AccessFs::ReadFile | AccessFs::ReadDir | AccessFs::Execute))
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to add read-only rule for {}: {e}", path.display())))?;
+        }
+
+        // Add user-specified read-write paths
+        for path in read_write_paths {
+            let path_fd = PathFd::new(path)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to open path {}: {e}", path.display())))?;
+            ruleset = ruleset
+                .add_rule(PathBeneath::new(
+                    path_fd,
+                    AccessFs::ReadFile | AccessFs::ReadDir | AccessFs::WriteFile | AccessFs::RemoveFile | AccessFs::RemoveDir | AccessFs::MakeChar | AccessFs::MakeDir | AccessFs::MakeReg | AccessFs::MakeSock | AccessFs::MakeFifo | AccessFs::MakeBlock | AccessFs::MakeSym | AccessFs::Execute,
+                ))
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to add read-write rule for {}: {e}", path.display())))?;
+        }
+
+        // Apply the Landlock policy to this process (which will be the child)
         ruleset.restrict_self()
-            .map_err(|e| Error::configuration(format!("Failed to apply Landlock restrictions: {e}")))?;
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to apply Landlock restrictions: {e}")))?;
         
         Ok(())
     }
