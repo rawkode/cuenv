@@ -1,0 +1,110 @@
+name: Build All Platforms
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            rust: stable
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            rust: stable
+          - target: x86_64-apple-darwin
+            os: macos-13  # Intel Mac
+            rust: stable
+          - target: aarch64-apple-darwin
+            os: macos-14  # M1 Mac
+            rust: stable
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            rust: stable
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust }}
+          targets: ${{ matrix.target }}
+          
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          
+      - name: Build
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+          CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
+          AR_aarch64_unknown_linux_gnu: aarch64-linux-gnu-ar
+        run: |
+          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
+            export CC=aarch64-linux-gnu-gcc
+            export CXX=aarch64-linux-gnu-g++
+            export AR=aarch64-linux-gnu-ar
+            export GOARCH=arm64
+            export CGO_ENABLED=1
+          fi
+          cargo build --release --target ${{ matrix.target }}
+          
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ../../../cuenv-0.3.1-${{ matrix.target }}.tar.gz cuenv
+          cd ../../../
+          echo "ASSET_PATH=cuenv-0.3.1-${{ matrix.target }}.tar.gz" >> $GITHUB_ENV
+          
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          cd target/${{ matrix.target }}/release
+          Compress-Archive -Path cuenv.exe -DestinationPath ../../../cuenv-0.3.1-${{ matrix.target }}.zip
+          cd ../../../
+          echo "ASSET_PATH=cuenv-0.3.1-${{ matrix.target }}.zip" >> $env:GITHUB_ENV
+          
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cuenv-${{ matrix.target }}
+          path: ${{ env.ASSET_PATH }}
+          
+  upload-to-release:
+    name: Upload to Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          
+      - name: Display structure
+        run: ls -R artifacts/
+        
+      - name: Upload to release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "0.3.1"
+          files: artifacts/**/*
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
