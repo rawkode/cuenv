@@ -38,16 +38,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools musl-dev build-essential
-          
-          # Install static OpenSSL for musl
-          sudo apt-get install -y libssl-dev pkg-config
       - name: Build static binary
         run: |
           # Set up for musl build
           export CC=musl-gcc
           export CXX=musl-g++
           export CGO_ENABLED=1
-          export RUSTFLAGS="-C target-feature=+crt-static -C link-self-contained=yes"
+          export RUSTFLAGS="-C target-feature=+crt-static"
+          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
 
           # Add musl target
           rustup target add x86_64-unknown-linux-musl
