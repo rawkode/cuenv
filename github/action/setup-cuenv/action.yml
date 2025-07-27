@@ -1,0 +1,100 @@
+name: 'Setup cuenv'
+description: 'Install cuenv - the developer environment configuration management tool'
+author: 'rawkode'
+branding:
+  icon: 'settings'
+  color: 'blue'
+inputs:
+  version:
+    description: 'Version of cuenv to install (e.g., v0.2.7)'
+    required: false
+    default: 'latest'
+  install-dir:
+    description: 'Directory to install cuenv'
+    required: false
+    default: '$HOME/.local/bin'
+outputs:
+  version:
+    description: 'The installed version of cuenv'
+    value: ${{ steps.install.outputs.version }}
+  path:
+    description: 'The path where cuenv was installed'
+    value: ${{ steps.install.outputs.path }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Install cuenv
+      id: install
+      shell: bash
+      run: |-
+        set -euo pipefail
+
+        # Determine the installation directory
+        INSTALL_DIR="${{ inputs.install-dir }}"
+        INSTALL_DIR="${INSTALL_DIR/#\~/$HOME}"
+        mkdir -p "$INSTALL_DIR"
+
+        # Determine version to install
+        VERSION="${{ inputs.version }}"
+
+        # Get the latest release version if not specified
+        if [ "$VERSION" = "latest" ]; then
+          VERSION=$(curl -s https://api.github.com/repos/rawkode/cuenv/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "Latest version: $VERSION"
+        fi
+
+        # Remove 'v' prefix if present for the download URL
+        VERSION_NO_V="${VERSION#v}"
+
+        # Determine OS and architecture
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+
+        # Map architecture names
+        case "$ARCH" in
+          x86_64)
+            ARCH="x86_64"
+            ;;
+          aarch64|arm64)
+            ARCH="aarch64"
+            ;;
+          *)
+            echo "Unsupported architecture: $ARCH"
+            exit 1
+            ;;
+        esac
+
+        # Map OS names
+        case "$OS" in
+          linux)
+            OS="unknown-linux-gnu"
+            ;;
+          darwin)
+            OS="apple-darwin"
+            ;;
+          *)
+            echo "Unsupported OS: $OS"
+            exit 1
+            ;;
+        esac
+
+        # Construct download URL
+        DOWNLOAD_URL="https://github.com/rawkode/cuenv/releases/download/${VERSION}/cuenv-${VERSION_NO_V}-${ARCH}-${OS}.tar.gz"
+
+        echo "Downloading cuenv from: $DOWNLOAD_URL"
+
+        # Download and extract
+        curl -sL "$DOWNLOAD_URL" | tar xz -C "$INSTALL_DIR"
+
+        # Make executable
+        chmod +x "$INSTALL_DIR/cuenv"
+
+        # Add to PATH
+        echo "$INSTALL_DIR" >> $GITHUB_PATH
+
+        # Set outputs
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "path=$INSTALL_DIR/cuenv" >> $GITHUB_OUTPUT
+
+        # Verify installation
+        "$INSTALL_DIR/cuenv" --version

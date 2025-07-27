@@ -1,0 +1,53 @@
+name: Test Setup Action
+on:
+  push:
+    paths:
+      - 'github/action/setup-cuenv/**'
+      - '.github/workflows/test-setup-action.yml'
+  pull_request:
+    paths:
+      - 'github/action/setup-cuenv/**'
+      - '.github/workflows/test-setup-action.yml'
+jobs:
+  test-latest:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup cuenv (latest)
+        uses: ./github/action/setup-cuenv
+        id: setup
+      - name: Verify installation
+        run: |
+          cuenv --version
+          echo "Installed version: ${{ steps.setup.outputs.version }}"
+          echo "Installed at: ${{ steps.setup.outputs.path }}"
+      - name: Test cuenv functionality
+        run: |
+          cuenv env
+          cuenv run -- echo "Successfully ran command with cuenv!"
+  test-specific-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup cuenv (specific version)
+        uses: ./github/action/setup-cuenv
+        with:
+          version: v0.2.7
+      - name: Verify version
+        run: |
+          cuenv --version | grep -q "0.2.7" || (echo "Version mismatch!" && exit 1)
+  test-custom-directory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup cuenv (custom directory)
+        uses: ./github/action/setup-cuenv
+        with:
+          install-dir: /tmp/custom-bin
+      - name: Verify installation location
+        run: |-
+          test -f /tmp/custom-bin/cuenv || (echo "cuenv not found in custom directory!" && exit 1)
+          /tmp/custom-bin/cuenv --version

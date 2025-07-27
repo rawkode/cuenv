@@ -1,0 +1,65 @@
+name: Build with cuenv
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  build-with-cuenv:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup cuenv
+        uses: ./github/action/setup-cuenv
+        with:
+          version: latest
+      - name: Show cuenv version
+        run: cuenv --version
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+      - name: Build project with cuenv
+        run: |
+          # Use cuenv task defined in env.cue
+          cuenv task build
+      - name: Run tests with cuenv
+        run: |
+          # Use cuenv test task
+          cuenv task test
+      - name: Check formatting with cuenv
+        run: |
+          # Use cuenv fmt:check task
+          cuenv task fmt:check
+      - name: Run clippy with cuenv
+        run: |
+          # Use cuenv clippy task
+          cuenv task clippy
+      - name: Verify the built binary works
+        run: |
+          # Test the built binary
+          ./target/release/cuenv --version
+          ./target/release/cuenv env
+  test-action-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup cuenv
+        uses: ./github/action/setup-cuenv
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Test cuenv with simple commands
+        run: |
+          # Show cuenv info
+          cuenv --version
+          cuenv env
+
+          # Test running commands through cuenv
+          cuenv run -- echo "Hello from cuenv!"
+          cuenv run -- pwd
+
+          # Test the build task works
+          cuenv task build:debug

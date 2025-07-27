@@ -1,0 +1,28 @@
+name: Build with cuenv
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup cuenv
+        uses: rawkode/cuenv/github/action/setup-cuenv@main
+      - name: Build and test with cuenv
+        run: |-
+          # cuenv will automatically use the configuration from:
+          # - cuenv.toml
+          # - cuenv.nix (if using Nix)
+          # - cuenv.json
+
+          # Run your build commands
+          cuenv run -- make build
+
+          # Run your tests
+          cuenv run -- make test
+
+          # Or use any other commands defined in your cuenv configuration
+          cuenv run -- npm install
+          cuenv run -- npm test

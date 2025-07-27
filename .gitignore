@@ -20,11 +20,6 @@ Thumbs.db
 tarpaulin-report.html
 coverage.json
 
-# Environment files (for local testing)
-/env.cue
-.env
-.cuenv_current
-
 # Temporary files
 *.tmp
 *.temp
