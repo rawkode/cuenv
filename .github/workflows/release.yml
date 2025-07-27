@@ -2,63 +2,60 @@ name: Release
 on:
   push:
     tags:
-      - '*.*.*' # Match semantic version tags like 0.2.7
+      - '*.*.*' # Match semantic version tags like 0.3.1
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release (e.g., 0.2.7)'
+        description: 'Tag to release (e.g., 0.3.1)'
         required: true
         type: string
-env:
-  CARGO_TERM_COLOR: always
 jobs:
   build:
-    name: Build ${{ matrix.target }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            archive: tar.gz
-          - target: x86_64-apple-darwin
-            os: macos-latest
-            archive: tar.gz
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            archive: tar.gz
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            archive: zip
+    name: Build with Nix
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.VERSION }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-      - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
-      - name: Package (Unix)
-        if: matrix.os != 'windows-latest'
+      - name: Get version from Cargo.toml
+        id: get_version
         run: |
-          cd target/${{ matrix.target }}/release
-          tar czf ../../../cuenv-${{ github.ref_name }}-${{ matrix.target }}.tar.gz cuenv
-          cd ../../../
-          echo "ASSET_PATH=cuenv-${{ github.ref_name }}-${{ matrix.target }}.tar.gz" >> $GITHUB_ENV
-      - name: Package (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: powershell
+          VERSION=$(grep '^version = ' Cargo.toml | head -1 | cut -d'"' -f2)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+          # Verify tag matches Cargo.toml version if this is a tag push
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
+            TAG_VERSION="${{ github.ref_name }}"
+            if [[ "$TAG_VERSION" != "$VERSION" ]]; then
+              echo "Error: Tag version ($TAG_VERSION) does not match Cargo.toml version ($VERSION)"
+              exit 1
+            fi
+          fi
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v17
+      - name: Enable Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@v10
+      - name: Build with Nix
         run: |
-          cd target/${{ matrix.target }}/release
-          Compress-Archive -Path cuenv.exe -DestinationPath ../../../cuenv-${{ github.ref_name }}-${{ matrix.target }}.zip
-          cd ../../../
-          echo "ASSET_PATH=cuenv-${{ github.ref_name }}-${{ matrix.target }}.zip" >> $env:GITHUB_ENV
-      - name: Upload artifact
+          nix build .#cuenv
+          # Copy the built binary to a known location
+          mkdir -p artifacts
+          cp -L result/bin/cuenv artifacts/cuenv-linux-x86_64
+      - name: Build cross-platform binaries
+        run: |
+          # For now, we'll build only for Linux x86_64 using Nix
+          # Future iterations can add cross-compilation support
+          cd artifacts
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          tar czf cuenv-${VERSION}-x86_64-unknown-linux-gnu.tar.gz cuenv-linux-x86_64
+          mv cuenv-linux-x86_64 cuenv
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cuenv-${{ matrix.target }}
-          path: ${{ env.ASSET_PATH }}
+          name: cuenv-binaries
+          path: artifacts/*.tar.gz
   release:
     name: Create Release
     needs: build
@@ -71,36 +68,16 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
+          name: cuenv-binaries
           path: artifacts
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: artifacts/**/*
+          tag_name: ${{ needs.build.outputs.version }}
+          name: v${{ needs.build.outputs.version }}
+          files: artifacts/*.tar.gz
           generate_release_notes: true
           draft: false
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  update-homebrew:
-    name: Update Homebrew Formula
-    needs: release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Calculate SHA256
-        run: |
-          # Download the release asset
-          curl -L https://github.com/rawkode/cuenv/releases/download/${{ github.ref_name }}/cuenv-${{ github.ref_name }}-x86_64-apple-darwin.tar.gz -o cuenv-darwin.tar.gz
-          curl -L https://github.com/rawkode/cuenv/releases/download/${{ github.ref_name }}/cuenv-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz -o cuenv-linux.tar.gz
-
-          # Calculate SHA256
-          DARWIN_SHA256=$(sha256sum cuenv-darwin.tar.gz | cut -d' ' -f1)
-          LINUX_SHA256=$(sha256sum cuenv-linux.tar.gz | cut -d' ' -f1)
-
-          echo "DARWIN_SHA256=$DARWIN_SHA256" >> $GITHUB_ENV
-          echo "LINUX_SHA256=$LINUX_SHA256" >> $GITHUB_ENV
-      # Note: This step would typically update a homebrew tap repository
-      # For now, we'll just output the formula that would be created
-      - name: Generate Homebrew Formula
-        run: "cat << EOF\nclass Cuenv < Formula\n  desc \"A direnv alternative that uses CUE files for environment configuration\"\n  homepage \"https://github.com/rawkode/cuenv\"\n  version \"${{ github.ref_name }}\"\n  \n  if OS.mac?\n    url \"https://github.com/rawkode/cuenv/releases/download/${{ github.ref_name }}/cuenv-${{ github.ref_name }}-x86_64-apple-darwin.tar.gz\"\n    sha256 \"${{ env.DARWIN_SHA256 }}\"\n  elsif OS.linux?\n    url \"https://github.com/rawkode/cuenv/releases/download/${{ github.ref_name }}/cuenv-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz\"\n    sha256 \"${{ env.LINUX_SHA256 }}\"\n  end\n  \n  def install\n    bin.install \"cuenv\"\n  end\n  \n  test do\n    system \"#{bin}/cuenv\", \"--version\"\n  end\nend\nEOF"

@@ -1,0 +1,47 @@
+name: Test cuenv Setup
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'github/action/setup-cuenv/**'
+      - '.github/workflows/test-cuenv-setup.yml'
+jobs:
+  test-setup:
+    name: Test cuenv installation
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        version: ['latest', '0.3.1']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup cuenv
+        uses: ./github/action/setup-cuenv
+        with:
+          version: ${{ matrix.version }}
+      - name: Verify cuenv
+        run: |
+          which cuenv
+          cuenv --version
+      - name: Test cuenv functionality
+        run: |-
+          # Create a simple env.cue file
+          cat > env.cue << 'EOF'
+          package env
+
+          env: {
+            TEST_VAR: "Hello from cuenv!"
+          }
+          EOF
+
+          # Test cuenv load
+          eval "$(cuenv load)"
+
+          # Verify environment variable was set
+          if [ "$TEST_VAR" = "Hello from cuenv!" ]; then
+            echo "✅ cuenv is working correctly!"
+          else
+            echo "❌ cuenv test failed"
+            exit 1
+          fi
