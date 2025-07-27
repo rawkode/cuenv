@@ -26,13 +26,50 @@ jobs:
               exit 1
             fi
           fi
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v17
-      - name: Build with Nix
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+          
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          
+      - name: Install musl tools
         run: |
-          nix build .#cuenv
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          
+      - name: Build static binary
+        run: |
+          # Set up for musl build
+          export CC=musl-gcc
+          export CXX=musl-g++
+          export CGO_ENABLED=1
+          export RUSTFLAGS="-C target-feature=+crt-static"
+          
+          # Add musl target
+          rustup target add x86_64-unknown-linux-musl
+          
+          # Build the binary
+          cargo build --release --target x86_64-unknown-linux-musl
+          
+          # Create artifacts directory
           mkdir -p artifacts
-          cp -L result/bin/cuenv artifacts/cuenv
+          cp target/x86_64-unknown-linux-musl/release/cuenv artifacts/cuenv
+          
+          # Strip debug symbols to reduce size
+          strip artifacts/cuenv
+          
+          # Check dependencies - should show "not a dynamic executable"
+          echo "Binary dependencies:"
+          ldd artifacts/cuenv 2>&1 || echo "Binary is statically linked!"
+          echo ""
+          echo "Binary info:"
+          file artifacts/cuenv
+          echo ""
+          echo "Binary size: $(ls -lh artifacts/cuenv | awk '{print $5}')"
       - name: Package
         run: |
           cd artifacts

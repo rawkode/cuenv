@@ -22,12 +22,29 @@ fn main() {
         cmd.arg("-mod=vendor");
     }
 
-    cmd.args([
-        "-buildmode=c-archive", // Use static linking instead
-        "-o",
-        out_dir.join("libcue_bridge.a").to_str().unwrap(),
-        "bridge.go",
-    ]);
+    // Check if we're building for musl
+    let target = env::var("TARGET").unwrap_or_default();
+    if target.contains("musl") {
+        // Set musl-specific environment variables
+        cmd.env("CC", "musl-gcc");
+        cmd.env("CGO_ENABLED", "1");
+        
+        cmd.args([
+            "-buildmode=c-archive",
+            "-tags", "netgo,osusergo,static_build",
+            "-ldflags", "-extldflags '-static'",
+            "-o",
+            out_dir.join("libcue_bridge.a").to_str().unwrap(),
+            "bridge.go",
+        ]);
+    } else {
+        cmd.args([
+            "-buildmode=c-archive",
+            "-o",
+            out_dir.join("libcue_bridge.a").to_str().unwrap(),
+            "bridge.go",
+        ]);
+    }
 
     let status = cmd
         .status()
