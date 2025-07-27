@@ -11,7 +11,8 @@
       "Bash(nix:*)",
       "WebFetch(domain:github.com)",
       "Bash(RUST_LOG=info nix develop -c cargo run -- run --audit test-audit-mode -f test-filesystem-security.cue)",
-      "Bash(RUST_LOG=info nix develop -c cargo run -- run --audit test-audit-mode)"
+      "Bash(RUST_LOG=info nix develop -c cargo run -- run --audit test-audit-mode)",
+      "Bash(tar:*)"
     ],
     "deny": []
   },

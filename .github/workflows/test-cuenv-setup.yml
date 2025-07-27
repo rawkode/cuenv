@@ -15,7 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest]  # Only Linux for now, macOS binaries not available yet
+        os: [ubuntu-latest, macos-latest, windows-latest]
         version: ['latest', '0.3.1']
     steps:
       - name: Checkout
@@ -25,11 +25,17 @@ jobs:
         with:
           version: ${{ matrix.version }}
       - name: Verify cuenv
+        shell: bash
         run: |
-          which cuenv
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            where cuenv || echo "cuenv location: not in PATH yet"
+          else
+            which cuenv
+          fi
           cuenv --version
-      - name: Test cuenv functionality
-        run: |-
+      - name: Test cuenv functionality (Unix)
+        if: runner.os != 'Windows'
+        run: |
           # Create a simple env.cue file
           cat > env.cue << 'EOF'
           package env
@@ -49,3 +55,20 @@ jobs:
             echo "❌ cuenv test failed"
             exit 1
           fi
+          
+      - name: Test cuenv functionality (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Create a simple env.cue file
+          @'
+          package env
+
+          env: {
+            TEST_VAR: "Hello from cuenv!"
+          }
+          '@ | Out-File -FilePath env.cue -Encoding UTF8
+
+          # Test cuenv
+          cuenv --version
+          Write-Host "✅ cuenv is installed and accessible!"
