@@ -35,12 +35,10 @@ mod comprehensive_concurrent_tests {
         let timeouts = Arc::new(AtomicU32::new(0));
 
         // Set up resource limits
-        let limits = ResourceLimits {
-            max_concurrent_tasks: 10,
-            max_memory_mb: 512,
-            max_cpu_percent: 80,
-            task_timeout: Duration::from_secs(2),
-        };
+        let limits = ResourceLimits::unlimited()
+            .with_cpu_time(2, 3) // 2 second soft limit, 3 second hard limit
+            .with_memory(512 * 1024 * 1024, 1024 * 1024 * 1024); // 512MB soft, 1GB hard
+        let task_timeout = Duration::from_secs(2);
 
         let handles: Vec<_> = (0..num_tasks)
             .map(|i| {
@@ -67,27 +65,17 @@ mod comprehensive_concurrent_tests {
                         security: None,
                         cache: Some(false),
                         cache_key: None,
-                        timeout: Some(limits.task_timeout),
+                        timeout: Some(task_timeout.as_secs() as u32),
                     };
 
-                    // Check if we can acquire resources
-                    match limits.try_acquire_task_slot() {
-                        Ok(guard) => {
-                            // Simulate task execution
-                            let start = Instant::now();
-                            thread::sleep(Duration::from_millis(100));
+                    // Simulate task execution
+                    let start = Instant::now();
+                    thread::sleep(Duration::from_millis(100));
 
-                            if start.elapsed() > limits.task_timeout {
-                                timeouts.fetch_add(1, Ordering::SeqCst);
-                            } else {
-                                completed.fetch_add(1, Ordering::SeqCst);
-                            }
-
-                            drop(guard); // Release resources
-                        }
-                        Err(_) => {
-                            resource_errors.fetch_add(1, Ordering::SeqCst);
-                        }
+                    if start.elapsed() > task_timeout {
+                        timeouts.fetch_add(1, Ordering::SeqCst);
+                    } else {
+                        completed.fetch_add(1, Ordering::SeqCst);
                     }
                 })
             })
@@ -252,124 +240,61 @@ mod comprehensive_concurrent_tests {
             // A -> B -> D
             // A -> C -> D
             // E -> D
-            let mut tasks = HashMap::new();
+            let tasks_cue = r#"package env
+env: {}
+tasks: {
+    "A": {
+        description: "Task A"
+        command: "echo A > a.txt"
+        outputs: ["a.txt"]
+        cache: true
+    }
+    "B": {
+        description: "Task B"
+        command: "cat a.txt && echo B > b.txt"
+        dependencies: ["A"]
+        inputs: ["a.txt"]
+        outputs: ["b.txt"]
+        cache: true
+    }
+    "C": {
+        description: "Task C"
+        command: "cat a.txt && echo C > c.txt"
+        dependencies: ["A"]
+        inputs: ["a.txt"]
+        outputs: ["c.txt"]
+        cache: true
+    }
+    "D": {
+        description: "Task D"
+        command: "cat b.txt c.txt && echo D > d.txt"
+        dependencies: ["B", "C"]
+        inputs: ["b.txt", "c.txt"]
+        outputs: ["d.txt"]
+        cache: true
+    }
+    "E": {
+        description: "Task E"
+        command: "echo E > e.txt"
+        outputs: ["e.txt"]
+        cache: true
+    }
+    "F": {
+        description: "Task F"
+        command: "cat d.txt e.txt && echo F > f.txt"
+        dependencies: ["D", "E"]
+        inputs: ["d.txt", "e.txt"]
+        outputs: ["f.txt"]
+        cache: true
+    }
+}"#;
 
-            tasks.insert(
-                "A".to_string(),
-                TaskConfig {
-                    description: Some("Task A".to_string()),
-                    command: Some("echo A > a.txt".to_string()),
-                    script: None,
-                    dependencies: None,
-                    working_dir: None,
-                    shell: None,
-                    inputs: None,
-                    outputs: Some(vec!["a.txt".to_string()]),
-                    security: None,
-                    cache: Some(true),
-                    cache_key: None,
-                    timeout: None,
-                },
-            );
+            // Write CUE file and load it
+            let env_file = temp_dir.path().join("env.cue");
+            fs::write(&env_file, tasks_cue).unwrap();
 
-            tasks.insert(
-                "B".to_string(),
-                TaskConfig {
-                    description: Some("Task B".to_string()),
-                    command: Some("cat a.txt && echo B > b.txt".to_string()),
-                    script: None,
-                    dependencies: Some(vec!["A".to_string()]),
-                    working_dir: None,
-                    shell: None,
-                    inputs: Some(vec!["a.txt".to_string()]),
-                    outputs: Some(vec!["b.txt".to_string()]),
-                    security: None,
-                    cache: Some(true),
-                    cache_key: None,
-                    timeout: None,
-                },
-            );
-
-            tasks.insert(
-                "C".to_string(),
-                TaskConfig {
-                    description: Some("Task C".to_string()),
-                    command: Some("cat a.txt && echo C > c.txt".to_string()),
-                    script: None,
-                    dependencies: Some(vec!["A".to_string()]),
-                    working_dir: None,
-                    shell: None,
-                    inputs: Some(vec!["a.txt".to_string()]),
-                    outputs: Some(vec!["c.txt".to_string()]),
-                    security: None,
-                    cache: Some(true),
-                    cache_key: None,
-                    timeout: None,
-                },
-            );
-
-            tasks.insert(
-                "D".to_string(),
-                TaskConfig {
-                    description: Some("Task D".to_string()),
-                    command: Some("cat b.txt c.txt && echo D > d.txt".to_string()),
-                    script: None,
-                    dependencies: Some(vec!["B".to_string(), "C".to_string()]),
-                    working_dir: None,
-                    shell: None,
-                    inputs: Some(vec!["b.txt".to_string(), "c.txt".to_string()]),
-                    outputs: Some(vec!["d.txt".to_string()]),
-                    security: None,
-                    cache: Some(true),
-                    cache_key: None,
-                    timeout: None,
-                },
-            );
-
-            tasks.insert(
-                "E".to_string(),
-                TaskConfig {
-                    description: Some("Task E".to_string()),
-                    command: Some("echo E > e.txt".to_string()),
-                    script: None,
-                    dependencies: None,
-                    working_dir: None,
-                    shell: None,
-                    inputs: None,
-                    outputs: Some(vec!["e.txt".to_string()]),
-                    security: None,
-                    cache: Some(true),
-                    cache_key: None,
-                    timeout: None,
-                },
-            );
-
-            tasks.insert(
-                "F".to_string(),
-                TaskConfig {
-                    description: Some("Task F".to_string()),
-                    command: Some("cat d.txt e.txt && echo F > f.txt".to_string()),
-                    script: None,
-                    dependencies: Some(vec!["D".to_string(), "E".to_string()]),
-                    working_dir: None,
-                    shell: None,
-                    inputs: Some(vec!["d.txt".to_string(), "e.txt".to_string()]),
-                    outputs: Some(vec!["f.txt".to_string()]),
-                    security: None,
-                    cache: Some(true),
-                    cache_key: None,
-                    timeout: None,
-                },
-            );
-
-            let env_manager = EnvManager::new(
-                HashMap::new(),
-                tasks,
-                Vec::new(),
-                Vec::new(),
-                None,
-                Vec::new(),
-            );
+            let mut env_manager = EnvManager::new();
+            env_manager.load_env(temp_dir.path()).await.unwrap();
 
             let executor = TaskExecutor::new(env_manager, temp_dir.path().to_path_buf()).unwrap();
 
@@ -421,7 +346,7 @@ mod comprehensive_concurrent_tests {
                 &env_dir,
                 &env_dir.join("env.cue"),
                 Some("test_env"),
-                &["test_cap"],
+                &["test_cap".to_string()],
                 &diff,
                 &watches,
             )
@@ -429,52 +354,30 @@ mod comprehensive_concurrent_tests {
             .unwrap();
 
             // Create failing task configuration
-            let mut tasks = HashMap::new();
+            let tasks_cue = r#"package env
+env: {}
+tasks: {
+    "setup": {
+        description: "Setup task"
+        command: "echo 'setup' > setup.txt"
+        outputs: ["setup.txt"]
+        cache: false
+    }
+    "failing": {
+        description: "Failing task"
+        command: "exit 1"
+        dependencies: ["setup"]
+        inputs: ["setup.txt"]
+        cache: false
+    }
+}"#;
 
-            tasks.insert(
-                "setup".to_string(),
-                TaskConfig {
-                    description: Some("Setup task".to_string()),
-                    command: Some("echo 'setup' > setup.txt".to_string()),
-                    script: None,
-                    dependencies: None,
-                    working_dir: None,
-                    shell: None,
-                    inputs: None,
-                    outputs: Some(vec!["setup.txt".to_string()]),
-                    security: None,
-                    cache: Some(false),
-                    cache_key: None,
-                    timeout: None,
-                },
-            );
+            // Write CUE file and load it
+            let env_file = env_dir.join("env.cue");
+            fs::write(&env_file, tasks_cue).unwrap();
 
-            tasks.insert(
-                "failing".to_string(),
-                TaskConfig {
-                    description: Some("Failing task".to_string()),
-                    command: Some("exit 1".to_string()), // Always fails
-                    script: None,
-                    dependencies: Some(vec!["setup".to_string()]),
-                    working_dir: None,
-                    shell: None,
-                    inputs: Some(vec!["setup.txt".to_string()]),
-                    outputs: None,
-                    security: None,
-                    cache: Some(false),
-                    cache_key: None,
-                    timeout: None,
-                },
-            );
-
-            let env_manager = EnvManager::new(
-                HashMap::new(),
-                tasks,
-                Vec::new(),
-                Vec::new(),
-                None,
-                Vec::new(),
-            );
+            let mut env_manager = EnvManager::new();
+            env_manager.load_env(&env_dir).await.unwrap();
 
             let executor = TaskExecutor::new(env_manager, temp_dir.path().to_path_buf()).unwrap();
 
@@ -518,7 +421,7 @@ mod comprehensive_concurrent_tests {
             security: None,
             cache: Some(true),
             cache_key: None,
-            timeout: Some(Duration::from_millis(100)), // Very short timeout
+            timeout: Some(1), // 1 second timeout
         };
 
         // Thread 1: Perform cache operation with large file
@@ -588,9 +491,9 @@ mod comprehensive_concurrent_tests {
 
                     // Try to allocate large amounts of memory
                     let allocation_size = 50 * 1024 * 1024; // 50MB per thread
-                    match Vec::<u8>::try_reserve(allocation_size) {
+                    let mut data = Vec::<u8>::new();
+                    match data.try_reserve(allocation_size) {
                         Ok(()) => {
-                            let mut data = Vec::with_capacity(allocation_size);
                             data.resize(allocation_size, i as u8);
 
                             // Simulate some work with the memory

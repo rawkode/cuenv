@@ -71,6 +71,9 @@ mod landlock_unit_tests {
             inputs: Some(vec!["/data/input.txt".to_string()]),
             outputs: Some(vec!["/data/output.txt".to_string()]),
             security: None,
+            cache: None,
+            cache_key: None,
+            timeout: None,
         };
 
         let restrictions =
@@ -111,6 +114,9 @@ mod landlock_unit_tests {
             inputs: Some(vec!["/data/input.txt".to_string()]),
             outputs: Some(vec!["/data/output.txt".to_string()]),
             security: None,
+            cache: None,
+            cache_key: None,
+            timeout: None,
         };
 
         let restrictions =

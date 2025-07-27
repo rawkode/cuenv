@@ -311,7 +311,7 @@ mod concurrent_scenarios {
                         security: None,
                         cache: Some(false), // Disable cache for this test
                         cache_key: None,
-                        timeout: Some(Duration::from_secs(5)), // 5 second timeout
+                        timeout: Some(5), // 5 second timeout
                     };
 
                     // Generate unique cache key
@@ -430,14 +430,45 @@ mod concurrent_scenarios {
             );
 
             // Create env manager with tasks
-            let env_manager = EnvManager::new(
-                HashMap::new(),
-                tasks,
-                Vec::new(),
-                Vec::new(),
-                None,
-                Vec::new(),
-            );
+            // Write tasks as CUE file
+            let tasks_cue = r#"package env
+env: {}
+tasks: {
+    "compile_0": {
+        description: "Compile task 0"
+        command: "cp src/file0.txt build/compiled_0.txt"
+        inputs: ["src/file0.txt"]
+        outputs: ["build/compiled_0.txt"]
+        cache: true
+    }
+    "compile_1": {
+        description: "Compile task 1"
+        command: "cp src/file1.txt build/compiled_1.txt"
+        inputs: ["src/file1.txt"]
+        outputs: ["build/compiled_1.txt"]
+        cache: true
+    }
+    "compile_2": {
+        description: "Compile task 2"
+        command: "cp src/file2.txt build/compiled_2.txt"
+        inputs: ["src/file2.txt"]
+        outputs: ["build/compiled_2.txt"]
+        cache: true
+    }
+    "bundle": {
+        description: "Bundle compiled files"
+        command: "cat build/compiled_*.txt > build/bundle.txt"
+        dependencies: ["compile_0", "compile_1", "compile_2"]
+        inputs: ["build/compiled_*.txt"]
+        outputs: ["build/bundle.txt"]
+        cache: true
+    }
+}"#;
+            let env_file = temp_dir.path().join("env.cue");
+            fs::write(&env_file, tasks_cue).unwrap();
+
+            let mut env_manager = EnvManager::new();
+            env_manager.load_env(temp_dir.path()).await.unwrap();
 
             // Create task executor
             let executor = TaskExecutor::new(env_manager, temp_dir.path().to_path_buf()).unwrap();

@@ -50,6 +50,8 @@ fn test_concurrent_cache_writes() {
             let cache_manager = Arc::clone(&cache_manager);
             let temp_dir = Arc::clone(&temp_dir);
             let barrier = Arc::clone(&barrier);
+            let src_dir = src_dir.clone();
+            let build_dir = build_dir.clone();
 
             thread::spawn(move || {
                 // Wait for all threads to be ready

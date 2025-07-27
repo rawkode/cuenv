@@ -76,6 +76,7 @@ async fn test_rate_limiting_hooks() {
         command: "echo".to_string(),
         args: vec!["test".to_string()],
         url: None,
+        constraints: vec![],
         hook_type: cuenv::cue_parser::HookType::OnEnter,
     };
 
@@ -124,11 +125,11 @@ async fn test_rate_limiting_secrets() {
         .await;
 
     // Create command resolver with rate limiting
-    let test_executor = cuenv::command_executor::CommandExecutorFactory::test();
-    test_executor.add_simple_response("echo", &["secret".to_string()], "my-secret-value");
+    // Use a real system executor for this test - the secrets will be resolved using actual echo commands
+    let system_executor = cuenv::command_executor::CommandExecutorFactory::system();
 
     let resolver =
-        CommandResolver::with_executor(5, Box::new(test_executor)).with_rate_limiter(rate_limiter);
+        CommandResolver::with_executor(5, system_executor).with_rate_limiter(rate_limiter);
 
     let manager = SecretManager::with_resolver(Box::new(resolver));
 
@@ -137,7 +138,10 @@ async fn test_rate_limiting_secrets() {
     for i in 0..5 {
         env_vars.insert(
             format!("SECRET_{}", i),
-            r#"cuenv-resolver://{"cmd":"echo","args":["secret"]}"#.to_string(),
+            format!(
+                r#"cuenv-resolver://{{"cmd":"echo","args":["secret-value-{}"]}}"#,
+                i
+            ),
         );
     }
 

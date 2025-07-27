@@ -288,14 +288,14 @@ fn should_mask_secrets_in_command_output() {
     use cuenv::output_filter::OutputFilter;
     use std::collections::HashSet;
     use std::io::Write;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, RwLock};
 
     // Given: A set of secret values
     let mut secrets = HashSet::new();
     secrets.insert("super-secret-password".to_string());
     secrets.insert("api-key-12345".to_string());
 
-    let secrets = Arc::new(Mutex::new(secrets));
+    let secrets = Arc::new(RwLock::new(secrets));
 
     // And: Output containing those secrets
     let mut output = Vec::new();
