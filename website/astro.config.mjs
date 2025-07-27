@@ -47,6 +47,7 @@ export default defineConfig({
 						{ label: 'Environments', slug: 'guides/environments' },
 						{ label: 'Capabilities', slug: 'guides/capabilities' },
 						{ label: 'Shell Integration', slug: 'guides/shell-integration' },
+						{ label: 'Remote Cache Server', slug: 'guides/remote-cache-server' },
 					],
 				},
 				{

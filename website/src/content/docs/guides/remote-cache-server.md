@@ -1,4 +1,7 @@
-# cuenv Remote Cache Server
+---
+title: Remote Cache Server
+description: Use cuenv as a remote cache backend for Bazel/Buck2 builds
+---
 
 cuenv provides a remote cache server that implements the Bazel/Buck2 Remote Execution API, allowing you to use cuenv's sophisticated caching infrastructure as a backend for your Bazel or Buck2 builds.
 
@@ -45,9 +48,7 @@ The remote cache server exposes cuenv's existing cache infrastructure via the st
 cuenv remote-cache-server \
   --address 0.0.0.0:50051 \          # Listen address
   --cache-dir /var/cache/cuenv \     # Cache storage directory
-  --max-cache-size 10737418240 \     # 10GB cache limit
-  --enable-action-cache \            # Enable action result caching
-  --enable-cas                       # Enable content-addressed storage
+  --max-cache-size 10737418240       # 10GB cache limit
 ```
 
 ## Using with Bazel
