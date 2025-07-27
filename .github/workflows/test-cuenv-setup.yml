@@ -15,7 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest]  # Only Linux until we solve CGO cross-compilation
+        os: [ubuntu-latest] # Only Linux until we solve CGO cross-compilation
         version: ['latest', '0.3.1']
     steps:
       - name: Checkout

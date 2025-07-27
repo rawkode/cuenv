@@ -1,0 +1,50 @@
+name: Fix Linux Binary
+on:
+  workflow_dispatch:
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Delete old Linux binary
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the asset ID for the Linux binary
+          ASSET_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            https://api.github.com/repos/rawkode/cuenv/releases/tags/0.3.1 | \
+            jq '.assets[] | select(.name == "cuenv-0.3.1-x86_64-unknown-linux-gnu.tar.gz") | .id')
+          
+          if [ ! -z "$ASSET_ID" ]; then
+            echo "Deleting asset ID: $ASSET_ID"
+            curl -X DELETE -H "Authorization: token $GITHUB_TOKEN" \
+              https://api.github.com/repos/rawkode/cuenv/releases/assets/$ASSET_ID
+          fi
+        
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v17
+        
+      - name: Build with Nix
+        run: |
+          nix build .#cuenv
+          mkdir -p artifacts
+          cp -L result/bin/cuenv artifacts/cuenv
+          cd artifacts
+          # Create tarball with just 'cuenv' as the filename inside
+          tar czf cuenv-0.3.1-x86_64-unknown-linux-gnu.tar.gz cuenv
+          ls -la
+          tar -tzf cuenv-0.3.1-x86_64-unknown-linux-gnu.tar.gz
+          cd ..
+          
+      - name: Upload to release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "0.3.1"
+          files: artifacts/cuenv-0.3.1-x86_64-unknown-linux-gnu.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
