@@ -124,7 +124,7 @@ impl ActionCache {
 
     /// Get cached action result from storage
     fn get_cached_action_result(&self, hash: &str) -> Option<ActionResult> {
-        self.result_cache.get(hash).and_then(|cached| {
+        self.result_cache.get(hash).map(|cached| {
             // Convert CachedTaskResult to ActionResult
             // For action cache, we store hashes in stdout/stderr fields
             let stdout_hash = cached
@@ -136,14 +136,14 @@ impl ActionCache {
                 .as_ref()
                 .map(|bytes| String::from_utf8_lossy(bytes).to_string());
 
-            Some(ActionResult {
+            ActionResult {
                 exit_code: cached.exit_code,
                 stdout_hash,
                 stderr_hash,
                 output_files: cached.output_files.clone(),
                 executed_at: cached.executed_at,
                 duration_ms: 0, // Not stored in CachedTaskResult
-            })
+            }
         })
     }
 

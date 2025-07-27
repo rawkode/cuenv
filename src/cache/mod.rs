@@ -14,6 +14,7 @@ mod action_cache;
 mod cache_manager;
 mod concurrent_cache;
 mod content_addressed_store;
+pub(crate) mod signing;
 mod types;
 
 pub use config::CacheConfig;

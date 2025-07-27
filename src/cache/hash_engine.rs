@@ -278,13 +278,14 @@ fn walk_directory_for_glob(
                 files.push(path);
             }
         } else if path.is_dir() {
-            // Skip symlinks to prevent traversal
-            if !entry
-                .metadata()
-                .map_err(|e| Error::file_system(path.clone(), "get metadata", e))?
+            // Use file_type() from DirEntry to avoid TOCTOU
+            // This is atomic with the directory read operation
+            let file_type = entry
                 .file_type()
-                .is_symlink()
-            {
+                .map_err(|e| Error::file_system(path.clone(), "get file type", e))?;
+
+            // Skip symlinks to prevent traversal
+            if !file_type.is_symlink() {
                 walk_directory_for_glob(&path, base_dir, globset, files)?;
             }
         }
@@ -328,9 +329,26 @@ fn collect_files_recursive(dir: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
                     log::debug!("File disappeared or changed during collection: {:?}", path);
                 }
             }
-        } else if metadata.is_dir() && !metadata.file_type().is_symlink() {
-            // Skip symlinks to prevent traversal
-            collect_files_recursive(&path, files)?;
+        } else if metadata.is_dir() {
+            // Re-stat using lstat equivalent to check for symlinks atomically
+            #[cfg(unix)]
+            {
+                // If it's a directory according to stat but also a symlink,
+                // that means it's a symlink to a directory, which we skip
+                let symlink_metadata = path
+                    .symlink_metadata()
+                    .map_err(|e| Error::file_system(path.clone(), "get symlink metadata", e))?;
+                if !symlink_metadata.file_type().is_symlink() {
+                    collect_files_recursive(&path, files)?;
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                // On non-Unix, fall back to checking file type
+                if !metadata.file_type().is_symlink() {
+                    collect_files_recursive(&path, files)?;
+                }
+            }
         }
     }
     Ok(())

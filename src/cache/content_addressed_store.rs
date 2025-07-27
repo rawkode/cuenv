@@ -9,7 +9,6 @@ use crate::errors::{Error, Result};
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
@@ -81,8 +80,7 @@ impl ContentAddressedStore {
         // Check if we need to run garbage collection
         self.maybe_garbage_collect()?;
 
-        // Read and hash content
-        let mut hasher = Sha256::new();
+        // Read content
         let mut content = Vec::new();
         let mut buffer = [0u8; 8192];
 
@@ -90,7 +88,6 @@ impl ContentAddressedStore {
             match reader.read(&mut buffer) {
                 Ok(0) => break,
                 Ok(n) => {
-                    hasher.update(&buffer[..n]);
                     content.extend_from_slice(&buffer[..n]);
                 }
                 Err(e) => {
@@ -103,7 +100,8 @@ impl ContentAddressedStore {
             }
         }
 
-        let hash = format!("{:x}", hasher.finalize());
+        // Hash content with length prefix
+        let hash = self.hash_content(&content);
         let size = content.len() as u64;
 
         // Check if already exists
@@ -152,24 +150,58 @@ impl ContentAddressedStore {
         Ok(hash)
     }
 
-    /// Retrieve content by hash
+    /// Retrieve content by hash with integrity verification
     pub fn retrieve(&self, hash: &str) -> Result<Vec<u8>> {
         let metadata = self
             .index
             .get(hash)
             .ok_or_else(|| Error::configuration(format!("Object not found in CAS: {hash}")))?;
 
-        if metadata.inlined {
+        let content = if metadata.inlined {
             // Read from inline storage
             let inline_path = self.get_inline_path(hash);
             fs::read(&inline_path)
-                .map_err(|e| Error::file_system(&inline_path, "read inlined CAS object", e))
+                .map_err(|e| Error::file_system(&inline_path, "read inlined CAS object", e))?
         } else {
             // Read from object storage
             let object_path = self.get_object_path(hash);
             fs::read(&object_path)
-                .map_err(|e| Error::file_system(&object_path, "read CAS object", e))
+                .map_err(|e| Error::file_system(&object_path, "read CAS object", e))?
+        };
+
+        // Verify content hash matches expected hash
+        let computed_hash = self.hash_content(&content);
+        if computed_hash != hash {
+            // Log the corruption for debugging
+            log::error!(
+                "CAS integrity check failed: expected hash {}, got {}",
+                hash,
+                computed_hash
+            );
+
+            // Remove corrupted entry from index
+            self.index.remove(hash);
+            self.persist_index().ok(); // Best effort to persist the removal
+
+            return Err(Error::configuration(format!(
+                "CAS integrity verification failed: content hash mismatch for {}",
+                hash
+            )));
         }
+
+        Ok(content)
+    }
+
+    /// Compute hash of content with length prefix to prevent collisions
+    fn hash_content(&self, content: &[u8]) -> String {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+
+        // Add length prefix to prevent length extension attacks and collisions
+        hasher.update((content.len() as u64).to_le_bytes());
+        hasher.update(content);
+
+        format!("{:x}", hasher.finalize())
     }
 
     /// Check if an object exists

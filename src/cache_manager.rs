@@ -4,6 +4,7 @@
 //! access to cache resources using file locking and proper synchronization.
 
 use crate::atomic_file::write_atomic_string;
+use crate::cache::signing::{CacheSigner, SignedCacheEntry};
 use crate::cache::CacheEngine;
 use crate::cache::CachedTaskResult;
 use crate::cue_parser::TaskConfig;
@@ -62,6 +63,9 @@ pub struct CacheManager {
 
     /// Cache version for migration support
     version: u32,
+
+    /// Cache signer for integrity protection
+    signer: Arc<CacheSigner>,
 }
 
 impl CacheManager {
@@ -69,11 +73,13 @@ impl CacheManager {
     pub fn new() -> Result<Self> {
         let engine = Arc::new(CacheEngine::new()?);
         let stats = Arc::new(RwLock::new(CacheStatistics::default()));
+        let signer = Arc::new(CacheSigner::new(&engine.cache_dir)?);
 
         let manager = Self {
             engine,
             stats,
             version: CACHE_VERSION,
+            signer,
         };
 
         // Check and migrate cache if needed
@@ -145,7 +151,21 @@ impl CacheManager {
             })?;
         }
 
-        // Open or create lock file
+        // Open or create lock file with restricted permissions
+        #[cfg(unix)]
+        let lock_file = {
+            use std::os::unix::fs::OpenOptionsExt;
+            OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .read(true)
+                .write(true)
+                .mode(0o600) // Owner read/write only
+                .open(&lock_path)
+                .map_err(|e| Error::file_system(&lock_path, "open lock file", e))?
+        };
+
+        #[cfg(not(unix))]
         let lock_file = OpenOptions::new()
             .create(true)
             .truncate(true)
@@ -296,11 +316,30 @@ impl CacheManager {
             }
         };
 
-        let cached_result: CachedTaskResult =
-            serde_json::from_str(&content).map_err(|e| Error::Json {
-                message: "Failed to parse cached task result".to_string(),
+        // Parse and verify signed cache entry
+        let signed_entry: SignedCacheEntry<CachedTaskResult> = serde_json::from_str(&content)
+            .map_err(|e| Error::Json {
+                message: "Failed to parse signed cache entry".to_string(),
                 source: e,
             })?;
+
+        // Verify signature
+        if !self.signer.verify(&signed_entry)? {
+            log::warn!(
+                "Cache entry signature verification failed for key: {}",
+                cache_key
+            );
+            match self.stats.write() {
+                Ok(mut stats) => {
+                    stats.errors += 1;
+                    stats.misses += 1;
+                }
+                Err(_) => log::error!("Failed to update error statistics due to poisoned mutex"),
+            }
+            return Ok(None);
+        }
+
+        let cached_result = signed_entry.data;
 
         // Verify cache key matches
         if cached_result.cache_key != cache_key {
@@ -441,6 +480,9 @@ impl CacheManager {
             output_files,
         };
 
+        // Sign the cache entry
+        let signed_entry = self.signer.sign(&cached_result)?;
+
         // Ensure cache directory exists
         let cache_dir = self.engine.cache_dir.join("tasks");
         fs::create_dir_all(&cache_dir)
@@ -448,8 +490,8 @@ impl CacheManager {
 
         // Write cache file atomically
         let cache_path = cache_dir.join(format!("{cache_key}.json"));
-        let content = serde_json::to_string_pretty(&cached_result).map_err(|e| Error::Json {
-            message: "Failed to serialize cache result".to_string(),
+        let content = serde_json::to_string_pretty(&signed_entry).map_err(|e| Error::Json {
+            message: "Failed to serialize signed cache entry".to_string(),
             source: e,
         })?;
 
@@ -630,13 +672,14 @@ fn walk_directory(
                 files.push(path);
             }
         } else if path.is_dir() {
-            // Skip symlinks to prevent traversal
-            if !entry
-                .metadata()
-                .map_err(|e| Error::file_system(&path, "get metadata", e))?
+            // Use file_type() from DirEntry to avoid TOCTOU
+            // This is atomic with the directory read operation
+            let file_type = entry
                 .file_type()
-                .is_symlink()
-            {
+                .map_err(|e| Error::file_system(&path, "get file type", e))?;
+
+            // Skip symlinks to prevent traversal
+            if !file_type.is_symlink() {
                 walk_directory(&path, base_dir, globset, files)?;
             }
         }
