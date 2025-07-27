@@ -4,7 +4,6 @@ pub mod async_runtime;
 pub mod atomic_file;
 pub mod audit;
 pub mod cache;
-pub mod cache_manager;
 pub mod cleanup;
 pub mod command_executor;
 pub mod constants;

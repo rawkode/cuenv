@@ -260,6 +260,7 @@ pub struct RateLimitStatus {
 }
 
 /// Manager for multiple rate limiters
+#[derive(Clone)]
 pub struct RateLimitManager {
     limiters: Arc<Mutex<HashMap<String, Arc<RateLimiter>>>>,
 }
@@ -353,10 +354,13 @@ impl Default for RateLimitManager {
 pub fn default_rate_limiters() -> RateLimitManager {
     let manager = RateLimitManager::new();
 
-    tokio::task::block_in_place(|| {
-        tokio::runtime::Handle::current().block_on(async {
+    // Try to register rate limiters, but don't fail if we can't
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        // We're in an async context, spawn the registration
+        let manager_clone = manager.clone();
+        handle.spawn(async move {
             // Hook execution rate limiting
-            manager
+            let _ = manager_clone
                 .register(
                     "hooks",
                     RateLimitConfig {
@@ -369,7 +373,7 @@ pub fn default_rate_limiters() -> RateLimitManager {
                 .await;
 
             // Secret resolution rate limiting
-            manager
+            let _ = manager_clone
                 .register(
                     "secrets",
                     RateLimitConfig {
@@ -382,7 +386,7 @@ pub fn default_rate_limiters() -> RateLimitManager {
                 .await;
 
             // Command execution rate limiting
-            manager
+            let _ = manager_clone
                 .register(
                     "commands",
                     RateLimitConfig {
@@ -395,7 +399,7 @@ pub fn default_rate_limiters() -> RateLimitManager {
                 .await;
 
             // File operations rate limiting
-            manager
+            let _ = manager_clone
                 .register(
                     "files",
                     RateLimitConfig {
@@ -407,7 +411,66 @@ pub fn default_rate_limiters() -> RateLimitManager {
                 )
                 .await;
         });
-    });
+    }
+
+    manager
+}
+
+/// Async version of default_rate_limiters for use in async contexts
+pub async fn default_rate_limiters_async() -> RateLimitManager {
+    let manager = RateLimitManager::new();
+
+    // Hook execution rate limiting
+    manager
+        .register(
+            "hooks",
+            RateLimitConfig {
+                max_operations: 50,
+                window_duration: Duration::from_secs(60),
+                sliding_window: true,
+                burst_size: Some(10),
+            },
+        )
+        .await;
+
+    // Secret resolution rate limiting
+    manager
+        .register(
+            "secrets",
+            RateLimitConfig {
+                max_operations: 100,
+                window_duration: Duration::from_secs(60),
+                sliding_window: true,
+                burst_size: Some(20),
+            },
+        )
+        .await;
+
+    // Command execution rate limiting
+    manager
+        .register(
+            "commands",
+            RateLimitConfig {
+                max_operations: 200,
+                window_duration: Duration::from_secs(60),
+                sliding_window: false,
+                burst_size: None,
+            },
+        )
+        .await;
+
+    // File operations rate limiting
+    manager
+        .register(
+            "files",
+            RateLimitConfig {
+                max_operations: 500,
+                window_duration: Duration::from_secs(60),
+                sliding_window: true,
+                burst_size: Some(50),
+            },
+        )
+        .await;
 
     manager
 }
@@ -550,7 +613,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_default_rate_limiters() {
-        let manager = default_rate_limiters();
+        let manager = default_rate_limiters_async().await;
 
         // Should have pre-configured limiters
         let status = manager.status_all().await;

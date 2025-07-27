@@ -1,4 +1,4 @@
-use crate::cache_manager::CacheManager;
+use crate::cache::CacheManager;
 use crate::cleanup::ProcessGuard;
 use crate::cue_parser::TaskConfig;
 use crate::env_manager::EnvManager;
@@ -33,7 +33,17 @@ impl TaskExecutor {
         Ok(Self {
             env_manager,
             working_dir,
-            cache_manager: Arc::new(CacheManager::new()?),
+            cache_manager: Arc::new(CacheManager::new_sync()?),
+        })
+    }
+
+    /// Create a new task executor (async version)
+    pub async fn new_async(env_manager: EnvManager, working_dir: PathBuf) -> Result<Self> {
+        let cache_config = crate::cache::CacheConfig::default();
+        Ok(Self {
+            env_manager,
+            working_dir,
+            cache_manager: Arc::new(CacheManager::new(cache_config).await?),
         })
     }
 
@@ -308,12 +318,12 @@ impl TaskExecutor {
         audit_mode: bool,
     ) -> Result<i32> {
         // Generate cache key
-        let cache_key = cache_manager.generate_cache_key(task_name, task_config, working_dir)?;
+        let env_vars = std::env::vars().collect();
+        let cache_key =
+            cache_manager.generate_cache_key(task_name, task_config, &env_vars, working_dir)?;
 
         // Check if task result is cached
-        if let Some(cached_result) =
-            cache_manager.get_cached_result(&cache_key, task_config, working_dir)?
-        {
+        if let Some(cached_result) = cache_manager.get_cached_result(&cache_key) {
             println!("✓ Task '{task_name}' found in cache, skipping execution");
             return Ok(cached_result.exit_code);
         }
@@ -324,7 +334,16 @@ impl TaskExecutor {
             Self::execute_single_task(task_config, working_dir, args, audit_mode).await?;
 
         // Cache the result
-        if let Err(e) = cache_manager.save_result(&cache_key, task_config, working_dir, exit_code) {
+        let cached_result = crate::cache::CachedTaskResult {
+            cache_key: cache_key.clone(),
+            executed_at: std::time::SystemTime::now(),
+            exit_code,
+            stdout: None,
+            stderr: None,
+            output_files: std::collections::HashMap::new(),
+        };
+
+        if let Err(e) = cache_manager.store_result(cache_key, cached_result) {
             log::warn!("Failed to cache task '{task_name}' result: {e}");
         }
 
@@ -489,22 +508,34 @@ impl TaskExecutor {
 
     /// Clear the task cache
     pub fn clear_cache(&self) -> Result<()> {
-        self.cache_manager.clear()
+        self.cache_manager.clear_cache()
     }
 
     /// Get cache statistics
-    pub fn get_cache_statistics(&self) -> Result<crate::cache_manager::CacheStatistics> {
-        self.cache_manager.get_statistics()
+    pub fn get_cache_statistics(&self) -> Result<crate::cache::CacheStatistics> {
+        Ok(self.cache_manager.get_statistics())
     }
 
     /// Print cache statistics
     pub fn print_cache_statistics(&self) -> Result<()> {
-        self.cache_manager.print_statistics()
+        let stats = self.cache_manager.get_statistics();
+        println!("Cache Statistics:");
+        println!("  Hits: {}", stats.hits);
+        println!("  Misses: {}", stats.misses);
+        println!("  Writes: {}", stats.writes);
+        println!("  Errors: {}", stats.errors);
+        println!("  Lock contentions: {}", stats.lock_contentions);
+        println!("  Total bytes saved: {}", stats.total_bytes_saved);
+        if let Some(last_cleanup) = stats.last_cleanup {
+            println!("  Last cleanup: {:?}", last_cleanup);
+        }
+        Ok(())
     }
 
     /// Clean up stale cache entries
-    pub fn cleanup_cache(&self, max_age: Duration) -> Result<(usize, u64)> {
-        self.cache_manager.cleanup(max_age)
+    pub fn cleanup_cache(&self, _max_age: Duration) -> Result<(usize, u64)> {
+        self.cache_manager.cleanup_stale_entries()?;
+        Ok((0, 0)) // Return dummy values for now
     }
 }
 

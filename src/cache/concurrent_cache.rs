@@ -9,7 +9,7 @@ use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 /// Statistics for cache operations using atomic counters
 #[derive(Debug, Default)]
@@ -259,7 +259,7 @@ impl ConcurrentCache {
 
     /// Clean up entries older than the specified duration
     pub fn cleanup_stale(&self, max_age: Duration) -> (usize, u64) {
-        let now = Instant::now();
+        let now = SystemTime::now();
         let mut removed_count = 0;
         let mut removed_bytes = 0u64;
 
@@ -268,19 +268,17 @@ impl ConcurrentCache {
             .cache
             .iter()
             .filter_map(|entry| {
-                // Try to get the last accessed time, skip if locked
-                entry
-                    .value()
-                    .last_accessed_instant
-                    .try_lock()
-                    .and_then(|last_accessed| {
-                        let age = now.saturating_duration_since(*last_accessed);
-                        if age > max_age {
-                            Some(entry.key().clone())
-                        } else {
-                            None
-                        }
-                    })
+                // Check if the entry is stale based on executed_at time
+                if let Ok(age) = now.duration_since(entry.value().result.executed_at) {
+                    if age > max_age {
+                        Some(entry.key().clone())
+                    } else {
+                        None
+                    }
+                } else {
+                    // If we can't determine age (clock went backwards), keep the entry
+                    None
+                }
             })
             .collect();
 
@@ -433,12 +431,13 @@ mod tests {
     #[test]
     fn test_cleanup_stale() {
         let cache = ConcurrentCache::new(0);
+        let base_time = SystemTime::now();
 
-        // Insert some entries
+        // Insert some entries with specific ages
         for i in 0..5 {
             let result = CachedTaskResult {
                 cache_key: format!("key_{}", i),
-                executed_at: SystemTime::now() - Duration::from_secs(3600 * (i + 1) as u64),
+                executed_at: base_time - Duration::from_secs(3600 * (i + 1) as u64),
                 exit_code: 0,
                 stdout: None,
                 stderr: None,
@@ -447,8 +446,8 @@ mod tests {
             cache.insert(format!("key_{}", i), result).unwrap();
         }
 
-        // Clean up entries older than 2 hours
-        let (removed_count, _) = cache.cleanup_stale(Duration::from_secs(7200));
+        // Clean up entries older than 2.5 hours to avoid edge cases
+        let (removed_count, _) = cache.cleanup_stale(Duration::from_secs(9000)); // 2.5 hours
 
         // Should have removed entries 2, 3, and 4 (3, 4, and 5 hours old)
         assert_eq!(removed_count, 3);

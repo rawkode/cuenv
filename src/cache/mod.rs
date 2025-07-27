@@ -25,7 +25,7 @@ pub use mode::{get_cache_mode, CacheMode};
 
 // Export advanced caching components
 pub use action_cache::{ActionCache, ActionDigest, ActionResult};
-pub use cache_manager::CacheManager;
+pub use cache_manager::{CacheManager, CacheStatistics};
 pub use concurrent_cache::{ConcurrentCache, ConcurrentCacheBuilder};
 pub use content_addressed_store::{ContentAddressedStore, ObjectMetadata};
 pub use types::CachedTaskResult;

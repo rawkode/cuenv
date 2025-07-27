@@ -156,14 +156,14 @@ impl SecurityValidator {
         let first_char = name.chars().next().ok_or_else(|| {
             Error::security("Environment variable name is unexpectedly empty".to_string())
         })?;
-        if !first_char.is_alphabetic() && first_char != '_' {
+        if !first_char.is_ascii_alphabetic() && first_char != '_' {
             return Err(Error::security(format!(
-                "Environment variable name '{name}' must start with a letter or underscore"
+                "Environment variable name '{name}' must start with an ASCII letter or underscore"
             )));
         }
 
         for c in name.chars() {
-            if !c.is_alphanumeric() && c != '_' {
+            if !c.is_ascii_alphanumeric() && c != '_' {
                 return Err(Error::security(format!(
                     "Environment variable name '{name}' contains invalid character '{c}'"
                 )));

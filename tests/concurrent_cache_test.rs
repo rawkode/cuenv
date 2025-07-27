@@ -1,7 +1,7 @@
 #![allow(unused)]
 #[cfg(test)]
 mod concurrent_cache_tests {
-    use cuenv::cache_manager::CacheManager;
+    use cuenv::cache::CacheManager;
     use cuenv::cue_parser::TaskConfig;
     use std::fs;
     use std::sync::atomic::{AtomicU32, Ordering};
@@ -55,16 +55,16 @@ mod concurrent_cache_tests {
                     // Synchronize thread start
                     barrier.wait();
 
-                    let cache = CacheManager::new().unwrap();
+                    let cache = CacheManager::new_sync().unwrap();
                     let task_config = create_test_task("concurrent_test", true);
 
                     // Generate cache key
                     let cache_key = cache
-                        .generate_cache_key("test_task", &task_config, &working_dir)
+                        .generate_cache_key_legacy("test_task", &task_config, &working_dir)
                         .unwrap();
 
                     // Try to get cached result
-                    match cache.get_cached_result(&cache_key, &task_config, &working_dir) {
+                    match cache.get_cached_result_legacy(&cache_key, &task_config, &working_dir) {
                         Ok(Some(_)) => {
                             cache_hits.fetch_add(1, Ordering::SeqCst);
                         }
@@ -128,11 +128,11 @@ mod concurrent_cache_tests {
                 thread::spawn(move || {
                     barrier.wait();
 
-                    let cache = CacheManager::new().unwrap();
+                    let cache = CacheManager::new_sync().unwrap();
                     let task_config = create_test_task("key_test", true);
 
                     let cache_key = cache
-                        .generate_cache_key("stable_task", &task_config, &working_dir)
+                        .generate_cache_key_legacy("stable_task", &task_config, &working_dir)
                         .unwrap();
 
                     keys.lock().unwrap().push((i, cache_key));
@@ -176,12 +176,12 @@ mod concurrent_cache_tests {
         let input_file1 = input_file.clone();
 
         let handle1 = thread::spawn(move || {
-            let cache = CacheManager::new().unwrap();
+            let cache = CacheManager::new_sync().unwrap();
             let task_config = create_test_task("invalidation_test", true);
 
             // Generate initial key
             let key1 = cache
-                .generate_cache_key("test", &task_config, &working_dir1)
+                .generate_cache_key_legacy("test", &task_config, &working_dir1)
                 .unwrap();
 
             // Create output and save to cache
@@ -199,7 +199,7 @@ mod concurrent_cache_tests {
 
             // Generate key after modification
             let key2 = cache
-                .generate_cache_key("test", &task_config, &working_dir1)
+                .generate_cache_key_legacy("test", &task_config, &working_dir1)
                 .unwrap();
 
             (key1, key2)
@@ -259,7 +259,7 @@ mod concurrent_cache_tests {
                 thread::spawn(move || {
                     barrier.wait();
 
-                    let cache = CacheManager::new().unwrap();
+                    let cache = CacheManager::new_sync().unwrap();
 
                     // Each thread works on multiple tasks
                     for task_id in 0..num_tasks {
@@ -268,7 +268,7 @@ mod concurrent_cache_tests {
                         task_config.outputs = Some(vec![format!("build/output{}.txt", task_id)]);
 
                         let cache_key = cache
-                            .generate_cache_key(
+                            .generate_cache_key_legacy(
                                 &format!("task_{}", task_id),
                                 &task_config,
                                 &working_dir,
@@ -276,7 +276,8 @@ mod concurrent_cache_tests {
                             .unwrap();
 
                         // Try to get from cache
-                        match cache.get_cached_result(&cache_key, &task_config, &working_dir) {
+                        match cache.get_cached_result_legacy(&cache_key, &task_config, &working_dir)
+                        {
                             Ok(Some(result)) => {
                                 // Verify cached data integrity
                                 if result.exit_code != 0 {

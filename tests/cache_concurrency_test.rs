@@ -2,7 +2,7 @@
 //! Integration tests for concurrent cache operations
 
 #![allow(unused)]
-use cuenv::cache_manager::CacheManager;
+use cuenv::cache::CacheManager;
 use cuenv::cue_parser::TaskConfig;
 use cuenv::env_manager::EnvManager;
 use cuenv::task_executor::TaskExecutor;
@@ -32,7 +32,7 @@ fn setup_test_env(tasks_cue: &str) -> (TaskExecutor, TempDir) {
 #[test]
 fn test_concurrent_cache_writes() {
     // Create a shared cache manager
-    let cache_manager = Arc::new(CacheManager::new().unwrap());
+    let cache_manager = Arc::new(CacheManager::new_sync().unwrap());
     let temp_dir = Arc::new(TempDir::new().unwrap());
 
     // Create test directories
@@ -118,7 +118,7 @@ fn test_concurrent_cache_writes() {
 
 #[test]
 fn test_concurrent_same_key_access() {
-    let cache_manager = Arc::new(CacheManager::new().unwrap());
+    let cache_manager = Arc::new(CacheManager::new_sync().unwrap());
     let temp_dir = Arc::new(TempDir::new().unwrap());
 
     // Create shared task config
@@ -195,7 +195,7 @@ fn test_concurrent_same_key_access() {
 
 #[test]
 fn test_cache_invalidation_race() {
-    let cache_manager = Arc::new(CacheManager::new().unwrap());
+    let cache_manager = Arc::new(CacheManager::new_sync().unwrap());
     let temp_dir = Arc::new(TempDir::new().unwrap());
 
     let task_config = TaskConfig {
@@ -358,7 +358,7 @@ tasks: {
 
 #[test]
 fn test_cache_cleanup() {
-    let cache_manager = CacheManager::new().unwrap();
+    let cache_manager = CacheManager::new_sync().unwrap();
     let temp_dir = TempDir::new().unwrap();
 
     // Create some cached entries
@@ -409,7 +409,7 @@ fn test_cache_cleanup() {
 #[test]
 fn test_cache_lock_timeout() {
     // This test verifies that lock timeouts work correctly
-    let cache_manager = Arc::new(CacheManager::new().unwrap());
+    let cache_manager = Arc::new(CacheManager::new_sync().unwrap());
     let temp_dir = Arc::new(TempDir::new().unwrap());
 
     let task_config = TaskConfig {

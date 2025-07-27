@@ -563,8 +563,8 @@ fn main() -> Result<()> {
         }
         Some(Commands::ClearCache) => {
             // Legacy command - redirect to new cache clear command
-            let cache_manager = cuenv::cache_manager::CacheManager::new()?;
-            match cache_manager.clear() {
+            let cache_manager = cuenv::cache::CacheManager::new_sync()?;
+            match cache_manager.clear_cache() {
                 Ok(()) => println!("✓ Task cache cleared"),
                 Err(e) => {
                     eprintln!("Failed to clear task cache: {e}");
@@ -573,10 +573,10 @@ fn main() -> Result<()> {
             }
         }
         Some(Commands::Cache { command }) => {
-            let cache_manager = cuenv::cache_manager::CacheManager::new()?;
+            let cache_manager = cuenv::cache::CacheManager::new_sync()?;
 
             match command {
-                CacheCommands::Clear => match cache_manager.clear() {
+                CacheCommands::Clear => match cache_manager.clear_cache() {
                     Ok(()) => println!("✓ Cache cleared successfully"),
                     Err(e) => {
                         eprintln!("Failed to clear cache: {e}");
@@ -584,17 +584,22 @@ fn main() -> Result<()> {
                     }
                 },
                 CacheCommands::Stats => {
-                    let _ = cache_manager.print_statistics();
+                    let stats = cache_manager.get_statistics();
+                    println!("Cache Statistics:");
+                    println!("  Hits: {}", stats.hits);
+                    println!("  Misses: {}", stats.misses);
+                    println!("  Writes: {}", stats.writes);
+                    println!("  Errors: {}", stats.errors);
+                    println!("  Lock contentions: {}", stats.lock_contentions);
+                    println!("  Total bytes saved: {}", stats.total_bytes_saved);
+                    if let Some(last_cleanup) = stats.last_cleanup {
+                        println!("  Last cleanup: {:?}", last_cleanup);
+                    }
                 }
-                CacheCommands::Cleanup { max_age_hours } => {
-                    use std::time::Duration;
-
-                    let max_age = Duration::from_secs(max_age_hours * 3600);
-                    match cache_manager.cleanup(max_age) {
-                        Ok((removed_count, bytes_freed)) => {
+                CacheCommands::Cleanup { max_age_hours: _ } => {
+                    match cache_manager.cleanup_stale_entries() {
+                        Ok(()) => {
                             println!("✓ Cache cleanup completed");
-                            println!("  Removed {removed_count} entries");
-                            println!("  Freed {bytes_freed} bytes");
                         }
                         Err(e) => {
                             eprintln!("Failed to cleanup cache: {e}");

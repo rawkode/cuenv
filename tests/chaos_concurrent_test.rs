@@ -6,7 +6,7 @@
 
 #[cfg(test)]
 mod chaos_concurrent_tests {
-    use cuenv::cache_manager::CacheManager;
+    use cuenv::cache::CacheManager;
     use cuenv::cue_parser::TaskConfig;
     use cuenv::env_manager::EnvManager;
     use cuenv::errors::{Error, Result};
@@ -69,7 +69,7 @@ mod chaos_concurrent_tests {
     #[test]
     fn test_cache_with_filesystem_chaos() {
         let temp_dir = TempDir::new().unwrap();
-        let cache_manager = Arc::new(CacheManager::new().unwrap());
+        let cache_manager = Arc::new(CacheManager::new_sync().unwrap());
         let chaos_fs = Arc::new(ChaosFilesystem::new(0.1)); // 10% failure rate
         let num_threads = 10;
         let operations_per_thread = 20;
@@ -111,9 +111,11 @@ mod chaos_concurrent_tests {
                         match chaos_fs.write(&output_path, b"test output") {
                             Ok(_) => {
                                 // Try cache operations
+                                let env_vars = HashMap::new();
                                 match cache_manager.generate_cache_key(
                                     &format!("task_{}_{}", thread_id, op),
                                     &task_config,
+                                    &env_vars,
                                     &working_dir,
                                 ) {
                                     Ok(cache_key) => {
@@ -359,7 +361,7 @@ mod chaos_concurrent_tests {
     #[test]
     fn test_cache_corruption_recovery() {
         let temp_dir = TempDir::new().unwrap();
-        let cache_manager = Arc::new(CacheManager::new().unwrap());
+        let cache_manager = Arc::new(CacheManager::new_sync().unwrap());
         let corruption_injected = Arc::new(AtomicBool::new(false));
         let recovery_successful = Arc::new(AtomicBool::new(false));
 
@@ -383,8 +385,9 @@ mod chaos_concurrent_tests {
         fs::write(temp_dir.path().join("output.txt"), "test output").unwrap();
 
         // Save to cache
+        let env_vars = HashMap::new();
         let cache_key = cache_manager
-            .generate_cache_key("test_task", &task_config, temp_dir.path())
+            .generate_cache_key("test_task", &task_config, &env_vars, temp_dir.path())
             .unwrap();
 
         cache_manager
@@ -407,12 +410,12 @@ mod chaos_concurrent_tests {
         }
 
         // Try to read from corrupted cache
-        match cache_manager.get_cached_result(&cache_key, &task_config, temp_dir.path()) {
-            Ok(_) => {
+        match cache_manager.get_cached_result(&cache_key) {
+            Some(_) => {
                 // Cache should handle corruption gracefully
                 recovery_successful.store(true, Ordering::SeqCst);
             }
-            Err(_) => {
+            None => {
                 // Error is acceptable, but system shouldn't crash
                 recovery_successful.store(true, Ordering::SeqCst);
             }

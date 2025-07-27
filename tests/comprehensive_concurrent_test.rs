@@ -6,7 +6,7 @@
 
 #[cfg(test)]
 mod comprehensive_concurrent_tests {
-    use cuenv::cache_manager::CacheManager;
+    use cuenv::cache::CacheManager;
     use cuenv::cue_parser::TaskConfig;
     use cuenv::env_manager::EnvManager;
     use cuenv::errors::Result;
@@ -106,7 +106,7 @@ mod comprehensive_concurrent_tests {
     #[test]
     fn test_cache_consistency_with_filesystem_race() {
         let temp_dir = TempDir::new().unwrap();
-        let cache_manager = Arc::new(CacheManager::new().unwrap());
+        let cache_manager = Arc::new(CacheManager::new_sync().unwrap());
         let num_writers = 5;
         let num_readers = 5;
         let duration_secs = 3;
@@ -399,7 +399,7 @@ tasks: {
     /// Test behavior when cache operations timeout
     #[test]
     fn test_cache_operation_timeouts() {
-        let cache_manager = Arc::new(CacheManager::new().unwrap());
+        let cache_manager = Arc::new(CacheManager::new_sync().unwrap());
         let temp_dir = TempDir::new().unwrap();
         let barrier = Arc::new(Barrier::new(2));
         let timeout_occurred = Arc::new(AtomicBool::new(false));

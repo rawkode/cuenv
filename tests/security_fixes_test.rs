@@ -6,8 +6,8 @@
 //! 3. Lock file permissions - secure 0600 permissions
 
 use cuenv::cache::signing::CacheSigner;
+use cuenv::cache::CacheManager;
 use cuenv::cache::{ActionCache, ActionResult, ContentAddressedStore, HashEngine};
-use cuenv::cache_manager::CacheManager;
 use cuenv::cue_parser::TaskConfig;
 use cuenv::sync_env::InstanceLock;
 use serde::{Deserialize, Serialize};
@@ -182,7 +182,7 @@ fn test_lock_file_permissions() {
 #[test]
 #[cfg(unix)]
 fn test_cache_manager_lock_permissions() {
-    let cache_manager = CacheManager::new().unwrap();
+    let cache_manager = CacheManager::new_sync().unwrap();
 
     // The cache manager creates lock files with secure permissions
     // This test verifies the implementation exists and compiles correctly
