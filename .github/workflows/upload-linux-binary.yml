@@ -1,0 +1,33 @@
+name: Upload Linux Binary to Release
+on:
+  workflow_dispatch:
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v17
+        
+      - name: Build with Nix
+        run: |
+          nix build .#cuenv
+          mkdir -p artifacts
+          cp -L result/bin/cuenv artifacts/cuenv
+          cd artifacts
+          tar czf cuenv-0.3.1-x86_64-unknown-linux-gnu.tar.gz cuenv
+          cd ..
+          
+      - name: Upload to release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "0.3.1"
+          files: artifacts/cuenv-0.3.1-x86_64-unknown-linux-gnu.tar.gz
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

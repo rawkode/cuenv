@@ -15,7 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]  # Only Linux until we solve CGO cross-compilation
         version: ['latest', '0.3.1']
     steps:
       - name: Checkout
@@ -55,7 +55,6 @@ jobs:
             echo "❌ cuenv test failed"
             exit 1
           fi
-          
       - name: Test cuenv functionality (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
