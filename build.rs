@@ -29,7 +29,7 @@ fn main() {
     let output_str = output_path
         .to_str()
         .expect("Failed to convert output path to string");
-    
+
     if target.contains("musl") {
         // Set musl-specific environment variables
         cmd.env("CC", "musl-gcc");
@@ -46,12 +46,7 @@ fn main() {
             "bridge.go",
         ]);
     } else {
-        cmd.args([
-            "-buildmode=c-archive",
-            "-o",
-            output_str,
-            "bridge.go",
-        ]);
+        cmd.args(["-buildmode=c-archive", "-o", output_str, "bridge.go"]);
     }
 
     let status = cmd

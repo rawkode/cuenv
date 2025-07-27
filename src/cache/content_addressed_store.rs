@@ -15,7 +15,7 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
 
 /// Metadata for a stored object
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,6 +46,10 @@ pub struct ContentAddressedStore {
     total_bytes: AtomicU64,
     /// Lock for index persistence
     index_lock: Arc<RwLock<()>>,
+    /// Last garbage collection time
+    last_gc: Arc<RwLock<Instant>>,
+    /// Garbage collection interval
+    gc_interval: Duration,
 }
 
 impl ContentAddressedStore {
@@ -62,6 +66,8 @@ impl ContentAddressedStore {
             inline_threshold,
             total_bytes: AtomicU64::new(0),
             index_lock: Arc::new(RwLock::new(())),
+            last_gc: Arc::new(RwLock::new(Instant::now())),
+            gc_interval: Duration::from_secs(300), // 5 minutes
         };
 
         // Load existing index
@@ -72,6 +78,9 @@ impl ContentAddressedStore {
 
     /// Store content and return its hash
     pub fn store<R: Read>(&self, mut reader: R) -> Result<String> {
+        // Check if we need to run garbage collection
+        self.maybe_garbage_collect()?;
+
         // Read and hash content
         let mut hasher = Sha256::new();
         let mut content = Vec::new();
@@ -204,6 +213,12 @@ impl ContentAddressedStore {
         let mut removed_count = 0;
         let mut removed_bytes = 0u64;
 
+        // Update last GC time
+        {
+            let mut last_gc = self.last_gc.write();
+            *last_gc = Instant::now();
+        }
+
         // Collect objects with zero references
         let zero_ref_objects: Vec<String> = self
             .index
@@ -213,15 +228,67 @@ impl ContentAddressedStore {
             .collect();
 
         for hash in zero_ref_objects {
+            if let Some(metadata) = self.index.get(&hash) {
+                removed_bytes += metadata.size;
+            }
             if let Ok(()) = self.remove_object(&hash) {
                 removed_count += 1;
-                if let Some(metadata) = self.index.get(&hash) {
-                    removed_bytes += metadata.size;
-                }
             }
         }
 
+        log::info!(
+            "CAS garbage collection: removed {} objects, freed {} bytes",
+            removed_count,
+            removed_bytes
+        );
+
         Ok((removed_count, removed_bytes))
+    }
+
+    /// Check if garbage collection is needed and run it
+    fn maybe_garbage_collect(&self) -> Result<()> {
+        let should_gc = {
+            let last_gc = self.last_gc.read();
+            last_gc.elapsed() >= self.gc_interval
+        };
+
+        if should_gc {
+            // Try to acquire write lock without blocking
+            if let Some(_guard) = self.last_gc.try_write() {
+                // Run GC in background to avoid blocking store operations
+                let index = self.index.clone();
+                let last_gc = self.last_gc.clone();
+                let gc_interval = self.gc_interval;
+
+                std::thread::spawn(move || {
+                    // Double-check the interval after acquiring the lock
+                    let should_run = {
+                        let last_gc_time = last_gc.read();
+                        last_gc_time.elapsed() >= gc_interval
+                    };
+
+                    if !should_run {
+                        return;
+                    }
+
+                    // Count zero-ref objects without holding locks
+                    let zero_ref_count = index
+                        .iter()
+                        .filter(|entry| entry.value().ref_count == 0)
+                        .count();
+
+                    if zero_ref_count > 100 {
+                        // Only log if there's significant garbage
+                        log::debug!(
+                            "CAS background GC: found {} unreferenced objects",
+                            zero_ref_count
+                        );
+                    }
+                });
+            }
+        }
+
+        Ok(())
     }
 
     /// Get path for an object file

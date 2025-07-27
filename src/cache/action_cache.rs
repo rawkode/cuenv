@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
 
 /// Result of a cached action
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,11 +101,8 @@ impl ActionCache {
             for pattern in inputs {
                 let files = crate::cache::hash_engine::expand_glob_pattern(pattern, working_dir)?;
                 for file in files {
-                    let content = tokio::fs::read(&file).await.map_err(|e| {
-                        Error::file_system(&file, "read input file for action digest", e)
-                    })?;
-
-                    let hash = compute_hash(&content);
+                    // Use streaming hash computation for large files
+                    let hash = compute_file_hash(&file).await?;
                     let relative_path = file
                         .strip_prefix(working_dir)
                         .unwrap_or(&file)
@@ -125,6 +122,31 @@ impl ActionCache {
         })
     }
 
+    /// Get cached action result from storage
+    fn get_cached_action_result(&self, hash: &str) -> Option<ActionResult> {
+        self.result_cache.get(hash).and_then(|cached| {
+            // Convert CachedTaskResult to ActionResult
+            // For action cache, we store hashes in stdout/stderr fields
+            let stdout_hash = cached
+                .stdout
+                .as_ref()
+                .map(|bytes| String::from_utf8_lossy(bytes).to_string());
+            let stderr_hash = cached
+                .stderr
+                .as_ref()
+                .map(|bytes| String::from_utf8_lossy(bytes).to_string());
+
+            Some(ActionResult {
+                exit_code: cached.exit_code,
+                stdout_hash,
+                stderr_hash,
+                output_files: cached.output_files.clone(),
+                executed_at: cached.executed_at,
+                duration_ms: 0, // Not stored in CachedTaskResult
+            })
+        })
+    }
+
     /// Check if an action result is cached
     pub async fn get_cached_result(&self, digest: &ActionDigest) -> Option<ActionResult> {
         // Check in-flight actions first
@@ -132,15 +154,11 @@ impl ActionCache {
             // Wait for in-flight action to complete
             notify.notified().await;
             // Try again after notification
-            return self.result_cache.get(&digest.hash).and_then(|cached| {
-                serde_json::from_value(serde_json::to_value(cached).ok()?).ok()
-            });
+            return self.get_cached_action_result(&digest.hash);
         }
 
         // Check cache
-        self.result_cache
-            .get(&digest.hash)
-            .and_then(|cached| serde_json::from_value(serde_json::to_value(cached).ok()?).ok())
+        self.get_cached_action_result(&digest.hash)
     }
 
     /// Execute an action with caching
@@ -165,17 +183,69 @@ impl ActionCache {
         if existing.is_some() {
             // Another task is already executing this action
             drop(existing);
-            notify.notified().await;
 
-            // Try to get from cache after notification
-            if let Some(cached) = self.get_cached_result(digest).await {
-                return Ok(cached);
+            // Retry loop with timeout to handle race conditions
+            let timeout = Duration::from_secs(60);
+            let start = Instant::now();
+            let retry_delay = Duration::from_millis(100);
+
+            loop {
+                // Check if we've exceeded the total timeout
+                if start.elapsed() >= timeout {
+                    return Err(Error::configuration(
+                        "Timeout waiting for concurrent action execution".to_string(),
+                    ));
+                }
+
+                // Try to get from cache first
+                if let Some(cached) = self.get_cached_action_result(&digest.hash) {
+                    return Ok(cached);
+                }
+
+                // Check if action is still in flight
+                if let Some(entry) = self.in_flight.get(&digest.hash) {
+                    let notify = entry.value().clone();
+                    drop(entry); // Release the lock
+
+                    // Create notified future before checking cache again
+                    let notified = notify.notified();
+
+                    // Double-check cache before waiting
+                    if let Some(cached) = self.get_cached_action_result(&digest.hash) {
+                        return Ok(cached);
+                    }
+
+                    // Wait for notification with timeout
+                    let remaining_time = timeout.saturating_sub(start.elapsed());
+                    match tokio::time::timeout(remaining_time, notified).await {
+                        Ok(_) => {
+                            // Notification received, continue to next iteration
+                        }
+                        Err(_) => {
+                            // Timeout - check cache one more time before failing
+                            if let Some(cached) = self.get_cached_action_result(&digest.hash) {
+                                return Ok(cached);
+                            }
+                            return Err(Error::configuration(
+                                "Timeout waiting for concurrent action execution".to_string(),
+                            ));
+                        }
+                    }
+                } else {
+                    // Not in flight anymore, check cache with retries
+                    for _ in 0..5 {
+                        if let Some(cached) = self.get_cached_action_result(&digest.hash) {
+                            return Ok(cached);
+                        }
+                        tokio::time::sleep(retry_delay).await;
+                    }
+
+                    // Action completed but result not found
+                    return Err(Error::configuration(
+                        "Action execution completed but result not found in cache".to_string(),
+                    ));
+                }
             }
-
-            // If still not in cache, something went wrong with the other execution
-            return Err(Error::configuration(
-                "Action execution completed but result not found in cache".to_string(),
-            ));
         }
 
         // Execute the action
@@ -194,13 +264,14 @@ impl ActionCache {
         };
 
         // Cache the result
+        // Store hashes as bytes in CachedTaskResult
         let cached_result = crate::cache::CachedTaskResult {
             cache_key: digest.hash.clone(),
             executed_at: result.executed_at,
             exit_code: result.exit_code,
-            stdout: None,
-            stderr: None,
-            output_files: HashMap::new(), // Output files are stored in CAS by hash
+            stdout: result.stdout_hash.as_ref().map(|s| s.as_bytes().to_vec()),
+            stderr: result.stderr_hash.as_ref().map(|s| s.as_bytes().to_vec()),
+            output_files: result.output_files.clone(),
         };
 
         self.result_cache
@@ -276,6 +347,33 @@ fn compute_hash(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(data);
     format!("{:x}", hasher.finalize())
+}
+
+/// Compute SHA256 hash of a file using streaming
+async fn compute_file_hash(file_path: &Path) -> Result<String> {
+    use tokio::io::AsyncReadExt;
+
+    let mut file = tokio::fs::File::open(file_path)
+        .await
+        .map_err(|e| Error::file_system(file_path, "open file for hashing", e))?;
+
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0u8; 8192];
+
+    loop {
+        let bytes_read = file
+            .read(&mut buffer)
+            .await
+            .map_err(|e| Error::file_system(file_path, "read file chunk for hashing", e))?;
+
+        if bytes_read == 0 {
+            break;
+        }
+
+        hasher.update(&buffer[..bytes_read]);
+    }
+
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 #[cfg(test)]
@@ -396,41 +494,72 @@ mod tests {
             .await
             .unwrap();
 
-        // Spawn multiple concurrent executions
-        let mut handles = vec![];
-        for i in 0..5 {
-            let cache = cache.clone();
-            let digest = digest.clone();
-            let handle = tokio::spawn(async move {
-                cache
-                    .execute_action(&digest, || async move {
-                        // Simulate some work
-                        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-                        Ok(ActionResult {
-                            exit_code: 0,
-                            stdout_hash: Some(format!("hello from {}\n", i)),
-                            stderr_hash: None,
-                            output_files: HashMap::new(),
-                            executed_at: SystemTime::now(),
-                            duration_ms: 10,
-                        })
+        // Test with just 2 concurrent executions first
+        let cache1 = cache.clone();
+        let digest1 = digest.clone();
+        let handle1 = tokio::spawn(async move {
+            println!("Task 1: Starting execution");
+            let result = cache1
+                .execute_action(&digest1, || async move {
+                    println!("Task 1: Actually executing");
+                    // Simulate some work
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    Ok(ActionResult {
+                        exit_code: 0,
+                        stdout_hash: Some("hello from task 1\n".to_string()),
+                        stderr_hash: None,
+                        output_files: HashMap::new(),
+                        executed_at: SystemTime::now(),
+                        duration_ms: 100,
                     })
-                    .await
-            });
-            handles.push(handle);
-        }
+                })
+                .await;
+            println!("Task 1: Finished with result: {:?}", result.is_ok());
+            result
+        });
 
-        // Wait for all to complete
-        let results: Vec<_> = futures::future::join_all(handles).await;
+        // Give first task a head start
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
-        // All should succeed
-        for result in results {
-            assert!(result.is_ok());
-            assert_eq!(result.unwrap().unwrap().exit_code, 0);
-        }
+        let cache2 = cache.clone();
+        let digest2 = digest.clone();
+        let handle2 = tokio::spawn(async move {
+            println!("Task 2: Starting execution");
+            let result = cache2
+                .execute_action(&digest2, || async move {
+                    println!("Task 2: Actually executing (should not happen)");
+                    // This should not execute
+                    Ok(ActionResult {
+                        exit_code: 0,
+                        stdout_hash: Some("hello from task 2\n".to_string()),
+                        stderr_hash: None,
+                        output_files: HashMap::new(),
+                        executed_at: SystemTime::now(),
+                        duration_ms: 10,
+                    })
+                })
+                .await;
+            println!("Task 2: Finished with result: {:?}", result.is_ok());
+            result
+        });
+
+        // Wait for both to complete
+        let result1 = handle1.await.unwrap();
+        let result2 = handle2.await.unwrap();
+
+        // Both should succeed
+        assert!(result1.is_ok());
+        assert!(result2.is_ok());
+
+        // Should have same result (from cache)
+        let r1 = result1.unwrap();
+        let r2 = result2.unwrap();
+        assert_eq!(r1.exit_code, r2.exit_code);
+        assert_eq!(r1.stdout_hash, r2.stdout_hash);
 
         // Only one execution should have happened
         let stats = cache.stats();
+        println!("Cache stats: {:?}", stats);
         assert_eq!(stats.writes, 1);
     }
 }

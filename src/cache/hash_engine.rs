@@ -54,19 +54,34 @@ impl ContentHasher {
         Ok(())
     }
 
-    /// Hash a file's content
+    /// Hash a file's content using streaming to handle large files efficiently
     pub fn hash_file(&mut self, file_path: &Path) -> Result<()> {
-        let content = fs::read(file_path)
-            .map_err(|e| Error::file_system(file_path.to_path_buf(), "read file for hashing", e))?;
+        use std::io::{BufReader, Read};
 
-        let file_hash = {
-            let mut file_hasher = Sha256::new();
-            file_hasher.update(&content);
-            format!("{:x}", file_hasher.finalize())
-        };
+        // Open file for streaming
+        let file = fs::File::open(file_path)
+            .map_err(|e| Error::file_system(file_path.to_path_buf(), "open file for hashing", e))?;
 
-        self.hasher.update(&content);
+        let mut reader = BufReader::with_capacity(8192, file);
+        let mut file_hasher = Sha256::new();
+        let mut buffer = [0u8; 8192];
 
+        // Stream the file in chunks
+        loop {
+            let bytes_read = reader.read(&mut buffer).map_err(|e| {
+                Error::file_system(file_path.to_path_buf(), "read file chunk for hashing", e)
+            })?;
+
+            if bytes_read == 0 {
+                break;
+            }
+
+            let chunk = &buffer[..bytes_read];
+            file_hasher.update(chunk);
+            self.hasher.update(chunk);
+        }
+
+        let file_hash = format!("{:x}", file_hasher.finalize());
         let path_str = file_path.to_string_lossy().to_string();
         self.manifest.files.insert(path_str.clone(), file_hash);
         self.manifest.inputs.push(format!("file:{path_str}"));
@@ -195,18 +210,57 @@ fn walk_directory_for_glob(
     globset: &globset::GlobSet,
     files: &mut Vec<PathBuf>,
 ) -> Result<()> {
-    // Validate that dir is within base_dir to prevent traversal
-    let canonical_dir = dir
-        .canonicalize()
-        .map_err(|e| Error::file_system(dir.to_path_buf(), "canonicalize directory", e))?;
+    // Open directory handle first to prevent TOCTOU
+
+    // Canonicalize base_dir once at the start
     let canonical_base = base_dir.canonicalize().map_err(|e| {
         Error::file_system(base_dir.to_path_buf(), "canonicalize base directory", e)
     })?;
 
-    if !canonical_dir.starts_with(&canonical_base) {
+    // Open and validate directory using file descriptor
+    let dir_handle = fs::File::open(dir)
+        .map_err(|e| Error::file_system(dir.to_path_buf(), "open directory", e))?;
+
+    let dir_metadata = dir_handle.metadata().map_err(|e| {
+        Error::file_system(dir.to_path_buf(), "get directory metadata from handle", e)
+    })?;
+
+    if !dir_metadata.is_dir() {
         return Err(Error::configuration(format!(
-            "Directory traversal detected: {dir:?} is outside of base directory {base_dir:?}"
+            "Path is not a directory: {dir:?}"
         )));
+    }
+
+    // Get canonical path from the file descriptor to prevent TOCTOU
+    #[cfg(unix)]
+    {
+        use std::os::unix::io::AsRawFd;
+
+        // Get path from file descriptor
+        let fd = dir_handle.as_raw_fd();
+        let fd_path = PathBuf::from(format!("/proc/self/fd/{}", fd));
+
+        if let Ok(canonical_dir) = fd_path.read_link() {
+            if !canonical_dir.starts_with(&canonical_base) {
+                return Err(Error::configuration(format!(
+                    "Directory traversal detected: {dir:?} is outside of base directory {base_dir:?}"
+                )));
+            }
+        }
+    }
+
+    // On non-Unix, fall back to canonicalize with the understanding of potential TOCTOU
+    #[cfg(not(unix))]
+    {
+        let canonical_dir = dir
+            .canonicalize()
+            .map_err(|e| Error::file_system(dir.to_path_buf(), "canonicalize directory", e))?;
+
+        if !canonical_dir.starts_with(&canonical_base) {
+            return Err(Error::configuration(format!(
+                "Directory traversal detected: {dir:?} is outside of base directory {base_dir:?}"
+            )));
+        }
     }
 
     let entries = fs::read_dir(dir)
@@ -241,6 +295,17 @@ fn walk_directory_for_glob(
 
 /// Recursively collect all files in a directory
 fn collect_files_recursive(dir: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
+    // Validate directory before reading to prevent TOCTOU
+    let dir_metadata = dir
+        .metadata()
+        .map_err(|e| Error::file_system(dir.to_path_buf(), "get directory metadata", e))?;
+
+    if !dir_metadata.is_dir() {
+        return Err(Error::configuration(format!(
+            "Path is not a directory: {dir:?}"
+        )));
+    }
+
     let entries = fs::read_dir(dir)
         .map_err(|e| Error::file_system(dir.to_path_buf(), "read directory", e))?;
 
@@ -249,12 +314,20 @@ fn collect_files_recursive(dir: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
             entry.map_err(|e| Error::file_system(dir.to_path_buf(), "read directory entry", e))?;
         let path = entry.path();
 
+        // Use entry metadata instead of path metadata to avoid TOCTOU
         let metadata = entry
             .metadata()
             .map_err(|e| Error::file_system(path.clone(), "get metadata", e))?;
 
         if metadata.is_file() {
-            files.push(path);
+            // Re-validate that it's still a file
+            match path.metadata() {
+                Ok(m) if m.is_file() => files.push(path),
+                _ => {
+                    // File was removed or changed - skip it
+                    log::debug!("File disappeared or changed during collection: {:?}", path);
+                }
+            }
         } else if metadata.is_dir() && !metadata.file_type().is_symlink() {
             // Skip symlinks to prevent traversal
             collect_files_recursive(&path, files)?;

@@ -9,7 +9,7 @@ use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant};
 
 /// Statistics for cache operations using atomic counters
 #[derive(Debug, Default)]
@@ -49,8 +49,8 @@ pub struct CacheStatSnapshot {
 struct CacheEntry {
     /// The cached task result
     result: CachedTaskResult,
-    /// When this entry was last accessed
-    last_accessed: AtomicU64,
+    /// When this entry was last accessed (using monotonic time)
+    last_accessed_instant: parking_lot::Mutex<Instant>,
     /// Size in bytes (for eviction policy)
     size_bytes: usize,
 }
@@ -82,14 +82,12 @@ impl ConcurrentCache {
     pub fn get(&self, key: &str) -> Option<CachedTaskResult> {
         match self.cache.get(key) {
             Some(entry) => {
-                // Update last accessed time
-                entry.last_accessed.store(
-                    SystemTime::now()
-                        .duration_since(SystemTime::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs(),
-                    Ordering::Relaxed,
-                );
+                // Update last accessed time using monotonic clock
+                if let Some(mut last_accessed) = entry.last_accessed_instant.try_lock() {
+                    *last_accessed = Instant::now();
+                }
+                // If we can't acquire the lock, it's okay - another thread is updating it
+
                 self.stats.hits.fetch_add(1, Ordering::Relaxed);
                 Some(entry.result.clone())
             }
@@ -117,12 +115,7 @@ impl ConcurrentCache {
 
         let entry = CacheEntry {
             result,
-            last_accessed: AtomicU64::new(
-                SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs(),
-            ),
+            last_accessed_instant: parking_lot::Mutex::new(Instant::now()),
             size_bytes,
         };
 
@@ -169,27 +162,50 @@ impl ConcurrentCache {
             return Ok(());
         }
 
-        // Collect entries with their last accessed times
-        let mut entries: Vec<(String, u64, usize)> = self
-            .cache
-            .iter()
-            .map(|entry| {
-                (
-                    entry.key().clone(),
-                    entry.value().last_accessed.load(Ordering::Relaxed),
-                    entry.value().size_bytes,
-                )
-            })
-            .collect();
-
-        // Sort by last accessed time (oldest first)
-        entries.sort_by_key(|e| e.1);
-
-        // Evict entries until we have enough space
-        let mut freed_bytes = 0u64;
         let needed_to_free = (current_size + needed_bytes as u64).saturating_sub(max_size);
+        let mut freed_bytes = 0u64;
+        let now = Instant::now();
 
-        for (key, _, size) in entries {
+        // Use a min-heap to efficiently find the oldest entries
+        use std::cmp::Reverse;
+        use std::collections::BinaryHeap;
+
+        // Collect a sample of entries to consider for eviction
+        // We don't need to sort all entries, just find enough old ones
+        let sample_size = std::cmp::min(100, self.cache.len());
+        let mut oldest_entries = BinaryHeap::with_capacity(sample_size);
+
+        for entry in self.cache.iter() {
+            // Try to get the last accessed time, skip if locked
+            if let Some(last_accessed) = entry.value().last_accessed_instant.try_lock() {
+                let age = now.saturating_duration_since(*last_accessed);
+                let key = entry.key().clone();
+                let size = entry.value().size_bytes;
+
+                // Use a bounded heap to keep only the oldest entries
+                if oldest_entries.len() < sample_size {
+                    oldest_entries.push(Reverse((age, key, size)));
+                } else if let Some(Reverse((min_age, _, _))) = oldest_entries.peek() {
+                    if age > *min_age {
+                        oldest_entries.pop();
+                        oldest_entries.push(Reverse((age, key, size)));
+                    }
+                }
+
+                // Early exit if we've found enough bytes to free
+                let potential_freed: u64 = oldest_entries
+                    .iter()
+                    .map(|Reverse((_, _, size))| *size as u64)
+                    .sum();
+                if potential_freed >= needed_to_free * 2 {
+                    // We have more than enough candidates
+                    break;
+                }
+            }
+        }
+
+        // Evict entries starting with the oldest
+        while let Some(Reverse((_, key, size))) = oldest_entries.pop() {
             if freed_bytes >= needed_to_free {
                 break;
             }
@@ -201,17 +217,49 @@ impl ConcurrentCache {
             }
         }
 
+        // If we still need more space, do a more thorough eviction
+        if freed_bytes < needed_to_free {
+            // This is a fallback - collect all entries and evict oldest
+            let mut all_entries: Vec<(String, Duration, usize)> = self
+                .cache
+                .iter()
+                .filter_map(|entry| {
+                    entry
+                        .value()
+                        .last_accessed_instant
+                        .try_lock()
+                        .map(|last_accessed| {
+                            (
+                                entry.key().clone(),
+                                now.saturating_duration_since(*last_accessed),
+                                entry.value().size_bytes,
+                            )
+                        })
+                })
+                .collect();
+
+            // Sort by age (oldest first - largest duration)
+            all_entries.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+
+            for (key, _, size) in all_entries {
+                if freed_bytes >= needed_to_free {
+                    break;
+                }
+
+                if self.cache.remove(&key).is_some() {
+                    freed_bytes += size as u64;
+                    self.current_size_bytes
+                        .fetch_sub(size as u64, Ordering::Relaxed);
+                }
+            }
+        }
+
         Ok(())
     }
 
     /// Clean up entries older than the specified duration
     pub fn cleanup_stale(&self, max_age: Duration) -> (usize, u64) {
-        let cutoff = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs()
-            .saturating_sub(max_age.as_secs());
-
+        let now = Instant::now();
         let mut removed_count = 0;
         let mut removed_bytes = 0u64;
 
@@ -219,8 +267,21 @@ impl ConcurrentCache {
         let stale_keys: Vec<String> = self
             .cache
             .iter()
-            .filter(|entry| entry.value().last_accessed.load(Ordering::Relaxed) < cutoff)
-            .map(|entry| entry.key().clone())
+            .filter_map(|entry| {
+                // Try to get the last accessed time, skip if locked
+                entry
+                    .value()
+                    .last_accessed_instant
+                    .try_lock()
+                    .and_then(|last_accessed| {
+                        let age = now.saturating_duration_since(*last_accessed);
+                        if age > max_age {
+                            Some(entry.key().clone())
+                        } else {
+                            None
+                        }
+                    })
+            })
             .collect();
 
         for key in stale_keys {
@@ -272,6 +333,7 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
     use std::thread;
+    use std::time::SystemTime;
 
     #[test]
     fn test_concurrent_cache_basic() {
