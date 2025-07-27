@@ -152,7 +152,7 @@ impl EnvManager {
             // Get current environment variables for hook execution
             let current_env_vars: HashMap<String, String> = SyncEnv::vars()
                 .map_err(|e| Error::Configuration {
-                    message: format!("Failed to get environment variables: {}", e),
+                    message: format!("Failed to get environment variables: {e}"),
                 })?
                 .into_iter()
                 .collect();
@@ -169,17 +169,17 @@ impl EnvManager {
         // Restore original environment
         let current_env: Vec<(String, String)> =
             SyncEnv::vars().map_err(|e| Error::Configuration {
-                message: format!("Failed to get environment variables: {}", e),
+                message: format!("Failed to get environment variables: {e}"),
             })?;
 
         for (key, _) in current_env {
             if let Some(original_value) = self.original_env.get(&key) {
                 SyncEnv::set_var(&key, original_value).map_err(|e| Error::Configuration {
-                    message: format!("Failed to get environment variables: {}", e),
+                    message: format!("Failed to get environment variables: {e}"),
                 })?;
             } else if !self.original_env.contains_key(&key) {
                 SyncEnv::remove_var(&key).map_err(|e| Error::Configuration {
-                    message: format!("Failed to get environment variables: {}", e),
+                    message: format!("Failed to get environment variables: {e}"),
                 })?;
             }
         }
@@ -193,7 +193,7 @@ impl EnvManager {
     fn save_original_env(&mut self) -> Result<()> {
         self.original_env = SyncEnv::vars()
             .map_err(|e| Error::Configuration {
-                message: format!("Failed to get environment variables: {}", e),
+                message: format!("Failed to get environment variables: {e}"),
             })?
             .into_iter()
             .collect();
@@ -246,7 +246,7 @@ impl EnvManager {
             new_env.insert(key.clone(), expanded_value.clone());
             self.cue_vars.insert(key.clone(), expanded_value.clone());
             SyncEnv::set_var(key, expanded_value).map_err(|e| Error::Configuration {
-                message: format!("Failed to get environment variables: {}", e),
+                message: format!("Failed to get environment variables: {e}"),
             })?;
         }
 
@@ -278,7 +278,7 @@ impl EnvManager {
     pub fn print_env_diff(&self) -> Result<()> {
         let current_env: HashMap<String, String> = SyncEnv::vars()
             .map_err(|e| Error::Configuration {
-                message: format!("Failed to get environment variables: {}", e),
+                message: format!("Failed to get environment variables: {e}"),
             })?
             .into_iter()
             .collect();
@@ -307,7 +307,7 @@ impl EnvManager {
     pub fn export_for_shell(&self, shell: &str) -> Result<String> {
         let current_env: HashMap<String, String> = SyncEnv::vars()
             .map_err(|e| Error::Configuration {
-                message: format!("Failed to get environment variables: {}", e),
+                message: format!("Failed to get environment variables: {e}"),
             })?
             .into_iter()
             .collect();
@@ -853,7 +853,7 @@ impl EnvManager {
     fn collect_cue_env_vars(&self) -> Result<HashMap<String, String>> {
         let current_env: HashMap<String, String> = SyncEnv::vars()
             .map_err(|e| Error::Configuration {
-                message: format!("Failed to get environment variables: {}", e),
+                message: format!("Failed to get environment variables: {e}"),
             })?
             .into_iter()
             .collect();

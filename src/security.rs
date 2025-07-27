@@ -15,23 +15,20 @@ impl SecurityValidator {
         if allowed_commands.is_empty() {
             // If no allowlist is configured, deny all commands for safety
             return Err(Error::security(format!(
-                "Command execution denied: '{}'. No commands are allowed when allowlist is empty.",
-                base_command
+                "Command execution denied: '{base_command}'. No commands are allowed when allowlist is empty."
             )));
         }
 
         if !allowed_commands.contains(&base_command) {
             return Err(Error::security(format!(
-                "Command execution denied: '{}' is not in the allowed commands list",
-                base_command
+                "Command execution denied: '{base_command}' is not in the allowed commands list"
             )));
         }
 
         // Additional validation to prevent command injection via special characters
         if Self::contains_shell_metacharacters(command) {
             return Err(Error::security(format!(
-                "Command contains potentially dangerous shell metacharacters: '{}'",
-                command
+                "Command contains potentially dangerous shell metacharacters: '{command}'"
             )));
         }
 
@@ -51,8 +48,7 @@ impl SecurityValidator {
             // Check for command substitution attempts
             if Self::contains_command_substitution(arg) {
                 return Err(Error::security(format!(
-                    "Command argument contains potential command substitution: '{}'",
-                    arg
+                    "Command argument contains potential command substitution: '{arg}'"
                 )));
             }
         }
@@ -67,8 +63,7 @@ impl SecurityValidator {
             Ok(p) => p,
             Err(_) => {
                 // If path doesn't exist, manually resolve it
-                let resolved = Self::resolve_path_components(path)?;
-                resolved
+                Self::resolve_path_components(path)?
             }
         };
 
@@ -116,16 +111,14 @@ impl SecurityValidator {
         // Check for command substitution
         if Self::contains_command_substitution(value) {
             return Err(Error::security(format!(
-                "Value contains potential command substitution: '{}'",
-                value
+                "Value contains potential command substitution: '{value}'"
             )));
         }
 
         // Check for dangerous environment variable expansions
         if Self::contains_dangerous_expansion(value) {
             return Err(Error::security(format!(
-                "Value contains potentially dangerous expansion: '{}'",
-                value
+                "Value contains potentially dangerous expansion: '{value}'"
             )));
         }
 
@@ -143,8 +136,7 @@ impl SecurityValidator {
         for pattern in &dangerous_patterns {
             if content.contains(pattern) {
                 return Err(Error::security(format!(
-                    "CUE content contains potentially dangerous pattern: '{}'",
-                    pattern
+                    "CUE content contains potentially dangerous pattern: '{pattern}'"
                 )));
             }
         }
@@ -166,16 +158,14 @@ impl SecurityValidator {
         })?;
         if !first_char.is_alphabetic() && first_char != '_' {
             return Err(Error::security(format!(
-                "Environment variable name '{}' must start with a letter or underscore",
-                name
+                "Environment variable name '{name}' must start with a letter or underscore"
             )));
         }
 
         for c in name.chars() {
             if !c.is_alphanumeric() && c != '_' {
                 return Err(Error::security(format!(
-                    "Environment variable name '{}' contains invalid character '{}'",
-                    name, c
+                    "Environment variable name '{name}' contains invalid character '{c}'"
                 )));
             }
         }

@@ -1,3 +1,4 @@
+#![allow(unused)]
 #[cfg(test)]
 mod concurrent_cache_tests {
     use cuenv::cache_manager::CacheManager;

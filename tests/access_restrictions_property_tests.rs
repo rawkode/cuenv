@@ -1,3 +1,4 @@
+#![allow(unused)]
 use cuenv::access_restrictions::AccessRestrictions;
 use proptest::prelude::*;
 use std::path::PathBuf;

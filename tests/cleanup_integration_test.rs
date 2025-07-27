@@ -1,3 +1,4 @@
+#![allow(unused)]
 //! Integration tests for cleanup and error recovery
 
 use cuenv::cleanup::{ProcessGuard, TempDirGuard, TempFileGuard};

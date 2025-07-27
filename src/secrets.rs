@@ -155,7 +155,7 @@ impl SecretResolver for CommandResolver {
                         if let Some(ref logger) = self.audit_logger {
                             let _ = logger.log_rate_limit("secrets", 0, 0, true).await;
                         }
-                        return Err(Error::configuration(format!("Rate limit exceeded: {}", e)));
+                        return Err(Error::configuration(format!("Rate limit exceeded: {e}")));
                     }
                 }
             } else {

@@ -1,3 +1,4 @@
+#![allow(unused)]
 #[cfg(all(test, target_os = "linux"))]
 mod landlock_audit_tests {
     use cuenv::access_restrictions::AccessRestrictions;

@@ -87,7 +87,7 @@ impl TempFileGuard {
                 let _ = fs::remove_file(&path_clone);
             })),
             Err(e) => {
-                log::error!("Failed to lock cleanup registry: {}", e);
+                log::error!("Failed to lock cleanup registry: {e}");
                 None
             }
         };
@@ -161,7 +161,7 @@ impl TempDirGuard {
                 let _ = fs::remove_dir_all(&path_clone);
             })),
             Err(e) => {
-                log::error!("Failed to lock cleanup registry: {}", e);
+                log::error!("Failed to lock cleanup registry: {e}");
                 None
             }
         };
@@ -226,7 +226,7 @@ impl ProcessGuard {
     /// Create a new process guard
     pub fn new(child: std::process::Child, timeout: Duration) -> Self {
         let pid = child.id();
-        let description = format!("process: PID {}", pid);
+        let description = format!("process: PID {pid}");
 
         let registry_id = match CLEANUP_REGISTRY.lock() {
             Ok(mut registry) => Some(registry.register(description, move || {
@@ -234,13 +234,13 @@ impl ProcessGuard {
                 #[cfg(unix)]
                 {
                     let _ = std::process::Command::new("kill")
-                        .args(&["-TERM", &pid.to_string()])
+                        .args(["-TERM", &pid.to_string()])
                         .status();
 
                     std::thread::sleep(Duration::from_millis(100));
 
                     let _ = std::process::Command::new("kill")
-                        .args(&["-9", &pid.to_string()])
+                        .args(["-9", &pid.to_string()])
                         .status();
                 }
                 #[cfg(windows)]
@@ -251,7 +251,7 @@ impl ProcessGuard {
                 }
             })),
             Err(e) => {
-                log::error!("Failed to lock cleanup registry: {}", e);
+                log::error!("Failed to lock cleanup registry: {e}");
                 None
             }
         };
@@ -318,16 +318,14 @@ impl ProcessGuard {
                             }
                             Err(e) => {
                                 return Err(Error::configuration(format!(
-                                    "Failed to wait for process: {}",
-                                    e
+                                    "Failed to wait for process: {e}"
                                 )))
                             }
                         }
                     }
                 }
                 Err(e) => Err(Error::configuration(format!(
-                    "Failed to wait for process: {}",
-                    e
+                    "Failed to wait for process: {e}"
                 ))),
             }
         } else {
@@ -348,7 +346,7 @@ impl ProcessGuard {
 
             child
                 .kill()
-                .map_err(|e| Error::configuration(format!("Failed to kill process: {}", e)))?;
+                .map_err(|e| Error::configuration(format!("Failed to kill process: {e}")))?;
         }
         Ok(())
     }
@@ -386,7 +384,7 @@ impl Drop for ProcessGuard {
                     {
                         let pid = child.id();
                         let _ = std::process::Command::new("kill")
-                            .args(&["-TERM", &pid.to_string()])
+                            .args(["-TERM", &pid.to_string()])
                             .status();
 
                         // Give it a moment to exit gracefully
@@ -418,16 +416,17 @@ pub fn init_cleanup_handler() {
         let registry = Arc::downgrade(&CLEANUP_REGISTRY);
 
         thread::spawn(move || {
-            let mut signals = match Signals::new(&[SIGINT, SIGTERM]) {
+            let mut signals = match Signals::new([SIGINT, SIGTERM]) {
                 Ok(s) => s,
                 Err(e) => {
-                    log::error!("Failed to register signal handlers: {}", e);
+                    log::error!("Failed to register signal handlers: {e}");
                     return;
                 }
             };
 
+            #[allow(clippy::never_loop)]
             for sig in signals.forever() {
-                log::info!("Received signal {}, cleaning up resources...", sig);
+                log::info!("Received signal {sig}, cleaning up resources...");
 
                 if let Some(registry) = registry.upgrade() {
                     if let Ok(mut reg) = registry.lock() {

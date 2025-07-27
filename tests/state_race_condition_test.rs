@@ -1,3 +1,4 @@
+#![allow(unused)]
 #[cfg(test)]
 mod state_race_condition_tests {
     use cuenv::env_diff::EnvDiff;

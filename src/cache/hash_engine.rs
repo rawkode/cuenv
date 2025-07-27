@@ -69,7 +69,7 @@ impl ContentHasher {
 
         let path_str = file_path.to_string_lossy().to_string();
         self.manifest.files.insert(path_str.clone(), file_hash);
-        self.manifest.inputs.push(format!("file:{}", path_str));
+        self.manifest.inputs.push(format!("file:{path_str}"));
 
         Ok(())
     }
@@ -92,7 +92,7 @@ impl ContentHasher {
     /// Generate the final hash
     pub fn generate_hash(&mut self) -> Result<String> {
         let result = self.hasher.finalize_reset();
-        Ok(format!("{:x}", result))
+        Ok(format!("{result:x}"))
     }
 
     /// Serialize the manifest for storage
@@ -116,7 +116,7 @@ impl HashEngine {
     pub fn new(cache_dir: &Path) -> Result<HashEngine> {
         let hashes_dir = cache_dir.join("hashes");
 
-        log::debug!("Creating hash engine with hashes_dir: {:?}", hashes_dir);
+        log::debug!("Creating hash engine with hashes_dir: {hashes_dir:?}");
 
         fs::create_dir_all(&hashes_dir)
             .map_err(|e| Error::file_system(hashes_dir.clone(), "create hashes directory", e))?;
@@ -131,7 +131,7 @@ impl HashEngine {
 
     /// Get the path for a hash manifest
     pub fn get_manifest_path(&self, hash: &str) -> PathBuf {
-        self.hashes_dir.join(format!("{}.json", hash))
+        self.hashes_dir.join(format!("{hash}.json"))
     }
 
     /// Save a hash manifest to disk
@@ -173,13 +173,13 @@ pub fn expand_glob_pattern(pattern: &str, base_dir: &Path) -> Result<Vec<PathBuf
 
     // Build glob pattern
     let glob = Glob::new(pattern)
-        .map_err(|e| Error::configuration(format!("Invalid glob pattern '{}': {}", pattern, e)))?;
+        .map_err(|e| Error::configuration(format!("Invalid glob pattern '{pattern}': {e}")))?;
 
     let mut builder = GlobSetBuilder::new();
     builder.add(glob);
     let globset = builder
         .build()
-        .map_err(|e| Error::configuration(format!("Failed to build globset: {}", e)))?;
+        .map_err(|e| Error::configuration(format!("Failed to build globset: {e}")))?;
 
     // Walk directory and find matches
     let mut files = Vec::new();
@@ -205,8 +205,7 @@ fn walk_directory_for_glob(
 
     if !canonical_dir.starts_with(&canonical_base) {
         return Err(Error::configuration(format!(
-            "Directory traversal detected: {:?} is outside of base directory {:?}",
-            dir, base_dir
+            "Directory traversal detected: {dir:?} is outside of base directory {base_dir:?}"
         )));
     }
 

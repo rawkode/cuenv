@@ -70,8 +70,7 @@ impl TaskExecutor {
                     Some(config) => config.clone(),
                     None => {
                         return Err(Error::configuration(format!(
-                            "Task '{}' not found in execution plan",
-                            task_name
+                            "Task '{task_name}' not found in execution plan"
                         )));
                     }
                 };
@@ -108,7 +107,7 @@ impl TaskExecutor {
                             } else {
                                 log::error!("Failed to acquire lock for failed tasks tracking");
                             }
-                            eprintln!("Task '{}' failed: {}", task_name, e);
+                            eprintln!("Task '{task_name}' failed: {e}");
                             -1
                         }
                     }
@@ -125,7 +124,7 @@ impl TaskExecutor {
             // Check if any tasks failed
             let failed = failed_tasks
                 .lock()
-                .map_err(|e| Error::configuration(format!("Failed to acquire lock: {}", e)))?;
+                .map_err(|e| Error::configuration(format!("Failed to acquire lock: {e}")))?;
             if !failed.is_empty() {
                 let failed_names: Vec<&str> =
                     failed.iter().map(|(name, _)| name.as_str()).collect();
@@ -252,8 +251,7 @@ impl TaskExecutor {
                     *degree += 1;
                 } else {
                     return Err(Error::configuration(format!(
-                        "Task '{}' not found in in-degree map",
-                        task
+                        "Task '{task}' not found in in-degree map"
                     )));
                 }
             }
@@ -316,18 +314,18 @@ impl TaskExecutor {
         if let Some(cached_result) =
             cache_manager.get_cached_result(&cache_key, task_config, working_dir)?
         {
-            println!("✓ Task '{}' found in cache, skipping execution", task_name);
+            println!("✓ Task '{task_name}' found in cache, skipping execution");
             return Ok(cached_result.exit_code);
         }
 
         // Execute the task
-        println!("→ Executing task '{}'", task_name);
+        println!("→ Executing task '{task_name}'");
         let exit_code =
             Self::execute_single_task(task_config, working_dir, args, audit_mode).await?;
 
         // Cache the result
         if let Err(e) = cache_manager.save_result(&cache_key, task_config, working_dir, exit_code) {
-            log::warn!("Failed to cache task '{}' result: {}", task_name, e);
+            log::warn!("Failed to cache task '{task_name}' result: {e}");
         }
 
         Ok(exit_code)
@@ -427,7 +425,7 @@ impl TaskExecutor {
                     match apply_default_limits() {
                         Ok(()) => Ok(()),
                         Err(e) => {
-                            eprintln!("Warning: Failed to apply resource limits: {}", e);
+                            eprintln!("Warning: Failed to apply resource limits: {e}");
                             Ok(()) // Continue anyway
                         }
                     }

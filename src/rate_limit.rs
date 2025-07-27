@@ -190,7 +190,7 @@ impl RateLimiter {
     pub async fn acquire(&self) -> Result<RateLimitPermit> {
         // Wait for semaphore
         let permit = self.semaphore.clone().acquire_owned().await.map_err(|e| {
-            Error::configuration(format!("Failed to acquire rate limit permit: {}", e))
+            Error::configuration(format!("Failed to acquire rate limit permit: {e}"))
         })?;
 
         // Check token bucket with retry
@@ -331,11 +331,11 @@ impl RateLimitManager {
                     );
 
                     if let Some(tokens) = status.token_bucket_tokens {
-                        log::debug!("  Token bucket: {} tokens available", tokens);
+                        log::debug!("  Token bucket: {tokens} tokens available");
                     }
 
                     if let Some(count) = status.sliding_window_count {
-                        log::debug!("  Sliding window: {} operations", count);
+                        log::debug!("  Sliding window: {count} operations");
                     }
                 }
             }

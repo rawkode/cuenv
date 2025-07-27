@@ -23,8 +23,7 @@ impl From<String> for CacheMode {
             "write" => CacheMode::Write,
             _ => {
                 log::warn!(
-                    "Unknown CUENV_CACHE environment variable value \"{}\", falling back to read-write mode",
-                    value
+                    "Unknown CUENV_CACHE environment variable value \"{value}\", falling back to read-write mode"
                 );
                 CacheMode::ReadWrite
             }
@@ -40,7 +39,7 @@ impl fmt::Display for CacheMode {
             CacheMode::ReadWrite => "read-write",
             CacheMode::Write => "write",
         };
-        write!(f, "{}", mode_str)
+        write!(f, "{mode_str}")
     }
 }
 

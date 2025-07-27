@@ -1,3 +1,4 @@
+#![allow(unused)]
 //! Chaos testing for concurrent scenarios
 //!
 //! This module contains tests that inject failures and unexpected conditions

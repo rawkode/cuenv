@@ -1,3 +1,4 @@
+#![allow(unused)]
 #[cfg(test)]
 mod concurrent_tests {
     use cuenv::sync_env::{InstanceLock, SyncEnv};

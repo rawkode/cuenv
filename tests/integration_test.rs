@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;

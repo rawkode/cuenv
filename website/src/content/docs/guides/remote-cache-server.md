@@ -28,11 +28,13 @@ The remote cache server exposes cuenv's existing cache infrastructure via the st
 ## Quick Start
 
 1. **Start the remote cache server:**
+
    ```bash
    cuenv remote-cache-server --address 0.0.0.0:50051
    ```
 
 2. **Configure Bazel to use cuenv's cache:**
+
    ```bash
    bazel build //... --remote_cache=grpc://localhost:50051
    ```
@@ -117,20 +119,20 @@ spec:
         app: cuenv-cache
     spec:
       containers:
-      - name: cache-server
-        image: cuenv/remote-cache:latest
-        ports:
-        - containerPort: 50051
-        env:
-        - name: CACHE_DIR
-          value: /data/cache
-        volumeMounts:
-        - name: cache-storage
-          mountPath: /data/cache
+        - name: cache-server
+          image: cuenv/remote-cache:latest
+          ports:
+            - containerPort: 50051
+          env:
+            - name: CACHE_DIR
+              value: /data/cache
+          volumeMounts:
+            - name: cache-storage
+              mountPath: /data/cache
       volumes:
-      - name: cache-storage
-        persistentVolumeClaim:
-          claimName: cuenv-cache-pvc
+        - name: cache-storage
+          persistentVolumeClaim:
+            claimName: cuenv-cache-pvc
 ```
 
 ## Monitoring
@@ -150,15 +152,15 @@ The server exposes metrics at `/metrics`:
 
 ## Comparison with Other Cache Servers
 
-| Feature | cuenv | BuildBuddy | Buildbarn | bazel-remote |
-|---------|-------|------------|-----------|--------------|
-| Protocol | RE API | RE API | RE API | RE API |
-| Language | Rust | Go | Go | Go |
-| CAS | ✓ | ✓ | ✓ | ✓ |
-| Action Cache | ✓ | ✓ | ✓ | ✓ |
-| Inline Storage | ✓ | ✗ | ✗ | ✗ |
-| Lock-free | ✓ | ✗ | ✗ | ✗ |
-| Platform-native | ✓ | ✗ | ✗ | ✗ |
+| Feature         | cuenv  | BuildBuddy | Buildbarn | bazel-remote |
+| --------------- | ------ | ---------- | --------- | ------------ |
+| Protocol        | RE API | RE API     | RE API    | RE API       |
+| Language        | Rust   | Go         | Go        | Go           |
+| CAS             | ✓      | ✓          | ✓         | ✓            |
+| Action Cache    | ✓      | ✓          | ✓         | ✓            |
+| Inline Storage  | ✓      | ✗          | ✗         | ✗            |
+| Lock-free       | ✓      | ✗          | ✗         | ✗            |
+| Platform-native | ✓      | ✗          | ✗         | ✗            |
 
 ## Why Use cuenv's Remote Cache?
 

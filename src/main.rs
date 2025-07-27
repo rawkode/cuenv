@@ -123,11 +123,11 @@ enum Commands {
         /// Address to listen on
         #[arg(short, long, default_value = "127.0.0.1:50051")]
         address: std::net::SocketAddr,
-        
+
         /// Cache directory
         #[arg(short, long, default_value = "/var/cache/cuenv")]
         cache_dir: PathBuf,
-        
+
         /// Maximum cache size in bytes
         #[arg(long, default_value = "10737418240")]
         max_cache_size: u64,
@@ -604,29 +604,33 @@ fn main() -> Result<()> {
                 }
             }
         }
-        Some(Commands::RemoteCacheServer { address, cache_dir, max_cache_size }) => {
-            use cuenv::remote_cache::{RemoteCacheConfig, RemoteCacheServer};
+        Some(Commands::RemoteCacheServer {
+            address,
+            cache_dir,
+            max_cache_size,
+        }) => {
             use cuenv::cache::{CacheConfig, CacheMode};
-            
+            use cuenv::remote_cache::{RemoteCacheConfig, RemoteCacheServer};
+
             println!("Starting cuenv remote cache server...");
             println!("Address: {}", address);
             println!("Cache directory: {}", cache_dir.display());
             println!("Max cache size: {} bytes", max_cache_size);
-            
+
             let cache_config = CacheConfig {
                 base_dir: cache_dir,
                 max_size: max_cache_size,
                 mode: CacheMode::ReadWrite,
                 inline_threshold: 1024,
             };
-            
+
             let remote_config = RemoteCacheConfig {
                 address,
                 enable_action_cache: true,
                 enable_cas: true,
                 cache_config,
             };
-            
+
             let runtime = tokio::runtime::Runtime::new()?;
             runtime.block_on(async {
                 let server = RemoteCacheServer::new(remote_config).await?;

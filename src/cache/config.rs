@@ -1,6 +1,6 @@
 //! Cache configuration types
-use std::path::PathBuf;
 use super::CacheMode;
+use std::path::PathBuf;
 
 /// Configuration for cache systems
 #[derive(Debug, Clone)]

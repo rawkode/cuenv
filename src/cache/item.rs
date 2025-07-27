@@ -27,7 +27,7 @@ where
             // Directly attempt to read without checking existence first (avoiding TOCTOU)
             match fs::read_to_string(&full_path) {
                 Ok(content) => {
-                    log::debug!("Cache hit, reading item from {:?}", full_path);
+                    log::debug!("Cache hit, reading item from {full_path:?}");
 
                     data = serde_json::from_str(&content).map_err(|e| Error::Json {
                         message: "Failed to parse cached item".to_string(),
@@ -35,14 +35,14 @@ where
                     })?;
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    log::debug!("Cache miss, item does not exist at {:?}", full_path);
+                    log::debug!("Cache miss, item does not exist at {full_path:?}");
                 }
                 Err(e) => {
                     return Err(Error::file_system(full_path.clone(), "read cache item", e));
                 }
             }
         } else {
-            log::trace!("Cache is not readable, skipping checks for {:?}", full_path);
+            log::trace!("Cache is not readable, skipping checks for {full_path:?}");
         }
 
         Ok(CacheItem {

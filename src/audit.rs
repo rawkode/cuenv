@@ -386,7 +386,7 @@ impl AuditLogger {
         let mut writer = self.writer.lock().await;
 
         if let Some(ref mut w) = *writer {
-            writeln!(w, "{}", json).map_err(|e| crate::errors::Error::FileSystem {
+            writeln!(w, "{json}").map_err(|e| crate::errors::Error::FileSystem {
                 path: PathBuf::from("audit.log"),
                 operation: "write".to_string(),
                 source: e,
@@ -398,7 +398,7 @@ impl AuditLogger {
             })?;
         } else {
             // If no file configured, log to stderr
-            eprintln!("AUDIT: {}", json);
+            eprintln!("AUDIT: {json}");
         }
 
         Ok(())

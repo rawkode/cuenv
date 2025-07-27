@@ -1,5 +1,7 @@
+#![allow(unused)]
 //! Integration tests for concurrent cache operations
 
+#![allow(unused)]
 use cuenv::cache_manager::CacheManager;
 use cuenv::cue_parser::TaskConfig;
 use cuenv::env_manager::EnvManager;

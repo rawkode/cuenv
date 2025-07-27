@@ -12,9 +12,9 @@
 pub mod action_digest;
 pub mod cache_client;
 pub mod cas_client;
+pub mod grpc_proto;
 pub mod remote_executor;
 pub mod sandbox;
-pub mod grpc_proto;
 pub mod server;
 
 // Re-export main types
@@ -23,7 +23,7 @@ pub use cache_client::{CacheClient, CacheClientConfig, RemoteBackend};
 pub use cas_client::{CASClient, CASClientConfig, Digest};
 pub use remote_executor::{RemoteExecutor, RemoteExecutorConfig};
 pub use sandbox::{Sandbox, SandboxConfig, SandboxMode};
-pub use server::{RemoteCacheServer, RemoteCacheConfig};
+pub use server::{RemoteCacheConfig, RemoteCacheServer};
 
 // Protocol types matching Remote Execution API
 pub mod proto {

@@ -194,7 +194,7 @@ impl ConcurrentCache {
                 break;
             }
 
-            if let Some(_) = self.cache.remove(&key) {
+            if self.cache.remove(&key).is_some() {
                 freed_bytes += size as u64;
                 self.current_size_bytes
                     .fetch_sub(size as u64, Ordering::Relaxed);
@@ -241,6 +241,12 @@ pub struct ConcurrentCacheBuilder {
     max_size_bytes: u64,
 }
 
+impl Default for ConcurrentCacheBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConcurrentCacheBuilder {
     /// Create a new builder
     pub fn new() -> Self {
@@ -275,7 +281,9 @@ mod tests {
             cache_key: "test_key".to_string(),
             executed_at: SystemTime::now(),
             exit_code: 0,
-            output_hashes: HashMap::new(),
+            stdout: None,
+            stderr: None,
+            output_files: HashMap::new(),
         };
 
         // Insert
@@ -310,7 +318,9 @@ mod tests {
                             cache_key: key.clone(),
                             executed_at: SystemTime::now(),
                             exit_code: 0,
-                            output_hashes: HashMap::new(),
+                            stdout: None,
+                            stderr: None,
+                            output_files: HashMap::new(),
                         };
 
                         // Write
@@ -343,7 +353,9 @@ mod tests {
                 cache_key: format!("key_{}", i),
                 executed_at: SystemTime::now(),
                 exit_code: 0,
-                output_hashes: HashMap::from([
+                stdout: None,
+                stderr: None,
+                output_files: HashMap::from([
                     ("file1.txt".to_string(), "hash1".to_string()),
                     ("file2.txt".to_string(), "hash2".to_string()),
                 ]),
@@ -366,7 +378,9 @@ mod tests {
                 cache_key: format!("key_{}", i),
                 executed_at: SystemTime::now() - Duration::from_secs(3600 * (i + 1) as u64),
                 exit_code: 0,
-                output_hashes: HashMap::new(),
+                stdout: None,
+                stderr: None,
+                output_files: HashMap::new(),
             };
             cache.insert(format!("key_{}", i), result).unwrap();
         }

@@ -154,17 +154,13 @@ impl fmt::Display for Error {
                 write!(f, "security validation error: {message}")
             }
             Error::Network { endpoint, message } => {
-                write!(f, "network error for '{}': {}", endpoint, message)
+                write!(f, "network error for '{endpoint}': {message}")
             }
             Error::Timeout {
                 operation,
                 duration,
             } => {
-                write!(
-                    f,
-                    "operation '{}' timed out after {:?}",
-                    operation, duration
-                )
+                write!(f, "operation '{operation}' timed out after {duration:?}")
             }
         }
     }

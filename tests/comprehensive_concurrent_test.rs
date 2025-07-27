@@ -1,3 +1,4 @@
+#![allow(unused)]
 //! Comprehensive concurrent tests for cuenv
 //!
 //! This module contains additional edge case tests for concurrent scenarios

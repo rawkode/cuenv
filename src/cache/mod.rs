@@ -3,31 +3,31 @@
 //! This module provides a robust caching infrastructure with
 //! content-addressed storage and concurrent access support.
 
+mod config;
 mod engine;
 mod hash_engine;
 mod item;
 mod mode;
-mod config;
 
 // Advanced caching modules
 mod action_cache;
+mod cache_manager;
 mod concurrent_cache;
 mod content_addressed_store;
 mod types;
-mod cache_manager;
 
+pub use config::CacheConfig;
 pub use engine::CacheEngine;
 pub use hash_engine::{expand_glob_pattern, HashEngine};
 pub use item::CacheItem;
 pub use mode::{get_cache_mode, CacheMode};
-pub use config::CacheConfig;
 
 // Export advanced caching components
 pub use action_cache::{ActionCache, ActionDigest, ActionResult};
+pub use cache_manager::CacheManager;
 pub use concurrent_cache::{ConcurrentCache, ConcurrentCacheBuilder};
 pub use content_addressed_store::{ContentAddressedStore, ObjectMetadata};
 pub use types::CachedTaskResult;
-pub use cache_manager::CacheManager;
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};

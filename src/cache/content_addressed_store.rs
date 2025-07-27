@@ -148,7 +148,7 @@ impl ContentAddressedStore {
         let metadata = self
             .index
             .get(hash)
-            .ok_or_else(|| Error::configuration(format!("Object not found in CAS: {}", hash)))?;
+            .ok_or_else(|| Error::configuration(format!("Object not found in CAS: {hash}")))?;
 
         if metadata.inlined {
             // Read from inline storage
@@ -176,9 +176,10 @@ impl ContentAddressedStore {
     /// Decrease reference count and potentially remove object
     pub fn release(&self, hash: &str) -> Result<()> {
         let should_remove = {
-            let mut entry = self.index.get_mut(hash).ok_or_else(|| {
-                Error::configuration(format!("Object not found in CAS: {}", hash))
-            })?;
+            let mut entry = self
+                .index
+                .get_mut(hash)
+                .ok_or_else(|| Error::configuration(format!("Object not found in CAS: {hash}")))?;
 
             entry.ref_count = entry.ref_count.saturating_sub(1);
             entry.ref_count == 0
@@ -309,11 +310,13 @@ impl ContentAddressedStore {
 }
 
 /// Builder for ContentAddressedStore
+#[allow(dead_code)]
 pub struct CASBuilder {
     base_dir: Option<PathBuf>,
     inline_threshold: usize,
 }
 
+#[allow(dead_code)]
 impl CASBuilder {
     /// Create a new builder
     pub fn new() -> Self {

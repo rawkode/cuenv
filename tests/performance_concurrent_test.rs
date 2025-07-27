@@ -1,3 +1,4 @@
+#![allow(unused)]
 //! Performance and stress tests for concurrent scenarios
 //!
 //! This module contains tests that measure performance characteristics
@@ -43,7 +44,7 @@ mod performance_concurrent_tests {
             fs::write(src_dir.join("input.txt"), "test data").unwrap();
 
             let handles: Vec<_> = (0..num_threads)
-                .map(|thread_id| {
+                .map(|_thread_id| {
                     let barrier = Arc::clone(&barrier);
                     let cache_manager = Arc::clone(&cache_manager);
                     let total_duration = Arc::clone(&total_duration);
@@ -235,7 +236,7 @@ mod performance_concurrent_tests {
     #[test]
     fn test_cache_hit_rate_patterns() {
         let temp_dir = TempDir::new().unwrap();
-        let cache_manager = Arc::new(CacheManager::new().unwrap());
+        let _cache_manager = Arc::new(CacheManager::new().unwrap());
 
         // Create test files
         let src_dir = temp_dir.path().join("src");
@@ -268,7 +269,7 @@ mod performance_concurrent_tests {
             let cache_misses = Arc::new(AtomicU64::new(0));
 
             let handles: Vec<_> = (0..num_threads)
-                .map(|thread_id| {
+                .map(|_thread_id| {
                     let barrier = Arc::clone(&barrier);
                     let cache_manager = Arc::clone(&cache_manager);
                     let cache_hits = Arc::clone(&cache_hits);
@@ -279,7 +280,7 @@ mod performance_concurrent_tests {
                     thread::spawn(move || {
                         barrier.wait();
 
-                        for (iteration, &file_index) in pattern.iter().enumerate() {
+                        for (_iteration, &file_index) in pattern.iter().enumerate() {
                             let task_config = TaskConfig {
                                 description: Some(format!("Pattern test")),
                                 command: Some("echo test".to_string()),

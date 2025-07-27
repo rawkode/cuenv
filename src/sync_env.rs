@@ -34,7 +34,7 @@ impl SyncEnv {
         let _guard = ENV_LOCK.write().map_err(|e| {
             Error::environment(
                 "ENV_LOCK",
-                format!("Failed to acquire environment write lock: {}", e),
+                format!("Failed to acquire environment write lock: {e}"),
             )
         })?;
 
@@ -47,7 +47,7 @@ impl SyncEnv {
         let _guard = ENV_LOCK.read().map_err(|e| {
             Error::environment(
                 "ENV_LOCK",
-                format!("Failed to acquire environment read lock: {}", e),
+                format!("Failed to acquire environment read lock: {e}"),
             )
         })?;
 
@@ -59,7 +59,7 @@ impl SyncEnv {
         let _guard = ENV_LOCK.write().map_err(|e| {
             Error::environment(
                 "ENV_LOCK",
-                format!("Failed to acquire environment write lock: {}", e),
+                format!("Failed to acquire environment write lock: {e}"),
             )
         })?;
 
@@ -72,7 +72,7 @@ impl SyncEnv {
         let _guard = ENV_LOCK.read().map_err(|e| {
             Error::environment(
                 "ENV_LOCK",
-                format!("Failed to acquire environment read lock: {}", e),
+                format!("Failed to acquire environment read lock: {e}"),
             )
         })?;
 

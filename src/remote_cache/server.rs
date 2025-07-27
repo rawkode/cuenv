@@ -16,8 +16,8 @@ use super::grpc_proto::proto::{
     BatchUpdateBlobsResponse, Digest, FindMissingBlobsRequest, FindMissingBlobsResponse,
     GetActionResultRequest, GetCapabilitiesRequest, ServerCapabilities, UpdateActionResultRequest,
 };
-use crate::cache::{ActionCache, CacheConfig, ContentAddressedStore};
 use crate::cache::CacheManager as CuenvCacheManager;
+use crate::cache::{ActionCache, CacheConfig, ContentAddressedStore};
 
 /// Configuration for the remote cache server
 pub struct RemoteCacheConfig {

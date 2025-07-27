@@ -136,7 +136,7 @@ impl CacheManager {
             .engine
             .cache_dir
             .join("locks")
-            .join(format!("{}.lock", cache_key));
+            .join(format!("{cache_key}.lock"));
 
         // Ensure lock directory exists
         if let Some(parent) = lock_path.parent() {
@@ -148,6 +148,7 @@ impl CacheManager {
         // Open or create lock file
         let lock_file = OpenOptions::new()
             .create(true)
+            .truncate(true)
             .read(true)
             .write(true)
             .open(&lock_path)
@@ -167,8 +168,7 @@ impl CacheManager {
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                     if start.elapsed() > Duration::from_secs(TIMEOUT_SECS) {
                         return Err(Error::configuration(format!(
-                            "Timeout waiting for lock on cache key: {} (waited {}s)",
-                            cache_key, TIMEOUT_SECS
+                            "Timeout waiting for lock on cache key: {cache_key} (waited {TIMEOUT_SECS}s)"
                         )));
                     }
 
@@ -213,10 +213,7 @@ impl CacheManager {
         task_config: &TaskConfig,
         working_dir: &Path,
     ) -> Result<String> {
-        let mut hasher = self
-            .engine
-            .hash
-            .create_hasher(&format!("task:{}", task_name));
+        let mut hasher = self.engine.hash.create_hasher(&format!("task:{task_name}"));
 
         // Add namespace and version to prevent collisions
         hasher.hash_content("cuenv_cache_v1")?;
@@ -282,7 +279,7 @@ impl CacheManager {
             .engine
             .cache_dir
             .join("tasks")
-            .join(format!("{}.json", cache_key));
+            .join(format!("{cache_key}.json"));
 
         // Read and parse cache file (avoiding TOCTOU by directly attempting to open)
         let content = match fs::read_to_string(&cache_path) {
@@ -341,10 +338,7 @@ impl CacheManager {
                     match hash_file(&output_file) {
                         Ok(current_hash) => {
                             if &current_hash != expected_hash {
-                                log::debug!(
-                                    "Cache miss: output file {:?} hash changed",
-                                    output_file
-                                );
+                                log::debug!("Cache miss: output file {output_file:?} hash changed");
                                 match self.stats.write() {
                                     Ok(mut stats) => stats.misses += 1,
                                     Err(_) => log::error!(
@@ -356,7 +350,7 @@ impl CacheManager {
                         }
                         Err(e) => {
                             // File doesn't exist or can't be read
-                            log::debug!("Cache miss: output file {:?} error: {}", output_file, e);
+                            log::debug!("Cache miss: output file {output_file:?} error: {e}");
                             match self.stats.write() {
                                 Ok(mut stats) => stats.misses += 1,
                                 Err(_) => log::error!(
@@ -370,14 +364,11 @@ impl CacheManager {
             }
 
             // Additional check: verify all cached output files still exist
-            for (cached_path, _) in &cached_result.output_files {
+            for cached_path in cached_result.output_files.keys() {
                 let full_path = working_dir.join(cached_path);
                 // Use metadata check instead of exists() to avoid TOCTOU
                 if full_path.metadata().is_err() {
-                    log::debug!(
-                        "Cache miss: cached output file {:?} no longer exists",
-                        full_path
-                    );
+                    log::debug!("Cache miss: cached output file {full_path:?} no longer exists");
                     match self.stats.write() {
                         Ok(mut stats) => stats.misses += 1,
                         Err(_) => {
@@ -456,7 +447,7 @@ impl CacheManager {
             .map_err(|e| Error::file_system(&cache_dir, "create cache directory", e))?;
 
         // Write cache file atomically
-        let cache_path = cache_dir.join(format!("{}.json", cache_key));
+        let cache_path = cache_dir.join(format!("{cache_key}.json"));
         let content = serde_json::to_string_pretty(&cached_result).map_err(|e| Error::Json {
             message: "Failed to serialize cache result".to_string(),
             source: e,
@@ -537,9 +528,9 @@ impl CacheManager {
                         if modified < cutoff_time {
                             // This lock file is stale, remove it
                             match fs::remove_file(&path) {
-                                Ok(()) => log::debug!("Removed stale lock file: {:?}", path),
+                                Ok(()) => log::debug!("Removed stale lock file: {path:?}"),
                                 Err(e) => {
-                                    log::warn!("Failed to remove stale lock file {:?}: {}", path, e)
+                                    log::warn!("Failed to remove stale lock file {path:?}: {e}")
                                 }
                             }
                         }
@@ -562,7 +553,7 @@ impl CacheManager {
         };
 
         println!("Cache Statistics:");
-        println!("  Total Requests: {}", total_requests);
+        println!("  Total Requests: {total_requests}");
         println!("  Hits:          {} ({:.1}%)", stats.hits, hit_rate);
         println!("  Misses:        {}", stats.misses);
         println!("  Writes:        {}", stats.writes);
@@ -588,15 +579,14 @@ fn build_globset(patterns: &[String]) -> Result<globset::GlobSet> {
     let mut builder = GlobSetBuilder::new();
 
     for pattern in patterns {
-        let glob = Glob::new(pattern).map_err(|e| {
-            Error::configuration(format!("Invalid glob pattern '{}': {}", pattern, e))
-        })?;
+        let glob = Glob::new(pattern)
+            .map_err(|e| Error::configuration(format!("Invalid glob pattern '{pattern}': {e}")))?;
         builder.add(glob);
     }
 
     builder
         .build()
-        .map_err(|e| Error::configuration(format!("Failed to build globset: {}", e)))
+        .map_err(|e| Error::configuration(format!("Failed to build globset: {e}")))
 }
 
 /// Expand glob patterns using globset
@@ -623,8 +613,7 @@ fn walk_directory(
 
     if !canonical_dir.starts_with(&canonical_base) {
         return Err(Error::configuration(format!(
-            "Directory traversal detected: {:?} is outside of base directory {:?}",
-            dir, base_dir
+            "Directory traversal detected: {dir:?} is outside of base directory {base_dir:?}"
         )));
     }
 
@@ -666,7 +655,7 @@ fn hash_file(file_path: &Path) -> Result<String> {
     let mut hasher = Sha256::new();
     hasher.update(&content);
     let result = hasher.finalize();
-    Ok(format!("{:x}", result))
+    Ok(format!("{result:x}"))
 }
 
 /// Format bytes in human-readable format
@@ -688,7 +677,7 @@ fn format_duration(duration: Duration) -> String {
     let secs = duration.as_secs();
 
     if secs < 60 {
-        format!("{} seconds", secs)
+        format!("{secs} seconds")
     } else if secs < 3600 {
         format!("{} minutes", secs / 60)
     } else if secs < 86400 {
@@ -883,7 +872,7 @@ mod tests {
         fs::write(&version_file, "0").unwrap();
 
         // Create new manager - should trigger migration
-        let manager2 = CacheManager::new().unwrap();
+        let _manager2 = CacheManager::new().unwrap();
 
         // Version should be updated
         let content = fs::read_to_string(&version_file).unwrap();

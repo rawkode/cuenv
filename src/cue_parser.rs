@@ -44,7 +44,7 @@ impl CStringPtr {
         cstr.to_str().map_err(|e| {
             Error::ffi(
                 "cue_eval_package",
-                format!("failed to convert C string to UTF-8: {}", e),
+                format!("failed to convert C string to UTF-8: {e}"),
             )
         })
     }
@@ -230,7 +230,7 @@ fn create_ffi_string(value: &str, context: &str) -> Result<CString> {
     CString::new(value).map_err(|e| {
         Error::ffi(
             "cue_eval_package",
-            format!("{} - contains null byte: {}", context, e),
+            format!("{context} - contains null byte: {e}"),
         )
     })
 }
@@ -251,7 +251,7 @@ fn parse_json_response(json_str: &str) -> Result<serde_json::Value> {
             message: "failed to parse JSON result from CUE parser".to_string(),
             source: e,
         };
-        log::error!("CUE parser returned invalid JSON: {}", json_str);
+        log::error!("CUE parser returned invalid JSON: {json_str}");
         log::error!("Recovery suggestion: {}", suggest_recovery(&error));
         error
     })
@@ -265,8 +265,8 @@ fn check_for_error_response(json_value: &serde_json::Value, dir: &Path) -> Resul
             // Provide specific recovery suggestions based on error content
             let recovery_hint = get_recovery_hint(error);
 
-            log::error!("CUE parsing error: {}", error);
-            log::error!("Recovery suggestion: {}", recovery_hint);
+            log::error!("CUE parsing error: {error}");
+            log::error!("Recovery suggestion: {recovery_hint}");
             return Err(cue_error);
         }
     }

@@ -25,7 +25,7 @@ impl CacheEngine {
     pub fn new() -> Result<CacheEngine> {
         let cache_dir = XdgPaths::cache_dir();
 
-        log::debug!("Creating cache engine with cache_dir: {:?}", cache_dir);
+        log::debug!("Creating cache engine with cache_dir: {cache_dir:?}");
 
         // Create cache directory if it doesn't exist
         fs::create_dir_all(&cache_dir)
@@ -54,11 +54,7 @@ impl CacheEngine {
     pub fn with_mode(mode: CacheMode) -> Result<CacheEngine> {
         let cache_dir = XdgPaths::cache_dir();
 
-        log::debug!(
-            "Creating cache engine with cache_dir: {:?}, mode: {:?}",
-            cache_dir,
-            mode
-        );
+        log::debug!("Creating cache engine with cache_dir: {cache_dir:?}, mode: {mode:?}");
 
         // Create cache directory if it doesn't exist
         fs::create_dir_all(&cache_dir)
@@ -93,10 +89,7 @@ impl CacheEngine {
 
     /// Clean up stale cache entries older than the specified duration
     pub fn clean_stale_cache(&self, lifetime: Duration) -> Result<(usize, u64)> {
-        log::debug!(
-            "Cleaning up stale cached artifacts older than {:?}",
-            lifetime
-        );
+        log::debug!("Cleaning up stale cached artifacts older than {lifetime:?}");
 
         let mut files_deleted = 0;
         let mut bytes_saved = 0;
@@ -116,11 +109,7 @@ impl CacheEngine {
             bytes_saved += result.1;
         }
 
-        log::debug!(
-            "Deleted {} artifacts and saved {} bytes",
-            files_deleted,
-            bytes_saved
-        );
+        log::debug!("Deleted {files_deleted} artifacts and saved {bytes_saved} bytes");
 
         Ok((files_deleted, bytes_saved))
     }
