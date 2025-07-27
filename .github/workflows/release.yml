@@ -47,7 +47,7 @@ jobs:
           export CC=musl-gcc
           export CXX=musl-g++
           export CGO_ENABLED=1
-          export RUSTFLAGS="-C target-feature=+crt-static"
+          export RUSTFLAGS="-C target-feature=+crt-static -C link-self-contained=yes"
 
           # Add musl target
           rustup target add x86_64-unknown-linux-musl
