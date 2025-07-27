@@ -84,7 +84,15 @@ runs:
         echo "Downloading cuenv from: $DOWNLOAD_URL"
 
         # Download and extract
-        curl -sL "$DOWNLOAD_URL" | tar xz -C "$INSTALL_DIR"
+        echo "Attempting to download from: $DOWNLOAD_URL"
+        if ! curl -fsSL "$DOWNLOAD_URL" -o /tmp/cuenv.tar.gz; then
+          echo "Failed to download cuenv from $DOWNLOAD_URL"
+          echo "HTTP response:"
+          curl -I "$DOWNLOAD_URL"
+          exit 1
+        fi
+        tar xz -C "$INSTALL_DIR" < /tmp/cuenv.tar.gz
+        rm /tmp/cuenv.tar.gz
 
         # Make executable
         chmod +x "$INSTALL_DIR/cuenv"
