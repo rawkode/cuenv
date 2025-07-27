@@ -28,8 +28,11 @@ impl CacheManager {
             config.inline_threshold,
         )?);
 
-        // Initialize action cache
-        let action_cache = Arc::new(ActionCache::new(action_dir)?);
+        // Initialize action cache with CAS and max size
+        let action_cache = Arc::new(ActionCache::new(
+            Arc::clone(&content_store),
+            config.max_size,
+        ));
 
         Ok(Self {
             config,

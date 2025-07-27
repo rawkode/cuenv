@@ -62,6 +62,7 @@
             pkg-config
             gcc
             go_1_24
+            protobuf
           ];
 
           # treefmt configuration

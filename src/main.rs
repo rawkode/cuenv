@@ -632,12 +632,21 @@ fn main() -> Result<()> {
             };
 
             let runtime = tokio::runtime::Runtime::new()?;
-            runtime.block_on(async {
+            match runtime.block_on(async {
                 let server = RemoteCacheServer::new(remote_config).await?;
                 println!("Remote cache server ready for Bazel/Buck2 clients");
                 println!("Configure Bazel with: --remote_cache=grpc://{}", address);
                 server.serve().await
-            })?;
+            }) {
+                Ok(()) => {}
+                Err(e) => {
+                    eprintln!("Remote cache server error: {}", e);
+                    return Err(Error::from(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        e.to_string(),
+                    )));
+                }
+            }
         }
         None => {
             let current_dir = match DirectoryManager::get_current_directory() {

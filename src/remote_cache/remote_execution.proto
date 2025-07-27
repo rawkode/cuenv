@@ -138,7 +138,7 @@ message ActionCacheUpdateCapabilities {
 }
 
 message ExecutionCapabilities {
-  DigestFunction digest_function = 1;
+  CacheCapabilities.DigestFunction digest_function = 1;
   bool exec_enabled = 2;
 }
 
