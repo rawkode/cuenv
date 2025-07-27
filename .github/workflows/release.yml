@@ -14,16 +14,15 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: nscloud-ubuntu-24.04-amd64-2x4
+          - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             suffix: x86_64-unknown-linux-musl
-          - os: nscloud-macos-sonoma-arm64-6x14
+          - os: macos-latest
             target: aarch64-apple-darwin
             suffix: aarch64-apple-darwin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-setup@v0
       - name: Get version from Cargo.toml
         id: get_version
         run: |
