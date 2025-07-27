@@ -34,10 +34,13 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-      - name: Install musl tools
+      - name: Install musl tools and dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y musl-tools
+          sudo apt-get install -y musl-tools musl-dev build-essential
+          
+          # Install static OpenSSL for musl
+          sudo apt-get install -y libssl-dev pkg-config
       - name: Build static binary
         run: |
           # Set up for musl build
