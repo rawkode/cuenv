@@ -1,6 +1,10 @@
 name: Test cuenv Setup
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/test-cuenv-setup.yml'
   pull_request:
     paths:
       - 'github/action/setup-cuenv/**'
