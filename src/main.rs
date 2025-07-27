@@ -20,6 +20,7 @@ use cuenv::platform::WindowsPlatform as Platform;
 #[derive(Parser)]
 #[command(name = "cuenv")]
 #[command(about = "A direnv alternative using CUE files", long_about = None)]
+#[command(version)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,

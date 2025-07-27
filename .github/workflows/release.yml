@@ -6,8 +6,20 @@ on:
   workflow_dispatch:
 jobs:
   build:
-    name: Build Linux Binary
-    runs-on: ubuntu-latest
+    name: Build Release Binaries
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            suffix: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            suffix: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            suffix: aarch64-apple-darwin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,41 +41,42 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-unknown-linux-musl
+          targets: ${{ matrix.target }}
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
-      - name: Install musl tools and dependencies
+          go-version: '1.24'
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools musl-dev build-essential
-      - name: Build static binary
+      - name: Build binary
         run: |
-          # Set up for musl build
-          export CC=musl-gcc
-          export CXX=musl-g++
+          # Set up environment based on target
+          if [[ "${{ matrix.target }}" == *"musl"* ]]; then
+            export CC=musl-gcc
+            export CXX=musl-g++
+            export RUSTFLAGS="-C target-feature=+crt-static"
+            export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            export RUSTFLAGS="-C link-arg=-framework -C link-arg=Security -C link-arg=-framework -C link-arg=CoreFoundation"
+          fi
           export CGO_ENABLED=1
-          export RUSTFLAGS="-C target-feature=+crt-static"
-          export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
-
-          # Add musl target
-          rustup target add x86_64-unknown-linux-musl
 
           # Build the binary
-          cargo build --release --target x86_64-unknown-linux-musl
+          cargo build --release --target ${{ matrix.target }}
 
           # Create artifacts directory
           mkdir -p artifacts
-          cp target/x86_64-unknown-linux-musl/release/cuenv artifacts/cuenv
+          cp target/${{ matrix.target }}/release/cuenv artifacts/cuenv
 
-          # Strip debug symbols to reduce size
-          strip artifacts/cuenv
+          # Strip debug symbols (Linux only)
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            strip artifacts/cuenv
+          fi
 
-          # Check dependencies - should show "not a dynamic executable"
-          echo "Binary dependencies:"
-          ldd artifacts/cuenv 2>&1 || echo "Binary is statically linked!"
-          echo ""
+          # Check binary info
           echo "Binary info:"
           file artifacts/cuenv
           echo ""
@@ -72,8 +85,14 @@ jobs:
         run: |
           cd artifacts
           VERSION="${{ steps.get_version.outputs.VERSION }}"
-          tar czf cuenv-${VERSION}-x86_64-unknown-linux-gnu.tar.gz cuenv
-          echo "ASSET_PATH=artifacts/cuenv-${VERSION}-x86_64-unknown-linux-gnu.tar.gz" >> $GITHUB_ENV
+          tar czf cuenv-${VERSION}-${{ matrix.suffix }}.tar.gz cuenv
+          echo "ASSET_PATH=artifacts/cuenv-${VERSION}-${{ matrix.suffix }}.tar.gz" >> $GITHUB_ENV
+          echo "ASSET_NAME=cuenv-${VERSION}-${{ matrix.suffix }}.tar.gz" >> $GITHUB_ENV
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET_NAME }}
+          path: ${{ env.ASSET_PATH }}
       - name: Create Release
         if: github.event_name == 'push' && github.ref_type == 'tag'
         uses: softprops/action-gh-release@v1

@@ -42,7 +42,7 @@ jobs:
         run: |
           # Test the built binary
           ./target/release/cuenv --version
-          ./target/release/cuenv env
+          ./target/release/cuenv export
   test-action-integration:
     runs-on: ubuntu-latest
     steps:
@@ -55,7 +55,7 @@ jobs:
         run: |
           # Show cuenv info
           cuenv --version
-          cuenv env
+          cuenv export
 
           # Test running commands through cuenv
           cuenv run -- echo "Hello from cuenv!"

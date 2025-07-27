@@ -28,7 +28,7 @@ jobs:
           echo "Installed at: ${{ steps.setup.outputs.path }}"
       - name: Test cuenv functionality
         run: |
-          cuenv env
+          cuenv export
           cuenv run -- echo "Successfully ran command with cuenv!"
   test-specific-version:
     runs-on: ubuntu-latest
