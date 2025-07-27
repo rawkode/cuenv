@@ -7,15 +7,21 @@ on:
 env:
   CARGO_TERM_COLOR: always
   CUENV_ENV: ci
+
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   test:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [nscloud-ubuntu-24.04-amd64-2x4, nscloud-macos-sonoma-arm64-6x14]
         rust: [stable, beta]
     steps:
       - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-setup@v0
       - name: nix-install
         uses: cachix/install-nix-action@v27
         with:
@@ -30,7 +36,6 @@ jobs:
         run: nix build .#cuenv
       - name: nix-flake-check
         run: nix flake check --print-build-logs
-        if: matrix.rust == 'stable'
       - name: cuenv-test-examples
         run: |
           nix develop --command ./scripts/test-examples.sh
@@ -38,10 +43,11 @@ jobs:
         run: |
           nix develop --command cargo test --test test_examples
   coverage:
-    runs-on: ubuntu-latest
+    runs-on: nscloud-ubuntu-24.04-amd64-2x4
     needs: test
     steps:
       - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-setup@v0
       - name: nix-install
         uses: cachix/install-nix-action@v27
         with:
