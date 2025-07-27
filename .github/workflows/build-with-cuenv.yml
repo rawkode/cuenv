@@ -12,10 +12,14 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
-      - name: Setup cuenv
-        uses: ./github/action/setup-cuenv
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
         with:
-          version: latest
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build cuenv with nix
+        run: nix build .#cuenv
+      - name: Add cuenv to PATH
+        run: echo "$PWD/result/bin" >> $GITHUB_PATH
       - name: Show cuenv version
         run: cuenv --version
       - name: Install Rust
@@ -47,8 +51,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup cuenv
-        uses: ./github/action/setup-cuenv
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build cuenv with nix
+        run: nix build .#cuenv
+      - name: Add cuenv to PATH
+        run: echo "$PWD/result/bin" >> $GITHUB_PATH
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: Test cuenv with simple commands
