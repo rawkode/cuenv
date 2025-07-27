@@ -35,8 +35,6 @@ jobs:
           fi
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v17
-      - name: Enable Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@v10
       - name: Build with Nix
         run: |
           nix build .#cuenv
