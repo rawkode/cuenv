@@ -38,6 +38,20 @@ impl TaskExecutor {
         })
     }
 
+    /// Create a new task executor with custom cache config (for testing)
+    #[cfg(test)]
+    pub async fn new_with_config(
+        env_manager: EnvManager,
+        working_dir: PathBuf,
+        cache_config: crate::cache::CacheConfig,
+    ) -> Result<Self> {
+        Ok(Self {
+            env_manager,
+            working_dir,
+            cache_manager: Arc::new(CacheManager::new(cache_config).await?),
+        })
+    }
+
     /// Execute a single task by name
     pub async fn execute_task(&self, task_name: &str, args: &[String]) -> Result<i32> {
         self.execute_tasks_with_dependencies(&[task_name.to_string()], args, false)
@@ -565,8 +579,17 @@ tasks: {
     }
 }"#;
 
-        let (manager, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let executor = TaskExecutor::new(manager, PathBuf::from(".")).unwrap();
+        let (manager, temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
+        let cache_config = crate::cache::CacheConfig {
+            base_dir: temp_dir.path().join(".cache"),
+            max_size: 1024 * 1024, // 1MB for tests
+            mode: crate::cache::CacheMode::ReadWrite,
+            inline_threshold: 4096,
+        };
+        let executor =
+            TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)
+                .await
+                .unwrap();
 
         let tasks = executor.list_tasks();
         assert_eq!(tasks.len(), 2);
@@ -594,8 +617,17 @@ tasks: {
     }
 }"#;
 
-        let (manager, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let executor = TaskExecutor::new(manager, PathBuf::from(".")).unwrap();
+        let (manager, temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
+        let cache_config = crate::cache::CacheConfig {
+            base_dir: temp_dir.path().join(".cache"),
+            max_size: 1024 * 1024, // 1MB for tests
+            mode: crate::cache::CacheMode::ReadWrite,
+            inline_threshold: 4096,
+        };
+        let executor =
+            TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)
+                .await
+                .unwrap();
 
         let plan = executor
             .build_execution_plan(&["build".to_string()])
@@ -624,8 +656,17 @@ tasks: {
     }
 }"#;
 
-        let (manager, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let executor = TaskExecutor::new(manager, PathBuf::from(".")).unwrap();
+        let (manager, temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
+        let cache_config = crate::cache::CacheConfig {
+            base_dir: temp_dir.path().join(".cache"),
+            max_size: 1024 * 1024, // 1MB for tests
+            mode: crate::cache::CacheMode::ReadWrite,
+            inline_threshold: 4096,
+        };
+        let executor =
+            TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)
+                .await
+                .unwrap();
 
         let result = executor.build_execution_plan(&["task1".to_string()]);
         assert!(result.is_err());
@@ -647,8 +688,17 @@ tasks: {
     }
 }"#;
 
-        let (manager, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let executor = TaskExecutor::new(manager, PathBuf::from(".")).unwrap();
+        let (manager, temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
+        let cache_config = crate::cache::CacheConfig {
+            base_dir: temp_dir.path().join(".cache"),
+            max_size: 1024 * 1024, // 1MB for tests
+            mode: crate::cache::CacheMode::ReadWrite,
+            inline_threshold: 4096,
+        };
+        let executor =
+            TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)
+                .await
+                .unwrap();
 
         let result = executor.build_execution_plan(&["nonexistent".to_string()]);
         assert!(result.is_err());
@@ -668,8 +718,17 @@ tasks: {
     }
 }"#;
 
-        let (manager, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let executor = TaskExecutor::new(manager, PathBuf::from(".")).unwrap();
+        let (manager, temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
+        let cache_config = crate::cache::CacheConfig {
+            base_dir: temp_dir.path().join(".cache"),
+            max_size: 1024 * 1024, // 1MB for tests
+            mode: crate::cache::CacheMode::ReadWrite,
+            inline_threshold: 4096,
+        };
+        let executor =
+            TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)
+                .await
+                .unwrap();
 
         let result = executor.build_execution_plan(&["build".to_string()]);
         assert!(result.is_err());
@@ -700,8 +759,17 @@ tasks: {
     }
 }"#;
 
-        let (manager, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let executor = TaskExecutor::new(manager, PathBuf::from(".")).unwrap();
+        let (manager, temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
+        let cache_config = crate::cache::CacheConfig {
+            base_dir: temp_dir.path().join(".cache"),
+            max_size: 1024 * 1024, // 1MB for tests
+            mode: crate::cache::CacheMode::ReadWrite,
+            inline_threshold: 4096,
+        };
+        let executor =
+            TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)
+                .await
+                .unwrap();
 
         let plan = executor
             .build_execution_plan(&["deploy".to_string()])

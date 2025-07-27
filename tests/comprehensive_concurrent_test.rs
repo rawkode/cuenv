@@ -174,9 +174,11 @@ mod comprehensive_concurrent_tests {
                         };
 
                         // Generate cache key
+                        let env_vars = HashMap::new();
                         match cache_manager.generate_cache_key(
                             "reader_task",
                             &task_config,
+                            &env_vars,
                             &working_dir,
                         ) {
                             Ok(key1) => {
@@ -187,6 +189,7 @@ mod comprehensive_concurrent_tests {
                                 match cache_manager.generate_cache_key(
                                     "reader_task",
                                     &task_config,
+                                    &env_vars,
                                     &working_dir,
                                 ) {
                                     Ok(key2) => {
@@ -296,7 +299,12 @@ tasks: {
             let mut env_manager = EnvManager::new();
             env_manager.load_env(temp_dir.path()).await.unwrap();
 
-            let executor = TaskExecutor::new(env_manager, temp_dir.path().to_path_buf()).unwrap();
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            let executor = runtime.block_on(async {
+                TaskExecutor::new(env_manager, temp_dir.path().to_path_buf())
+                    .await
+                    .unwrap()
+            });
 
             // Execute F which should trigger the entire dependency chain
             let exit_code = executor.execute_task("F", &[]).await.unwrap();
@@ -379,7 +387,12 @@ tasks: {
             let mut env_manager = EnvManager::new();
             env_manager.load_env(&env_dir).await.unwrap();
 
-            let executor = TaskExecutor::new(env_manager, temp_dir.path().to_path_buf()).unwrap();
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            let executor = runtime.block_on(async {
+                TaskExecutor::new(env_manager, temp_dir.path().to_path_buf())
+                    .await
+                    .unwrap()
+            });
 
             // Execute failing task
             let result = executor.execute_task("failing", &[]).await;
@@ -435,8 +448,12 @@ tasks: {
             barrier1.wait();
 
             let start = Instant::now();
-            let result =
-                cache_manager1.generate_cache_key("timeout_test", &task_config1, &temp_dir1);
+            let result = cache_manager1.generate_cache_key(
+                "timeout_test",
+                &task_config1,
+                &HashMap::new(),
+                &temp_dir1,
+            );
             let duration = start.elapsed();
 
             // With a 100MB file, hashing might take longer than expected
@@ -459,8 +476,12 @@ tasks: {
             thread::sleep(Duration::from_millis(10));
 
             // This might need to wait for thread 1
-            let result =
-                cache_manager2.generate_cache_key("timeout_test", &task_config, &temp_dir2);
+            let result = cache_manager2.generate_cache_key(
+                "timeout_test",
+                &task_config,
+                &HashMap::new(),
+                &temp_dir2,
+            );
             result
         });
 
