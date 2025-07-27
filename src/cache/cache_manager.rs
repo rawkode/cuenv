@@ -32,7 +32,8 @@ impl CacheManager {
         let action_cache = Arc::new(ActionCache::new(
             Arc::clone(&content_store),
             config.max_size,
-        ));
+            &config.base_dir,
+        )?);
 
         Ok(Self {
             config,

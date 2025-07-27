@@ -90,6 +90,20 @@ impl InstanceLock {
     pub fn try_acquire() -> Result<Self> {
         let lock_path = get_lock_file_path();
 
+        // Create lock file with secure permissions
+        #[cfg(unix)]
+        let file = {
+            use std::os::unix::fs::OpenOptionsExt;
+            OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(false)
+                .mode(0o600) // Owner read/write only
+                .open(&lock_path)
+                .map_err(|e| Error::file_system(&lock_path, "open lock file", e))?
+        };
+
+        #[cfg(not(unix))]
         let file = OpenOptions::new()
             .create(true)
             .write(true)
@@ -108,6 +122,20 @@ impl InstanceLock {
     pub fn acquire() -> Result<Self> {
         let lock_path = get_lock_file_path();
 
+        // Create lock file with secure permissions
+        #[cfg(unix)]
+        let file = {
+            use std::os::unix::fs::OpenOptionsExt;
+            OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(false)
+                .mode(0o600) // Owner read/write only
+                .open(&lock_path)
+                .map_err(|e| Error::file_system(&lock_path, "open lock file", e))?
+        };
+
+        #[cfg(not(unix))]
         let file = OpenOptions::new()
             .create(true)
             .write(true)

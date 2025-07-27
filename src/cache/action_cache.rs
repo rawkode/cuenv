@@ -5,6 +5,7 @@
 
 use crate::cache::concurrent_cache::ConcurrentCache;
 use crate::cache::content_addressed_store::ContentAddressedStore;
+use crate::cache::signing::{CacheSigner, SignedCacheEntry};
 use crate::cue_parser::TaskConfig;
 use crate::errors::{Error, Result};
 use dashmap::DashMap;
@@ -67,16 +68,24 @@ pub struct ActionCache {
     cas: Arc<ContentAddressedStore>,
     /// In-flight actions to prevent duplicate execution
     in_flight: Arc<DashMap<String, Arc<tokio::sync::Notify>>>,
+    /// Cryptographic signer for cache entries
+    signer: Arc<CacheSigner>,
 }
 
 impl ActionCache {
     /// Create a new action cache
-    pub fn new(cas: Arc<ContentAddressedStore>, max_cache_size: u64) -> Self {
-        Self {
+    pub fn new(
+        cas: Arc<ContentAddressedStore>,
+        max_cache_size: u64,
+        cache_dir: &Path,
+    ) -> Result<Self> {
+        let signer = Arc::new(CacheSigner::new(cache_dir)?);
+        Ok(Self {
             result_cache: Arc::new(ConcurrentCache::new(max_cache_size)),
             cas,
             in_flight: Arc::new(DashMap::new()),
-        }
+            signer,
+        })
     }
 
     /// Compute action digest for a task
@@ -122,11 +131,35 @@ impl ActionCache {
         })
     }
 
-    /// Get cached action result from storage
+    /// Get cached action result from storage with signature verification
     fn get_cached_action_result(&self, hash: &str) -> Option<ActionResult> {
-        self.result_cache.get(hash).map(|cached| {
-            // Convert CachedTaskResult to ActionResult
-            // For action cache, we store hashes in stdout/stderr fields
+        self.result_cache.get(hash).and_then(|cached| {
+            // Deserialize signed cache entry from stdout field
+            if let Some(stdout_bytes) = &cached.stdout {
+                if let Ok(stdout_str) = String::from_utf8(stdout_bytes.clone()) {
+                    if let Ok(signed_entry) =
+                        serde_json::from_str::<SignedCacheEntry<ActionResult>>(&stdout_str)
+                    {
+                        // Verify signature
+                        match self.signer.verify(&signed_entry) {
+                            Ok(true) => return Some(signed_entry.data),
+                            Ok(false) => {
+                                log::warn!(
+                                    "Cache entry signature verification failed for hash: {}",
+                                    hash
+                                );
+                                return None;
+                            }
+                            Err(e) => {
+                                log::error!("Error verifying cache entry signature: {}", e);
+                                return None;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Fallback to legacy format for backward compatibility
             let stdout_hash = cached
                 .stdout
                 .as_ref()
@@ -136,14 +169,14 @@ impl ActionCache {
                 .as_ref()
                 .map(|bytes| String::from_utf8_lossy(bytes).to_string());
 
-            ActionResult {
+            Some(ActionResult {
                 exit_code: cached.exit_code,
                 stdout_hash,
                 stderr_hash,
                 output_files: cached.output_files.clone(),
                 executed_at: cached.executed_at,
                 duration_ms: 0, // Not stored in CachedTaskResult
-            }
+            })
         })
     }
 
@@ -263,14 +296,23 @@ impl ActionCache {
             }
         };
 
-        // Cache the result
-        // Store hashes as bytes in CachedTaskResult
+        // Cache the result with cryptographic signing
+        let signed_result = self
+            .signer
+            .sign(&result)
+            .map_err(|e| Error::configuration(format!("Failed to sign cache entry: {}", e)))?;
+
+        let signed_json = serde_json::to_string(&signed_result).map_err(|e| Error::Json {
+            message: "Failed to serialize signed cache entry".to_string(),
+            source: e,
+        })?;
+
         let cached_result = crate::cache::CachedTaskResult {
             cache_key: digest.hash.clone(),
             executed_at: result.executed_at,
             exit_code: result.exit_code,
-            stdout: result.stdout_hash.as_ref().map(|s| s.as_bytes().to_vec()),
-            stderr: result.stderr_hash.as_ref().map(|s| s.as_bytes().to_vec()),
+            stdout: Some(signed_json.as_bytes().to_vec()),
+            stderr: None, // Not used in signed format
             output_files: result.output_files.clone(),
         };
 
@@ -386,7 +428,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let cas =
             Arc::new(ContentAddressedStore::new(temp_dir.path().to_path_buf(), 4096).unwrap());
-        let cache = ActionCache::new(cas, 0);
+        let cache = ActionCache::new(cas, 0, temp_dir.path()).unwrap();
 
         let task_config = TaskConfig {
             description: Some("Test task".to_string()),
@@ -418,7 +460,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let cas =
             Arc::new(ContentAddressedStore::new(temp_dir.path().to_path_buf(), 4096).unwrap());
-        let cache = ActionCache::new(cas, 0);
+        let cache = ActionCache::new(cas, 0, temp_dir.path()).unwrap();
 
         let task_config = TaskConfig {
             description: Some("Test task".to_string()),
@@ -472,7 +514,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let cas =
             Arc::new(ContentAddressedStore::new(temp_dir.path().to_path_buf(), 4096).unwrap());
-        let cache = Arc::new(ActionCache::new(cas, 0));
+        let cache = Arc::new(ActionCache::new(cas, 0, temp_dir.path()).unwrap());
 
         let task_config = TaskConfig {
             description: Some("Test task".to_string()),

@@ -58,35 +58,100 @@ impl ContentHasher {
     pub fn hash_file(&mut self, file_path: &Path) -> Result<()> {
         use std::io::{BufReader, Read};
 
-        // Open file for streaming
-        let file = fs::File::open(file_path)
-            .map_err(|e| Error::file_system(file_path.to_path_buf(), "open file for hashing", e))?;
+        // Use O_NOFOLLOW on Unix to prevent symlink attacks
+        #[cfg(unix)]
+        {
+            use std::fs::OpenOptions;
+            use std::os::unix::fs::OpenOptionsExt;
 
-        let mut reader = BufReader::with_capacity(8192, file);
-        let mut file_hasher = Sha256::new();
-        let mut buffer = [0u8; 8192];
+            // Open file with O_NOFOLLOW to prevent symlink TOCTOU attacks
+            let file = OpenOptions::new()
+                .read(true)
+                .custom_flags(libc::O_NOFOLLOW)
+                .open(file_path)
+                .map_err(|e| {
+                    if e.kind() == std::io::ErrorKind::PermissionDenied {
+                        Error::configuration(format!(
+                            "Symlink detected or permission denied: {:?}",
+                            file_path
+                        ))
+                    } else {
+                        Error::file_system(file_path.to_path_buf(), "open file for hashing", e)
+                    }
+                })?;
 
-        // Stream the file in chunks
-        loop {
-            let bytes_read = reader.read(&mut buffer).map_err(|e| {
-                Error::file_system(file_path.to_path_buf(), "read file chunk for hashing", e)
-            })?;
+            let mut reader = BufReader::with_capacity(8192, file);
+            let mut file_hasher = Sha256::new();
+            let mut buffer = [0u8; 8192];
 
-            if bytes_read == 0 {
-                break;
+            // Stream the file in chunks
+            loop {
+                let bytes_read = reader.read(&mut buffer).map_err(|e| {
+                    Error::file_system(file_path.to_path_buf(), "read file chunk for hashing", e)
+                })?;
+
+                if bytes_read == 0 {
+                    break;
+                }
+
+                let chunk = &buffer[..bytes_read];
+                file_hasher.update(chunk);
+                self.hasher.update(chunk);
             }
 
-            let chunk = &buffer[..bytes_read];
-            file_hasher.update(chunk);
-            self.hasher.update(chunk);
+            let file_hash = format!("{:x}", file_hasher.finalize());
+            let path_str = file_path.to_string_lossy().to_string();
+            self.manifest.files.insert(path_str.clone(), file_hash);
+            self.manifest.inputs.push(format!("file:{path_str}"));
+
+            Ok(())
         }
 
-        let file_hash = format!("{:x}", file_hasher.finalize());
-        let path_str = file_path.to_string_lossy().to_string();
-        self.manifest.files.insert(path_str.clone(), file_hash);
-        self.manifest.inputs.push(format!("file:{path_str}"));
+        #[cfg(not(unix))]
+        {
+            // On non-Unix systems, use lstat to check for symlinks before opening
+            let metadata = file_path.symlink_metadata().map_err(|e| {
+                Error::file_system(file_path.to_path_buf(), "get symlink metadata", e)
+            })?;
 
-        Ok(())
+            if metadata.file_type().is_symlink() {
+                return Err(Error::configuration(format!(
+                    "Symlinks are not allowed for security reasons: {:?}",
+                    file_path
+                )));
+            }
+
+            // Open file for streaming
+            let file = fs::File::open(file_path).map_err(|e| {
+                Error::file_system(file_path.to_path_buf(), "open file for hashing", e)
+            })?;
+
+            let mut reader = BufReader::with_capacity(8192, file);
+            let mut file_hasher = Sha256::new();
+            let mut buffer = [0u8; 8192];
+
+            // Stream the file in chunks
+            loop {
+                let bytes_read = reader.read(&mut buffer).map_err(|e| {
+                    Error::file_system(file_path.to_path_buf(), "read file chunk for hashing", e)
+                })?;
+
+                if bytes_read == 0 {
+                    break;
+                }
+
+                let chunk = &buffer[..bytes_read];
+                file_hasher.update(chunk);
+                self.hasher.update(chunk);
+            }
+
+            let file_hash = format!("{:x}", file_hasher.finalize());
+            let path_str = file_path.to_string_lossy().to_string();
+            self.manifest.files.insert(path_str.clone(), file_hash);
+            self.manifest.inputs.push(format!("file:{path_str}"));
+
+            Ok(())
+        }
     }
 
     /// Hash files matching a glob pattern
