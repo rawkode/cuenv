@@ -1,0 +1,60 @@
+# cuenv Bazel workspace configuration
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+# Rust rules
+http_archive(
+    name = "rules_rust",
+    sha256 = "324c2a86a24ab7d0bc019ebe8a76a4bf0da53d75214e17b8636e0375e3ecf0a7",
+    urls = ["https://github.com/bazelbuild/rules_rust/releases/download/0.46.0/rules_rust-v0.46.0.tar.gz"],
+)
+
+load("@rules_rust//rust:repositories.bzl", "rules_rust_dependencies", "rust_register_toolchains")
+rules_rust_dependencies()
+rust_register_toolchains(
+    edition = "2021",
+    versions = ["1.79.0"],
+)
+
+load("@rules_rust//crate_universe:defs.bzl", "crates_repository")
+crates_repository(
+    name = "crates",
+    cargo_lockfile = "//:Cargo.lock",
+    manifests = ["//:Cargo.toml"],
+)
+
+load("@crates//:defs.bzl", "crate_repositories")
+crate_repositories()
+
+# Go rules for libcue-bridge
+http_archive(
+    name = "io_bazel_rules_go",
+    sha256 = "6dc2da7ab4cf5d7bfc7c949776b1b7c733f05e56edc4bcd9022bb249d2e2a996",
+    urls = ["https://github.com/bazelbuild/rules_go/releases/download/v0.47.0/rules_go-v0.47.0.zip"],
+)
+
+load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_dependencies")
+go_rules_dependencies()
+go_register_toolchains(version = "1.22.2")
+
+# Nix integration
+http_archive(
+    name = "rules_nixpkgs",
+    sha256 = "0efd78c7b45a04253e521d8c0c5c65e7f7e38dd3e6c4a5f228e84c7102138270",
+    strip_prefix = "rules_nixpkgs-0.11.1",
+    urls = ["https://github.com/tweag/rules_nixpkgs/releases/download/v0.11.1/rules_nixpkgs-0.11.1.tar.gz"],
+)
+
+load("@rules_nixpkgs//nixpkgs:repositories.bzl", "rules_nixpkgs_dependencies")
+rules_nixpkgs_dependencies()
+
+load("@rules_nixpkgs//nixpkgs:nixpkgs.bzl", "nixpkgs_git_repository")
+nixpkgs_git_repository(
+    name = "nixpkgs",
+    revision = "nixos-24.05",
+)
+
+load("@rules_nixpkgs//nixpkgs:toolchains/rust.bzl", "nixpkgs_rust_configure")
+nixpkgs_rust_configure(
+    name = "nixpkgs_rust",
+    repository = "@nixpkgs",
+)

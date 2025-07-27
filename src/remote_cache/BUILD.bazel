@@ -1,0 +1,61 @@
+# BUILD file for remote cache module
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_binary")
+load("@rules_rust//proto/prost:defs.bzl", "rust_prost_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+# Proto definitions for Remote Execution API
+proto_library(
+    name = "remote_execution_proto",
+    srcs = ["remote_execution.proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_google_protobuf//:duration_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+# Rust proto library
+rust_prost_library(
+    name = "remote_execution_rust_proto",
+    proto = ":remote_execution_proto",
+    visibility = ["//visibility:public"],
+)
+
+# Remote cache library
+rust_library(
+    name = "remote_cache",
+    srcs = glob(["**/*.rs"]),
+    edition = "2021",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":remote_execution_rust_proto",
+        "//src/cache:cache",
+        "@crates//:anyhow",
+        "@crates//:async-trait",
+        "@crates//:bytes",
+        "@crates//:futures",
+        "@crates//:hex",
+        "@crates//:hyper",
+        "@crates//:prost",
+        "@crates//:serde",
+        "@crates//:sha2",
+        "@crates//:tokio",
+        "@crates//:tonic",
+        "@crates//:tower",
+        "@crates//:tracing",
+    ],
+)
+
+# Standalone remote cache server
+rust_binary(
+    name = "remote_cache_server",
+    srcs = ["bin/server.rs"],
+    edition = "2021",
+    deps = [
+        ":remote_cache",
+        "@crates//:clap",
+        "@crates//:tokio",
+        "@crates//:tracing",
+        "@crates//:tracing-subscriber",
+    ],
+)

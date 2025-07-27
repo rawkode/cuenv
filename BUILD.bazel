@@ -1,0 +1,128 @@
+# Root BUILD file for cuenv
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+
+# Main cuenv library
+rust_library(
+    name = "cuenv_lib",
+    srcs = glob(
+        ["src/**/*.rs"],
+        exclude = ["src/main.rs", "src/bin/**/*.rs"],
+    ),
+    aliases = {
+        "@crates//:chrono": "chrono",
+        "@crates//:clap": "clap",
+        "@crates//:serde": "serde",
+        "@crates//:tokio": "tokio",
+    },
+    crate_features = [
+        "async",
+        "cache",
+        "remote-cache",
+    ],
+    edition = "2021",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//libcue-bridge:cue_bridge",
+        "@crates//:anyhow",
+        "@crates//:async-trait",
+        "@crates//:blake3",
+        "@crates//:bytes",
+        "@crates//:chrono",
+        "@crates//:clap",
+        "@crates//:crossbeam",
+        "@crates//:dashmap",
+        "@crates//:futures",
+        "@crates//:hex",
+        "@crates//:indicatif",
+        "@crates//:libc",
+        "@crates//:memmap2",
+        "@crates//:notify",
+        "@crates//:once_cell",
+        "@crates//:parking_lot",
+        "@crates//:rand",
+        "@crates//:regex",
+        "@crates//:reqwest",
+        "@crates//:rlimit",
+        "@crates//:serde",
+        "@crates//:serde_json",
+        "@crates//:sha2",
+        "@crates//:tempfile",
+        "@crates//:thiserror",
+        "@crates//:tokio",
+        "@crates//:toml",
+        "@crates//:tracing",
+        "@crates//:tracing-subscriber",
+        "@crates//:url",
+    ],
+)
+
+# Main binary
+rust_binary(
+    name = "cuenv",
+    srcs = ["src/main.rs"],
+    edition = "2021",
+    deps = [
+        ":cuenv_lib",
+        "@crates//:anyhow",
+        "@crates//:clap",
+        "@crates//:tokio",
+        "@crates//:tracing",
+        "@crates//:tracing-subscriber",
+    ],
+)
+
+# Test suite
+[
+    rust_test(
+        name = test_file.replace("tests/", "").replace(".rs", ""),
+        srcs = [test_file],
+        crate_features = ["test"],
+        data = glob(["tests/fixtures/**/*"]),
+        edition = "2021",
+        env = {
+            "RUST_BACKTRACE": "1",
+            "RUST_TEST_THREADS": "1",
+        },
+        deps = [
+            ":cuenv_lib",
+            "@crates//:anyhow",
+            "@crates//:proptest",
+            "@crates//:tempfile",
+            "@crates//:tokio",
+        ],
+    )
+    for test_file in glob(["tests/*.rs"])
+]
+
+# Benchmark suite
+[
+    rust_test(
+        name = bench_file.replace("benches/", "bench_").replace(".rs", ""),
+        srcs = [bench_file],
+        edition = "2021",
+        tags = ["benchmark"],
+        deps = [
+            ":cuenv_lib",
+            "@crates//:criterion",
+        ],
+    )
+    for bench_file in glob(["benches/*.rs"])
+]
+
+# Platform-specific build configurations
+config_setting(
+    name = "linux",
+    constraint_values = ["@platforms//os:linux"],
+)
+
+config_setting(
+    name = "macos",
+    constraint_values = ["@platforms//os:macos"],
+)
+
+# Package all source files for remote cache validation
+filegroup(
+    name = "all_srcs",
+    srcs = glob(["**/*.rs", "**/*.toml", "**/*.lock"]),
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,162 @@
+// Remote Execution API proto definitions
+// Simplified version of the official Google Remote APIs
+syntax = "proto3";
+
+package build.bazel.remote.execution.v2;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+// Content-Addressable Storage Messages
+
+message Digest {
+  string hash = 1;
+  int64 size_bytes = 2;
+}
+
+message ActionResult {
+  repeated OutputFile output_files = 1;
+  repeated OutputDirectory output_directories = 2;
+  int32 exit_code = 3;
+  Digest stdout_digest = 4;
+  Digest stderr_digest = 5;
+  google.protobuf.Duration execution_metadata = 6;
+}
+
+message OutputFile {
+  string path = 1;
+  Digest digest = 2;
+  bool is_executable = 3;
+}
+
+message OutputDirectory {
+  string path = 1;
+  Digest tree_digest = 2;
+}
+
+// CAS Service Messages
+
+message FindMissingBlobsRequest {
+  string instance_name = 1;
+  repeated Digest blob_digests = 2;
+}
+
+message FindMissingBlobsResponse {
+  repeated Digest missing_blob_digests = 1;
+}
+
+message BatchUpdateBlobsRequest {
+  string instance_name = 1;
+  repeated Request requests = 2;
+  
+  message Request {
+    Digest digest = 1;
+    bytes data = 2;
+  }
+}
+
+message BatchUpdateBlobsResponse {
+  repeated Response responses = 1;
+  
+  message Response {
+    Digest digest = 1;
+    google.rpc.Status status = 2;
+  }
+}
+
+message BatchReadBlobsRequest {
+  string instance_name = 1;
+  repeated Digest digests = 2;
+}
+
+message BatchReadBlobsResponse {
+  repeated Response responses = 1;
+  
+  message Response {
+    Digest digest = 1;
+    bytes data = 2;
+    google.rpc.Status status = 3;
+  }
+}
+
+// Action Cache Service Messages
+
+message GetActionResultRequest {
+  string instance_name = 1;
+  Digest action_digest = 2;
+}
+
+message UpdateActionResultRequest {
+  string instance_name = 1;
+  Digest action_digest = 2;
+  ActionResult action_result = 3;
+}
+
+// Capabilities Service Messages
+
+message GetCapabilitiesRequest {
+  string instance_name = 1;
+}
+
+message ServerCapabilities {
+  CacheCapabilities cache_capabilities = 1;
+  ExecutionCapabilities execution_capabilities = 2;
+  google.protobuf.Any deprecated_api_version = 3;
+  google.protobuf.Any low_api_version = 4;
+  google.protobuf.Any high_api_version = 5;
+}
+
+message CacheCapabilities {
+  repeated DigestFunction digest_function = 1;
+  ActionCacheUpdateCapabilities action_cache_update_capabilities = 2;
+  repeated SymlinkAbsolutePathStrategy symlink_absolute_path_strategy = 3;
+  int64 max_batch_total_size_bytes = 4;
+  
+  enum DigestFunction {
+    UNKNOWN = 0;
+    SHA256 = 1;
+    SHA1 = 2;
+    MD5 = 3;
+  }
+  
+  enum SymlinkAbsolutePathStrategy {
+    UNKNOWN_STRATEGY = 0;
+    DISALLOWED = 1;
+    ALLOWED = 2;
+  }
+}
+
+message ActionCacheUpdateCapabilities {
+  bool update_enabled = 1;
+}
+
+message ExecutionCapabilities {
+  DigestFunction digest_function = 1;
+  bool exec_enabled = 2;
+}
+
+// Service Definitions
+
+service ContentAddressableStorage {
+  rpc FindMissingBlobs(FindMissingBlobsRequest) returns (FindMissingBlobsResponse);
+  rpc BatchUpdateBlobs(BatchUpdateBlobsRequest) returns (BatchUpdateBlobsResponse);
+  rpc BatchReadBlobs(BatchReadBlobsRequest) returns (BatchReadBlobsResponse);
+}
+
+service ActionCache {
+  rpc GetActionResult(GetActionResultRequest) returns (ActionResult);
+  rpc UpdateActionResult(UpdateActionResultRequest) returns (ActionResult);
+}
+
+service Capabilities {
+  rpc GetCapabilities(GetCapabilitiesRequest) returns (ServerCapabilities);
+}
+
+// RPC Status for compatibility
+package google.rpc;
+
+message Status {
+  int32 code = 1;
+  string message = 2;
+  repeated google.protobuf.Any details = 3;
+}
