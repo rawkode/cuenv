@@ -4,7 +4,6 @@ on:
     tags:
       - '*.*.*'
   workflow_dispatch:
-
 jobs:
   build:
     name: Build Linux Binary
@@ -12,14 +11,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
       - name: Get version from Cargo.toml
         id: get_version
         run: |
           VERSION=$(grep '^version = ' Cargo.toml | head -1 | cut -d'"' -f2)
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "Building version: $VERSION"
-          
+
           # Verify tag matches Cargo.toml version if this is a tag push
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
             TAG_VERSION="${{ github.ref_name }}"
@@ -28,23 +26,19 @@ jobs:
               exit 1
             fi
           fi
-      
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v17
-        
       - name: Build with Nix
         run: |
           nix build .#cuenv
           mkdir -p artifacts
           cp -L result/bin/cuenv artifacts/cuenv
-          
       - name: Package
         run: |
           cd artifacts
           VERSION="${{ steps.get_version.outputs.VERSION }}"
           tar czf cuenv-${VERSION}-x86_64-unknown-linux-gnu.tar.gz cuenv
           echo "ASSET_PATH=artifacts/cuenv-${VERSION}-x86_64-unknown-linux-gnu.tar.gz" >> $GITHUB_ENV
-          
       - name: Create Release
         if: github.event_name == 'push' && github.ref_type == 'tag'
         uses: softprops/action-gh-release@v1
