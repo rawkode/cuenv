@@ -18,7 +18,6 @@ use crate::secrets::SecretManager;
 use crate::state::StateManager;
 use crate::types::{CommandArguments, EnvironmentVariables};
 use async_trait::async_trait;
-use tokio::runtime::Runtime;
 
 // Import the platform-specific implementation
 #[cfg(unix)]
@@ -134,8 +133,11 @@ impl EnvManager {
 
         if !exit_hooks.is_empty() {
             log::info!("Executing {} onExit hooks", exit_hooks.len());
-            let rt = Runtime::new()
-                .map_err(|e| Error::configuration(format!("Failed to create runtime: {e}")))?;
+            // Use run_async to avoid creating a new runtime if already in one
+            // This is safe because unload_env is called from a sync context (main.rs)
+            // but the hook execution itself is async.
+            // We don't need a separate runtime here, as hook_manager.execute_hook is async.
+            // The block_on will be handled by run_async if needed.
 
             // Create command executor and hook manager
             let executor = Arc::new(crate::command_executor::SystemCommandExecutor::new());
@@ -159,7 +161,12 @@ impl EnvManager {
 
             for (name, config) in exit_hooks {
                 log::debug!("Executing onExit hook: {name}");
-                match rt.block_on(hook_manager.execute_hook(config, &current_env_vars)) {
+                match crate::async_runtime::run_async(async {
+                    hook_manager
+                        .execute_hook(config, &current_env_vars)
+                        .await
+                        .map_err(Error::from)
+                }) {
                     Ok(_) => log::info!("Successfully executed onExit hook: {name}"),
                     Err(e) => log::error!("Failed to execute onExit hook {name}: {e}"),
                 }
@@ -359,25 +366,19 @@ impl EnvManager {
             (env_from_cue, SecretValues::new())
         } else {
             let secret_manager = SecretManager::new();
-            let rt = match tokio::runtime::Runtime::new() {
-                Ok(runtime) => runtime,
+
+            // Use futures::executor::block_on which works in more contexts
+            let resolved_secrets = match futures::executor::block_on(async {
+                secret_manager.resolve_secrets(env_from_cue.into()).await
+            }) {
+                Ok(secrets) => secrets,
                 Err(e) => {
-                    return Err(Error::configuration(format!(
-                        "Failed to create tokio runtime: {e}"
-                    )));
+                    return Err(Error::secret_resolution(
+                        "multiple",
+                        format!("Failed to resolve secrets: {e}"),
+                    ));
                 }
             };
-
-            let resolved_secrets =
-                match rt.block_on(secret_manager.resolve_secrets(env_from_cue.into())) {
-                    Ok(secrets) => secrets,
-                    Err(e) => {
-                        return Err(Error::secret_resolution(
-                            "multiple",
-                            format!("Failed to resolve secrets: {e}"),
-                        ));
-                    }
-                };
             (
                 resolved_secrets.env_vars.into_inner(),
                 resolved_secrets.secret_values,
@@ -557,25 +558,19 @@ impl EnvManager {
             (env_from_cue, SecretValues::new())
         } else {
             let secret_manager = SecretManager::new();
-            let rt = match tokio::runtime::Runtime::new() {
-                Ok(runtime) => runtime,
+
+            // Use futures::executor::block_on which works in more contexts
+            let resolved_secrets = match futures::executor::block_on(async {
+                secret_manager.resolve_secrets(env_from_cue.into()).await
+            }) {
+                Ok(secrets) => secrets,
                 Err(e) => {
-                    return Err(Error::configuration(format!(
-                        "Failed to create tokio runtime: {e}"
-                    )));
+                    return Err(Error::secret_resolution(
+                        "multiple",
+                        format!("Failed to resolve secrets: {e}"),
+                    ));
                 }
             };
-
-            let resolved_secrets =
-                match rt.block_on(secret_manager.resolve_secrets(env_from_cue.into())) {
-                    Ok(secrets) => secrets,
-                    Err(e) => {
-                        return Err(Error::secret_resolution(
-                            "multiple",
-                            format!("Failed to resolve secrets: {e}"),
-                        ));
-                    }
-                };
             (
                 resolved_secrets.env_vars.into_inner(),
                 resolved_secrets.secret_values,
@@ -769,16 +764,6 @@ impl EnvManager {
         // Collect current environment variables for hook execution
         let env_vars = self.collect_cue_env_vars()?;
 
-        // Create runtime for async hook execution
-        let rt = match tokio::runtime::Runtime::new() {
-            Ok(runtime) => runtime,
-            Err(e) => {
-                return Err(Error::configuration(format!(
-                    "Failed to create tokio runtime for hooks: {e}"
-                )));
-            }
-        };
-
         // Create a command executor that uses the system's Command
         struct SystemCommandExecutor;
 
@@ -838,7 +823,12 @@ impl EnvManager {
 
         for (name, config) in on_enter_hooks {
             log::debug!("Executing onEnter hook: {name}");
-            match rt.block_on(hook_manager.execute_hook(config, &env_vars)) {
+            match crate::async_runtime::run_async(async {
+                hook_manager
+                    .execute_hook(config, &env_vars)
+                    .await
+                    .map_err(Error::from)
+            }) {
                 Ok(_) => log::info!("Successfully executed onEnter hook: {name}"),
                 Err(e) => {
                     // Log error but continue with other hooks

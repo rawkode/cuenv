@@ -471,7 +471,7 @@ tasks: {
             env_manager.load_env(temp_dir.path()).await.unwrap();
 
             // Create task executor
-            let executor = TaskExecutor::new_async(env_manager, temp_dir.path().to_path_buf())
+            let executor = TaskExecutor::new(env_manager, temp_dir.path().to_path_buf())
                 .await
                 .unwrap();
 

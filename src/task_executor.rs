@@ -29,16 +29,7 @@ pub struct TaskExecutor {
 
 impl TaskExecutor {
     /// Create a new task executor
-    pub fn new(env_manager: EnvManager, working_dir: PathBuf) -> Result<Self> {
-        Ok(Self {
-            env_manager,
-            working_dir,
-            cache_manager: Arc::new(CacheManager::new_sync()?),
-        })
-    }
-
-    /// Create a new task executor (async version)
-    pub async fn new_async(env_manager: EnvManager, working_dir: PathBuf) -> Result<Self> {
+    pub async fn new(env_manager: EnvManager, working_dir: PathBuf) -> Result<Self> {
         let cache_config = crate::cache::CacheConfig::default();
         Ok(Self {
             env_manager,

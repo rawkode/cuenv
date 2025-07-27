@@ -202,6 +202,14 @@ impl From<serde_json::Error> for Error {
     }
 }
 
+impl From<anyhow::Error> for Error {
+    fn from(error: anyhow::Error) -> Self {
+        Error::Configuration {
+            message: format!("An internal error occurred: {error}"),
+        }
+    }
+}
+
 // Helper methods for creating errors with context
 impl Error {
     /// Create a CUE parse error with context

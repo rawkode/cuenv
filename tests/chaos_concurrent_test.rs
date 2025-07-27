@@ -320,8 +320,11 @@ mod chaos_concurrent_tests {
             // Note: We would need to populate the env_manager with tasks
             // This test may need to be redesigned to work with the current API
 
-            let executor =
-                Arc::new(TaskExecutor::new(env_manager, temp_dir.path().to_path_buf()).unwrap());
+            let executor = Arc::new(
+                TaskExecutor::new(env_manager, temp_dir.path().to_path_buf())
+                    .await
+                    .unwrap(),
+            );
 
             // Execute random tasks concurrently
             let mut handles = Vec::new();
