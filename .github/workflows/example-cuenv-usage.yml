@@ -24,12 +24,12 @@ jobs:
       - name: Run cuenv tasks
         run: |
           # List available tasks
-          cuenv task list
+          cuenv run
 
-          # Run a specific task
-          cuenv task build
+          # Run a specific task (if defined in env.cue)
+          cuenv run build
       - name: Use cuenv in scripts
         run: |-
           # You can also use cuenv exec to run commands with the environment
-          cuenv exec -- cargo --version
-          cuenv exec -- echo "Running with cuenv environment"
+          cuenv exec cargo --version
+          cuenv exec echo "Running with cuenv environment"
