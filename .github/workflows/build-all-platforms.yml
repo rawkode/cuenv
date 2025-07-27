@@ -12,9 +12,6 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             rust: stable
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            rust: stable
           - target: x86_64-apple-darwin
             os: macos-13  # Intel Mac
             rust: stable
@@ -40,27 +37,8 @@ jobs:
         with:
           go-version: '1.24'
           
-      - name: Install cross-compilation tools (Linux ARM64)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-          
       - name: Build
-        env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
-          CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
-          AR_aarch64_unknown_linux_gnu: aarch64-linux-gnu-ar
-        run: |
-          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]]; then
-            export CC=aarch64-linux-gnu-gcc
-            export CXX=aarch64-linux-gnu-g++
-            export AR=aarch64-linux-gnu-ar
-            export GOARCH=arm64
-            export CGO_ENABLED=1
-          fi
-          cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --target ${{ matrix.target }}
           
       - name: Package (Unix)
         if: runner.os != 'Windows'
