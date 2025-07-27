@@ -1,6 +1,8 @@
 name: Test Setup Action
 on:
   push:
+    branches:
+      - main
     paths:
       - 'github/action/setup-cuenv/**'
       - '.github/workflows/test-setup-action.yml'
