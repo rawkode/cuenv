@@ -1,7 +1,6 @@
 name: Fix Linux Binary
 on:
   workflow_dispatch:
-
 jobs:
   fix:
     runs-on: ubuntu-latest
@@ -10,7 +9,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        
       - name: Delete old Linux binary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -19,16 +17,14 @@ jobs:
           ASSET_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
             https://api.github.com/repos/rawkode/cuenv/releases/tags/0.3.1 | \
             jq '.assets[] | select(.name == "cuenv-0.3.1-x86_64-unknown-linux-gnu.tar.gz") | .id')
-          
+
           if [ ! -z "$ASSET_ID" ]; then
             echo "Deleting asset ID: $ASSET_ID"
             curl -X DELETE -H "Authorization: token $GITHUB_TOKEN" \
               https://api.github.com/repos/rawkode/cuenv/releases/assets/$ASSET_ID
           fi
-        
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v17
-        
       - name: Build with Nix
         run: |
           nix build .#cuenv
@@ -40,7 +36,6 @@ jobs:
           ls -la
           tar -tzf cuenv-0.3.1-x86_64-unknown-linux-gnu.tar.gz
           cd ..
-          
       - name: Upload to release
         uses: softprops/action-gh-release@v1
         with:
