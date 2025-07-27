@@ -6,7 +6,7 @@ branding:
   color: 'blue'
 inputs:
   version:
-    description: 'Version of cuenv to install (e.g., v0.2.7)'
+    description: 'Version of cuenv to install (e.g., 0.2.7 or v0.2.7)'
     required: false
     default: 'latest'
   install-dir:
@@ -43,8 +43,8 @@ runs:
           echo "Latest version: $VERSION"
         fi
 
-        # Remove 'v' prefix if present for the download URL
-        VERSION_NO_V="${VERSION#v}"
+        # Ensure VERSION doesn't have 'v' prefix (support both formats)
+        VERSION="${VERSION#v}"
 
         # Determine OS and architecture
         OS=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -78,8 +78,8 @@ runs:
             ;;
         esac
 
-        # Construct download URL
-        DOWNLOAD_URL="https://github.com/rawkode/cuenv/releases/download/${VERSION}/cuenv-${VERSION_NO_V}-${ARCH}-${OS}.tar.gz"
+        # Construct download URL (tags don't have v prefix)
+        DOWNLOAD_URL="https://github.com/rawkode/cuenv/releases/download/${VERSION}/cuenv-${VERSION}-${ARCH}-${OS}.tar.gz"
 
         echo "Downloading cuenv from: $DOWNLOAD_URL"
 

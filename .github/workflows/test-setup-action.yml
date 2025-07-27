@@ -35,7 +35,7 @@ jobs:
       - name: Setup cuenv (specific version)
         uses: ./github/action/setup-cuenv
         with:
-          version: v0.2.7
+          version: 0.2.7
       - name: Verify version
         run: |
           cuenv --version | grep -q "0.2.7" || (echo "Version mismatch!" && exit 1)
