@@ -30,17 +30,14 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-linux-musl
-          
       - name: Install Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-          
       - name: Install musl tools
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools
-          
       - name: Build static binary
         run: |
           # Set up for musl build
@@ -48,20 +45,20 @@ jobs:
           export CXX=musl-g++
           export CGO_ENABLED=1
           export RUSTFLAGS="-C target-feature=+crt-static"
-          
+
           # Add musl target
           rustup target add x86_64-unknown-linux-musl
-          
+
           # Build the binary
           cargo build --release --target x86_64-unknown-linux-musl
-          
+
           # Create artifacts directory
           mkdir -p artifacts
           cp target/x86_64-unknown-linux-musl/release/cuenv artifacts/cuenv
-          
+
           # Strip debug symbols to reduce size
           strip artifacts/cuenv
-          
+
           # Check dependencies - should show "not a dynamic executable"
           echo "Binary dependencies:"
           ldd artifacts/cuenv 2>&1 || echo "Binary is statically linked!"

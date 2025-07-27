@@ -14,7 +14,9 @@
       "Bash(RUST_LOG=info nix develop -c cargo run -- run --audit test-audit-mode)",
       "Bash(tar:*)",
       "Bash(mkdir:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   },

@@ -28,11 +28,13 @@ fn main() {
         // Set musl-specific environment variables
         cmd.env("CC", "musl-gcc");
         cmd.env("CGO_ENABLED", "1");
-        
+
         cmd.args([
             "-buildmode=c-archive",
-            "-tags", "netgo,osusergo,static_build",
-            "-ldflags", "-extldflags '-static'",
+            "-tags",
+            "netgo,osusergo,static_build",
+            "-ldflags",
+            "-extldflags '-static'",
             "-o",
             out_dir.join("libcue_bridge.a").to_str().unwrap(),
             "bridge.go",
