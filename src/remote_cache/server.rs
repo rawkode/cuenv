@@ -6,18 +6,18 @@ use std::sync::Arc;
 use tonic::{transport::Server, Request, Response, Status};
 use tracing::{debug, info, warn};
 
-use crate::cache::{ActionCache, CacheConfig, CacheManager, ContentAddressedStore};
-use super::proto::{
+use super::grpc_proto::proto::{
     action_cache_server::{ActionCache as ActionCacheService, ActionCacheServer},
+    capabilities_server::{Capabilities as CapabilitiesService, CapabilitiesServer},
     content_addressable_storage_server::{
         ContentAddressableStorage as CASService, ContentAddressableStorageServer,
     },
-    capabilities_server::{Capabilities as CapabilitiesService, CapabilitiesServer},
     ActionResult, BatchReadBlobsRequest, BatchReadBlobsResponse, BatchUpdateBlobsRequest,
     BatchUpdateBlobsResponse, Digest, FindMissingBlobsRequest, FindMissingBlobsResponse,
-    GetActionResultRequest, GetCapabilitiesRequest, ServerCapabilities,
-    UpdateActionResultRequest,
+    GetActionResultRequest, GetCapabilitiesRequest, ServerCapabilities, UpdateActionResultRequest,
 };
+use crate::cache::{ActionCache, CacheConfig, ContentAddressedStore};
+use crate::cache::CacheManager as CuenvCacheManager;
 
 /// Configuration for the remote cache server
 pub struct RemoteCacheConfig {
@@ -30,7 +30,7 @@ pub struct RemoteCacheConfig {
 /// Remote cache server that implements Bazel's Remote Execution API
 pub struct RemoteCacheServer {
     address: SocketAddr,
-    cache_manager: Arc<CacheManager>,
+    cache_manager: Arc<CuenvCacheManager>,
     cas: Arc<ContentAddressedStore>,
     action_cache: Arc<ActionCache>,
 }
@@ -38,7 +38,7 @@ pub struct RemoteCacheServer {
 impl RemoteCacheServer {
     /// Create a new remote cache server
     pub async fn new(config: RemoteCacheConfig) -> Result<Self> {
-        let cache_manager = Arc::new(CacheManager::new(config.cache_config).await?);
+        let cache_manager = Arc::new(CuenvCacheManager::new(config.cache_config).await?);
         let cas = cache_manager.content_store();
         let action_cache = cache_manager.action_cache();
 
@@ -61,7 +61,7 @@ impl RemoteCacheServer {
         let capabilities_service = RemoteCapabilitiesService::new();
 
         let reflection_service = tonic_reflection::server::Builder::configure()
-            .register_encoded_file_descriptor_set(crate::remote_cache::proto::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(super::grpc_proto::proto::FILE_DESCRIPTOR_SET)
             .build()?;
 
         info!("Starting remote cache server on {}", self.address);
@@ -90,7 +90,10 @@ impl CASService for RemoteCASService {
         request: Request<FindMissingBlobsRequest>,
     ) -> Result<Response<FindMissingBlobsResponse>, Status> {
         let req = request.into_inner();
-        debug!("FindMissingBlobs request for {} digests", req.blob_digests.len());
+        debug!(
+            "FindMissingBlobs request for {} digests",
+            req.blob_digests.len()
+        );
 
         let mut missing_digests = Vec::new();
         for digest in req.blob_digests {
@@ -114,10 +117,10 @@ impl CASService for RemoteCASService {
 
         let mut responses = Vec::new();
         for update_req in req.requests {
-            let digest = update_req.digest.ok_or_else(|| {
-                Status::invalid_argument("Missing digest in update request")
-            })?;
-            
+            let digest = update_req
+                .digest
+                .ok_or_else(|| Status::invalid_argument("Missing digest in update request"))?;
+
             let hash = hex::encode(&digest.hash);
             match self.cas.store(&hash, &update_req.data).await {
                 Ok(_) => {
@@ -205,9 +208,9 @@ impl ActionCacheService for RemoteActionCacheService {
         request: Request<GetActionResultRequest>,
     ) -> Result<Response<ActionResult>, Status> {
         let req = request.into_inner();
-        let digest = req.action_digest.ok_or_else(|| {
-            Status::invalid_argument("Missing action digest")
-        })?;
+        let digest = req
+            .action_digest
+            .ok_or_else(|| Status::invalid_argument("Missing action digest"))?;
 
         let hash = hex::encode(&digest.hash);
         debug!("GetActionResult for digest {}", hash);
@@ -242,12 +245,12 @@ impl ActionCacheService for RemoteActionCacheService {
         request: Request<UpdateActionResultRequest>,
     ) -> Result<Response<ActionResult>, Status> {
         let req = request.into_inner();
-        let digest = req.action_digest.ok_or_else(|| {
-            Status::invalid_argument("Missing action digest")
-        })?;
-        let action_result = req.action_result.ok_or_else(|| {
-            Status::invalid_argument("Missing action result")
-        })?;
+        let digest = req
+            .action_digest
+            .ok_or_else(|| Status::invalid_argument("Missing action digest"))?;
+        let action_result = req
+            .action_result
+            .ok_or_else(|| Status::invalid_argument("Missing action result"))?;
 
         let hash = hex::encode(&digest.hash);
         debug!("UpdateActionResult for digest {}", hash);

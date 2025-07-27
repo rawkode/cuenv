@@ -76,11 +76,11 @@ async fn main() -> Result<()> {
 
     // Create and start the server
     let server = RemoteCacheServer::new(remote_config).await?;
-    
+
     info!("Remote cache server ready for Bazel/Buck2 clients");
     info!("Configure Bazel with:");
     info!("  --remote_cache=grpc://{}", args.address);
-    
+
     server.serve().await?;
 
     Ok(())

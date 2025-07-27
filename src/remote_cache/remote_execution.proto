@@ -6,8 +6,15 @@ package build.bazel.remote.execution.v2;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/any.proto";
 
 // Content-Addressable Storage Messages
+
+// Simple status message (avoiding google.rpc dependency)
+message Status {
+  int32 code = 1;
+  string message = 2;
+}
 
 message Digest {
   string hash = 1;
@@ -60,7 +67,7 @@ message BatchUpdateBlobsResponse {
   
   message Response {
     Digest digest = 1;
-    google.rpc.Status status = 2;
+    Status status = 2;
   }
 }
 
@@ -75,7 +82,7 @@ message BatchReadBlobsResponse {
   message Response {
     Digest digest = 1;
     bytes data = 2;
-    google.rpc.Status status = 3;
+    Status status = 3;
   }
 }
 
@@ -152,11 +159,3 @@ service Capabilities {
   rpc GetCapabilities(GetCapabilitiesRequest) returns (ServerCapabilities);
 }
 
-// RPC Status for compatibility
-package google.rpc;
-
-message Status {
-  int32 code = 1;
-  string message = 2;
-  repeated google.protobuf.Any details = 3;
-}

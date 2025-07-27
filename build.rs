@@ -6,6 +6,7 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=libcue-bridge/bridge.go");
     println!("cargo:rerun-if-changed=libcue-bridge/bridge.h");
+    println!("cargo:rerun-if-changed=src/remote_cache/remote_execution.proto");
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set by cargo"));
     let bridge_dir = PathBuf::from("libcue-bridge");
@@ -85,4 +86,15 @@ fn main() {
             println!("cargo:rustc-link-lib=framework=CoreFoundation");
         }
     }
+
+    // Compile protobuf for remote cache server
+    tonic_build::configure()
+        .build_server(true)
+        .build_client(false)
+        .file_descriptor_set_path(out_dir.join("remote_execution_descriptor.bin"))
+        .compile(
+            &["src/remote_cache/remote_execution.proto"],
+            &["src/remote_cache"],
+        )
+        .expect("Failed to compile protobuf");
 }

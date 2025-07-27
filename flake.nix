@@ -112,8 +112,6 @@
             gotools
             rust-analyzer
             treefmt.config.build.wrapper
-            bazel_7
-            bazel-buildtools
             protobuf
             grpcurl
             netcat
@@ -258,7 +256,6 @@
               echo "cuenv development environment"
               echo "Rust version: $(rustc --version)"
               echo "Go version: $(go version)"
-              echo "Bazel version: $(bazel --version)"
               echo ""
               echo "Available commands:"
               echo "  cargo build    - Build the project"
@@ -268,18 +265,14 @@
               echo "  treefmt        - Format all code"
               echo "  nix flake check - Check code formatting"
               echo ""
-              echo "Bazel commands:"
-              echo "  bazel build //...  - Build all targets"
-              echo "  bazel test //...   - Run all tests"
-              echo "  bazel clean        - Clean build artifacts"
-              echo "  scripts/bazel-setup.sh - Setup Bazel with remote cache"
+              echo "Remote cache server:"
+              echo "  cargo run --bin remote_cache_server - Start the cache server"
               echo ""
 
               # Set up environment for building
               export CGO_ENABLED=1
               export GOPATH="$HOME/go"
               export GOCACHE="$HOME/.cache/go-build"
-              export IN_NIX_DEVELOP=1
 
               # Platform-specific setup
               ${
