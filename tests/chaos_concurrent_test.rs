@@ -433,6 +433,7 @@ mod chaos_concurrent_tests {
 
     /// Test concurrent operations during system resource exhaustion
     #[test]
+    #[cfg_attr(coverage, ignore)]
     fn test_resource_exhaustion_chaos() {
         let num_threads = 50; // Many threads to exhaust resources
         let barrier = Arc::new(Barrier::new(num_threads));

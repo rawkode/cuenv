@@ -107,6 +107,7 @@ impl ContentAddressedStore {
         // Check if already exists
         if let Some(mut entry) = self.index.get_mut(&hash) {
             entry.ref_count += 1;
+            drop(entry); // Release the lock before persisting
             self.persist_index()?;
             return Ok(hash);
         }
@@ -286,23 +287,15 @@ impl ContentAddressedStore {
 
         if should_gc {
             // Try to acquire write lock without blocking
-            if let Some(_guard) = self.last_gc.try_write() {
+            if let Some(mut guard) = self.last_gc.try_write() {
+                // Update last GC time immediately
+                *guard = Instant::now();
+                drop(guard); // Release the lock before spawning thread
+
                 // Run GC in background to avoid blocking store operations
                 let index = self.index.clone();
-                let last_gc = self.last_gc.clone();
-                let gc_interval = self.gc_interval;
 
                 std::thread::spawn(move || {
-                    // Double-check the interval after acquiring the lock
-                    let should_run = {
-                        let last_gc_time = last_gc.read();
-                        last_gc_time.elapsed() >= gc_interval
-                    };
-
-                    if !should_run {
-                        return;
-                    }
-
                     // Count zero-ref objects without holding locks
                     let zero_ref_count = index
                         .iter()

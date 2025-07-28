@@ -363,6 +363,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(coverage, ignore)]
     fn test_concurrent_access() {
         let cache = Arc::new(ConcurrentCache::new(0));
         let num_threads = 10;

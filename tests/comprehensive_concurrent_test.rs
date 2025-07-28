@@ -495,6 +495,7 @@ tasks: {
 
     /// Test concurrent access with memory pressure
     #[test]
+    #[cfg_attr(coverage, ignore)]
     fn test_memory_pressure_concurrent_operations() {
         let num_threads = 20;
         let barrier = Arc::new(Barrier::new(num_threads));

@@ -252,21 +252,23 @@
             buildInputs = buildInputs ++ nativeBuildInputs ++ devTools;
 
             shellHook = ''
-              echo "cuenv development environment"
-              echo "Rust version: $(rustc --version)"
-              echo "Go version: $(go version)"
-              echo ""
-              echo "Available commands:"
-              echo "  cargo build    - Build the project"
-              echo "  cargo test     - Run tests"
-              echo "  cargo run      - Run cuenv"
-              echo "  cargo watch    - Watch for changes and rebuild"
-              echo "  treefmt        - Format all code"
-              echo "  nix flake check - Check code formatting"
-              echo ""
-              echo "Remote cache server:"
-              echo "  cargo run --bin remote_cache_server - Start the cache server"
-              echo ""
+              if [ -t 2 ]; then
+                echo "cuenv development environment" >&2
+                echo "Rust version: $(rustc --version)" >&2
+                echo "Go version: $(go version)" >&2
+                echo "" >&2
+                echo "Available commands:" >&2
+                echo "  cargo build    - Build the project" >&2
+                echo "  cargo test     - Run tests" >&2
+                echo "  cargo run      - Run cuenv" >&2
+                echo "  cargo watch    - Watch for changes and rebuild" >&2
+                echo "  treefmt        - Format all code" >&2
+                echo "  nix flake check - Check code formatting" >&2
+                echo "" >&2
+                echo "Remote cache server:" >&2
+                echo "  cargo run --bin remote_cache_server - Start the cache server" >&2
+                echo "" >&2
+              fi
 
               # Set up environment for building
               export CGO_ENABLED=1

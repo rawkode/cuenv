@@ -135,6 +135,7 @@ fn test_concurrent_cache_writes() {
 }
 
 #[test]
+#[cfg_attr(coverage, ignore)]
 fn test_concurrent_same_key_access() {
     let cache_manager = Arc::new(CacheManager::new_sync().unwrap());
     let temp_dir = Arc::new(TempDir::new().unwrap());

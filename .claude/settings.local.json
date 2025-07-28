@@ -14,7 +14,10 @@
       "Bash(nix:*)",
       "Bash(tar:*)",
       "WebFetch(domain:github.com)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(timeout:*)",
+      "Bash(./test_tempdir)",
+      "Bash(rm:*)"
     ],
     "deny": []
   },

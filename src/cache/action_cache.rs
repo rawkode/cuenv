@@ -182,15 +182,8 @@ impl ActionCache {
 
     /// Check if an action result is cached
     pub async fn get_cached_result(&self, digest: &ActionDigest) -> Option<ActionResult> {
-        // Check in-flight actions first
-        if let Some(notify) = self.in_flight.get(&digest.hash) {
-            // Wait for in-flight action to complete
-            notify.notified().await;
-            // Try again after notification
-            return self.get_cached_action_result(&digest.hash);
-        }
-
-        // Check cache
+        // Just check cache, don't wait for in-flight actions
+        // The execute_action method handles in-flight coordination
         self.get_cached_action_result(&digest.hash)
     }
 
@@ -209,13 +202,15 @@ impl ActionCache {
             return Ok(cached);
         }
 
-        // Mark as in-flight
+        // Try to mark as in-flight
         let notify = Arc::new(tokio::sync::Notify::new());
-        let existing = self.in_flight.insert(digest.hash.clone(), notify.clone());
 
-        if existing.is_some() {
+        // Check if we can insert (returns None if key doesn't exist)
+        if let Some(existing_notify) = self.in_flight.insert(digest.hash.clone(), notify.clone()) {
             // Another task is already executing this action
-            drop(existing);
+            // Put the existing notify back
+            self.in_flight
+                .insert(digest.hash.clone(), existing_notify.clone());
 
             // Retry loop with timeout to handle race conditions
             let timeout = Duration::from_secs(60);
@@ -237,11 +232,11 @@ impl ActionCache {
 
                 // Check if action is still in flight
                 if let Some(entry) = self.in_flight.get(&digest.hash) {
-                    let notify = entry.value().clone();
+                    let wait_notify = entry.value().clone();
                     drop(entry); // Release the lock
 
                     // Create notified future before checking cache again
-                    let notified = notify.notified();
+                    let notified = wait_notify.notified();
 
                     // Double-check cache before waiting
                     if let Some(cached) = self.get_cached_action_result(&digest.hash) {
@@ -266,7 +261,7 @@ impl ActionCache {
                     }
                 } else {
                     // Not in flight anymore, check cache with retries
-                    for _ in 0..5 {
+                    for _ in 0..10 {
                         if let Some(cached) = self.get_cached_action_result(&digest.hash) {
                             return Ok(cached);
                         }
@@ -281,7 +276,7 @@ impl ActionCache {
             }
         }
 
-        // Execute the action
+        // Execute the action (we already inserted ourselves into in_flight)
         let result = match execute_fn().await {
             Ok(mut result) => {
                 // Store outputs in CAS

@@ -128,6 +128,7 @@ mod performance_concurrent_tests {
 
     /// Stress test with maximum concurrent operations
     #[test]
+    #[cfg_attr(coverage, ignore)]
     fn test_maximum_concurrent_stress() {
         let temp_dir = TempDir::new().unwrap();
         let cache_manager = Arc::new(CacheManager::new_sync().unwrap());
