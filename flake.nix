@@ -110,6 +110,8 @@
             cargo-edit
             cargo-outdated
             cargo-audit
+            cargo-nextest
+            cargo-llvm-cov
             cue
             gopls
             gotools
@@ -228,21 +230,39 @@
               doCheck = false;
             });
 
-            # Test check - disabled due to test compilation errors unrelated to our changes
-            # tests = cuenv.overrideAttrs (oldAttrs: {
-            #   pname = "cuenv-tests";
-            #   doCheck = true;
-            #   buildPhase = ''
-            #     runHook preBuild
-            #     # Just build without installing, tests will run in checkPhase
-            #     cargo build --all-targets
-            #     runHook postBuild
-            #   '';
+            # Run tests with nextest
+            nextest = cuenv.overrideAttrs (oldAttrs: {
+              pname = "cuenv-nextest";
+              buildPhase = ''
+                runHook preBuild
+                # Run nextest with CI profile for more thorough testing
+                cargo nextest run --profile ci --no-fail-fast
+                runHook postBuild
+              '';
 
-            #   installPhase = ''
-            #     touch $out
-            #   '';
-            # });
+              installPhase = ''
+                touch $out
+              '';
+
+              doCheck = false;
+            });
+
+            # Test examples
+            examples = cuenv.overrideAttrs (oldAttrs: {
+              pname = "cuenv-examples";
+              buildPhase = ''
+                runHook preBuild
+                # Test all examples
+                ./scripts/test-examples.sh
+                runHook postBuild
+              '';
+
+              installPhase = ''
+                touch $out
+              '';
+
+              doCheck = false;
+            });
           };
 
           # Make formatter available
@@ -260,6 +280,8 @@
                 echo "Available commands:" >&2
                 echo "  cargo build    - Build the project" >&2
                 echo "  cargo test     - Run tests" >&2
+                echo "  cargo nextest run - Run tests with nextest (faster)" >&2
+                echo "  cargo llvm-cov nextest - Generate test coverage" >&2
                 echo "  cargo run      - Run cuenv" >&2
                 echo "  cargo watch    - Watch for changes and rebuild" >&2
                 echo "  treefmt        - Format all code" >&2

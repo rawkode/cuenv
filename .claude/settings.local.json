@@ -17,7 +17,8 @@
       "Bash(find:*)",
       "Bash(timeout:*)",
       "Bash(./test_tempdir)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "WebFetch(domain:nexte.st)"
     ],
     "deny": []
   },

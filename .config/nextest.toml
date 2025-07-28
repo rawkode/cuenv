@@ -1,0 +1,46 @@
+# Nextest configuration for cuenv
+
+[profile.default]
+# Show test output immediately
+test-threads = "num-cpus"
+retries = { backoff = "exponential", count = 2, delay = "1s" }
+slow-timeout = { period = "60s", terminate-after = 2 }
+leak-timeout = "10s"
+failure-output = "immediate"
+success-output = "never"
+status-level = "pass"
+
+# Configure test groups for better organization
+[[profile.default.overrides]]
+filter = "test(landlock)"
+platform = 'cfg(target_os = "linux")'
+threads-required = 1
+
+[[profile.default.overrides]]
+filter = "test(integration)"
+threads-required = 2
+
+# CI profile with more verbose output
+[profile.ci]
+retries = { backoff = "fixed", count = 3, delay = "2s" }
+slow-timeout = { period = "120s", terminate-after = 3 }
+failure-output = "immediate"
+success-output = "final"
+fail-fast = false
+status-level = "retry"
+
+# Coverage profile optimized for llvm-cov
+[profile.coverage]
+test-threads = 1
+retries = 0
+failure-output = "immediate"
+success-output = "never"
+fail-fast = false
+
+# Quick profile for rapid development
+[profile.quick]
+retries = 0
+slow-timeout = { period = "10s" }
+failure-output = "immediate"
+success-output = "never"
+fail-fast = true

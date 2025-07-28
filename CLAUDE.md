@@ -19,6 +19,17 @@ nix develop -c cargo test --lib               # Run unit tests only
 nix develop -c cargo test --test <test_file>  # Run specific integration test
 nix develop -c ./scripts/test-examples.sh     # Test all examples
 
+# Testing with Nextest (faster, better output)
+nix develop -c cargo nextest run              # Run all tests with nextest
+nix develop -c cargo nextest run <test_name>  # Run specific test
+nix develop -c cargo nextest run --profile ci # Run tests with CI profile
+nix develop -c cargo nextest run --profile quick # Quick test run for development
+nix develop -c cargo nextest list             # List all tests without running
+
+# Test Coverage with Nextest
+nix develop -c cargo llvm-cov nextest         # Generate test coverage
+nix develop -c cargo llvm-cov nextest --lcov --output-path lcov.info # Generate lcov report
+
 # Code Quality
 nix develop -c cargo fmt                      # Format code
 nix develop -c cargo clippy                   # Run linter
