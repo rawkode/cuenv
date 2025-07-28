@@ -58,7 +58,9 @@
 
           # Native build dependencies
           nativeBuildInputs = with pkgs; [
-            rust-bin.stable."1.88.0".default
+            (rust-bin.stable."1.88.0".default.override {
+              extensions = [ "rust-src" "llvm-tools-preview" ];
+            })
             pkg-config
             gcc
             go_1_24
