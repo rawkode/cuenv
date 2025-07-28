@@ -18,7 +18,8 @@
       "Bash(timeout:*)",
       "Bash(./test_tempdir)",
       "Bash(rm:*)",
-      "WebFetch(domain:nexte.st)"
+      "WebFetch(domain:nexte.st)",
+      "Bash(RUST_BACKTRACE=1 nix develop -c cargo nextest run test_task_execution --no-capture)"
     ],
     "deny": []
   },

@@ -474,12 +474,15 @@ mod tests {
     async fn test_url_validation() {
         let manager = create_test_manager().await;
 
+        // Test invalid URL
         let result = manager.fetch_url_content("not-a-valid-url").await;
         assert!(result.is_err());
 
-        let result = manager.fetch_url_content("https://example.com").await;
-        // This may fail due to network, but should at least parse the URL correctly
-        assert!(result.is_err() || result.is_ok());
+        // Test file:// URLs are rejected
+        let result = manager.fetch_url_content("file:///etc/passwd").await;
+        assert!(result.is_err());
+
+        // Don't make actual network requests in tests
     }
 
     #[tokio::test]

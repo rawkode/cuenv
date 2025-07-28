@@ -182,6 +182,8 @@ fn test_lock_file_permissions() {
 #[test]
 #[cfg(unix)]
 fn test_cache_manager_lock_permissions() {
+    let temp_dir = TempDir::new().unwrap();
+    std::env::set_var("XDG_CACHE_HOME", temp_dir.path());
     let cache_manager = CacheManager::new_sync().unwrap();
 
     // The cache manager creates lock files with secure permissions

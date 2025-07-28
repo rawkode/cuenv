@@ -25,6 +25,14 @@ mod chaos_concurrent_tests {
     use tempfile::TempDir;
     use tokio::runtime::Runtime;
 
+    /// Helper to create CacheManager with test-specific cache directory
+    fn create_test_cache_manager() -> (Arc<CacheManager>, TempDir) {
+        let temp_dir = TempDir::new().unwrap();
+        std::env::set_var("XDG_CACHE_HOME", temp_dir.path());
+        let cache_manager = Arc::new(CacheManager::new_sync().unwrap());
+        (cache_manager, temp_dir)
+    }
+
     /// Randomly inject failures into filesystem operations
     struct ChaosFilesystem {
         failure_rate: f32,
@@ -69,7 +77,7 @@ mod chaos_concurrent_tests {
     #[test]
     fn test_cache_with_filesystem_chaos() {
         let temp_dir = TempDir::new().unwrap();
-        let cache_manager = Arc::new(CacheManager::new_sync().unwrap());
+        let (cache_manager, _cache_temp) = create_test_cache_manager();
         let chaos_fs = Arc::new(ChaosFilesystem::new(0.1)); // 10% failure rate
         let num_threads = 10;
         let operations_per_thread = 20;
@@ -269,12 +277,19 @@ mod chaos_concurrent_tests {
     /// Test concurrent task execution with random delays and failures
     #[test]
     fn test_task_execution_chaos() {
-        let runtime = Runtime::new().unwrap();
         let temp_dir = TempDir::new().unwrap();
 
+        // Set up test cache directory before any async operations
+        let test_cache_dir = temp_dir.path().join(".cache");
+        fs::create_dir_all(&test_cache_dir).unwrap();
+        // Create the cuenv subdirectory that XdgPaths::cache_dir() expects
+        fs::create_dir_all(test_cache_dir.join("cuenv")).unwrap();
+        std::env::set_var("XDG_CACHE_HOME", &test_cache_dir);
+
+        let runtime = Runtime::new().unwrap();
         runtime.block_on(async {
-            let mut tasks = HashMap::new();
             let num_tasks = 20;
+            let mut tasks_cue_content = String::from("package env\n\nenv: {}\n\ntasks: {\n");
 
             // Create tasks with random characteristics
             for i in 0..num_tasks {
@@ -292,33 +307,38 @@ mod chaos_concurrent_tests {
                     format!("echo task_{}", i)
                 };
 
-                tasks.insert(
-                    format!("task_{}", i),
-                    TaskConfig {
-                        description: Some(format!("Chaos task {}", i)),
-                        command: Some(command),
-                        script: None,
-                        dependencies: if i > 0 && rng.gen_bool(0.3) {
-                            // 30% chance of having dependencies
-                            Some(vec![format!("task_{}", rng.gen_range(0..i))])
-                        } else {
-                            None
-                        },
-                        working_dir: None,
-                        shell: None,
-                        inputs: None,
-                        outputs: None,
-                        security: None,
-                        cache: Some(rng.gen_bool(0.5)), // 50% chance of caching
-                        cache_key: None,
-                        timeout: Some(1), // 1 second timeout
-                    },
-                );
+                // Build task definition in CUE format
+                tasks_cue_content.push_str(&format!(
+                    r#"    "task_{}": {{
+        description: "Chaos task {}"
+        command: "{}"
+        cache: {}
+        timeout: 1
+"#,
+                    i,
+                    i,
+                    command,
+                    rng.gen_bool(0.5)
+                ));
+
+                // Add dependencies if applicable
+                if i > 0 && rng.gen_bool(0.3) {
+                    tasks_cue_content.push_str(&format!(
+                        "        dependencies: [\"task_{}\"]\n",
+                        rng.gen_range(0..i)
+                    ));
+                }
+
+                tasks_cue_content.push_str("    }\n");
             }
+            tasks_cue_content.push_str("}");
+
+            // Write the CUE file
+            let env_file = temp_dir.path().join("env.cue");
+            fs::write(&env_file, tasks_cue_content).unwrap();
 
             let mut env_manager = EnvManager::new();
-            // Note: We would need to populate the env_manager with tasks
-            // This test may need to be redesigned to work with the current API
+            env_manager.load_env(temp_dir.path()).await.unwrap();
 
             let executor = Arc::new(
                 TaskExecutor::new(env_manager, temp_dir.path().to_path_buf())
@@ -364,7 +384,7 @@ mod chaos_concurrent_tests {
     #[test]
     fn test_cache_corruption_recovery() {
         let temp_dir = TempDir::new().unwrap();
-        let cache_manager = Arc::new(CacheManager::new_sync().unwrap());
+        let (cache_manager, _cache_temp) = create_test_cache_manager();
         let corruption_injected = Arc::new(AtomicBool::new(false));
         let recovery_successful = Arc::new(AtomicBool::new(false));
 

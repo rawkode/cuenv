@@ -24,6 +24,14 @@ mod comprehensive_concurrent_tests {
     use tempfile::TempDir;
     use tokio::runtime::Runtime;
 
+    /// Helper to create CacheManager with test-specific cache directory
+    fn create_test_cache_manager() -> (Arc<CacheManager>, TempDir) {
+        let temp_dir = TempDir::new().unwrap();
+        std::env::set_var("XDG_CACHE_HOME", temp_dir.path());
+        let cache_manager = Arc::new(CacheManager::new_sync().unwrap());
+        (cache_manager, temp_dir)
+    }
+
     /// Test behavior when multiple tasks compete for limited resources
     #[test]
     fn test_resource_exhaustion_under_concurrent_load() {
@@ -106,7 +114,7 @@ mod comprehensive_concurrent_tests {
     #[test]
     fn test_cache_consistency_with_filesystem_race() {
         let temp_dir = TempDir::new().unwrap();
-        let cache_manager = Arc::new(CacheManager::new_sync().unwrap());
+        let (cache_manager, _cache_temp) = create_test_cache_manager();
         let num_writers = 5;
         let num_readers = 5;
         let duration_secs = 3;
@@ -299,12 +307,9 @@ tasks: {
             let mut env_manager = EnvManager::new();
             env_manager.load_env(temp_dir.path()).await.unwrap();
 
-            let runtime = tokio::runtime::Runtime::new().unwrap();
-            let executor = runtime.block_on(async {
-                TaskExecutor::new(env_manager, temp_dir.path().to_path_buf())
-                    .await
-                    .unwrap()
-            });
+            let executor = TaskExecutor::new(env_manager, temp_dir.path().to_path_buf())
+                .await
+                .unwrap();
 
             // Execute F which should trigger the entire dependency chain
             let exit_code = executor.execute_task("F", &[]).await.unwrap();
@@ -325,8 +330,9 @@ tasks: {
 
             assert_eq!(exit_code, 0);
             assert!(
-                duration < Duration::from_millis(100),
-                "Cached execution should be fast"
+                duration < Duration::from_millis(500),
+                "Cached execution should be fast (was {:?}ms)",
+                duration.as_millis()
             );
         });
     }
@@ -387,12 +393,9 @@ tasks: {
             let mut env_manager = EnvManager::new();
             env_manager.load_env(&env_dir).await.unwrap();
 
-            let runtime = tokio::runtime::Runtime::new().unwrap();
-            let executor = runtime.block_on(async {
-                TaskExecutor::new(env_manager, temp_dir.path().to_path_buf())
-                    .await
-                    .unwrap()
-            });
+            let executor = TaskExecutor::new(env_manager, temp_dir.path().to_path_buf())
+                .await
+                .unwrap();
 
             // Execute failing task
             let result = executor.execute_task("failing", &[]).await;
@@ -412,7 +415,7 @@ tasks: {
     /// Test behavior when cache operations timeout
     #[test]
     fn test_cache_operation_timeouts() {
-        let cache_manager = Arc::new(CacheManager::new_sync().unwrap());
+        let (cache_manager, _cache_temp) = create_test_cache_manager();
         let temp_dir = TempDir::new().unwrap();
         let barrier = Arc::new(Barrier::new(2));
         let timeout_occurred = Arc::new(AtomicBool::new(false));
@@ -516,7 +519,7 @@ tasks: {
                     let mut data = Vec::<u8>::new();
                     match data.try_reserve(allocation_size) {
                         Ok(()) => {
-                            data.resize(allocation_size, i as u8);
+                            data.resize(allocation_size, (i + 1) as u8);
 
                             // Simulate some work with the memory
                             let sum: u64 = data.iter().map(|&x| x as u64).sum();

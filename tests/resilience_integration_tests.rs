@@ -233,7 +233,8 @@ mod tests {
 
         let stats = cb.stats().await;
         assert_eq!(stats.state, CircuitState::Open);
-        assert!(stats.failure_count >= 5);
+        // When the circuit opens, counters are reset
+        assert_eq!(stats.failure_count, 0);
         assert!(stats.last_failure_time.is_some());
     }
 
