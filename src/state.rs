@@ -4,9 +4,11 @@ use crate::file_times::FileTimes;
 use crate::gzenv;
 use crate::sync_env::SyncEnv;
 use anyhow::{Context, Result};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::RwLock;
 
 /// State information stored in environment variables
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,6 +124,10 @@ impl Drop for StateTransaction {
     }
 }
 
+/// Global RwLock for thread-safe state operations
+/// This ensures atomic state transitions across multiple environment variables
+static STATE_LOCK: Lazy<RwLock<()>> = Lazy::new(|| RwLock::new(()));
+
 /// Manage cuenv state through environment variables
 pub struct StateManager;
 
@@ -149,6 +155,7 @@ impl StateManager {
 
     /// Check if an environment is currently loaded
     pub fn is_loaded() -> bool {
+        let _guard = STATE_LOCK.read().ok();
         SyncEnv::var(Self::env_var_name("CUENV_DIR"))
             .unwrap_or_default()
             .is_some()
@@ -156,6 +163,7 @@ impl StateManager {
 
     /// Get the currently loaded directory
     pub fn current_dir() -> Option<PathBuf> {
+        let _guard = STATE_LOCK.read().ok();
         SyncEnv::var(Self::env_var_name("CUENV_DIR"))
             .unwrap_or_default()
             .and_then(|dir| {
@@ -271,26 +279,20 @@ impl StateManager {
         // Create a transaction with snapshot of current state
         let mut transaction = StateTransaction::new(&Self::state_var_names())?;
 
-        // Store all state components
+        // Store all state components (this includes async logging)
         Self::store_state(&mut transaction, dir, file, environment, capabilities).await?;
         Self::store_metadata(&mut transaction, diff, watches)?;
 
-        // Commit the transaction
-        transaction.commit()?;
+        // Now acquire the lock and commit
+        {
+            let _guard = STATE_LOCK
+                .write()
+                .map_err(|e| anyhow::anyhow!("Failed to acquire state write lock: {}", e))?;
 
-        Ok(())
-    }
-
-    /// Restore environment from diff
-    async fn restore_environment_from_diff() -> Result<()> {
-        if let Some(diff) = Self::decode_from_var::<EnvDiff>(
-            &Self::env_var_name("CUENV_DIFF"),
-            "Failed to decode diff",
-        )? {
-            // Apply the reverse diff to restore original environment
-            let reversed_diff = diff.reverse();
-            reversed_diff.apply()?;
+            // Commit the transaction while holding the lock
+            transaction.commit()?;
         }
+
         Ok(())
     }
 
@@ -313,17 +315,18 @@ impl StateManager {
 
     /// Unload the current environment with transactional semantics
     pub async fn unload() -> Result<()> {
-        // Get current state for logging
+        // Get current state and diff before acquiring lock to avoid deadlock
         let current_state = Self::get_state()?;
+        let diff_opt = Self::get_diff()?;
+
+        // Log the unload operation (do async work before acquiring lock)
+        Self::log_unload(&current_state).await?;
 
         // Create a transaction that includes both state vars and environment vars
         let mut all_keys = Self::state_var_names();
 
         // Also snapshot environment variables that might be modified
-        if let Some(diff) = Self::decode_from_var::<EnvDiff>(
-            &Self::env_var_name("CUENV_DIFF"),
-            "Failed to decode diff",
-        )? {
+        if let Some(diff) = &diff_opt {
             // Add keys that will be modified by the reverse diff
             // Pre-allocate capacity for all keys
             let additional_keys = diff.added_or_changed().len() + diff.removed().len();
@@ -339,35 +342,46 @@ impl StateManager {
 
         let mut transaction = StateTransaction::new(&all_keys)?;
 
-        // Log the unload operation
-        Self::log_unload(&current_state).await?;
-
         // Restore original environment
-        Self::restore_environment_from_diff().await?;
+        if let Some(diff) = diff_opt {
+            // Apply the reverse diff to restore original environment
+            let reversed_diff = diff.reverse();
+            reversed_diff.apply()?;
+        }
 
         // Remove all cuenv state variables
         for var_name in Self::state_var_names() {
             transaction.remove_var(var_name);
         }
 
-        // Commit the transaction
-        transaction.commit()?;
+        // Now acquire the lock and commit
+        {
+            let _guard = STATE_LOCK
+                .write()
+                .map_err(|e| anyhow::anyhow!("Failed to acquire state write lock: {}", e))?;
+
+            // Commit the transaction while holding the lock
+            transaction.commit()?;
+        }
 
         Ok(())
     }
 
     /// Get the current state
     pub fn get_state() -> Result<Option<CuenvState>> {
+        // Don't acquire lock here to avoid deadlock when called from within locked methods
         Self::decode_from_var(&Self::env_var_name("CUENV_STATE"), "Failed to decode state")
     }
 
     /// Get the environment diff
     pub fn get_diff() -> Result<Option<EnvDiff>> {
+        // Don't acquire lock here to avoid deadlock when called from within locked methods
         Self::decode_from_var(&Self::env_var_name("CUENV_DIFF"), "Failed to decode diff")
     }
 
     /// Get the file watches
     pub fn get_watches() -> Result<Option<FileTimes>> {
+        // Don't acquire lock here to avoid deadlock when called from within locked methods
         Self::decode_from_var(
             &Self::env_var_name("CUENV_WATCHES"),
             "Failed to decode watches",
@@ -376,6 +390,7 @@ impl StateManager {
 
     /// Check if watched files have changed
     pub fn files_changed() -> bool {
+        let _guard = STATE_LOCK.read().ok();
         if let Ok(Some(watches)) = Self::get_watches() {
             watches.has_changed()
         } else {
@@ -385,6 +400,7 @@ impl StateManager {
 
     /// Check if we should load environment for a directory
     pub fn should_load(dir: &Path) -> bool {
+        let _guard = STATE_LOCK.read().ok();
         match Self::current_dir() {
             Some(current) => current != dir,
             None => true,
@@ -393,12 +409,38 @@ impl StateManager {
 
     /// Check if we should unload when leaving a directory
     pub fn should_unload(current_dir: &Path) -> bool {
+        let _guard = STATE_LOCK.read().ok();
         if let Some(loaded_dir) = Self::current_dir() {
             // Unload if we're no longer in the loaded directory or its subdirectories
             !current_dir.starts_with(&loaded_dir)
         } else {
             false
         }
+    }
+
+    /// Get a consistent snapshot of the state
+    /// Returns (is_loaded, current_dir, state) atomically
+    pub fn get_state_snapshot() -> (bool, Option<PathBuf>, Option<CuenvState>) {
+        let _guard = STATE_LOCK.read().ok();
+
+        let is_loaded = SyncEnv::var(Self::env_var_name("CUENV_DIR"))
+            .unwrap_or_default()
+            .is_some();
+
+        let current_dir = SyncEnv::var(Self::env_var_name("CUENV_DIR"))
+            .unwrap_or_default()
+            .and_then(|dir| {
+                dir.strip_prefix('-')
+                    .map(PathBuf::from)
+                    .or_else(|| Some(PathBuf::from(dir)))
+            });
+
+        let state =
+            Self::decode_from_var(&Self::env_var_name("CUENV_STATE"), "Failed to decode state")
+                .ok()
+                .flatten();
+
+        (is_loaded, current_dir, state)
     }
 }
 

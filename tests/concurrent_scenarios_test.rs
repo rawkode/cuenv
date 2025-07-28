@@ -368,7 +368,6 @@ mod concurrent_scenarios {
 
     /// Integration test for full workflow with concurrent tasks
     #[test]
-    #[ignore = "Test creates separate CacheManager with different cache directory - needs redesign"]
     fn test_integrated_concurrent_workflow() {
         let runtime = Runtime::new().unwrap();
         let temp_dir = TempDir::new().unwrap();
@@ -499,18 +498,19 @@ tasks: {
             let bundle_file = build_dir.join("bundle.txt");
             assert!(bundle_file.exists(), "Bundle file should exist");
 
-            // Execute again to test cache hits
-            let cache_config = cuenv::cache::CacheConfig::default();
-            let cache = CacheManager::new(cache_config).await.unwrap();
-            let bundle_config = tasks.get("bundle").unwrap();
-            let env_vars = HashMap::new();
-            let cache_key = cache
-                .generate_cache_key("bundle", bundle_config, &env_vars, temp_dir.path())
-                .unwrap();
+            // Execute again to test if it uses cache (should be much faster)
+            let start = SystemTime::now();
+            let exit_code = executor.execute_task("bundle", &[]).await.unwrap();
+            let second_duration = start.elapsed().unwrap();
 
-            let cached_result = cache.get_cached_result(&cache_key);
+            assert_eq!(exit_code, 0, "Cached task execution should succeed");
 
-            assert!(cached_result.is_some(), "Bundle task should be cached");
+            // Second execution should be much faster due to cache
+            println!("Second execution took: {:?}", second_duration);
+            assert!(
+                second_duration < Duration::from_millis(500),
+                "Cached execution should be fast"
+            );
         });
     }
 

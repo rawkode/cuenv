@@ -233,6 +233,7 @@
             # Run tests with nextest
             nextest = cuenv.overrideAttrs (oldAttrs: {
               pname = "cuenv-nextest";
+              nativeBuildInputs = oldAttrs.nativeBuildInputs ++ [ pkgs.cargo-nextest ];
               buildPhase = ''
                 runHook preBuild
                 # Run nextest with CI profile for more thorough testing
@@ -247,22 +248,28 @@
               doCheck = false;
             });
 
-            # Test examples
-            examples = cuenv.overrideAttrs (oldAttrs: {
-              pname = "cuenv-examples";
-              buildPhase = ''
-                runHook preBuild
-                # Test all examples
-                ./scripts/test-examples.sh
-                runHook postBuild
-              '';
-
-              installPhase = ''
-                touch $out
-              '';
-
-              doCheck = false;
-            });
+            # Note: Examples test is commented out because it requires network access
+            # to fetch CUE modules which isn't available in the Nix sandbox.
+            # The examples can still be tested manually with:
+            # nix develop -c ./scripts/test-examples.sh
+            #
+            # examples = cuenv.overrideAttrs (oldAttrs: {
+            #   pname = "cuenv-examples";
+            #   nativeBuildInputs = oldAttrs.nativeBuildInputs ++ [ pkgs.cue ];
+            #   buildPhase = ''
+            #     runHook preBuild
+            #     # Test all examples (skip CUE dependency fetching in sandbox)
+            #     export CUENV_SKIP_CUE_FETCH=1
+            #     bash ./scripts/test-examples.sh
+            #     runHook postBuild
+            #   '';
+            #
+            #   installPhase = ''
+            #     touch $out
+            #   '';
+            #
+            #   doCheck = false;
+            # });
           };
 
           # Make formatter available
