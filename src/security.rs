@@ -71,12 +71,18 @@ impl SecurityValidator {
         if !allowed_base_paths.is_empty() {
             let mut is_allowed = false;
             for base_path in allowed_base_paths {
-                let canonical_base = base_path
-                    .canonicalize()
-                    .unwrap_or_else(|_| base_path.clone());
-                if canonical_path.starts_with(&canonical_base) {
+                // First check if the path starts with the base path as-is
+                if canonical_path.starts_with(base_path) {
                     is_allowed = true;
                     break;
+                }
+
+                // Then try to canonicalize the base path and check again
+                if let Ok(canonical_base) = base_path.canonicalize() {
+                    if canonical_path.starts_with(&canonical_base) {
+                        is_allowed = true;
+                        break;
+                    }
                 }
             }
 
@@ -233,26 +239,26 @@ impl SecurityValidator {
     }
 
     fn resolve_path_components(path: &Path) -> Result<PathBuf> {
-        let mut resolved = PathBuf::new();
-        let mut depth = 0;
+        let mut resolved = if path.is_absolute() {
+            PathBuf::from("/")
+        } else {
+            PathBuf::new()
+        };
 
         for component in path.components() {
             match component {
                 Component::Prefix(p) => resolved.push(p.as_os_str()),
-                Component::RootDir => resolved.push("/"),
-                Component::CurDir => {} // Skip .
+                Component::RootDir => {} // Already handled above
+                Component::CurDir => {}  // Skip .
                 Component::ParentDir => {
-                    if depth == 0 {
+                    if !resolved.pop() {
                         return Err(Error::security(
                             "Path traversal outside of root directory".to_string(),
                         ));
                     }
-                    resolved.pop();
-                    depth -= 1;
                 }
                 Component::Normal(c) => {
                     resolved.push(c);
-                    depth += 1;
                 }
             }
         }
