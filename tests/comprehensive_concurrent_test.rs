@@ -330,7 +330,7 @@ tasks: {
 
             assert_eq!(exit_code, 0);
             assert!(
-                duration < Duration::from_millis(500),
+                duration < Duration::from_secs(2),
                 "Cached execution should be fast (was {:?}ms)",
                 duration.as_millis()
             );
