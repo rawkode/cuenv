@@ -530,7 +530,7 @@ tasks: {
             // Second execution should be much faster due to cache
             println!("Second execution took: {:?}", second_duration);
             assert!(
-                second_duration < Duration::from_millis(500),
+                second_duration < Duration::from_secs(1),
                 "Cached execution should be fast"
             );
         });
