@@ -56,4 +56,3 @@ jobs:
       - name: nix-build
         run: |
           nix build .#cuenv
-

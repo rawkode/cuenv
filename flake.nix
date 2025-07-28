@@ -111,7 +111,6 @@
             cargo-outdated
             cargo-audit
             cargo-nextest
-            cargo-llvm-cov
             cue
             gopls
             gotools
@@ -288,7 +287,6 @@
                 echo "  cargo build    - Build the project" >&2
                 echo "  cargo test     - Run tests" >&2
                 echo "  cargo nextest run - Run tests with nextest (faster)" >&2
-                echo "  cargo llvm-cov nextest - Generate test coverage" >&2
                 echo "  cargo run      - Run cuenv" >&2
                 echo "  cargo watch    - Watch for changes and rebuild" >&2
                 echo "  treefmt        - Format all code" >&2
