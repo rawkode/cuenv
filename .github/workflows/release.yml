@@ -4,6 +4,9 @@ on:
     tags:
       - '*.*.*'
   workflow_dispatch:
+permissions:
+  id-token: write
+  contents: read
 jobs:
   build:
     name: Build Release Binaries
@@ -14,9 +17,6 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             suffix: x86_64-unknown-linux-musl
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            suffix: x86_64-apple-darwin
           - os: macos-latest
             target: aarch64-apple-darwin
             suffix: aarch64-apple-darwin

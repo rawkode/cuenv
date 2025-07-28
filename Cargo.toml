@@ -46,6 +46,35 @@ base64 = "0.22"
 flate2 = "1.0"
 sha2 = "0.10"
 rand = "0.8"
+# Moon cache system for robust build caching
+miette = "7.4"
+tracing = "0.1"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+fs2 = "0.4"
+globset = "0.4"
+once_cell = "1.19"
+users = "0.11"
+uuid = { version = "1.7", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+hostname = "0.4"
+whoami = "1.5"
+# Buck2-inspired concurrent data structures
+dashmap = "6.1"
+parking_lot = "0.12"
+crossbeam = "0.8"
+# Remote cache server dependencies
+tonic = "0.11"
+prost = "0.12"
+prost-types = "0.12"
+hyper = "1.0"
+tower = "0.4"
+tonic-reflection = "0.11"
+hex = "0.4"
+bytes = "1.5"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+
+[target.'cfg(unix)'.dependencies]
+signal-hook = "0.3"
 
 # Linux-only dependencies for access restrictions
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -53,6 +82,7 @@ landlock = "0.4"
 
 [build-dependencies]
 cc = "1.0"
+tonic-build = "0.11"
 
 [dev-dependencies]
 proptest = "1.4"
@@ -60,6 +90,13 @@ criterion = { version = "0.5", features = ["html_reports"] }
 tempfile = "3.20"
 serial_test = "3.0"
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
+
 [[bench]]
 name = "critical_paths"
 harness = false
+
+[[bin]]
+name = "remote_cache_server"
+path = "src/remote_cache/bin/server.rs"

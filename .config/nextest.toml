@@ -1,0 +1,30 @@
+# Nextest configuration for cuenv tests
+
+[profile.default]
+# Set reasonable defaults for all tests
+slow-timeout = { period = "10s", terminate-after = 3 }
+test-threads = "num-cpus"
+
+# Process group cleanup test needs serial execution
+[[profile.default.overrides]]
+filter = "test(process_group_cleanup)"
+threads-required = 1
+slow-timeout = { period = "30s" }
+
+# Cache and concurrent tests need limited parallelism
+[[profile.default.overrides]]
+filter = "test(concurrent) | test(cache)"
+test-threads = 4
+slow-timeout = { period = "20s" }
+
+# For CI runs, be more conservative
+[profile.ci]
+test-threads = 2
+slow-timeout = { period = "30s", terminate-after = 3 }
+fail-fast = false
+
+# Quick profile for development
+[profile.quick]
+test-threads = "num-cpus"
+retries = 0
+fail-fast = true

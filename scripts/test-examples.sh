@@ -111,12 +111,16 @@ if [ ! -f "$EXAMPLES_DIR/cue.mod/module.cue" ]; then
     }
 fi
 
-# Fetch dependencies
-echo -e "${YELLOW}Fetching CUE dependencies...${NC}"
-cd "$EXAMPLES_DIR"
-if ! cue mod tidy 2>&1; then
-    echo -e "${RED}Failed to fetch CUE dependencies${NC}"
-    exit 1
+# Fetch dependencies (skip in Nix sandbox)
+if [ -z "${CUENV_SKIP_CUE_FETCH:-}" ]; then
+    echo -e "${YELLOW}Fetching CUE dependencies...${NC}"
+    cd "$EXAMPLES_DIR"
+    if ! cue mod tidy 2>&1; then
+        echo -e "${RED}Failed to fetch CUE dependencies${NC}"
+        exit 1
+    fi
+else
+    echo -e "${YELLOW}Skipping CUE dependency fetch (running in sandbox)${NC}"
 fi
 
 FAILED=0

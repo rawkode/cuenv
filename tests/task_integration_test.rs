@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
@@ -40,6 +41,7 @@ tasks: {
 
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
+        .env("XDG_CACHE_HOME", temp_dir.path().join(".cache"))
         .arg("run")
         .output()
         .expect("Failed to run cuenv");
@@ -75,12 +77,19 @@ tasks: {
 
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
+        .env("XDG_CACHE_HOME", temp_dir.path().join(".cache"))
         .arg("run")
         .arg("hello")
         .output()
         .expect("Failed to run cuenv");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if !output.status.success() {
+        eprintln!("Exit code: {}", output.status.code().unwrap_or(-1));
+        eprintln!("STDOUT: {}", stdout);
+        eprintln!("STDERR: {}", stderr);
+    }
     assert!(output.status.success());
     assert!(stdout.contains("Hello from task"));
 }
@@ -110,6 +119,7 @@ tasks: {
 
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
+        .env("XDG_CACHE_HOME", temp_dir.path().join(".cache"))
         .arg("run")
         .arg("second")
         .output()
@@ -147,6 +157,7 @@ tasks: {
 
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
+        .env("XDG_CACHE_HOME", temp_dir.path().join(".cache"))
         .arg("run")
         .arg("nonexistent")
         .output()
@@ -191,6 +202,7 @@ tasks: {
 
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
+        .env("XDG_CACHE_HOME", temp_dir.path().join(".cache"))
         .arg("run")
         .arg("script-task")
         .output()

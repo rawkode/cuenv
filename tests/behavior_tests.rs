@@ -1,3 +1,4 @@
+#![allow(unused)]
 use async_trait::async_trait;
 use cuenv::env_manager::EnvManager;
 use cuenv::errors::Result;
@@ -34,8 +35,8 @@ impl SecretResolver for TestSecretResolver {
 }
 
 /// Behavior: Environment variables should be loaded from CUE files
-#[test]
-fn should_load_environment_variables_from_cue_file() {
+#[tokio::test]
+async fn should_load_environment_variables_from_cue_file() {
     // Given: A directory with a CUE file containing environment variables
     let temp_dir = TempDir::new().unwrap();
     let cue_content = r#"
@@ -51,7 +52,7 @@ LOG_LEVEL: "debug"
 
     // When: Loading the environment
     let mut env_manager = EnvManager::new();
-    let result = env_manager.load_env(temp_dir.path());
+    let result = env_manager.load_env(temp_dir.path()).await;
 
     // Then: The environment variables should be loaded correctly
     assert!(result.is_ok(), "Failed to load environment: {result:?}");
@@ -103,8 +104,8 @@ async fn should_resolve_secrets_in_environment_variables() {
 }
 
 /// Behavior: Environment-specific variables should override global ones
-#[test]
-fn should_override_global_variables_with_environment_specific() {
+#[tokio::test]
+async fn should_override_global_variables_with_environment_specific() {
     // Given: A CUE file with global and environment-specific variables
     let temp_dir = TempDir::new().unwrap();
     let cue_content = r#"
@@ -129,12 +130,14 @@ environments: {
 
     // When: Loading with production environment
     let mut env_manager = EnvManager::new();
-    let result = env_manager.load_env_with_options(
-        temp_dir.path(),
-        Some("production".to_string()),
-        vec![],
-        None,
-    );
+    let result = env_manager
+        .load_env_with_options(
+            temp_dir.path(),
+            Some("production".to_string()),
+            vec![],
+            None,
+        )
+        .await;
 
     // Then: Loading should succeed
     assert!(result.is_ok(), "Failed to load environment: {result:?}");
@@ -144,8 +147,8 @@ environments: {
 }
 
 /// Behavior: Capabilities should filter environment variables
-#[test]
-fn should_filter_variables_based_on_capabilities() {
+#[tokio::test]
+async fn should_filter_variables_based_on_capabilities() {
     // Given: A CUE file with capability-gated variables
     let temp_dir = TempDir::new().unwrap();
     let cue_content = r#"
@@ -172,12 +175,9 @@ REDIS_URL: {
 
     // When: Loading with only 'database' capability
     let mut env_manager = EnvManager::new();
-    let result = env_manager.load_env_with_options(
-        temp_dir.path(),
-        None,
-        vec!["database".to_string()],
-        None,
-    );
+    let result = env_manager
+        .load_env_with_options(temp_dir.path(), None, vec!["database".to_string()], None)
+        .await;
 
     // Then: Loading should succeed
     assert!(result.is_ok(), "Failed to load environment: {result:?}");
@@ -246,8 +246,8 @@ async fn should_handle_secret_resolution_failures_gracefully() {
 }
 
 /// Behavior: Commands should inherit resolved environment
-#[test]
-fn should_provide_resolved_environment_to_commands() {
+#[tokio::test]
+async fn should_provide_resolved_environment_to_commands() {
     // Given: A CUE file with environment variables and commands
     let temp_dir = TempDir::new().unwrap();
     let cue_content = r#"
@@ -270,8 +270,9 @@ commands: {
 
     // When: Loading environment for a command
     let mut env_manager = EnvManager::new();
-    let result =
-        env_manager.load_env_with_options(temp_dir.path(), None, vec![], Some("db-migrate"));
+    let result = env_manager
+        .load_env_with_options(temp_dir.path(), None, vec![], Some("db-migrate"))
+        .await;
 
     // Then: Loading should succeed
     assert!(result.is_ok(), "Failed to load environment: {result:?}");
@@ -287,14 +288,14 @@ fn should_mask_secrets_in_command_output() {
     use cuenv::output_filter::OutputFilter;
     use std::collections::HashSet;
     use std::io::Write;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, RwLock};
 
     // Given: A set of secret values
     let mut secrets = HashSet::new();
     secrets.insert("super-secret-password".to_string());
     secrets.insert("api-key-12345".to_string());
 
-    let secrets = Arc::new(Mutex::new(secrets));
+    let secrets = Arc::new(RwLock::new(secrets));
 
     // And: Output containing those secrets
     let mut output = Vec::new();
@@ -312,8 +313,8 @@ fn should_mask_secrets_in_command_output() {
 }
 
 /// Behavior: Environment inheritance should work correctly
-#[test]
-fn should_inherit_required_system_variables() {
+#[tokio::test]
+async fn should_inherit_required_system_variables() {
     // Given: A minimal CUE file
     let temp_dir = TempDir::new().unwrap();
     let cue_content = r#"
@@ -327,7 +328,7 @@ MY_VAR: "my-value"
 
     // When: Loading environment
     let mut env_manager = EnvManager::new();
-    let result = env_manager.load_env(temp_dir.path());
+    let result = env_manager.load_env(temp_dir.path()).await;
 
     // Then: Loading should succeed
     assert!(result.is_ok(), "Failed to load environment: {result:?}");

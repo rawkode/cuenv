@@ -7,10 +7,14 @@ on:
 env:
   CARGO_TERM_COLOR: always
   CUENV_ENV: ci
+permissions:
+  id-token: write
+  contents: read
 jobs:
   test:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
         rust: [stable, beta]
@@ -30,13 +34,12 @@ jobs:
         run: nix build .#cuenv
       - name: nix-flake-check
         run: nix flake check --print-build-logs
-        if: matrix.rust == 'stable'
       - name: cuenv-test-examples
         run: |
           nix develop --command ./scripts/test-examples.sh
       - name: cuenv-test-integrations
         run: |
-          nix develop --command cargo test --test test_examples
+          nix develop --command cargo nextest run --test test_examples
   coverage:
     runs-on: ubuntu-latest
     needs: test
@@ -54,13 +57,3 @@ jobs:
       - name: nix-build
         run: |
           nix build .#cuenv
-      - name: tarpaulin-install
-        run: nix develop --command cargo install cargo-tarpaulin
-      - name: tarpaulin-coverage
-        run: nix develop --command cargo tarpaulin --out Xml
-      - name: codecov-upload
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./cobertura.xml
-          fail_ci_if_error: false

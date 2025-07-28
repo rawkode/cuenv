@@ -313,6 +313,44 @@ cuenv completion zsh > "${fpath[1]}/_cuenv"
 cuenv completion fish > ~/.config/fish/completions/cuenv.fish
 ```
 
+### `cuenv remote-cache-server`
+
+Start a remote cache server compatible with Bazel/Buck2 builds.
+
+```bash
+cuenv remote-cache-server [options]
+```
+
+**Options:**
+
+- `-a`, `--address <address>` - Address to listen on (default: `127.0.0.1:50051`)
+- `-c`, `--cache-dir <path>` - Cache storage directory (default: `/var/cache/cuenv`)
+- `--max-cache-size <bytes>` - Maximum cache size in bytes (default: `10737418240`)
+
+**Examples:**
+
+```bash
+# Start with default settings
+cuenv remote-cache-server
+
+# Start on public interface
+cuenv remote-cache-server --address 0.0.0.0:50051
+
+# Use custom cache directory
+cuenv remote-cache-server --cache-dir /data/bazel-cache
+
+# Set 50GB cache limit
+cuenv remote-cache-server --max-cache-size 53687091200
+```
+
+**Notes:**
+
+- Implements Bazel/Buck2 Remote Execution API protocol
+- Provides Content-Addressed Storage (CAS) service
+- Provides Action Cache service for build results
+- Uses cuenv's lock-free concurrent cache infrastructure
+- See the [Remote Cache Server guide](/guides/remote-cache-server) for deployment options
+
 ## Exit Codes
 
 cuenv uses standard exit codes:

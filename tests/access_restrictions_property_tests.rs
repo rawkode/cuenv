@@ -1,3 +1,4 @@
+#![allow(unused)]
 use cuenv::access_restrictions::AccessRestrictions;
 use proptest::prelude::*;
 use std::path::PathBuf;
@@ -205,6 +206,9 @@ proptest! {
             inputs: inputs.clone(),
             outputs: outputs.clone(),
             security: None,
+            cache: None,
+            cache_key: None,
+            timeout: None,
         };
 
         let restrictions = AccessRestrictions::from_security_config_with_task(&security, &task_config);

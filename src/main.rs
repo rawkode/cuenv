@@ -1,9 +1,11 @@
 use clap::{Parser, Subcommand};
+
 use cuenv::constants::{CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR, ENV_CUE_FILENAME};
 use cuenv::errors::{Error, Result};
 use cuenv::platform::{PlatformOps, Shell};
 use cuenv::shell::ShellType;
 use cuenv::state::StateManager;
+use cuenv::sync_env::InstanceLock;
 use cuenv::{
     directory::DirectoryManager, env_manager::EnvManager, shell_hook::ShellHook,
     task_executor::TaskExecutor,
@@ -109,10 +111,49 @@ enum Commands {
     },
     /// Prune stale state
     Prune,
+    /// Clear task cache
+    ClearCache,
+    /// Cache management commands
+    Cache {
+        #[command(subcommand)]
+        command: CacheCommands,
+    },
+    /// Start remote cache server for Bazel/Buck2
+    RemoteCacheServer {
+        /// Address to listen on
+        #[arg(short, long, default_value = "127.0.0.1:50051")]
+        address: std::net::SocketAddr,
+
+        /// Cache directory
+        #[arg(short, long, default_value = "/var/cache/cuenv")]
+        cache_dir: PathBuf,
+
+        /// Maximum cache size in bytes
+        #[arg(long, default_value = "10737418240")]
+        max_cache_size: u64,
+    },
 }
 
-fn main() -> Result<()> {
+#[derive(Subcommand)]
+enum CacheCommands {
+    /// Clear all cache entries
+    Clear,
+    /// Show cache statistics
+    Stats,
+    /// Clean up stale cache entries
+    Cleanup {
+        /// Maximum age of cache entries to keep (in hours)
+        #[arg(long, default_value = "168")]
+        max_age_hours: u64,
+    },
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
     env_logger::init();
+
+    // Initialize cleanup handling for proper resource management
+    cuenv::cleanup::init_cleanup_handler();
 
     let cli = Cli::parse();
 
@@ -122,6 +163,16 @@ fn main() -> Result<()> {
             environment,
             capabilities,
         }) => {
+            // Acquire instance lock to prevent concurrent modifications
+            let _lock = match InstanceLock::acquire() {
+                Ok(lock) => lock,
+                Err(e) => {
+                    return Err(Error::Configuration {
+                        message: e.to_string(),
+                    })
+                }
+            };
+
             let dir = match directory {
                 Some(d) => d,
                 None => match env::current_dir() {
@@ -153,10 +204,9 @@ fn main() -> Result<()> {
             }
 
             // Load environment with options
-            match env_manager.load_env_with_options(&dir, env_name, caps, None) {
-                Ok(()) => {}
-                Err(e) => return Err(e),
-            }
+            env_manager
+                .load_env_with_options(&dir, env_name, caps, None)
+                .await?;
 
             let shell = Platform::get_current_shell()
                 .unwrap_or(Shell::Bash)
@@ -168,11 +218,18 @@ fn main() -> Result<()> {
             }
         }
         Some(Commands::Unload) => {
+            // Acquire instance lock to prevent concurrent modifications
+            let _lock = match InstanceLock::acquire() {
+                Ok(lock) => lock,
+                Err(e) => {
+                    return Err(Error::Configuration {
+                        message: e.to_string(),
+                    })
+                }
+            };
+
             let mut env_manager = EnvManager::new();
-            match env_manager.unload_env() {
-                Ok(()) => {}
-                Err(e) => return Err(e),
-            }
+            env_manager.unload_env()?;
 
             let shell = Platform::get_current_shell()
                 .unwrap_or(Shell::Bash)
@@ -253,22 +310,20 @@ fn main() -> Result<()> {
             }
 
             // Load environment with options
-            env_manager.load_env_with_options(&current_dir, env_name, caps, None)?;
+            env_manager
+                .load_env_with_options(&current_dir, env_name, caps, None)
+                .await?;
 
             match task_name {
                 Some(name) => {
                     // Check if this is a defined task first
                     if env_manager.get_task(&name).is_some() {
                         // Execute the specified task
-                        let executor = TaskExecutor::new(env_manager, current_dir);
-                        let rt = tokio::runtime::Runtime::new().map_err(|e| {
-                            Error::configuration(format!("Failed to create async runtime: {e}"))
-                        })?;
-
+                        let executor = TaskExecutor::new(env_manager, current_dir).await?;
                         let status = if audit {
-                            rt.block_on(executor.execute_task_with_audit(&name, &task_args))?
+                            executor.execute_task_with_audit(&name, &task_args).await?
                         } else {
-                            rt.block_on(executor.execute_task(&name, &task_args))?
+                            executor.execute_task(&name, &task_args).await?
                         };
                         std::process::exit(status);
                     } else {
@@ -342,7 +397,9 @@ fn main() -> Result<()> {
             }
 
             // Load environment with options and command for inference
-            env_manager.load_env_with_options(&current_dir, env_name, caps, Some(&command))?;
+            env_manager
+                .load_env_with_options(&current_dir, env_name, caps, None)
+                .await?;
 
             // Execute the command with the loaded environment
             if audit {
@@ -410,6 +467,7 @@ fn main() -> Result<()> {
                     }
                 }
                 StateManager::unload()
+                    .await
                     .map_err(|e| Error::configuration(format!("Failed to unload state: {e}")))?;
             } else if current_dir.join(ENV_CUE_FILENAME).exists() {
                 // Check if directory is allowed
@@ -422,7 +480,7 @@ fn main() -> Result<()> {
                     if StateManager::files_changed() || StateManager::should_load(&current_dir) {
                         // Need to load/reload
                         let mut env_manager = EnvManager::new();
-                        if let Err(e) = env_manager.load_env(&current_dir) {
+                        if let Err(e) = env_manager.load_env(&current_dir).await {
                             eprintln!("# cuenv: failed to load environment: {e}");
                         } else {
                             // Output export commands
@@ -490,10 +548,103 @@ fn main() -> Result<()> {
             // For now, just unload if there's state
             if StateManager::is_loaded() {
                 StateManager::unload()
+                    .await
                     .map_err(|e| Error::configuration(format!("Failed to unload state: {e}")))?;
                 println!("Pruned cuenv state");
             } else {
                 println!("No cuenv state to prune");
+            }
+        }
+        Some(Commands::ClearCache) => {
+            // Legacy command - redirect to new cache clear command
+            let cache_manager = cuenv::cache::CacheManager::new_sync()?;
+            match cache_manager.clear_cache() {
+                Ok(()) => println!("✓ Task cache cleared"),
+                Err(e) => {
+                    eprintln!("Failed to clear task cache: {e}");
+                    return Err(e);
+                }
+            }
+        }
+        Some(Commands::Cache { command }) => {
+            let cache_manager = cuenv::cache::CacheManager::new_sync()?;
+
+            match command {
+                CacheCommands::Clear => match cache_manager.clear_cache() {
+                    Ok(()) => println!("✓ Cache cleared successfully"),
+                    Err(e) => {
+                        eprintln!("Failed to clear cache: {e}");
+                        return Err(e);
+                    }
+                },
+                CacheCommands::Stats => {
+                    let stats = cache_manager.get_statistics();
+                    println!("Cache Statistics:");
+                    println!("  Hits: {}", stats.hits);
+                    println!("  Misses: {}", stats.misses);
+                    println!("  Writes: {}", stats.writes);
+                    println!("  Errors: {}", stats.errors);
+                    println!("  Lock contentions: {}", stats.lock_contentions);
+                    println!("  Total bytes saved: {}", stats.total_bytes_saved);
+                    if let Some(last_cleanup) = stats.last_cleanup {
+                        println!("  Last cleanup: {:?}", last_cleanup);
+                    }
+                }
+                CacheCommands::Cleanup { max_age_hours: _ } => {
+                    match cache_manager.cleanup_stale_entries() {
+                        Ok(()) => {
+                            println!("✓ Cache cleanup completed");
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to cleanup cache: {e}");
+                            return Err(e);
+                        }
+                    }
+                }
+            }
+        }
+        Some(Commands::RemoteCacheServer {
+            address,
+            cache_dir,
+            max_cache_size,
+        }) => {
+            use cuenv::cache::{CacheConfig, CacheMode};
+            use cuenv::remote_cache::{RemoteCacheConfig, RemoteCacheServer};
+
+            println!("Starting cuenv remote cache server...");
+            println!("Address: {}", address);
+            println!("Cache directory: {}", cache_dir.display());
+            println!("Max cache size: {} bytes", max_cache_size);
+
+            let cache_config = CacheConfig {
+                base_dir: cache_dir,
+                max_size: max_cache_size,
+                mode: CacheMode::ReadWrite,
+                inline_threshold: 1024,
+            };
+
+            let remote_config = RemoteCacheConfig {
+                address,
+                enable_action_cache: true,
+                enable_cas: true,
+                cache_config,
+            };
+
+            let runtime = tokio::runtime::Runtime::new()?;
+            match runtime.block_on(async {
+                let server = RemoteCacheServer::new(remote_config).await?;
+                println!("Remote cache server ready for Bazel/Buck2 clients");
+                println!("Configure Bazel with: --remote_cache=grpc://{}", address);
+                server.serve().await
+            }) {
+                Ok(()) => {}
+                Err(e) => {
+                    eprintln!("Remote cache server error: {}", e);
+                    return Err(Error::from(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        e.to_string(),
+                    )));
+                }
             }
         }
         None => {
@@ -507,7 +658,7 @@ fn main() -> Result<()> {
             };
 
             let mut env_manager = EnvManager::new();
-            match env_manager.load_env(&current_dir) {
+            match env_manager.load_env(&current_dir).await {
                 Ok(()) => println!("cuenv: loaded CUE package from {}", current_dir.display()),
                 Err(e) => {
                     eprintln!("cuenv: failed to load CUE package: {e}");

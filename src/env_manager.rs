@@ -1,10 +1,10 @@
 use crate::errors::{Error, Result};
+use crate::sync_env::SyncEnv;
 use std::collections::{HashMap, HashSet};
-use std::env;
 use std::io::{self, BufReader};
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use crate::access_restrictions::AccessRestrictions;
 use crate::command_executor::CommandExecutor;
@@ -18,7 +18,6 @@ use crate::secrets::SecretManager;
 use crate::state::StateManager;
 use crate::types::{CommandArguments, EnvironmentVariables};
 use async_trait::async_trait;
-use tokio::runtime::Runtime;
 
 // Import the platform-specific implementation
 #[cfg(unix)]
@@ -37,11 +36,12 @@ pub struct EnvManager {
 impl EnvManager {
     pub fn new() -> Self {
         Self {
-            original_env: HashMap::new(),
-            cue_vars: HashMap::new(),
-            commands: HashMap::new(),
-            tasks: HashMap::new(),
-            hooks: HashMap::new(),
+            // Pre-allocate with reasonable initial capacities to reduce rehashing
+            original_env: HashMap::with_capacity(100), // Environment typically has many vars
+            cue_vars: HashMap::with_capacity(50),      // CUE vars are usually fewer
+            commands: HashMap::with_capacity(20),      // Commands are limited
+            tasks: HashMap::with_capacity(20),         // Tasks are also limited
+            hooks: HashMap::with_capacity(4),          // Usually only a few hooks
         }
     }
 }
@@ -53,18 +53,19 @@ impl Default for EnvManager {
 }
 
 impl EnvManager {
-    pub fn load_env(&mut self, dir: &Path) -> Result<()> {
+    pub async fn load_env(&mut self, dir: &Path) -> Result<()> {
         self.load_env_with_options(dir, None, Vec::new(), None)
+            .await
     }
 
-    pub fn load_env_with_options(
+    pub async fn load_env_with_options(
         &mut self,
         dir: &Path,
         environment: Option<String>,
         mut capabilities: Vec<String>,
         command: Option<&str>,
     ) -> Result<()> {
-        self.save_original_env();
+        self.save_original_env()?;
 
         // First pass: load package to get command mappings
         let temp_options = ParseOptions {
@@ -109,7 +110,10 @@ impl EnvManager {
             options.capabilities
         );
 
-        match self.apply_cue_package_with_options(dir, "env", &options) {
+        match self
+            .apply_cue_package_with_options(dir, "env", &options)
+            .await
+        {
             Ok(()) => {
                 // Execute onEnter hooks after environment variables are set
                 self.execute_on_enter_hooks()?;
@@ -129,8 +133,11 @@ impl EnvManager {
 
         if !exit_hooks.is_empty() {
             log::info!("Executing {} onExit hooks", exit_hooks.len());
-            let rt = Runtime::new()
-                .map_err(|e| Error::configuration(format!("Failed to create runtime: {e}")))?;
+            // Use run_async to avoid creating a new runtime if already in one
+            // This is safe because unload_env is called from a sync context (main.rs)
+            // but the hook execution itself is async.
+            // We don't need a separate runtime here, as hook_manager.execute_hook is async.
+            // The block_on will be handled by run_async if needed.
 
             // Create command executor and hook manager
             let executor = Arc::new(crate::command_executor::SystemCommandExecutor::new());
@@ -145,11 +152,21 @@ impl EnvManager {
             };
 
             // Get current environment variables for hook execution
-            let current_env_vars: HashMap<String, String> = env::vars().collect();
+            let current_env_vars: HashMap<String, String> = SyncEnv::vars()
+                .map_err(|e| Error::Configuration {
+                    message: format!("Failed to get environment variables: {e}"),
+                })?
+                .into_iter()
+                .collect();
 
             for (name, config) in exit_hooks {
                 log::debug!("Executing onExit hook: {name}");
-                match rt.block_on(hook_manager.execute_hook(config, &current_env_vars)) {
+                match crate::async_runtime::run_async(async {
+                    hook_manager
+                        .execute_hook(config, &current_env_vars)
+                        .await
+                        .map_err(Error::from)
+                }) {
                     Ok(_) => log::info!("Successfully executed onExit hook: {name}"),
                     Err(e) => log::error!("Failed to execute onExit hook {name}: {e}"),
                 }
@@ -157,13 +174,20 @@ impl EnvManager {
         }
 
         // Restore original environment
-        let current_env: Vec<(String, String)> = env::vars().collect();
+        let current_env: Vec<(String, String)> =
+            SyncEnv::vars().map_err(|e| Error::Configuration {
+                message: format!("Failed to get environment variables: {e}"),
+            })?;
 
         for (key, _) in current_env {
             if let Some(original_value) = self.original_env.get(&key) {
-                env::set_var(&key, original_value);
+                SyncEnv::set_var(&key, original_value).map_err(|e| Error::Configuration {
+                    message: format!("Failed to get environment variables: {e}"),
+                })?;
             } else if !self.original_env.contains_key(&key) {
-                env::remove_var(&key);
+                SyncEnv::remove_var(&key).map_err(|e| Error::Configuration {
+                    message: format!("Failed to get environment variables: {e}"),
+                })?;
             }
         }
 
@@ -173,11 +197,17 @@ impl EnvManager {
         Ok(())
     }
 
-    fn save_original_env(&mut self) {
-        self.original_env = env::vars().collect();
+    fn save_original_env(&mut self) -> Result<()> {
+        self.original_env = SyncEnv::vars()
+            .map_err(|e| Error::Configuration {
+                message: format!("Failed to get environment variables: {e}"),
+            })?
+            .into_iter()
+            .collect();
+        Ok(())
     }
 
-    fn apply_cue_package_with_options(
+    async fn apply_cue_package_with_options(
         &mut self,
         dir: &Path,
         package_name: &str,
@@ -222,7 +252,9 @@ impl EnvManager {
             log::debug!("Setting {key}={expanded_value}");
             new_env.insert(key.clone(), expanded_value.clone());
             self.cue_vars.insert(key.clone(), expanded_value.clone());
-            env::set_var(key, expanded_value);
+            SyncEnv::set_var(key, expanded_value).map_err(|e| Error::Configuration {
+                message: format!("Failed to get environment variables: {e}"),
+            })?;
         }
 
         // Create environment diff
@@ -244,13 +276,19 @@ impl EnvManager {
             &diff,
             &watches,
         )
+        .await
         .map_err(|e| Error::configuration(format!("Failed to save state: {e}")))?;
 
         Ok(())
     }
 
     pub fn print_env_diff(&self) -> Result<()> {
-        let current_env: HashMap<String, String> = env::vars().collect();
+        let current_env: HashMap<String, String> = SyncEnv::vars()
+            .map_err(|e| Error::Configuration {
+                message: format!("Failed to get environment variables: {e}"),
+            })?
+            .into_iter()
+            .collect();
 
         println!("Environment changes:");
 
@@ -274,7 +312,12 @@ impl EnvManager {
     }
 
     pub fn export_for_shell(&self, shell: &str) -> Result<String> {
-        let current_env: HashMap<String, String> = env::vars().collect();
+        let current_env: HashMap<String, String> = SyncEnv::vars()
+            .map_err(|e| Error::Configuration {
+                message: format!("Failed to get environment variables: {e}"),
+            })?
+            .into_iter()
+            .collect();
         let mut output = String::new();
 
         // Parse shell type
@@ -293,7 +336,9 @@ impl EnvManager {
 
         // Export new or changed variables
         for (key, value) in &current_env {
-            if !self.original_env.contains_key(key) || self.original_env.get(key) != Some(value) {
+            if !self.original_env.contains_key(key as &str)
+                || self.original_env.get(key as &str) != Some(value)
+            {
                 output.push_str(&format.format_export(key, value));
                 output.push('\n');
             }
@@ -321,25 +366,19 @@ impl EnvManager {
             (env_from_cue, SecretValues::new())
         } else {
             let secret_manager = SecretManager::new();
-            let rt = match tokio::runtime::Runtime::new() {
-                Ok(runtime) => runtime,
+
+            // Use futures::executor::block_on which works in more contexts
+            let resolved_secrets = match futures::executor::block_on(async {
+                secret_manager.resolve_secrets(env_from_cue.into()).await
+            }) {
+                Ok(secrets) => secrets,
                 Err(e) => {
-                    return Err(Error::configuration(format!(
-                        "Failed to create tokio runtime: {e}"
-                    )));
+                    return Err(Error::secret_resolution(
+                        "multiple",
+                        format!("Failed to resolve secrets: {e}"),
+                    ));
                 }
             };
-
-            let resolved_secrets =
-                match rt.block_on(secret_manager.resolve_secrets(env_from_cue.into())) {
-                    Ok(secrets) => secrets,
-                    Err(e) => {
-                        return Err(Error::secret_resolution(
-                            "multiple",
-                            format!("Failed to resolve secrets: {e}"),
-                        ));
-                    }
-                };
             (
                 resolved_secrets.env_vars.into_inner(),
                 resolved_secrets.secret_values,
@@ -373,7 +412,7 @@ impl EnvManager {
         for secret in secret_values.iter() {
             secret_set.insert(secret.to_string());
         }
-        let secrets = Arc::new(Mutex::new(secret_set));
+        let secrets = Arc::new(RwLock::new(secret_set));
 
         // Create and execute the command with only the CUE environment
         let mut cmd = Command::new(command);
@@ -383,6 +422,13 @@ impl EnvManager {
             .stdin(Stdio::inherit())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+
+        // Configure process group for better cleanup on Unix
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            cmd.process_group(0);
+        }
 
         let mut child = match cmd.spawn() {
             Ok(c) => c,
@@ -512,25 +558,19 @@ impl EnvManager {
             (env_from_cue, SecretValues::new())
         } else {
             let secret_manager = SecretManager::new();
-            let rt = match tokio::runtime::Runtime::new() {
-                Ok(runtime) => runtime,
+
+            // Use futures::executor::block_on which works in more contexts
+            let resolved_secrets = match futures::executor::block_on(async {
+                secret_manager.resolve_secrets(env_from_cue.into()).await
+            }) {
+                Ok(secrets) => secrets,
                 Err(e) => {
-                    return Err(Error::configuration(format!(
-                        "Failed to create tokio runtime: {e}"
-                    )));
+                    return Err(Error::secret_resolution(
+                        "multiple",
+                        format!("Failed to resolve secrets: {e}"),
+                    ));
                 }
             };
-
-            let resolved_secrets =
-                match rt.block_on(secret_manager.resolve_secrets(env_from_cue.into())) {
-                    Ok(secrets) => secrets,
-                    Err(e) => {
-                        return Err(Error::secret_resolution(
-                            "multiple",
-                            format!("Failed to resolve secrets: {e}"),
-                        ));
-                    }
-                };
             (
                 resolved_secrets.env_vars.into_inner(),
                 resolved_secrets.secret_values,
@@ -564,7 +604,7 @@ impl EnvManager {
         for secret in secret_values.iter() {
             secret_set.insert(secret.to_string());
         }
-        let secrets = Arc::new(Mutex::new(secret_set));
+        let secrets = Arc::new(RwLock::new(secret_set));
 
         // Create and execute the command with only the CUE environment
         let mut cmd = Command::new(command);
@@ -722,17 +762,7 @@ impl EnvManager {
         log::info!("Executing {} onEnter hooks", on_enter_hooks.len());
 
         // Collect current environment variables for hook execution
-        let env_vars = self.collect_cue_env_vars();
-
-        // Create runtime for async hook execution
-        let rt = match tokio::runtime::Runtime::new() {
-            Ok(runtime) => runtime,
-            Err(e) => {
-                return Err(Error::configuration(format!(
-                    "Failed to create tokio runtime for hooks: {e}"
-                )));
-            }
-        };
+        let env_vars = self.collect_cue_env_vars()?;
 
         // Create a command executor that uses the system's Command
         struct SystemCommandExecutor;
@@ -793,7 +823,12 @@ impl EnvManager {
 
         for (name, config) in on_enter_hooks {
             log::debug!("Executing onEnter hook: {name}");
-            match rt.block_on(hook_manager.execute_hook(config, &env_vars)) {
+            match crate::async_runtime::run_async(async {
+                hook_manager
+                    .execute_hook(config, &env_vars)
+                    .await
+                    .map_err(Error::from)
+            }) {
                 Ok(_) => log::info!("Successfully executed onEnter hook: {name}"),
                 Err(e) => {
                     // Log error but continue with other hooks
@@ -805,13 +840,20 @@ impl EnvManager {
         Ok(())
     }
 
-    fn collect_cue_env_vars(&self) -> HashMap<String, String> {
-        let current_env: HashMap<String, String> = env::vars().collect();
-        let mut cue_env_vars = HashMap::new();
+    fn collect_cue_env_vars(&self) -> Result<HashMap<String, String>> {
+        let current_env: HashMap<String, String> = SyncEnv::vars()
+            .map_err(|e| Error::Configuration {
+                message: format!("Failed to get environment variables: {e}"),
+            })?
+            .into_iter()
+            .collect();
+        let mut cue_env_vars = HashMap::with_capacity(self.cue_vars.len());
 
         // Collect variables that were added or modified by CUE
         for (key, value) in &current_env {
-            if !self.original_env.contains_key(key) || self.original_env.get(key) != Some(value) {
+            if !self.original_env.contains_key(key as &str)
+                || self.original_env.get(key as &str) != Some(value)
+            {
                 cue_env_vars.insert(key.clone(), value.clone());
             }
         }
@@ -832,7 +874,7 @@ impl EnvManager {
             cue_env_vars.insert("HOME".to_string(), home.clone());
         }
 
-        cue_env_vars
+        Ok(cue_env_vars)
     }
 }
 
@@ -842,8 +884,8 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    #[test]
-    fn test_load_and_unload_env() {
+    #[tokio::test]
+    async fn test_load_and_unload_env() {
         let temp_dir = TempDir::new().unwrap();
         let env_file = temp_dir.path().join("env.cue");
         fs::write(
@@ -856,23 +898,26 @@ env: {
         )
         .unwrap();
 
-        let original_value = env::var("CUENV_TEST_VAR_UNIQUE").ok();
+        let original_value = SyncEnv::var("CUENV_TEST_VAR_UNIQUE").unwrap_or_default();
 
         let mut manager = EnvManager::new();
-        manager.load_env(temp_dir.path()).unwrap();
+        manager.load_env(temp_dir.path()).await.unwrap();
 
-        assert_eq!(env::var("CUENV_TEST_VAR_UNIQUE").unwrap(), "test_value");
+        assert_eq!(
+            SyncEnv::var("CUENV_TEST_VAR_UNIQUE").unwrap(),
+            Some("test_value".to_string())
+        );
 
         manager.unload_env().unwrap();
 
         match original_value {
-            Some(val) => assert_eq!(env::var("CUENV_TEST_VAR_UNIQUE").unwrap(), val),
-            None => assert!(env::var("CUENV_TEST_VAR_UNIQUE").is_err()),
+            Some(val) => assert_eq!(SyncEnv::var("CUENV_TEST_VAR_UNIQUE").unwrap(), Some(val)),
+            None => assert!(SyncEnv::var("CUENV_TEST_VAR_UNIQUE").unwrap().is_none()),
         }
     }
 
-    #[test]
-    fn test_run_command_hermetic() {
+    #[tokio::test]
+    async fn test_run_command_hermetic() {
         let temp_dir = TempDir::new().unwrap();
         let env_file = temp_dir.path().join("env.cue");
         fs::write(
@@ -887,10 +932,10 @@ env: {
         .unwrap();
 
         let mut manager = EnvManager::new();
-        manager.load_env(temp_dir.path()).unwrap();
+        manager.load_env(temp_dir.path()).await.unwrap();
 
         // Set a variable AFTER loading env, so it's not in original_env
-        env::set_var("TEST_PARENT_VAR", "should_not_exist");
+        SyncEnv::set_var("TEST_PARENT_VAR", "should_not_exist").unwrap();
 
         // Run a command that checks for our variables
         #[cfg(unix)]
@@ -914,11 +959,11 @@ env: {
         assert_eq!(status, 0, "Command should succeed with correct environment");
 
         // Clean up
-        env::remove_var("TEST_PARENT_VAR");
+        let _ = SyncEnv::remove_var("TEST_PARENT_VAR");
     }
 
-    #[test]
-    fn test_run_command_with_secret_refs() {
+    #[tokio::test]
+    async fn test_run_command_with_secret_refs() {
         let temp_dir = TempDir::new().unwrap();
         let env_file = temp_dir.path().join("env.cue");
 
@@ -936,7 +981,7 @@ env: {
         .unwrap();
 
         let mut manager = EnvManager::new();
-        manager.load_env(temp_dir.path()).unwrap();
+        manager.load_env(temp_dir.path()).await.unwrap();
 
         // Run a command that checks the variables
         #[cfg(unix)]
@@ -956,8 +1001,8 @@ env: {
         assert_eq!(status, 0, "Command should succeed with all variables set");
     }
 
-    #[test]
-    fn test_run_command_preserves_path_and_home() {
+    #[tokio::test]
+    async fn test_run_command_preserves_path_and_home() {
         let temp_dir = TempDir::new().unwrap();
         let env_file = temp_dir.path().join("env.cue");
         fs::write(
@@ -971,7 +1016,7 @@ env: {
         .unwrap();
 
         let mut manager = EnvManager::new();
-        manager.load_env(temp_dir.path()).unwrap();
+        manager.load_env(temp_dir.path()).await.unwrap();
 
         // Run a command that checks PATH and HOME are preserved
         #[cfg(unix)]
@@ -997,8 +1042,8 @@ env: {
         assert_eq!(status, 0, "PATH and HOME should be preserved");
     }
 
-    #[test]
-    fn test_run_command_with_restrictions() {
+    #[tokio::test]
+    async fn test_run_command_with_restrictions() {
         let temp_dir = TempDir::new().unwrap();
         let env_file = temp_dir.path().join("env.cue");
         fs::write(
@@ -1012,7 +1057,7 @@ env: {
         .unwrap();
 
         let mut manager = EnvManager::new();
-        manager.load_env(temp_dir.path()).unwrap();
+        manager.load_env(temp_dir.path()).await.unwrap();
 
         // Test without restrictions (should work)
         let restrictions = AccessRestrictions::default();

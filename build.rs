@@ -6,8 +6,9 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=libcue-bridge/bridge.go");
     println!("cargo:rerun-if-changed=libcue-bridge/bridge.h");
+    println!("cargo:rerun-if-changed=src/remote_cache/remote_execution.proto");
 
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR not set by cargo"));
     let bridge_dir = PathBuf::from("libcue-bridge");
 
     // Create the bridge directory if it doesn't exist
@@ -24,6 +25,11 @@ fn main() {
 
     // Check if we're building for musl
     let target = env::var("TARGET").unwrap_or_default();
+    let output_path = out_dir.join("libcue_bridge.a");
+    let output_str = output_path
+        .to_str()
+        .expect("Failed to convert output path to string");
+
     if target.contains("musl") {
         // Set musl-specific environment variables
         cmd.env("CC", "musl-gcc");
@@ -36,16 +42,11 @@ fn main() {
             "-ldflags",
             "-extldflags '-static'",
             "-o",
-            out_dir.join("libcue_bridge.a").to_str().unwrap(),
+            output_str,
             "bridge.go",
         ]);
     } else {
-        cmd.args([
-            "-buildmode=c-archive",
-            "-o",
-            out_dir.join("libcue_bridge.a").to_str().unwrap(),
-            "bridge.go",
-        ]);
+        cmd.args(["-buildmode=c-archive", "-o", output_str, "bridge.go"]);
     }
 
     let status = cmd
@@ -61,7 +62,7 @@ fn main() {
     println!("cargo:rustc-link-lib=static=cue_bridge");
 
     // Link system libraries that Go runtime needs
-    let target = env::var("TARGET").unwrap();
+    let target = env::var("TARGET").expect("TARGET not set by cargo");
 
     if target.contains("windows") {
         // Windows-specific libraries
@@ -80,4 +81,15 @@ fn main() {
             println!("cargo:rustc-link-lib=framework=CoreFoundation");
         }
     }
+
+    // Compile protobuf for remote cache server
+    tonic_build::configure()
+        .build_server(true)
+        .build_client(false)
+        .file_descriptor_set_path(out_dir.join("remote_execution_descriptor.bin"))
+        .compile(
+            &["src/remote_cache/remote_execution.proto"],
+            &["src/remote_cache"],
+        )
+        .expect("Failed to compile protobuf");
 }

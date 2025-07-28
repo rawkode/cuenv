@@ -1,3 +1,4 @@
+#![allow(unused)]
 /// Test that verifies the correct format for resolver structures
 /// This test documents the expected behavior of how CUE resolver structures
 /// are converted to the internal cuenv-resolver format
