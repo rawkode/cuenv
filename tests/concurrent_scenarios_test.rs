@@ -442,7 +442,7 @@ mod concurrent_scenarios {
                 "bundle".to_string(),
                 TaskConfig {
                     description: Some("Bundle compiled files".to_string()),
-                    command: Some("cat build/compiled_0.txt build/compiled_1.txt build/compiled_2.txt > build/bundle.txt".to_string()),
+                    command: Some("/bin/sh -c 'cat build/compiled_0.txt build/compiled_1.txt build/compiled_2.txt > build/bundle.txt'".to_string()),
                     script: None,
                     dependencies: Some(vec![
                         "compile_0".to_string(),
@@ -488,7 +488,7 @@ tasks: {
     }
     "bundle": {
         description: "Bundle compiled files"
-        command: "cat build/compiled_0.txt build/compiled_1.txt build/compiled_2.txt > build/bundle.txt"
+        command: "/bin/sh -c 'cat build/compiled_0.txt build/compiled_1.txt build/compiled_2.txt > build/bundle.txt'"
         dependencies: ["compile_0", "compile_1", "compile_2"]
         inputs: ["build/compiled_*.txt"]
         outputs: ["build/bundle.txt"]
