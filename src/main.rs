@@ -475,18 +475,9 @@ async fn complete_environments() -> Result<()> {
                     }
                     
                     if in_environment_section {
-                        // Count braces to track nesting
-                        brace_count += trimmed.matches('{').count() as i32;
-                        brace_count -= trimmed.matches('}').count() as i32;
-                        
-                        // If we're back to 0 braces, we've exited the environment section
-                        if brace_count <= 0 {
-                            in_environment_section = false;
-                            continue;
-                        }
-                        
-                        // Look for environment names (keys before colons at depth 1)
-                        if brace_count == 1 && trimmed.contains(':') {
+                        // Look for environment names BEFORE updating brace count
+                        // We want to catch "dev: {" when brace_count is still 1
+                        if brace_count == 1 && trimmed.contains(':') && trimmed.contains('{') {
                             if let Some(colon_pos) = trimmed.find(':') {
                                 let env_name = trimmed[..colon_pos].trim();
                                 // Only accept valid identifiers that don't start with uppercase (not types)
@@ -496,6 +487,16 @@ async fn complete_environments() -> Result<()> {
                                     println!("{env_name}");
                                 }
                             }
+                        }
+                        
+                        // Count braces to track nesting
+                        brace_count += trimmed.matches('{').count() as i32;
+                        brace_count -= trimmed.matches('}').count() as i32;
+                        
+                        // If we're back to 0 braces, we've exited the environment section
+                        if brace_count <= 0 {
+                            in_environment_section = false;
+                            continue;
                         }
                     }
                 }
