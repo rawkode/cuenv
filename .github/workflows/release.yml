@@ -107,3 +107,75 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  
+  build-nix-static:
+    name: Build Static Binary with Nix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Get version from Cargo.toml
+        id: get_version
+        run: |
+          VERSION=$(grep '^version = ' Cargo.toml | head -1 | cut -d'"' -f2)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+        with:
+          logger: pretty
+          extra-conf: |
+            experimental-features = nix-command flakes
+      
+      - name: Setup Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
+      
+      - name: Build static binary
+        run: |
+          nix build .#cuenv-static -L
+          
+          # Create artifacts directory
+          mkdir -p artifacts
+          cp result/bin/cuenv artifacts/cuenv-static
+          cp result/bin/remote_cache_server artifacts/remote_cache_server-static
+          
+          # Verify static linking
+          echo "Verifying static linking..."
+          ldd artifacts/cuenv-static || echo "Binary is statically linked (expected)"
+          ldd artifacts/remote_cache_server-static || echo "Binary is statically linked (expected)"
+          
+          # Show binary info
+          echo ""
+          echo "Binary info:"
+          file artifacts/cuenv-static
+          echo "Binary size: $(ls -lh artifacts/cuenv-static | awk '{print $5}')"
+          echo ""
+          file artifacts/remote_cache_server-static
+          echo "Binary size: $(ls -lh artifacts/remote_cache_server-static | awk '{print $5}')"
+      
+      - name: Package
+        run: |
+          cd artifacts
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          tar czf cuenv-${VERSION}-x86_64-linux-static.tar.gz cuenv-static remote_cache_server-static
+          echo "ASSET_PATH=artifacts/cuenv-${VERSION}-x86_64-linux-static.tar.gz" >> $GITHUB_ENV
+          echo "ASSET_NAME=cuenv-${VERSION}-x86_64-linux-static.tar.gz" >> $GITHUB_ENV
+      
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET_NAME }}
+          path: ${{ env.ASSET_PATH }}
+      
+      - name: Create Release
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ env.ASSET_PATH }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
