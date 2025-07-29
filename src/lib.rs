@@ -16,6 +16,7 @@ pub mod errors;
 pub mod file_times;
 pub mod gzenv;
 pub mod hook_manager;
+pub mod mcp;
 pub mod memory;
 pub mod output_filter;
 pub mod platform;

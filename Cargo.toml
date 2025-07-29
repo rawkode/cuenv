@@ -73,6 +73,11 @@ hex = "0.4"
 bytes = "1.5"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 
+# MCP (Model Context Protocol) support
+rmcp = { version = "0.3", features = ["server", "transport-io", "transport-async-rw"] }
+rmcp-macros = "0.3"
+schemars = "0.8"
+
 [target.'cfg(unix)'.dependencies]
 signal-hook = "0.3"
 

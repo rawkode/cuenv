@@ -132,6 +132,20 @@ enum Commands {
         #[arg(long, default_value = "10737418240")]
         max_cache_size: u64,
     },
+    /// Start MCP (Model Context Protocol) server
+    Mcp {
+        /// Transport type (stdio, tcp)
+        #[arg(long, default_value = "stdio")]
+        transport: String,
+
+        /// TCP port (only for tcp transport)
+        #[arg(long, default_value = "8765")]
+        port: u16,
+
+        /// Allow task execution (default: read-only)
+        #[arg(long)]
+        allow_exec: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -646,6 +660,31 @@ async fn main() -> Result<()> {
                     )));
                 }
             }
+        }
+        Some(Commands::Mcp {
+            transport,
+            port,
+            allow_exec,
+        }) => {
+            use cuenv::mcp::server::McpServerOptions;
+
+            let options = McpServerOptions {
+                transport: transport.clone(),
+                port,
+                allow_exec,
+            };
+
+            println!("Starting cuenv MCP server...");
+            println!("Transport: {}", transport);
+            if transport == "tcp" {
+                println!("Port: {}", port);
+            }
+            println!(
+                "Task execution: {}",
+                if allow_exec { "enabled" } else { "read-only" }
+            );
+
+            cuenv::mcp::server::run(options).await?
         }
         None => {
             let current_dir = match DirectoryManager::get_current_directory() {
