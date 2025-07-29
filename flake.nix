@@ -7,6 +7,10 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     flake-utils.url = "github:numtide/flake-utils";
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
@@ -18,6 +22,7 @@
     { self
     , nixpkgs
     , rust-overlay
+    , fenix
     , flake-utils
     , treefmt-nix
     ,
@@ -197,11 +202,73 @@
             };
           };
 
+          # Static musl build for Linux
+          cuenv-static = pkgs.rustPlatform.buildRustPackage {
+            pname = "cuenv-static";
+            version = version;
+
+            src = ./.;
+
+            cargoLock = {
+              lockFile = ./Cargo.lock;
+            };
+
+            # Build-time tools
+            nativeBuildInputs = with pkgs; [
+              go_1_24
+              protobuf
+              pkg-config
+              # Use musl toolchain for static builds
+              (if stdenv.hostPlatform.isMusl then musl else glibc.static)
+            ];
+
+            buildInputs =
+              if pkgs.stdenv.hostPlatform.isMusl then [
+                pkgs.musl
+              ] else [
+                pkgs.glibc
+                pkgs.glibc.static
+              ];
+
+            # Set up build environment
+            preBuild = ''
+              export HOME=$(mktemp -d)
+              export GOPATH="$HOME/go"
+              export GOCACHE="$HOME/go-cache"
+              export CGO_ENABLED=1
+              
+              # Set static linking flags for CGO
+              export CGO_CFLAGS="-static"
+              export CGO_LDFLAGS="-static"
+              
+              # Copy vendored dependencies
+              cp -r ${goVendor}/vendor libcue-bridge/
+              chmod -R u+w libcue-bridge
+            '';
+
+            # Force static linking
+            RUSTFLAGS = "-C target-feature=+crt-static";
+
+            # Set the musl target explicitly
+            CARGO_BUILD_TARGET = "x86_64-unknown-linux-musl";
+
+            # Disable tests for static build
+            doCheck = false;
+
+            meta = with pkgs.lib; {
+              description = "A direnv alternative that uses CUE files for environment configuration (static binary)";
+              homepage = "https://github.com/rawkode/cuenv";
+              license = licenses.mit;
+              maintainers = [ ];
+            };
+          };
+
         in
         {
           packages = {
             default = cuenv;
             cuenv = cuenv;
+            cuenv-static = cuenv-static;
           };
 
           # Comprehensive checks for nix flake check

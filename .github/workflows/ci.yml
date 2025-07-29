@@ -32,6 +32,12 @@ jobs:
           skipPush: ${{ matrix.rust != 'stable' }}
       - name: nix-build
         run: nix build .#cuenv
+      - name: nix-build-static
+        if: runner.os == 'Linux'
+        run: |
+          nix build .#cuenv-static
+          # Test that the static binary is actually static
+          file result/bin/cuenv | grep -q "statically linked" || (echo "Binary is not statically linked!" && exit 1)
       - name: nix-flake-check
         run: nix flake check --print-build-logs
       - name: cuenv-test-examples

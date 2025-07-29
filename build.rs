@@ -32,7 +32,12 @@ fn main() {
 
     if target.contains("musl") {
         // Set musl-specific environment variables
-        cmd.env("CC", "musl-gcc");
+        // Use CC from environment if set, otherwise default to musl-gcc
+        if let Ok(cc) = env::var("CC") {
+            cmd.env("CC", cc);
+        } else {
+            cmd.env("CC", "musl-gcc");
+        }
         cmd.env("CGO_ENABLED", "1");
 
         cmd.args([
