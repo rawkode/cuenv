@@ -32,6 +32,7 @@ package cuenv
 // #Secret represents a secret reference that will be resolved at runtime
 #Secret: {
 	resolver: #Resolver
+	...
 }
 
 // #Resolver defines how to resolve a secret value
