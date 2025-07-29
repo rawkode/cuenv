@@ -246,8 +246,8 @@
               chmod -R u+w libcue-bridge
             '';
 
-            # Force static linking
-            RUSTFLAGS = "-C target-feature=+crt-static";
+            # Force static linking and disable PIE
+            RUSTFLAGS = "-C target-feature=+crt-static -C link-args=-no-pie";
 
             # Set the musl target explicitly
             CARGO_BUILD_TARGET = "x86_64-unknown-linux-musl";
