@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Note**: For comprehensive project information, versioning conventions, and development guidelines, see [AGENTS.md](./AGENTS.md).
+
 ## Development Commands
 
 All commands must be run within the Nix development shell:
