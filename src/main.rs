@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use clap_complete::{generate, Generator, Shell as CompletionShell};
 
 use cuenv::constants::{CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR, ENV_CUE_FILENAME};
 use cuenv::errors::{Error, Result};
@@ -168,9 +169,10 @@ fn generate_completion(shell: &str) -> Result<()> {
         "zsh" => generate_zsh_completion(),
         "fish" => generate_fish_completion(),
         "powershell" | "pwsh" => generate_powershell_completion(),
+        "elvish" => generate_elvish_completion(),
         _ => {
             eprintln!("Unsupported shell: {shell}");
-            eprintln!("Supported shells: bash, zsh, fish, powershell");
+            eprintln!("Supported shells: bash, zsh, fish, powershell, elvish");
             std::process::exit(1);
         }
     }
@@ -365,6 +367,69 @@ complete -c cuenv -n '__fish_seen_subcommand_from cache' -xa 'clear stats cleanu
 "#;
     print!("{script}");
     Ok(())
+}
+
+fn generate_elvish_completion() -> Result<()> {
+    let script = r#"
+# Elvish completion for cuenv
+
+edit:complete:arg-completer[cuenv] = {|@words|
+    fn complete-commands {
+        put load unload status init allow deny run exec hook export dump prune clear-cache cache remote-cache-server completion help
+    }
+    
+    fn complete-tasks {
+        try {
+            cuenv _complete_tasks 2>/dev/null | each {|line| put $line }
+        } catch {
+            # Silent fail for completion
+        }
+    }
+    
+    fn complete-environments {
+        try {
+            cuenv _complete_environments 2>/dev/null | each {|line| put $line }
+        } catch {
+            put development staging production
+        }
+    }
+    
+    fn complete-capabilities {
+        put network filesystem secrets
+    }
+    
+    set @words = $words[1:]
+    var n = (count $words)
+    
+    if (== $n 0) {
+        complete-commands
+        return
+    }
+    
+    var cmd = $words[0]
+    
+    if (== $cmd run) {
+        if (== $n 1) {
+            complete-tasks
+            return
+        }
+    } elif (== $cmd completion) {
+        if (== $n 1) {
+            put bash zsh fish powershell elvish
+            return
+        }
+    }
+    
+    # Complete flags
+    put -h --help -V --version -e --env -c --capability --audit
+}
+"#;
+    print!("{script}");
+    Ok(())
+}
+
+fn print_clap_completion<G: Generator>(gen: G, cmd: &mut clap::Command) {
+    generate(gen, cmd, cmd.get_name().to_string(), &mut std::io::stdout());
 }
 
 fn generate_powershell_completion() -> Result<()> {
