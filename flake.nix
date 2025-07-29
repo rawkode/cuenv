@@ -246,8 +246,8 @@
               chmod -R u+w libcue-bridge
             '';
 
-            # Force static linking
-            RUSTFLAGS = "-C target-feature=+crt-static";
+            # Force static linking and disable PIE
+            RUSTFLAGS = "-C target-feature=+crt-static -C link-args=-no-pie";
 
             # Set the musl target explicitly
             CARGO_BUILD_TARGET = "x86_64-unknown-linux-musl";
@@ -384,91 +384,89 @@
           };
         }
       )) // {
-      # Home Manager module  
-      homeManagerModules = {
-        default = { config, lib, pkgs, ... }:
-          with lib;
-          let
-            cfg = config.programs.cuenv;
-          in
-          {
-            options.programs.cuenv = {
-              enable = mkEnableOption "cuenv, a direnv alternative using CUE files";
+      # Home Manager module (using standard flake schema to avoid warnings)
+      homeManagerModules.default = { config, lib, pkgs, ... }:
+        with lib;
+        let
+          cfg = config.programs.cuenv;
+        in
+        {
+          options.programs.cuenv = {
+            enable = mkEnableOption "cuenv, a direnv alternative using CUE files";
 
-              package = mkOption {
-                type = types.package;
-                default = self.packages.${pkgs.system}.default;
-                defaultText = literalExpression "cuenv";
-                description = "The cuenv package to use.";
-              };
-
-              enableBashIntegration = mkOption {
-                type = types.bool;
-                default = config.programs.bash.enable;
-                defaultText = literalExpression "config.programs.bash.enable";
-                description = ''
-                  Whether to enable Bash integration.
-                '';
-              };
-
-              enableZshIntegration = mkOption {
-                type = types.bool;
-                default = config.programs.zsh.enable;
-                defaultText = literalExpression "config.programs.zsh.enable";
-                description = ''
-                  Whether to enable Zsh integration.
-                '';
-              };
-
-              enableFishIntegration = mkOption {
-                type = types.bool;
-                default = config.programs.fish.enable;
-                defaultText = literalExpression "config.programs.fish.enable";
-                description = ''
-                  Whether to enable Fish integration.
-                '';
-              };
-
-              enableNushellIntegration = mkOption {
-                type = types.bool;
-                default = config.programs.nushell.enable;
-                defaultText = literalExpression "config.programs.nushell.enable";
-                description = ''
-                  Whether to enable Nushell integration.
-                
-                  Note: Nushell support is experimental and may require manual configuration.
-                '';
-              };
+            package = mkOption {
+              type = types.package;
+              default = self.packages.${pkgs.system}.default;
+              defaultText = literalExpression "cuenv";
+              description = "The cuenv package to use.";
             };
 
-            config = mkIf cfg.enable {
-              home.packages = [ cfg.package ];
-
-              programs.bash.initExtra = mkIf cfg.enableBashIntegration ''
-                # cuenv shell integration
-                eval "$(${cfg.package}/bin/cuenv init bash)"
+            enableBashIntegration = mkOption {
+              type = types.bool;
+              default = config.programs.bash.enable;
+              defaultText = literalExpression "config.programs.bash.enable";
+              description = ''
+                Whether to enable Bash integration.
               '';
+            };
 
-              programs.zsh.initExtra = mkIf cfg.enableZshIntegration ''
-                # cuenv shell integration
-                eval "$(${cfg.package}/bin/cuenv init zsh)"
+            enableZshIntegration = mkOption {
+              type = types.bool;
+              default = config.programs.zsh.enable;
+              defaultText = literalExpression "config.programs.zsh.enable";
+              description = ''
+                Whether to enable Zsh integration.
               '';
+            };
 
-              programs.fish.interactiveShellInit = mkIf cfg.enableFishIntegration ''
-                # cuenv shell integration
-                ${cfg.package}/bin/cuenv init fish | source
+            enableFishIntegration = mkOption {
+              type = types.bool;
+              default = config.programs.fish.enable;
+              defaultText = literalExpression "config.programs.fish.enable";
+              description = ''
+                Whether to enable Fish integration.
               '';
+            };
 
-              programs.nushell.extraConfig = mkIf cfg.enableNushellIntegration ''
-                # cuenv shell integration
-                # Note: This is experimental and may need adjustment based on your Nushell version
-                let cuenv_init = (${cfg.package}/bin/cuenv init nushell | str trim)
-                if not ($cuenv_init | is-empty) {
-                  source-env { $cuenv_init | from nuon }
-                }
+            enableNushellIntegration = mkOption {
+              type = types.bool;
+              default = config.programs.nushell.enable;
+              defaultText = literalExpression "config.programs.nushell.enable";
+              description = ''
+                Whether to enable Nushell integration.
+                
+                Note: Nushell support is experimental and may require manual configuration.
               '';
             };
           };
-      };
+
+          config = mkIf cfg.enable {
+            home.packages = [ cfg.package ];
+
+            programs.bash.initExtra = mkIf cfg.enableBashIntegration ''
+              # cuenv shell integration
+              eval "$(${cfg.package}/bin/cuenv init bash)"
+            '';
+
+            programs.zsh.initExtra = mkIf cfg.enableZshIntegration ''
+              # cuenv shell integration
+              eval "$(${cfg.package}/bin/cuenv init zsh)"
+            '';
+
+            programs.fish.interactiveShellInit = mkIf cfg.enableFishIntegration ''
+              # cuenv shell integration
+              ${cfg.package}/bin/cuenv init fish | source
+            '';
+
+            programs.nushell.extraConfig = mkIf cfg.enableNushellIntegration ''
+              # cuenv shell integration
+              # Note: This is experimental and may need adjustment based on your Nushell version
+              let cuenv_init = (${cfg.package}/bin/cuenv init nushell | str trim)
+              if not ($cuenv_init | is-empty) {
+                source-env { $cuenv_init | from nuon }
+              }
+            '';
+          };
+        };
     };
 }
