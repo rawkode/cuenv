@@ -433,7 +433,7 @@ async fn complete_tasks() -> Result<()> {
         Ok(d) => d,
         Err(_) => return Ok(()), // Silent fail for completion
     };
-    
+
     let mut env_manager = EnvManager::new();
     match env_manager.load_env(&current_dir).await {
         Ok(()) => {
@@ -452,7 +452,7 @@ async fn complete_environments() -> Result<()> {
         Ok(d) => d,
         Err(_) => return Ok(()), // Silent fail for completion
     };
-    
+
     // Try to extract environment names from env.cue file content
     if current_dir.join("env.cue").exists() {
         match std::fs::read_to_string(current_dir.join("env.cue")) {
@@ -461,10 +461,10 @@ async fn complete_environments() -> Result<()> {
                 let lines: Vec<&str> = content.lines().collect();
                 let mut in_environment_section = false;
                 let mut brace_count = 0;
-                
+
                 for line in lines {
                     let trimmed = line.trim();
-                    
+
                     // Look for "environment:" line (with or without opening brace)
                     if trimmed.starts_with("environment:") {
                         in_environment_section = true;
@@ -473,7 +473,7 @@ async fn complete_environments() -> Result<()> {
                         brace_count -= trimmed.matches('}').count() as i32;
                         continue;
                     }
-                    
+
                     if in_environment_section {
                         // Look for environment names BEFORE updating brace count
                         // We want to catch "dev: {" when brace_count is still 1
@@ -481,18 +481,21 @@ async fn complete_environments() -> Result<()> {
                             if let Some(colon_pos) = trimmed.find(':') {
                                 let env_name = trimmed[..colon_pos].trim();
                                 // Only accept valid identifiers that don't start with uppercase (not types)
-                                if !env_name.is_empty() 
-                                    && env_name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-')
-                                    && !env_name.chars().next().unwrap_or('A').is_uppercase() {
+                                if !env_name.is_empty()
+                                    && env_name
+                                        .chars()
+                                        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+                                    && !env_name.chars().next().unwrap_or('A').is_uppercase()
+                                {
                                     println!("{env_name}");
                                 }
                             }
                         }
-                        
+
                         // Count braces to track nesting
                         brace_count += trimmed.matches('{').count() as i32;
                         brace_count -= trimmed.matches('}').count() as i32;
-                        
+
                         // If we're back to 0 braces, we've exited the environment section
                         if brace_count <= 0 {
                             in_environment_section = false;
@@ -504,7 +507,7 @@ async fn complete_environments() -> Result<()> {
             Err(_) => {} // Silent fail
         }
     }
-    
+
     Ok(())
 }
 
@@ -513,7 +516,7 @@ async fn complete_hosts() -> Result<()> {
         Ok(d) => d,
         Err(_) => return Ok(()), // Silent fail for completion
     };
-    
+
     let mut env_manager = EnvManager::new();
     match env_manager.load_env(&current_dir).await {
         Ok(()) => {
@@ -530,7 +533,7 @@ async fn complete_hosts() -> Result<()> {
         }
         Err(_) => {} // Silent fail for completion
     }
-    
+
     Ok(())
 }
 
