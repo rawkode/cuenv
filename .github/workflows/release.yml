@@ -33,7 +33,9 @@ jobs:
           # Verify tag matches Cargo.toml version if this is a tag push
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
             TAG_VERSION="${{ github.ref_name }}"
-            if [[ "$TAG_VERSION" != "$VERSION" ]]; then
+            # Remove 'v' prefix if present for comparison
+            TAG_VERSION_NUM="${TAG_VERSION#v}"
+            if [[ "$TAG_VERSION_NUM" != "$VERSION" ]]; then
               echo "Error: Tag version ($TAG_VERSION) does not match Cargo.toml version ($VERSION)"
               exit 1
             fi
