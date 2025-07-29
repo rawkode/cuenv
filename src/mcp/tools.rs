@@ -18,27 +18,36 @@ pub struct CuenvToolBox {
 fn validate_directory(directory: &str) -> Result<PathBuf> {
     let path = PathBuf::from(directory);
 
-    // Check if directory exists
-    if !path.exists() {
+    // Canonicalize path to prevent path traversal attacks
+    let canonical_path = path.canonicalize().map_err(|e| {
+        Error::configuration(format!(
+            "Cannot canonicalize directory path '{}': {}. Directory may not exist or be accessible.",
+            directory, e
+        ))
+    })?;
+
+    // Ensure the canonical path is still a directory
+    if !canonical_path.is_dir() {
         return Err(Error::configuration(format!(
-            "Directory does not exist: {}",
-            directory
+            "Path is not a directory: {}",
+            canonical_path.display()
         )));
     }
 
     // Check if directory is allowed
     let dir_manager = DirectoryManager::new();
-    if !dir_manager.is_directory_allowed(&path)? {
+    if !dir_manager.is_directory_allowed(&canonical_path)? {
         return Err(Error::permission_denied(
             "directory access",
             format!(
                 "Directory not allowed: {}. Run 'cuenv allow {}' to allow this directory.",
-                directory, directory
+                canonical_path.display(),
+                canonical_path.display()
             ),
         ));
     }
 
-    Ok(path)
+    Ok(canonical_path)
 }
 
 /// Parse environment without side effects
@@ -84,22 +93,75 @@ impl CuenvToolBox {
         let path = validate_directory(&params.directory)?;
 
         // Parse the CUE package to get environment information
-        let parse_result =
-            CueParser::eval_package_with_options(&path, "env", &ParseOptions::default())?;
+        // We need to parse the raw CUE result to access environment data
+        use std::ffi::CString;
+        use std::os::raw::c_char;
 
-        // Extract environment names from the parse result
-        // This would need to be implemented based on how environments are structured in CUE
-        // For now, return common environment names if env.cue exists
-        let env_cue = path.join("env.cue");
-        if env_cue.exists() {
-            Ok(vec![
-                "dev".to_string(),
-                "staging".to_string(),
-                "production".to_string(),
-            ])
-        } else {
-            Ok(vec![])
+        // Use FFI directly to get the raw JSON that includes environment data
+        extern "C" {
+            fn cue_eval_package(
+                path: *const c_char,
+                package_name: *const c_char,
+                environment: *const c_char,
+                capabilities: *const c_char,
+            ) -> *mut c_char;
+            fn cue_free_string(ptr: *mut c_char);
         }
+
+        let path_cstr = CString::new(path.to_string_lossy().as_ref())
+            .map_err(|e| Error::configuration(format!("Invalid path: {}", e)))?;
+        let package_cstr = CString::new("env")
+            .map_err(|e| Error::configuration(format!("Invalid package name: {}", e)))?;
+        let env_cstr = CString::new("")
+            .map_err(|e| Error::configuration(format!("Invalid environment: {}", e)))?;
+        let cap_cstr = CString::new("")
+            .map_err(|e| Error::configuration(format!("Invalid capabilities: {}", e)))?;
+
+        // Call FFI to get raw result
+        let result_ptr = unsafe {
+            cue_eval_package(
+                path_cstr.as_ptr(),
+                package_cstr.as_ptr(),
+                env_cstr.as_ptr(),
+                cap_cstr.as_ptr(),
+            )
+        };
+
+        if result_ptr.is_null() {
+            return Ok(vec![]);
+        }
+
+        // Convert to string and parse JSON
+        let json_str = unsafe {
+            let cstr = std::ffi::CStr::from_ptr(result_ptr);
+            cstr.to_str().map_err(|e| {
+                Error::configuration(format!("Failed to convert result to UTF-8: {}", e))
+            })?
+        };
+
+        let json_value: serde_json::Value = serde_json::from_str(json_str)
+            .map_err(|e| Error::configuration(format!("Failed to parse JSON: {}", e)))?;
+
+        // Free the C string
+        unsafe {
+            cue_free_string(result_ptr);
+        }
+
+        // Extract environment names from the "environments" field if it exists
+        let environments =
+            if let Some(envs) = json_value.get("environments").and_then(|v| v.as_object()) {
+                envs.keys().cloned().collect()
+            } else {
+                // Fallback: check if env.cue exists and return empty list if no environments found
+                let env_cue = path.join("env.cue");
+                if env_cue.exists() {
+                    vec![]
+                } else {
+                    vec![]
+                }
+            };
+
+        Ok(environments)
     }
 
     /// List all available tasks
@@ -184,8 +246,23 @@ impl CuenvToolBox {
         let env_cue = path.join("env.cue");
 
         let allowed = if path.exists() {
+            // Canonicalize path for security
+            let canonical_path = match path.canonicalize() {
+                Ok(p) => p,
+                Err(_) => {
+                    // If canonicalization fails, consider it not allowed
+                    return Ok(DirectoryResponse {
+                        allowed: false,
+                        has_env_cue: false,
+                    });
+                }
+            };
+
             let dir_manager = DirectoryManager::new();
-            dir_manager.is_directory_allowed(&path).unwrap_or(false)
+            match dir_manager.is_directory_allowed(&canonical_path) {
+                Ok(allowed) => allowed,
+                Err(_) => false, // If permission check fails, consider it not allowed
+            }
         } else {
             false
         };
@@ -201,15 +278,101 @@ impl CuenvToolBox {
     pub async fn list_capabilities(&self, params: DirectoryParams) -> Result<CapabilitiesResponse> {
         let path = validate_directory(&params.directory)?;
 
-        // Parse the CUE package to extract capability information
-        let parse_result =
-            CueParser::eval_package_with_options(&path, "env", &ParseOptions::default())?;
+        // Use FFI directly to get the raw JSON that includes metadata with capabilities
+        use std::ffi::CString;
+        use std::os::raw::c_char;
 
-        // Extract unique capabilities from variable metadata
-        // This would need to be implemented based on how capabilities are stored
-        // For now, return empty list as capabilities are not directly exposed in ParseResult
+        extern "C" {
+            fn cue_eval_package(
+                path: *const c_char,
+                package_name: *const c_char,
+                environment: *const c_char,
+                capabilities: *const c_char,
+            ) -> *mut c_char;
+            fn cue_free_string(ptr: *mut c_char);
+        }
+
+        let path_cstr = CString::new(path.to_string_lossy().as_ref())
+            .map_err(|e| Error::configuration(format!("Invalid path: {}", e)))?;
+        let package_cstr = CString::new("env")
+            .map_err(|e| Error::configuration(format!("Invalid package name: {}", e)))?;
+        let env_cstr = CString::new("")
+            .map_err(|e| Error::configuration(format!("Invalid environment: {}", e)))?;
+        let cap_cstr = CString::new("")
+            .map_err(|e| Error::configuration(format!("Invalid capabilities: {}", e)))?;
+
+        // Call FFI to get raw result
+        let result_ptr = unsafe {
+            cue_eval_package(
+                path_cstr.as_ptr(),
+                package_cstr.as_ptr(),
+                env_cstr.as_ptr(),
+                cap_cstr.as_ptr(),
+            )
+        };
+
+        if result_ptr.is_null() {
+            return Ok(CapabilitiesResponse {
+                capabilities: vec![],
+            });
+        }
+
+        // Convert to string and parse JSON
+        let json_str = unsafe {
+            let cstr = std::ffi::CStr::from_ptr(result_ptr);
+            cstr.to_str().map_err(|e| {
+                Error::configuration(format!("Failed to convert result to UTF-8: {}", e))
+            })?
+        };
+
+        let json_value: serde_json::Value = serde_json::from_str(json_str)
+            .map_err(|e| Error::configuration(format!("Failed to parse JSON: {}", e)))?;
+
+        // Free the C string
+        unsafe {
+            cue_free_string(result_ptr);
+        }
+
+        // Extract unique capabilities from metadata
+        let mut capabilities = std::collections::HashSet::new();
+
+        // Check variable metadata for capabilities
+        if let Some(metadata) = json_value.get("metadata").and_then(|v| v.as_object()) {
+            for (_, var_meta) in metadata {
+                if let Some(capability) = var_meta.get("capability").and_then(|v| v.as_str()) {
+                    capabilities.insert(capability.to_string());
+                }
+            }
+        }
+
+        // Check command capabilities
+        if let Some(commands) = json_value.get("commands").and_then(|v| v.as_object()) {
+            for (_, cmd_config) in commands {
+                if let Some(caps) = cmd_config.get("capabilities").and_then(|v| v.as_array()) {
+                    for cap in caps {
+                        if let Some(cap_str) = cap.as_str() {
+                            capabilities.insert(cap_str.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check task capabilities
+        if let Some(tasks) = json_value.get("tasks").and_then(|v| v.as_object()) {
+            for (_, task_config) in tasks {
+                if let Some(caps) = task_config.get("capabilities").and_then(|v| v.as_array()) {
+                    for cap in caps {
+                        if let Some(cap_str) = cap.as_str() {
+                            capabilities.insert(cap_str.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(CapabilitiesResponse {
-            capabilities: vec![],
+            capabilities: capabilities.into_iter().collect(),
         })
     }
 }

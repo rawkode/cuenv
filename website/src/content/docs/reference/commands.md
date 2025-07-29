@@ -351,6 +351,61 @@ cuenv remote-cache-server --max-cache-size 53687091200
 - Uses cuenv's lock-free concurrent cache infrastructure
 - See the [Remote Cache Server guide](/guides/remote-cache-server) for deployment options
 
+### `cuenv mcp`
+
+Start a Model Context Protocol (MCP) server to expose cuenv functionality to MCP clients.
+
+```bash
+cuenv mcp [options]
+```
+
+**Options:**
+
+- `--transport <transport>` - Transport type: `stdio` or `tcp` (default: `stdio`)
+- `--port <port>` - Port for TCP transport (default: `8080`)
+- `--allow-exec` - Allow task execution (default: disabled for security)
+
+**Examples:**
+
+```bash
+# Start with stdio transport (default)
+cuenv mcp
+
+# Start with TCP transport
+cuenv mcp --transport tcp --port 8080
+
+# Allow task execution
+cuenv mcp --allow-exec
+
+# TCP server with task execution enabled
+cuenv mcp --transport tcp --port 8080 --allow-exec
+```
+
+**MCP Tools Available:**
+
+- `list_env_vars` - List all environment variables
+- `get_env_var` - Get a specific environment variable
+- `list_environments` - List available environments
+- `list_tasks` - List all available tasks
+- `get_task` - Get details for a specific task
+- `run_task` - Execute a task (requires `--allow-exec`)
+- `check_directory` - Validate directory access
+- `list_capabilities` - List available capabilities
+
+**Security:**
+
+- All operations require explicit directory validation
+- Directory access controlled by cuenv's allowlist system
+- Task execution disabled by default
+- Path traversal protection via canonicalization
+- Read-only environment parsing to prevent side effects
+
+**Notes:**
+
+- See the [MCP Integration guide](/guides/mcp-integration) for detailed usage
+- Compatible with Claude Code and other MCP clients
+- Use `cuenv allow <directory>` to permit MCP access to directories
+
 ## Exit Codes
 
 cuenv uses standard exit codes:
