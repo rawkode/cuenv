@@ -132,6 +132,20 @@ enum Commands {
         #[arg(long, default_value = "10737418240")]
         max_cache_size: u64,
     },
+    /// Generate shell completion scripts
+    Completion {
+        /// Shell to generate completion for
+        shell: String,
+    },
+    /// Internal completion helper - complete task names
+    #[command(name = "_complete_tasks", hide = true)]
+    CompleteTasks,
+    /// Internal completion helper - complete environment names  
+    #[command(name = "_complete_environments", hide = true)]
+    CompleteEnvironments,
+    /// Internal completion helper - complete allowed hosts
+    #[command(name = "_complete_hosts", hide = true)]
+    CompleteHosts,
 }
 
 #[derive(Subcommand)]
@@ -146,6 +160,377 @@ enum CacheCommands {
         #[arg(long, default_value = "168")]
         max_age_hours: u64,
     },
+}
+
+fn generate_completion(shell: &str) -> Result<()> {
+    match shell.to_lowercase().as_str() {
+        "bash" => generate_bash_completion(),
+        "zsh" => generate_zsh_completion(),
+        "fish" => generate_fish_completion(),
+        "powershell" | "pwsh" => generate_powershell_completion(),
+        _ => {
+            eprintln!("Unsupported shell: {shell}");
+            eprintln!("Supported shells: bash, zsh, fish, powershell");
+            std::process::exit(1);
+        }
+    }
+}
+
+fn generate_bash_completion() -> Result<()> {
+    let script = r#"
+_cuenv_completion() {
+    local cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    # Main commands
+    local commands="load unload status init allow deny run exec hook export dump prune clear-cache cache remote-cache-server completion help"
+    
+    # Flags that take arguments
+    case "${prev}" in
+        -e|--env)
+            # Complete environment names
+            COMPREPLY=($(compgen -W "$(cuenv _complete_environments 2>/dev/null || echo 'development staging production')" -- ${cur}))
+            return 0
+            ;;
+        -c|--capability)
+            # Complete capability names
+            COMPREPLY=($(compgen -W "network filesystem secrets" -- ${cur}))
+            return 0
+            ;;
+        --shell)
+            COMPREPLY=($(compgen -W "bash zsh fish powershell" -- ${cur}))
+            return 0
+            ;;
+    esac
+    
+    # Complete subcommands
+    if [[ ${COMP_CWORD} == 1 ]]; then
+        COMPREPLY=($(compgen -W "${commands}" -- ${cur}))
+        return 0
+    fi
+    
+    # Handle task completion for 'run' command
+    if [[ "${COMP_WORDS[1]}" == "run" ]] && [[ ${COMP_CWORD} == 2 ]]; then
+        COMPREPLY=($(compgen -W "$(cuenv _complete_tasks 2>/dev/null)" -- ${cur}))
+        return 0
+    fi
+    
+    # Complete flags for all commands
+    local flags="-h --help -V --version -e --env -c --capability --audit"
+    COMPREPLY=($(compgen -W "${flags}" -- ${cur}))
+}
+
+complete -F _cuenv_completion cuenv
+"#;
+    print!("{script}");
+    Ok(())
+}
+
+fn generate_zsh_completion() -> Result<()> {
+    let script = r#"
+#compdef cuenv
+
+_cuenv() {
+    local context state line
+    typeset -A opt_args
+    
+    _arguments -C \
+        '1: :_cuenv_commands' \
+        '*::arg:->args' \
+        '(-h --help)'{-h,--help}'[Print help]' \
+        '(-V --version)'{-V,--version}'[Print version]' \
+        '(-e --env)'{-e,--env}'[Environment to use]:environment:_cuenv_environments' \
+        '(-c --capability)'{-c,--capability}'[Capabilities to enable]:capability:_cuenv_capabilities' \
+        '--audit[Run in audit mode]'
+    
+    case $state in
+        args)
+            case $words[1] in
+                run)
+                    _arguments \
+                        '(-e --env)'{-e,--env}'[Environment to use]:environment:_cuenv_environments' \
+                        '(-c --capability)'{-c,--capability}'[Capabilities to enable]:capability:_cuenv_capabilities' \
+                        '--audit[Run in audit mode]' \
+                        '1: :_cuenv_tasks'
+                    ;;
+                exec)
+                    _arguments \
+                        '(-e --env)'{-e,--env}'[Environment to use]:environment:_cuenv_environments' \
+                        '(-c --capability)'{-c,--capability}'[Capabilities to enable]:capability:_cuenv_capabilities' \
+                        '--audit[Run in audit mode]' \
+                        '1: :_command_names'
+                    ;;
+                completion)
+                    _arguments \
+                        '1: :(bash zsh fish powershell)'
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_cuenv_commands() {
+    local commands
+    commands=(
+        'load:Load environment from current directory'
+        'unload:Unload current environment'
+        'status:Show current environment status'
+        'init:Initialize shell hook'
+        'allow:Allow directory for cuenv'
+        'deny:Deny directory for cuenv'
+        'run:Run a task'
+        'exec:Execute command with environment'
+        'hook:Generate shell hook'
+        'export:Export environment variables'
+        'dump:Dump complete environment'
+        'prune:Prune stale state'
+        'clear-cache:Clear task cache'
+        'cache:Cache management commands'
+        'remote-cache-server:Start remote cache server'
+        'completion:Generate shell completion scripts'
+        'help:Print help information'
+    )
+    _describe 'commands' commands
+}
+
+_cuenv_tasks() {
+    local tasks
+    tasks=(${(f)"$(cuenv _complete_tasks 2>/dev/null)"})
+    _describe 'tasks' tasks
+}
+
+_cuenv_environments() {
+    local environments
+    environments=(${(f)"$(cuenv _complete_environments 2>/dev/null || echo 'development\nstageing\nproduction')"})
+    _describe 'environments' environments
+}
+
+_cuenv_capabilities() {
+    local capabilities
+    capabilities=(
+        'network:Network access capability'
+        'filesystem:Filesystem access capability'
+        'secrets:Secrets access capability'
+    )
+    _describe 'capabilities' capabilities
+}
+
+_cuenv "$@"
+"#;
+    print!("{script}");
+    Ok(())
+}
+
+fn generate_fish_completion() -> Result<()> {
+    let script = r#"
+# Fish completion for cuenv
+
+# Main commands
+complete -c cuenv -f
+complete -c cuenv -n '__fish_use_subcommand' -a 'load' -d 'Load environment from current directory'
+complete -c cuenv -n '__fish_use_subcommand' -a 'unload' -d 'Unload current environment'
+complete -c cuenv -n '__fish_use_subcommand' -a 'status' -d 'Show current environment status'
+complete -c cuenv -n '__fish_use_subcommand' -a 'init' -d 'Initialize shell hook'
+complete -c cuenv -n '__fish_use_subcommand' -a 'allow' -d 'Allow directory for cuenv'
+complete -c cuenv -n '__fish_use_subcommand' -a 'deny' -d 'Deny directory for cuenv'
+complete -c cuenv -n '__fish_use_subcommand' -a 'run' -d 'Run a task'
+complete -c cuenv -n '__fish_use_subcommand' -a 'exec' -d 'Execute command with environment'
+complete -c cuenv -n '__fish_use_subcommand' -a 'hook' -d 'Generate shell hook'
+complete -c cuenv -n '__fish_use_subcommand' -a 'export' -d 'Export environment variables'
+complete -c cuenv -n '__fish_use_subcommand' -a 'dump' -d 'Dump complete environment'
+complete -c cuenv -n '__fish_use_subcommand' -a 'prune' -d 'Prune stale state'
+complete -c cuenv -n '__fish_use_subcommand' -a 'clear-cache' -d 'Clear task cache'
+complete -c cuenv -n '__fish_use_subcommand' -a 'cache' -d 'Cache management commands'
+complete -c cuenv -n '__fish_use_subcommand' -a 'remote-cache-server' -d 'Start remote cache server'
+complete -c cuenv -n '__fish_use_subcommand' -a 'completion' -d 'Generate shell completion scripts'
+complete -c cuenv -n '__fish_use_subcommand' -a 'help' -d 'Print help information'
+
+# Global flags
+complete -c cuenv -s h -l help -d 'Print help'
+complete -c cuenv -s V -l version -d 'Print version'
+complete -c cuenv -s e -l env -d 'Environment to use' -xa '(cuenv _complete_environments 2>/dev/null; or echo -e "development\nstaging\nproduction")'
+complete -c cuenv -s c -l capability -d 'Capabilities to enable' -xa 'network filesystem secrets'
+complete -c cuenv -l audit -d 'Run in audit mode'
+
+# Task completion for run command
+complete -c cuenv -n '__fish_seen_subcommand_from run' -xa '(cuenv _complete_tasks 2>/dev/null)'
+
+# Shell completion for completion command
+complete -c cuenv -n '__fish_seen_subcommand_from completion' -xa 'bash zsh fish powershell'
+
+# Cache subcommands
+complete -c cuenv -n '__fish_seen_subcommand_from cache' -xa 'clear stats cleanup'
+"#;
+    print!("{script}");
+    Ok(())
+}
+
+fn generate_powershell_completion() -> Result<()> {
+    let script = r#"
+# PowerShell completion for cuenv
+
+Register-ArgumentCompleter -Native -CommandName cuenv -ScriptBlock {
+    param($commandName, $wordToComplete, $cursorPosition)
+    
+    $commands = @(
+        'load', 'unload', 'status', 'init', 'allow', 'deny', 'run', 'exec',
+        'hook', 'export', 'dump', 'prune', 'clear-cache', 'cache',
+        'remote-cache-server', 'completion', 'help'
+    )
+    
+    $flags = @('-h', '--help', '-V', '--version', '-e', '--env', '-c', '--capability', '--audit')
+    
+    # Parse the current command line
+    $tokens = $wordToComplete -split '\s+'
+    $lastToken = $tokens[-1]
+    
+    # If we're completing the first argument (command)
+    if ($tokens.Count -le 2) {
+        $commands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+        }
+        return
+    }
+    
+    # Get the command
+    $command = $tokens[1]
+    
+    switch ($command) {
+        'run' {
+            if ($tokens.Count -eq 3) {
+                # Complete task names
+                try {
+                    $tasks = cuenv _complete_tasks 2>$null
+                    if ($tasks) {
+                        $tasks -split "`n" | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+                            [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+                        }
+                    }
+                } catch {}
+            }
+        }
+        'completion' {
+            @('bash', 'zsh', 'fish', 'powershell') | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+                [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
+            }
+        }
+    }
+    
+    # Complete flags
+    $flags | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+        [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterName', $_)
+    }
+}
+"#;
+    print!("{script}");
+    Ok(())
+}
+
+async fn complete_tasks() -> Result<()> {
+    let current_dir = match env::current_dir() {
+        Ok(d) => d,
+        Err(_) => return Ok(()), // Silent fail for completion
+    };
+    
+    let mut env_manager = EnvManager::new();
+    match env_manager.load_env(&current_dir).await {
+        Ok(()) => {
+            let tasks = env_manager.list_tasks();
+            for (name, _description) in tasks {
+                println!("{name}");
+            }
+        }
+        Err(_) => {} // Silent fail for completion
+    }
+    Ok(())
+}
+
+async fn complete_environments() -> Result<()> {
+    let current_dir = match env::current_dir() {
+        Ok(d) => d,
+        Err(_) => return Ok(()), // Silent fail for completion
+    };
+    
+    // Try to extract environment names from env.cue file content
+    if current_dir.join("env.cue").exists() {
+        match std::fs::read_to_string(current_dir.join("env.cue")) {
+            Ok(content) => {
+                // Parse to find environment section
+                let lines: Vec<&str> = content.lines().collect();
+                let mut in_environment_section = false;
+                let mut brace_count = 0;
+                
+                for line in lines {
+                    let trimmed = line.trim();
+                    
+                    // Look for "environment:" line (with or without opening brace)
+                    if trimmed.starts_with("environment:") {
+                        in_environment_section = true;
+                        // Count opening braces on this line
+                        brace_count += trimmed.matches('{').count() as i32;
+                        brace_count -= trimmed.matches('}').count() as i32;
+                        continue;
+                    }
+                    
+                    if in_environment_section {
+                        // Count braces to track nesting
+                        brace_count += trimmed.matches('{').count() as i32;
+                        brace_count -= trimmed.matches('}').count() as i32;
+                        
+                        // If we're back to 0 braces, we've exited the environment section
+                        if brace_count <= 0 {
+                            in_environment_section = false;
+                            continue;
+                        }
+                        
+                        // Look for environment names (keys before colons at depth 1)
+                        if brace_count == 1 && trimmed.contains(':') {
+                            if let Some(colon_pos) = trimmed.find(':') {
+                                let env_name = trimmed[..colon_pos].trim();
+                                // Only accept valid identifiers that don't start with uppercase (not types)
+                                if !env_name.is_empty() 
+                                    && env_name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+                                    && !env_name.chars().next().unwrap_or('A').is_uppercase() {
+                                    println!("{env_name}");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Err(_) => {} // Silent fail
+        }
+    }
+    
+    Ok(())
+}
+
+async fn complete_hosts() -> Result<()> {
+    let current_dir = match env::current_dir() {
+        Ok(d) => d,
+        Err(_) => return Ok(()), // Silent fail for completion
+    };
+    
+    let mut env_manager = EnvManager::new();
+    match env_manager.load_env(&current_dir).await {
+        Ok(()) => {
+            let tasks = env_manager.get_tasks();
+            for (_name, task) in tasks {
+                if let Some(security) = &task.security {
+                    if let Some(allowed_hosts) = &security.allowed_hosts {
+                        for host in allowed_hosts {
+                            println!("{host}");
+                        }
+                    }
+                }
+            }
+        }
+        Err(_) => {} // Silent fail for completion
+    }
+    
+    Ok(())
 }
 
 #[tokio::main]
@@ -646,6 +1031,18 @@ async fn main() -> Result<()> {
                     )));
                 }
             }
+        }
+        Some(Commands::Completion { shell }) => {
+            generate_completion(&shell)?;
+        }
+        Some(Commands::CompleteTasks) => {
+            complete_tasks().await?;
+        }
+        Some(Commands::CompleteEnvironments) => {
+            complete_environments().await?;
+        }
+        Some(Commands::CompleteHosts) => {
+            complete_hosts().await?;
         }
         None => {
             let current_dir = match DirectoryManager::get_current_directory() {
