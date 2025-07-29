@@ -268,6 +268,8 @@
           packages = {
             default = cuenv;
             cuenv = cuenv;
+          } // pkgs.lib.optionalAttrs (system == "x86_64-linux") {
+            # Static builds only available on Linux
             cuenv-static = cuenv-static;
           };
 
