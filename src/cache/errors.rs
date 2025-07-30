@@ -123,6 +123,70 @@ pub enum CacheError {
         source: Box<dyn std::error::Error + Send + Sync>,
         recovery_hint: RecoveryHint,
     },
+
+    /// Security-related errors (Phase 7)
+    
+    /// Cryptographic signature verification failed
+    SignatureVerification {
+        algorithm: String,
+        key_id: String,
+        reason: String,
+        recovery_hint: RecoveryHint,
+    },
+
+    /// Access denied due to insufficient capabilities
+    AccessDenied {
+        operation: String,
+        required_permission: String,
+        token_id: String,
+        recovery_hint: RecoveryHint,
+    },
+
+    /// Security token is invalid or expired
+    InvalidToken {
+        token_id: String,
+        reason: TokenInvalidReason,
+        recovery_hint: RecoveryHint,
+    },
+
+    /// Audit log corruption or tampering detected
+    AuditLogCorruption {
+        log_file: PathBuf,
+        corruption_type: AuditCorruptionType,
+        recovery_hint: RecoveryHint,
+    },
+
+    /// Merkle tree integrity verification failed
+    MerkleTreeCorruption {
+        root_hash: String,
+        expected_hash: String,
+        corrupted_entries: Vec<String>,
+        recovery_hint: RecoveryHint,
+    },
+
+    /// Rate limiting exceeded
+    RateLimitExceeded {
+        token_id: String,
+        limit: f64,
+        window_seconds: u64,
+        recovery_hint: RecoveryHint,
+    },
+
+    /// Security policy violation
+    SecurityPolicyViolation {
+        policy_name: String,
+        violation_details: String,
+        severity: ViolationSeverity,
+        recovery_hint: RecoveryHint,
+    },
+
+    /// Cryptographic key derivation or generation failed
+    CryptographicError {
+        operation: String,
+        algorithm: String,
+        details: String,
+        recovery_hint: RecoveryHint,
+    },
 }
 
 /// Recovery hints for error handling
@@ -150,6 +214,18 @@ pub enum RecoveryHint {
     CheckDiskSpace,
     /// Run cache eviction
     RunEviction,
+    /// Regenerate security keys
+    RegenerateKeys,
+    /// Refresh security token
+    RefreshToken,
+    /// Contact security administrator
+    ContactSecurityAdmin { contact: String },
+    /// Enable audit logging
+    EnableAuditLogging,
+    /// Rebuild Merkle tree
+    RebuildMerkleTree,
+    /// Review security policies
+    ReviewSecurityPolicies,
 }
 
 /// Serialization operation type
@@ -165,6 +241,55 @@ pub enum StoreType {
     Local,
     Remote { endpoint: String },
     ContentAddressed,
+}
+
+/// Security token invalid reasons (Phase 7)
+#[derive(Debug, Clone)]
+pub enum TokenInvalidReason {
+    /// Token has expired
+    Expired,
+    /// Token has been revoked
+    Revoked,
+    /// Token signature is invalid
+    InvalidSignature,
+    /// Token issuer is not trusted
+    UntrustedIssuer,
+    /// Token format is malformed
+    Malformed,
+    /// Token is not yet valid (nbf claim)
+    NotYetValid,
+    /// Token audience mismatch
+    AudienceMismatch,
+}
+
+/// Audit log corruption types (Phase 7)
+#[derive(Debug, Clone)]
+pub enum AuditCorruptionType {
+    /// Hash chain is broken
+    BrokenHashChain,
+    /// Entry signature verification failed
+    InvalidEntrySignature,
+    /// Timestamp is out of order
+    TimestampOutOfOrder,
+    /// Entry format is invalid
+    InvalidFormat,
+    /// File was truncated
+    FileTruncated,
+    /// Unauthorized modification detected
+    UnauthorizedModification,
+}
+
+/// Security violation severity levels (Phase 7)
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ViolationSeverity {
+    /// Low severity - informational
+    Low,
+    /// Medium severity - warning
+    Medium,
+    /// High severity - requires attention
+    High,
+    /// Critical severity - immediate action required
+    Critical,
 }
 
 impl fmt::Display for CacheError {
@@ -279,6 +404,81 @@ impl fmt::Display for CacheError {
             Self::Compression {
                 operation, source, ..
             } => write!(f, "Compression error during {}: {}", operation, source),
+            Self::SignatureVerification {
+                algorithm,
+                key_id,
+                reason,
+                ..
+            } => write!(
+                f,
+                "Signature verification failed for {} key {}: {}",
+                algorithm, key_id, reason
+            ),
+            Self::AccessDenied {
+                operation,
+                required_permission,
+                token_id,
+                ..
+            } => write!(
+                f,
+                "Access denied for operation '{}': requires {} permission (token: {})",
+                operation, required_permission, token_id
+            ),
+            Self::InvalidToken {
+                token_id, reason, ..
+            } => write!(f, "Invalid token {}: {:?}", token_id, reason),
+            Self::AuditLogCorruption {
+                log_file,
+                corruption_type,
+                ..
+            } => write!(
+                f,
+                "Audit log corruption in '{}': {:?}",
+                log_file.display(),
+                corruption_type
+            ),
+            Self::MerkleTreeCorruption {
+                root_hash,
+                expected_hash,
+                corrupted_entries,
+                ..
+            } => write!(
+                f,
+                "Merkle tree corruption: root hash {} != expected {}, {} corrupted entries",
+                root_hash,
+                expected_hash,
+                corrupted_entries.len()
+            ),
+            Self::RateLimitExceeded {
+                token_id,
+                limit,
+                window_seconds,
+                ..
+            } => write!(
+                f,
+                "Rate limit exceeded for token {}: {} operations per {} seconds",
+                token_id, limit, window_seconds
+            ),
+            Self::SecurityPolicyViolation {
+                policy_name,
+                violation_details,
+                severity,
+                ..
+            } => write!(
+                f,
+                "Security policy '{}' violation ({:?}): {}",
+                policy_name, severity, violation_details
+            ),
+            Self::CryptographicError {
+                operation,
+                algorithm,
+                details,
+                ..
+            } => write!(
+                f,
+                "Cryptographic error during {} with {}: {}",
+                operation, algorithm, details
+            ),
         }
     }
 }
@@ -314,7 +514,15 @@ impl CacheError {
             | Self::DiskQuotaExceeded { recovery_hint, .. }
             | Self::IntegrityFailure { recovery_hint, .. }
             | Self::Configuration { recovery_hint, .. }
-            | Self::Compression { recovery_hint, .. } => recovery_hint,
+            | Self::Compression { recovery_hint, .. }
+            | Self::SignatureVerification { recovery_hint, .. }
+            | Self::AccessDenied { recovery_hint, .. }
+            | Self::InvalidToken { recovery_hint, .. }
+            | Self::AuditLogCorruption { recovery_hint, .. }
+            | Self::MerkleTreeCorruption { recovery_hint, .. }
+            | Self::RateLimitExceeded { recovery_hint, .. }
+            | Self::SecurityPolicyViolation { recovery_hint, .. }
+            | Self::CryptographicError { recovery_hint, .. } => recovery_hint,
         }
     }
 

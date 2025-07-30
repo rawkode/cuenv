@@ -32,6 +32,12 @@ mod mode;
 pub mod signing;
 mod types;
 
+// Security modules (Phase 7)
+pub mod capabilities;
+pub mod audit;
+pub mod merkle;
+pub mod secure_cache;
+
 // Legacy implementations (deprecated - will be removed)
 mod action_cache;
 mod cache_manager;

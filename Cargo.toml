@@ -56,7 +56,7 @@ globset = "0.4"
 once_cell = "1.19"
 users = "0.11"
 uuid = { version = "1.7", features = ["v4"] }
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde", "clock"] }
 hostname = "0.4"
 whoami = "1.5"
 # Buck2-inspired concurrent data structures
@@ -85,6 +85,9 @@ tracing-flame = "0.2"
 fastrand = "2.0"
 sysinfo = "0.30"
 pin-project-lite = "0.2"
+# Ed25519 signatures for cryptographic integrity (Phase 7)
+ed25519-dalek = { version = "2.1", features = ["rand_core"] }
+getrandom = "0.2"
 
 [target.'cfg(unix)'.dependencies]
 signal-hook = "0.3"
