@@ -210,31 +210,167 @@ cuenv automatically watches imported files and reloads the environment when they
 
 ## Shell-Specific Features
 
-### Bash Completion
+### Shell Completion
 
-Enable tab completion for cuenv commands:
+cuenv provides comprehensive tab completion for all commands, flags, and dynamic content like task names and environment names.
+
+#### Installation
+
+Generate and install completion scripts for your shell:
+
+##### Bash
 
 ```bash title="~/.bashrc"
+# Enable cuenv completion
 if command -v cuenv >/dev/null 2>&1; then
     eval "$(cuenv completion bash)"
 fi
 ```
 
-### Zsh Completion
+For system-wide completion:
+
+```bash
+# Save to system completion directory
+sudo cuenv completion bash > /etc/bash_completion.d/cuenv
+```
+
+##### Zsh
 
 ```zsh title="~/.zshrc"
+# Enable cuenv completion
 if command -v cuenv >/dev/null 2>&1; then
     eval "$(cuenv completion zsh)"
 fi
 ```
 
-### Fish Completion
+For manual installation:
+
+```bash
+# Create completion directory if it doesn't exist
+mkdir -p ~/.zsh/completions
+
+# Generate completion script
+cuenv completion zsh > ~/.zsh/completions/_cuenv
+
+# Add to .zshrc
+fpath=(~/.zsh/completions $fpath)
+autoload -U compinit && compinit
+```
+
+##### Fish
 
 ```fish title="~/.config/fish/config.fish"
+# Enable cuenv completion
 if command -v cuenv >/dev/null 2>&1
     cuenv completion fish | source
 end
 ```
+
+For persistent installation:
+
+```bash
+# Create completions directory
+mkdir -p ~/.config/fish/completions
+
+# Generate completion script
+cuenv completion fish > ~/.config/fish/completions/cuenv.fish
+```
+
+##### PowerShell
+
+```powershell title="Microsoft.PowerShell_profile.ps1"
+# Enable cuenv completion
+if (Get-Command cuenv -ErrorAction SilentlyContinue) {
+    cuenv completion powershell | Out-String | Invoke-Expression
+}
+```
+
+##### Elvish
+
+```elvish title="~/.config/elvish/rc.elv"
+# Enable cuenv completion (if elvish support is available)
+if (has-external cuenv) {
+    eval (cuenv completion elvish | slurp)
+}
+```
+
+#### Completion Features
+
+The completion system provides intelligent suggestions for:
+
+##### Static Completions
+
+- **Commands**: `load`, `unload`, `status`, `init`, `allow`, `deny`, `run`, `exec`, `hook`, `export`, `dump`, `prune`, `clear-cache`, `cache`, `remote-cache-server`, `completion`
+- **Global flags**: `-h/--help`, `-V/--version`, `-e/--env`, `-c/--capability`, `--audit`
+- **Command-specific flags**: Context-sensitive options for each command
+
+##### Dynamic Completions
+
+- **Task names**: When using `cuenv run <TAB>`, completes with available task names from `env.cue`
+- **Environment names**: When using `-e <TAB>` or `--env <TAB>`, completes with defined environments
+- **Capability names**: When using `-c <TAB>` or `--capability <TAB>`, completes with available capabilities
+- **Allowed hosts**: Context-aware host completion for security-restricted tasks
+
+#### Usage Examples
+
+```bash
+# Complete available tasks
+cuenv run <TAB>
+# Shows: build, test, deploy, lint, format, etc.
+
+# Complete environment names
+cuenv run -e <TAB>
+# Shows: development, staging, production, etc.
+
+# Complete capability names
+cuenv exec -c <TAB>
+# Shows: network, filesystem, secrets, etc.
+
+# Complete commands with context
+cuenv <TAB>
+# Shows all available commands with descriptions
+```
+
+#### Advanced Completion
+
+The completion system understands CUE file structure and provides:
+
+- **Environment-specific tasks**: Only shows tasks available in the selected environment
+- **Conditional capabilities**: Suggests capabilities based on current task context
+- **File path completion**: Smart completion for CUE files and configuration paths
+- **Host completion**: Security-aware hostname completion for allowed hosts
+
+#### Troubleshooting Completion
+
+If completion isn't working:
+
+1. **Verify installation**:
+
+   ```bash
+   # Check if cuenv is in PATH
+   which cuenv
+
+   # Test completion generation
+   cuenv completion bash
+   ```
+
+2. **Reload shell configuration**:
+
+   ```bash
+   # Bash
+   source ~/.bashrc
+
+   # Zsh
+   source ~/.zshrc
+
+   # Fish
+   source ~/.config/fish/config.fish
+   ```
+
+3. **Check for conflicts**:
+   - Ensure no other tools are overriding cuenv completion
+   - Verify completion functions are loaded correctly
+   - Check for shell-specific completion settings
 
 ## Troubleshooting
 

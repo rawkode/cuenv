@@ -438,6 +438,33 @@
                 Note: Nushell support is experimental and may require manual configuration.
               '';
             };
+
+            enableBashCompletion = mkOption {
+              type = types.bool;
+              default = cfg.enableBashIntegration;
+              defaultText = literalExpression "cfg.enableBashIntegration";
+              description = ''
+                Whether to enable Bash completion for cuenv.
+              '';
+            };
+
+            enableZshCompletion = mkOption {
+              type = types.bool;
+              default = cfg.enableZshIntegration;
+              defaultText = literalExpression "cfg.enableZshIntegration";
+              description = ''
+                Whether to enable Zsh completion for cuenv.
+              '';
+            };
+
+            enableFishCompletion = mkOption {
+              type = types.bool;
+              default = cfg.enableFishIntegration;
+              defaultText = literalExpression "cfg.enableFishIntegration";
+              description = ''
+                Whether to enable Fish completion for cuenv.
+              '';
+            };
           };
 
           config = mkIf cfg.enable {
@@ -448,14 +475,35 @@
               eval "$(${cfg.package}/bin/cuenv init bash)"
             '';
 
+            programs.bash.bashrcExtra = mkIf cfg.enableBashCompletion ''
+              # cuenv completion
+              if command -v cuenv >/dev/null 2>&1; then
+                eval "$(${cfg.package}/bin/cuenv completion bash)"
+              fi
+            '';
+
             programs.zsh.initExtra = mkIf cfg.enableZshIntegration ''
               # cuenv shell integration
               eval "$(${cfg.package}/bin/cuenv init zsh)"
             '';
 
+            programs.zsh.completionInit = mkIf cfg.enableZshCompletion ''
+              # cuenv completion
+              if command -v cuenv >/dev/null 2>&1; then
+                eval "$(${cfg.package}/bin/cuenv completion zsh)"
+              fi
+            '';
+
             programs.fish.interactiveShellInit = mkIf cfg.enableFishIntegration ''
               # cuenv shell integration
               ${cfg.package}/bin/cuenv init fish | source
+            '';
+
+            programs.fish.shellInit = mkIf cfg.enableFishCompletion ''
+              # cuenv completion
+              if command -v cuenv >/dev/null 2>&1
+                ${cfg.package}/bin/cuenv completion fish | source
+              end
             '';
 
             programs.nushell.extraConfig = mkIf cfg.enableNushellIntegration ''
