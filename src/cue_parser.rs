@@ -65,7 +65,12 @@ impl Drop for CStringPtr {
 
 #[link(name = "cue_bridge")]
 extern "C" {
-    fn cue_eval_package(dir_path: *const c_char, package_name: *const c_char) -> *mut c_char;
+    fn cue_eval_package_with_options(
+        dir_path: *const c_char,
+        package_name: *const c_char,
+        environment: *const c_char,
+        capabilities: *const c_char,
+    ) -> *mut c_char;
     fn cue_free_string(s: *mut c_char);
 }
 
@@ -235,13 +240,25 @@ fn create_ffi_string(value: &str, context: &str) -> Result<CString> {
     })
 }
 
-fn call_cue_eval_package(dir_path: &CStr, package_name: &CStr) -> *mut c_char {
-    // Safety: cue_eval_package is an external C function that:
-    // - Takes two non-null C string pointers as arguments
+fn call_cue_eval_package_with_options(
+    dir_path: &CStr,
+    package_name: &CStr,
+    environment: Option<&CStr>,
+    capabilities: Option<&CStr>,
+) -> *mut c_char {
+    // Safety: cue_eval_package_with_options is an external C function that:
+    // - Takes four C string pointers as arguments (environment and capabilities can be null)
     // - Returns a heap-allocated C string that must be freed with cue_free_string
     // - Returns null on allocation failure
     // We ensure the input pointers are valid for the duration of the call
-    unsafe { cue_eval_package(dir_path.as_ptr(), package_name.as_ptr()) }
+    unsafe {
+        cue_eval_package_with_options(
+            dir_path.as_ptr(),
+            package_name.as_ptr(),
+            environment.map_or(std::ptr::null(), |e| e.as_ptr()),
+            capabilities.map_or(std::ptr::null(), |c| c.as_ptr()),
+        )
+    }
 }
 
 // JSON parsing utilities
@@ -320,8 +337,29 @@ impl CueParser {
         let c_dir = create_ffi_string(&dir_str, "invalid directory path")?;
         let c_package = create_ffi_string(package_name, "invalid package name")?;
 
-        // Call CUE evaluation
-        let result_ptr = call_cue_eval_package(&c_dir, &c_package);
+        // Create optional FFI strings for environment and capabilities
+        let c_env = match &options.environment {
+            Some(env) => Some(create_ffi_string(env, "invalid environment name")?),
+            None => None,
+        };
+
+        let caps_str = if options.capabilities.is_empty() {
+            None
+        } else {
+            Some(options.capabilities.join(","))
+        };
+        let c_caps = match caps_str {
+            Some(ref caps) => Some(create_ffi_string(caps, "invalid capabilities")?),
+            None => None,
+        };
+
+        // Call CUE evaluation with options
+        let result_ptr = call_cue_eval_package_with_options(
+            &c_dir,
+            &c_package,
+            c_env.as_deref(),
+            c_caps.as_deref(),
+        );
 
         // Wrap the result pointer for automatic cleanup
         // Safety: result_ptr is either null or a valid pointer returned from cue_eval_package

@@ -16,8 +16,7 @@ pub mod errors;
 pub mod file_times;
 pub mod gzenv;
 pub mod hook_manager;
-// Temporarily disabled due to MCP API compatibility issues
-// pub mod mcp;
+pub mod mcp;
 pub mod memory;
 pub mod output_filter;
 pub mod platform;
