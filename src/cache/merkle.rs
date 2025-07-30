@@ -152,7 +152,7 @@ impl MerkleTree {
     ) -> Result<()> {
         // Create leaf node for the entry
         let leaf_hash = self.compute_leaf_hash(&cache_key, &content_hash, &metadata);
-        
+
         let leaf_node = MerkleNode {
             hash: leaf_hash,
             left_child: None,
@@ -175,7 +175,7 @@ impl MerkleTree {
 
         // Rebuild tree structure
         self.rebuild_tree()?;
-        
+
         self.stats.last_updated = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -189,15 +189,15 @@ impl MerkleTree {
         if let Some(leaf_hash) = self.leaves.remove(cache_key) {
             self.nodes.remove(&leaf_hash);
             self.stats.leaf_count -= 1;
-            
+
             // Rebuild tree structure
             self.rebuild_tree()?;
-            
+
             self.stats.last_updated = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_secs();
-            
+
             Ok(true)
         } else {
             Ok(false)
@@ -375,11 +375,15 @@ impl MerkleTree {
                 let right_hash = chunk.get(1).copied().unwrap_or(left_hash);
 
                 let internal_hash = self.compute_internal_hash(left_hash, right_hash);
-                
+
                 let internal_node = MerkleNode {
                     hash: internal_hash,
                     left_child: Some(left_hash),
-                    right_child: if right_hash != left_hash { Some(right_hash) } else { None },
+                    right_child: if right_hash != left_hash {
+                        Some(right_hash)
+                    } else {
+                        None
+                    },
                     depth: height,
                     cache_key: None,
                     entry_metadata: None,
@@ -406,11 +410,14 @@ impl MerkleTree {
 
         // Find path from leaf to root
         while let Some(parent_hash) = self.find_parent(current_hash)? {
-            let parent_node = self.nodes.get(&parent_hash).ok_or_else(|| CacheError::Corruption {
-                key: hash_to_hex(&parent_hash),
-                reason: "Missing parent node in Merkle tree".to_string(),
-                recovery_hint: RecoveryHint::RebuildIndex,
-            })?;
+            let parent_node =
+                self.nodes
+                    .get(&parent_hash)
+                    .ok_or_else(|| CacheError::Corruption {
+                        key: hash_to_hex(&parent_hash),
+                        reason: "Missing parent node in Merkle tree".to_string(),
+                        recovery_hint: RecoveryHint::RebuildIndex,
+                    })?;
 
             // Determine sibling
             let (sibling_hash, is_left_sibling) = if Some(current_hash) == parent_node.left_child {
@@ -435,7 +442,9 @@ impl MerkleTree {
     /// Find parent node of a given hash
     fn find_parent(&self, child_hash: Hash) -> Result<Option<Hash>> {
         for (parent_hash, parent_node) in &self.nodes {
-            if parent_node.left_child == Some(child_hash) || parent_node.right_child == Some(child_hash) {
+            if parent_node.left_child == Some(child_hash)
+                || parent_node.right_child == Some(child_hash)
+            {
                 return Ok(Some(*parent_hash));
             }
         }
@@ -550,9 +559,10 @@ mod tests {
     fn test_single_entry() {
         let mut tree = MerkleTree::new();
         let metadata = create_test_metadata(1024);
-        
-        tree.insert_entry("test/key".to_string(), [1u8; 32], metadata).unwrap();
-        
+
+        tree.insert_entry("test/key".to_string(), [1u8; 32], metadata)
+            .unwrap();
+
         assert!(tree.root_hash().is_some());
         assert_eq!(tree.stats().leaf_count, 1);
         assert_eq!(tree.stats().height, 0);
@@ -561,7 +571,7 @@ mod tests {
     #[test]
     fn test_multiple_entries() {
         let mut tree = MerkleTree::new();
-        
+
         for i in 0..10 {
             let key = format!("key_{}", i);
             let hash = {
@@ -569,9 +579,10 @@ mod tests {
                 h[0] = i as u8;
                 h
             };
-            tree.insert_entry(key, hash, create_test_metadata(1024)).unwrap();
+            tree.insert_entry(key, hash, create_test_metadata(1024))
+                .unwrap();
         }
-        
+
         assert!(tree.root_hash().is_some());
         assert_eq!(tree.stats().leaf_count, 10);
         assert!(tree.stats().height > 0);
@@ -580,7 +591,7 @@ mod tests {
     #[test]
     fn test_proof_generation_and_verification() {
         let mut tree = MerkleTree::new();
-        
+
         // Insert test entries
         for i in 0..8 {
             let key = format!("key_{}", i);
@@ -589,20 +600,21 @@ mod tests {
                 h[0] = i as u8;
                 h
             };
-            tree.insert_entry(key, hash, create_test_metadata(1024)).unwrap();
+            tree.insert_entry(key, hash, create_test_metadata(1024))
+                .unwrap();
         }
-        
+
         // Generate proof for first entry
         let proof = tree.generate_proof("key_0").unwrap();
         assert!(proof.is_some());
-        
+
         let proof = proof.unwrap();
         assert_eq!(proof.cache_key, "key_0");
         assert_eq!(proof.tree_size, 8);
-        
+
         // Verify the proof
         assert!(tree.verify_proof(&proof).unwrap());
-        
+
         // Verify proof for non-existent entry
         let no_proof = tree.generate_proof("nonexistent");
         assert!(no_proof.unwrap().is_none());
@@ -611,7 +623,7 @@ mod tests {
     #[test]
     fn test_entry_removal() {
         let mut tree = MerkleTree::new();
-        
+
         // Insert entries
         for i in 0..5 {
             let key = format!("key_{}", i);
@@ -620,19 +632,20 @@ mod tests {
                 h[0] = i as u8;
                 h
             };
-            tree.insert_entry(key, hash, create_test_metadata(1024)).unwrap();
+            tree.insert_entry(key, hash, create_test_metadata(1024))
+                .unwrap();
         }
-        
+
         let original_root = tree.root_hash();
         assert_eq!(tree.stats().leaf_count, 5);
-        
+
         // Remove an entry
         assert!(tree.remove_entry("key_2").unwrap());
         assert_eq!(tree.stats().leaf_count, 4);
-        
+
         // Root should change
         assert_ne!(tree.root_hash(), original_root);
-        
+
         // Removing non-existent entry should return false
         assert!(!tree.remove_entry("nonexistent").unwrap());
     }
@@ -640,7 +653,7 @@ mod tests {
     #[test]
     fn test_integrity_verification() {
         let mut tree = MerkleTree::new();
-        
+
         // Insert test entries
         for i in 0..5 {
             let key = format!("key_{}", i);
@@ -649,9 +662,10 @@ mod tests {
                 h[0] = i as u8;
                 h
             };
-            tree.insert_entry(key, hash, create_test_metadata(1024)).unwrap();
+            tree.insert_entry(key, hash, create_test_metadata(1024))
+                .unwrap();
         }
-        
+
         let report = tree.verify_integrity().unwrap();
         assert_eq!(report.total_entries, 5);
         assert_eq!(report.verified_entries, 5);
@@ -662,7 +676,7 @@ mod tests {
     #[test]
     fn test_tree_state_export_import() {
         let mut tree1 = MerkleTree::new();
-        
+
         // Insert test entries
         for i in 0..3 {
             let key = format!("key_{}", i);
@@ -671,16 +685,18 @@ mod tests {
                 h[0] = i as u8;
                 h
             };
-            tree1.insert_entry(key, hash, create_test_metadata(1024)).unwrap();
+            tree1
+                .insert_entry(key, hash, create_test_metadata(1024))
+                .unwrap();
         }
-        
+
         let original_root = tree1.root_hash();
         let state = tree1.export_state().unwrap();
-        
+
         // Create new tree and import state
         let mut tree2 = MerkleTree::new();
         tree2.import_state(state).unwrap();
-        
+
         assert_eq!(tree2.root_hash(), original_root);
         assert_eq!(tree2.stats().leaf_count, 3);
     }
@@ -692,7 +708,7 @@ mod tests {
             sizes in prop::collection::vec(1u64..10000, 1..20)
         ) {
             let mut tree = MerkleTree::new();
-            
+
             // Insert entries
             for (key, size) in keys.iter().zip(sizes.iter()) {
                 let hash = {
@@ -704,18 +720,18 @@ mod tests {
                 };
                 tree.insert_entry(key.clone(), hash, create_test_metadata(*size)).unwrap();
             }
-            
+
             // Verify tree has entries
             prop_assert_eq!(tree.stats().leaf_count, keys.len() as u64);
-            
+
             if !keys.is_empty() {
                 prop_assert!(tree.root_hash().is_some());
-                
+
                 // Generate and verify proof for first key
                 if let Some(proof) = tree.generate_proof(&keys[0]).unwrap() {
                     prop_assert!(tree.verify_proof(&proof).unwrap());
                 }
-                
+
                 // Verify integrity
                 let report = tree.verify_integrity().unwrap();
                 prop_assert!(report.tree_valid);

@@ -23,7 +23,7 @@ mod cache_production_tests {
     #[tokio::test]
     async fn test_web_application_simulation() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Production-like configuration
         let config = UnifiedCacheConfig {
             max_memory_bytes: 100 * 1024 * 1024, // 100MB
@@ -37,7 +37,7 @@ mod cache_production_tests {
         let cache = Arc::new(
             ProductionCache::new(temp_dir.path().to_path_buf(), config)
                 .await
-                .unwrap()
+                .unwrap(),
         );
 
         println!("Starting web application simulation...");
@@ -173,18 +173,36 @@ mod cache_production_tests {
         println!("Web application simulation results:");
         println!("  Duration: {:.2}s", start_time.elapsed().as_secs_f64());
         println!("  Total operations: {}", final_stats.total_operations());
-        println!("  Operations/sec: {:.0}", final_stats.total_operations() as f64 / start_time.elapsed().as_secs_f64());
-        println!("  Average latency: {:.2}ms", final_stats.average_latency().as_millis());
+        println!(
+            "  Operations/sec: {:.0}",
+            final_stats.total_operations() as f64 / start_time.elapsed().as_secs_f64()
+        );
+        println!(
+            "  Average latency: {:.2}ms",
+            final_stats.average_latency().as_millis()
+        );
         println!("  Hit rate: {:.2}%", final_stats.hit_rate() * 100.0);
         println!("  Error rate: {:.4}%", final_stats.error_rate() * 100.0);
         println!("  Cache entries: {}", cache_stats.entries);
         println!("  Cache memory usage: {} bytes", cache_stats.memory_bytes);
 
         // Validate production requirements
-        assert!(final_stats.total_operations() > 10000, "Should handle high volume");
-        assert!(final_stats.hit_rate() > 0.3, "Should have reasonable hit rate");
-        assert!(final_stats.error_rate() < 0.01, "Should have low error rate");
-        assert!(final_stats.average_latency() < Duration::from_millis(10), "Should have low latency");
+        assert!(
+            final_stats.total_operations() > 10000,
+            "Should handle high volume"
+        );
+        assert!(
+            final_stats.hit_rate() > 0.3,
+            "Should have reasonable hit rate"
+        );
+        assert!(
+            final_stats.error_rate() < 0.01,
+            "Should have low error rate"
+        );
+        assert!(
+            final_stats.average_latency() < Duration::from_millis(10),
+            "Should have low latency"
+        );
     }
 
     /// Test cache behavior during application startup and warmup
@@ -204,15 +222,15 @@ mod cache_production_tests {
 
         for i in 0..1000 {
             let key = format!("startup_key_{}", i);
-            
+
             // Try to get from cache (will miss)
             if cache.get::<Vec<u8>>(&key).await.unwrap().is_none() {
                 cold_misses += 1;
-                
+
                 // Simulate loading from database/external source
                 tokio::time::sleep(Duration::from_micros(100)).await; // Simulate DB latency
                 let value = format!("startup_value_{}", i).repeat(10);
-                
+
                 // Store in cache
                 cache.put(&key, value.as_bytes(), None).await.unwrap();
                 cold_loads += 1;
@@ -220,8 +238,12 @@ mod cache_production_tests {
         }
 
         let cold_duration = cold_start.elapsed();
-        println!("  Cold start: {} misses, {} loads in {:.2}ms", 
-            cold_misses, cold_loads, cold_duration.as_millis());
+        println!(
+            "  Cold start: {} misses, {} loads in {:.2}ms",
+            cold_misses,
+            cold_loads,
+            cold_duration.as_millis()
+        );
 
         // Phase 2: Warm operation - cache should have data
         let warm_start = Instant::now();
@@ -230,7 +252,7 @@ mod cache_production_tests {
 
         for i in 0..1000 {
             let key = format!("startup_key_{}", i);
-            
+
             match cache.get::<Vec<u8>>(&key).await.unwrap() {
                 Some(_) => warm_hits += 1,
                 None => warm_misses += 1,
@@ -238,8 +260,12 @@ mod cache_production_tests {
         }
 
         let warm_duration = warm_start.elapsed();
-        println!("  Warm operation: {} hits, {} misses in {:.2}ms", 
-            warm_hits, warm_misses, warm_duration.as_millis());
+        println!(
+            "  Warm operation: {} hits, {} misses in {:.2}ms",
+            warm_hits,
+            warm_misses,
+            warm_duration.as_millis()
+        );
 
         // Phase 3: Mixed workload - simulate ongoing operation
         let mixed_start = Instant::now();
@@ -261,7 +287,7 @@ mod cache_production_tests {
                 } else {
                     format!("mixed_key_{}", i - (i % 3))
                 };
-                
+
                 match cache.get::<Vec<u8>>(&key).await.unwrap() {
                     Some(_) => mixed_hits += 1,
                     None => mixed_misses += 1,
@@ -270,14 +296,25 @@ mod cache_production_tests {
         }
 
         let mixed_duration = mixed_start.elapsed();
-        println!("  Mixed workload: {} hits, {} misses, {} writes in {:.2}ms", 
-            mixed_hits, mixed_misses, mixed_writes, mixed_duration.as_millis());
+        println!(
+            "  Mixed workload: {} hits, {} misses, {} writes in {:.2}ms",
+            mixed_hits,
+            mixed_misses,
+            mixed_writes,
+            mixed_duration.as_millis()
+        );
 
         // Validate startup behavior
         assert_eq!(cold_misses, 1000, "Cold start should have 100% misses");
         assert!(warm_hits > 900, "Warm operation should have high hit rate");
-        assert!(mixed_hits > mixed_misses, "Mixed workload should favor hits");
-        assert!(warm_duration < cold_duration / 5, "Warm reads should be much faster");
+        assert!(
+            mixed_hits > mixed_misses,
+            "Mixed workload should favor hits"
+        );
+        assert!(
+            warm_duration < cold_duration / 5,
+            "Warm reads should be much faster"
+        );
     }
 
     /// Test cache resilience during partial system failures
@@ -287,13 +324,15 @@ mod cache_production_tests {
         let cache = Arc::new(
             ProductionCache::new(temp_dir.path().to_path_buf(), Default::default())
                 .await
-                .unwrap()
+                .unwrap(),
         );
 
         println!("Testing partial system failure resilience...");
 
         // Pre-populate cache with critical data
-        let critical_keys = (0..100).map(|i| format!("critical_key_{}", i)).collect::<Vec<_>>();
+        let critical_keys = (0..100)
+            .map(|i| format!("critical_key_{}", i))
+            .collect::<Vec<_>>();
         for key in &critical_keys {
             let value = format!("critical_value_{}", key);
             cache.put(key, value.as_bytes(), None).await.unwrap();
@@ -312,10 +351,10 @@ mod cache_production_tests {
 
         for (scenario_name, failure_duration) in scenarios {
             println!("  Testing scenario: {}", scenario_name);
-            
+
             let scenario_start = Instant::now();
             failure_simulation.store(true, Ordering::Relaxed);
-            
+
             let cache_clone = Arc::clone(&cache);
             let failure_clone = Arc::clone(&failure_simulation);
             let recovery_clone = Arc::clone(&recovery_time);
@@ -324,10 +363,10 @@ mod cache_production_tests {
             // Simulate the failure scenario
             let failure_handle = tokio::spawn(async move {
                 tokio::time::sleep(failure_duration).await;
-                
+
                 let recovery_start = Instant::now();
                 failure_clone.store(false, Ordering::Relaxed);
-                
+
                 // Simulate recovery actions
                 match scenario_name {
                     "disk_corruption" => {
@@ -352,8 +391,11 @@ mod cache_production_tests {
                     }
                     _ => {}
                 }
-                
-                recovery_clone.store(recovery_start.elapsed().as_millis() as u64, Ordering::Relaxed);
+
+                recovery_clone.store(
+                    recovery_start.elapsed().as_millis() as u64,
+                    Ordering::Relaxed,
+                );
             });
 
             // Continue operations during failure
@@ -363,10 +405,10 @@ mod cache_production_tests {
 
             while failure_simulation.load(Ordering::Relaxed) {
                 operations_during_failure += 1;
-                
+
                 // Try to access critical data
                 let key = &critical_keys[operations_during_failure % critical_keys.len()];
-                
+
                 match timeout(Duration::from_millis(100), cache.get::<Vec<u8>>(key)).await {
                     Ok(Ok(Some(_))) => successful_operations += 1,
                     Ok(Ok(None)) => failed_operations += 1,
@@ -378,27 +420,50 @@ mod cache_production_tests {
             }
 
             failure_handle.await.unwrap();
-            
+
             let scenario_duration = scenario_start.elapsed();
             let recovery_duration = recovery_time.load(Ordering::Relaxed);
-            
-            println!("    Scenario duration: {:.2}s", scenario_duration.as_secs_f64());
+
+            println!(
+                "    Scenario duration: {:.2}s",
+                scenario_duration.as_secs_f64()
+            );
             println!("    Recovery time: {}ms", recovery_duration);
-            println!("    Operations during failure: {}", operations_during_failure);
-            println!("    Successful: {}, Failed: {}", successful_operations, failed_operations);
-            
+            println!(
+                "    Operations during failure: {}",
+                operations_during_failure
+            );
+            println!(
+                "    Successful: {}, Failed: {}",
+                successful_operations, failed_operations
+            );
+
             let availability = successful_operations as f64 / operations_during_failure as f64;
-            println!("    Availability during failure: {:.2}%", availability * 100.0);
+            println!(
+                "    Availability during failure: {:.2}%",
+                availability * 100.0
+            );
 
             // Validate resilience requirements
-            assert!(availability > 0.7, "Should maintain >70% availability during {}", scenario_name);
-            assert!(recovery_duration < 1000, "Recovery should be under 1 second for {}", scenario_name);
+            assert!(
+                availability > 0.7,
+                "Should maintain >70% availability during {}",
+                scenario_name
+            );
+            assert!(
+                recovery_duration < 1000,
+                "Recovery should be under 1 second for {}",
+                scenario_name
+            );
         }
 
         // Verify cache is fully functional after all failures
         for key in &critical_keys {
             let result = cache.get::<Vec<u8>>(key).await.unwrap();
-            assert!(result.is_some(), "Critical data should survive all failure scenarios");
+            assert!(
+                result.is_some(),
+                "Critical data should survive all failure scenarios"
+            );
         }
     }
 
@@ -406,7 +471,7 @@ mod cache_production_tests {
     #[tokio::test]
     async fn test_sustained_high_load() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         let config = UnifiedCacheConfig {
             max_memory_bytes: 200 * 1024 * 1024, // 200MB
             max_entries: 100000,
@@ -417,7 +482,7 @@ mod cache_production_tests {
         let cache = Arc::new(
             ProductionCache::new(temp_dir.path().to_path_buf(), config)
                 .await
-                .unwrap()
+                .unwrap(),
         );
 
         println!("Starting sustained high load test...");
@@ -442,7 +507,7 @@ mod cache_production_tests {
 
             let handle = tokio::spawn(async move {
                 barrier_clone.wait();
-                
+
                 let worker_start = Instant::now();
                 let mut rng = StdRng::seed_from_u64(worker_id as u64);
                 let mut operations = 0;
@@ -462,7 +527,8 @@ mod cache_production_tests {
                         }
                         70..=89 => {
                             // 20% writes
-                            let value = generate_test_data(1024, (worker_id * 1000 + operations) as u64);
+                            let value =
+                                generate_test_data(1024, (worker_id * 1000 + operations) as u64);
                             match cache_clone.put(&key, &value, None).await {
                                 Ok(_) => operations += 1,
                                 Err(_) => errors += 1,
@@ -483,7 +549,7 @@ mod cache_production_tests {
                         let elapsed = worker_start.elapsed().as_secs_f64();
                         let current_rate = operations as f64 / elapsed;
                         let target_rate = target_ops_per_sec as f64 / num_workers as f64;
-                        
+
                         if current_rate > target_rate {
                             let sleep_ms = ((operations as f64 / target_rate) - elapsed) * 1000.0;
                             if sleep_ms > 0.0 {
@@ -509,14 +575,17 @@ mod cache_production_tests {
 
             while start_time.elapsed() < load_duration {
                 tokio::time::sleep(Duration::from_secs(5)).await;
-                
+
                 let current_ops = global_stats.load(Ordering::Relaxed);
                 let now = Instant::now();
                 let ops_delta = current_ops - last_ops;
                 let time_delta = now.duration_since(last_time).as_secs_f64();
                 let current_rate = ops_delta as f64 / time_delta;
 
-                println!("  Progress: {} ops, {:.0} ops/sec", current_ops, current_rate);
+                println!(
+                    "  Progress: {} ops, {:.0} ops/sec",
+                    current_ops, current_rate
+                );
 
                 last_ops = current_ops;
                 last_time = now;
@@ -543,35 +612,56 @@ mod cache_production_tests {
         println!("  Total operations: {}", total_operations);
         println!("  Total errors: {}", total_errors);
         println!("  Actual ops/sec: {:.0}", actual_ops_per_sec);
-        println!("  Error rate: {:.4}%", (total_errors as f64 / total_operations as f64) * 100.0);
+        println!(
+            "  Error rate: {:.4}%",
+            (total_errors as f64 / total_operations as f64) * 100.0
+        );
         println!("  Cache entries: {}", cache_stats.entries);
-        println!("  Memory usage: {} MB", cache_stats.memory_bytes / (1024 * 1024));
+        println!(
+            "  Memory usage: {} MB",
+            cache_stats.memory_bytes / (1024 * 1024)
+        );
         println!("  Cache hit rate: {:.2}%", cache_stats.hit_rate * 100.0);
 
         // Validate high load requirements
-        assert!(total_operations > 400000, "Should handle high operation volume"); // At least 400K ops in 60s
-        assert!(actual_ops_per_sec > 5000.0, "Should maintain >5K ops/sec sustained rate");
-        assert!((total_errors as f64 / total_operations as f64) < 0.001, "Should have <0.1% error rate");
-        assert!(cache_stats.hit_rate > 0.1, "Should maintain reasonable hit rate under load");
+        assert!(
+            total_operations > 400000,
+            "Should handle high operation volume"
+        ); // At least 400K ops in 60s
+        assert!(
+            actual_ops_per_sec > 5000.0,
+            "Should maintain >5K ops/sec sustained rate"
+        );
+        assert!(
+            (total_errors as f64 / total_operations as f64) < 0.001,
+            "Should have <0.1% error rate"
+        );
+        assert!(
+            cache_stats.hit_rate > 0.1,
+            "Should maintain reasonable hit rate under load"
+        );
 
         // Verify cache is still responsive after sustained load
         let post_load_start = Instant::now();
         let test_key = "post_load_test";
         let test_value = b"post_load_value";
-        
+
         cache.put(test_key, test_value, None).await.unwrap();
         let retrieved: Option<Vec<u8>> = cache.get(test_key).await.unwrap();
         let post_load_latency = post_load_start.elapsed();
 
         assert_eq!(retrieved.unwrap(), test_value);
-        assert!(post_load_latency < Duration::from_millis(10), "Should remain responsive after load");
+        assert!(
+            post_load_latency < Duration::from_millis(10),
+            "Should remain responsive after load"
+        );
     }
 
     /// Test cache behavior during gradual memory exhaustion
     #[tokio::test]
     async fn test_gradual_memory_exhaustion() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Start with generous limits and gradually reduce
         let config = UnifiedCacheConfig {
             max_memory_bytes: 50 * 1024 * 1024, // 50MB
@@ -588,7 +678,7 @@ mod cache_production_tests {
 
         let entry_size = 1024; // 1KB per entry
         let data = generate_test_data(entry_size, 999);
-        
+
         let mut stored_keys = Vec::new();
         let mut eviction_started = false;
         let mut eviction_start_point = 0;
@@ -596,25 +686,31 @@ mod cache_production_tests {
         // Gradually fill memory
         for i in 0..100000 {
             let key = format!("memory_test_{}", i);
-            
+
             match cache.put(&key, &data, None).await {
                 Ok(_) => {
                     stored_keys.push(key.clone());
-                    
+
                     // Check if eviction has started
                     if i > 0 && i % 100 == 0 {
                         let stats = cache.statistics().await.unwrap();
-                        
+
                         if !eviction_started && stats.entries < stored_keys.len() as u64 {
                             eviction_started = true;
                             eviction_start_point = i;
-                            println!("  Eviction started at entry {}, cache has {} entries", 
-                                i, stats.entries);
+                            println!(
+                                "  Eviction started at entry {}, cache has {} entries",
+                                i, stats.entries
+                            );
                         }
-                        
+
                         if i % 1000 == 0 {
-                            println!("  Stored {} entries, cache has {} entries, using {} MB", 
-                                i, stats.entries, stats.memory_bytes / (1024 * 1024));
+                            println!(
+                                "  Stored {} entries, cache has {} entries, using {} MB",
+                                i,
+                                stats.entries,
+                                stats.memory_bytes / (1024 * 1024)
+                            );
                         }
                     }
                 }
@@ -631,39 +727,67 @@ mod cache_production_tests {
         let final_stats = cache.statistics().await.unwrap();
         println!("Final cache state:");
         println!("  Entries: {}", final_stats.entries);
-        println!("  Memory usage: {} MB", final_stats.memory_bytes / (1024 * 1024));
+        println!(
+            "  Memory usage: {} MB",
+            final_stats.memory_bytes / (1024 * 1024)
+        );
         println!("  Hit rate: {:.2}%", final_stats.hit_rate * 100.0);
 
         // Test access patterns after memory exhaustion
         let mut recent_hits = 0;
         let mut old_hits = 0;
-        
+
         // Test recent entries (should mostly be present)
         for i in (stored_keys.len().saturating_sub(1000))..stored_keys.len() {
             if i < stored_keys.len() {
-                if cache.get::<Vec<u8>>(&stored_keys[i]).await.unwrap().is_some() {
+                if cache
+                    .get::<Vec<u8>>(&stored_keys[i])
+                    .await
+                    .unwrap()
+                    .is_some()
+                {
                     recent_hits += 1;
                 }
             }
         }
-        
+
         // Test old entries (should mostly be evicted)
         for i in 0..std::cmp::min(1000, stored_keys.len()) {
-            if cache.get::<Vec<u8>>(&stored_keys[i]).await.unwrap().is_some() {
+            if cache
+                .get::<Vec<u8>>(&stored_keys[i])
+                .await
+                .unwrap()
+                .is_some()
+            {
                 old_hits += 1;
             }
         }
 
         println!("Access pattern after exhaustion:");
-        println!("  Recent entries hit rate: {:.2}%", (recent_hits as f64 / 1000.0) * 100.0);
-        println!("  Old entries hit rate: {:.2}%", (old_hits as f64 / 1000.0) * 100.0);
+        println!(
+            "  Recent entries hit rate: {:.2}%",
+            (recent_hits as f64 / 1000.0) * 100.0
+        );
+        println!(
+            "  Old entries hit rate: {:.2}%",
+            (old_hits as f64 / 1000.0) * 100.0
+        );
 
         // Validate memory management
         assert!(eviction_started, "Eviction should have started");
-        assert!(eviction_start_point > 10000, "Should allow substantial data before eviction");
-        assert!(final_stats.memory_bytes <= 60 * 1024 * 1024, "Should respect memory limits");
+        assert!(
+            eviction_start_point > 10000,
+            "Should allow substantial data before eviction"
+        );
+        assert!(
+            final_stats.memory_bytes <= 60 * 1024 * 1024,
+            "Should respect memory limits"
+        );
         assert!(recent_hits > old_hits, "Should prefer recent entries");
-        assert!(recent_hits > 500, "Should maintain good hit rate for recent data");
+        assert!(
+            recent_hits > 500,
+            "Should maintain good hit rate for recent data"
+        );
     }
 
     // Helper types and functions for simulation
@@ -714,14 +838,26 @@ mod cache_production_tests {
         }
 
         fn hit_rate(&self) -> f64 {
-            let total_hits = self.workers.values()
+            let total_hits = self
+                .workers
+                .values()
                 .map(|w| w.session_hits + w.fragment_hits + w.api_hits + w.asset_hits)
                 .sum::<u64>();
-            let total_requests = self.workers.values()
-                .map(|w| w.session_hits + w.session_misses + w.fragment_hits + w.fragment_misses + 
-                         w.api_hits + w.api_misses + w.asset_hits + w.asset_misses)
+            let total_requests = self
+                .workers
+                .values()
+                .map(|w| {
+                    w.session_hits
+                        + w.session_misses
+                        + w.fragment_hits
+                        + w.fragment_misses
+                        + w.api_hits
+                        + w.api_misses
+                        + w.asset_hits
+                        + w.asset_misses
+                })
                 .sum::<u64>();
-            
+
             if total_requests > 0 {
                 total_hits as f64 / total_requests as f64
             } else {
@@ -732,7 +868,7 @@ mod cache_production_tests {
         fn error_rate(&self) -> f64 {
             let total_errors: u64 = self.workers.values().map(|w| w.errors).sum();
             let total_ops = self.total_operations();
-            
+
             if total_ops > 0 {
                 total_errors as f64 / total_ops as f64
             } else {
@@ -741,11 +877,9 @@ mod cache_production_tests {
         }
 
         fn average_latency(&self) -> Duration {
-            let total_latency: Duration = self.workers.values()
-                .map(|w| w.total_latency)
-                .sum();
+            let total_latency: Duration = self.workers.values().map(|w| w.total_latency).sum();
             let total_ops = self.total_operations();
-            
+
             if total_ops > 0 {
                 total_latency / total_ops as u32
             } else {

@@ -12,9 +12,7 @@
 //! - Zero-trust model: all operations must be authorized
 
 use crate::cache::errors::{CacheError, RecoveryHint, Result};
-use ed25519_dalek::{
-    Signature, Signer, SigningKey, Verifier, VerifyingKey,
-};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -223,7 +221,7 @@ impl CapabilityAuthority {
 
         // Verify signature
         let token_bytes = self.serialize_token_for_signing(token)?;
-        
+
         let signature = match Signature::try_from(token.signature.as_slice()) {
             Ok(sig) => sig,
             Err(e) => {
@@ -265,19 +263,21 @@ impl CapabilityAuthority {
     /// Generate a cryptographically secure token ID
     fn generate_token_id(&self) -> String {
         use sha2::{Digest, Sha256};
-        
+
         let mut rng_bytes = [0u8; 32];
         getrandom::getrandom(&mut rng_bytes).expect("Failed to generate random bytes");
-        
+
         let mut hasher = Sha256::new();
         hasher.update(&rng_bytes);
         hasher.update(self.authority_id.as_bytes());
-        hasher.update(&SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-            .to_le_bytes());
-        
+        hasher.update(
+            &SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+                .to_le_bytes(),
+        );
+
         let hash = hasher.finalize();
         hex::encode(&hash[..16]) // Use first 16 bytes for 32-char hex string
     }
@@ -349,7 +349,7 @@ impl CapabilityChecker {
     ) -> Result<AuthorizationResult> {
         // Verify token validity
         match self.authority.verify_token(token)? {
-            TokenVerificationResult::Valid => {},
+            TokenVerificationResult::Valid => {}
             result => return Ok(AuthorizationResult::TokenInvalid(result)),
         }
 
@@ -421,7 +421,9 @@ impl CapabilityChecker {
     /// Check rate limiting
     fn check_rate_limit(&mut self, token_id: &str, rate_limit: f64) -> bool {
         let now = SystemTime::now();
-        let rate_state = self.rate_limits.entry(token_id.to_string())
+        let rate_state = self
+            .rate_limits
+            .entry(token_id.to_string())
             .or_insert_with(|| RateLimitState {
                 last_operation: now,
                 operation_count: 0,
@@ -432,7 +434,11 @@ impl CapabilityChecker {
         let max_operations = rate_limit as u64;
 
         // Reset window if needed
-        if now.duration_since(rate_state.window_start).unwrap_or_default() >= window_duration {
+        if now
+            .duration_since(rate_state.window_start)
+            .unwrap_or_default()
+            >= window_duration
+        {
             rate_state.window_start = now;
             rate_state.operation_count = 0;
         }
@@ -535,18 +541,20 @@ mod tests {
     #[test]
     fn test_token_issue_and_verify() {
         let mut authority = CapabilityAuthority::new("test-authority".to_string());
-        
+
         let mut permissions = HashSet::new();
         permissions.insert(Permission::Read);
         permissions.insert(Permission::Write);
 
-        let token = authority.issue_token(
-            "test-user".to_string(),
-            permissions,
-            vec!["test/*".to_string()],
-            Duration::from_secs(3600),
-            None,
-        ).unwrap();
+        let token = authority
+            .issue_token(
+                "test-user".to_string(),
+                permissions,
+                vec!["test/*".to_string()],
+                Duration::from_secs(3600),
+                None,
+            )
+            .unwrap();
 
         let result = authority.verify_token(&token).unwrap();
         assert_eq!(result, TokenVerificationResult::Valid);
@@ -555,14 +563,16 @@ mod tests {
     #[test]
     fn test_token_expiration() {
         let mut authority = CapabilityAuthority::new("test-authority".to_string());
-        
-        let token = authority.issue_token(
-            "test-user".to_string(),
-            [Permission::Read].into_iter().collect(),
-            vec!["*".to_string()],
-            Duration::from_millis(1), // Very short expiration
-            None,
-        ).unwrap();
+
+        let token = authority
+            .issue_token(
+                "test-user".to_string(),
+                [Permission::Read].into_iter().collect(),
+                vec!["*".to_string()],
+                Duration::from_millis(1), // Very short expiration
+                None,
+            )
+            .unwrap();
 
         // Wait for expiration
         thread::sleep(Duration::from_millis(2));
@@ -574,23 +584,31 @@ mod tests {
     #[test]
     fn test_token_revocation() {
         let mut authority = CapabilityAuthority::new("test-authority".to_string());
-        
-        let token = authority.issue_token(
-            "test-user".to_string(),
-            [Permission::Read].into_iter().collect(),
-            vec!["*".to_string()],
-            Duration::from_secs(3600),
-            None,
-        ).unwrap();
+
+        let token = authority
+            .issue_token(
+                "test-user".to_string(),
+                [Permission::Read].into_iter().collect(),
+                vec!["*".to_string()],
+                Duration::from_secs(3600),
+                None,
+            )
+            .unwrap();
 
         // Verify initially valid
-        assert_eq!(authority.verify_token(&token).unwrap(), TokenVerificationResult::Valid);
+        assert_eq!(
+            authority.verify_token(&token).unwrap(),
+            TokenVerificationResult::Valid
+        );
 
         // Revoke token
         assert!(authority.revoke_token(&token.token_id).unwrap());
 
         // Should now be revoked
-        assert_eq!(authority.verify_token(&token).unwrap(), TokenVerificationResult::Revoked);
+        assert_eq!(
+            authority.verify_token(&token).unwrap(),
+            TokenVerificationResult::Revoked
+        );
     }
 
     #[test]
@@ -598,21 +616,28 @@ mod tests {
         let authority = CapabilityAuthority::new("test-authority".to_string());
         let mut checker = CapabilityChecker::new(authority);
 
-        let token = checker.authority.issue_token(
-            "test-user".to_string(),
-            [Permission::Read, Permission::Write].into_iter().collect(),
-            vec!["cache/*".to_string()],
-            Duration::from_secs(3600),
-            None,
-        ).unwrap();
+        let token = checker
+            .authority
+            .issue_token(
+                "test-user".to_string(),
+                [Permission::Read, Permission::Write].into_iter().collect(),
+                vec!["cache/*".to_string()],
+                Duration::from_secs(3600),
+                None,
+            )
+            .unwrap();
 
         // Should allow read operation on allowed key
-        let read_op = CacheOperation::Read { key: "cache/test".to_string() };
+        let read_op = CacheOperation::Read {
+            key: "cache/test".to_string(),
+        };
         let result = checker.check_permission(&token, &read_op).unwrap();
         assert_eq!(result, AuthorizationResult::Authorized);
 
         // Should deny read operation on disallowed key
-        let read_op = CacheOperation::Read { key: "other/test".to_string() };
+        let read_op = CacheOperation::Read {
+            key: "other/test".to_string(),
+        };
         let result = checker.check_permission(&token, &read_op).unwrap();
         assert_eq!(result, AuthorizationResult::KeyAccessDenied);
 
@@ -647,21 +672,35 @@ mod tests {
         let mut metadata = TokenMetadata::default();
         metadata.rate_limit = Some(2.0); // 2 operations per second
 
-        let token = checker.authority.issue_token(
-            "test-user".to_string(),
-            [Permission::Read].into_iter().collect(),
-            vec!["*".to_string()],
-            Duration::from_secs(3600),
-            Some(metadata),
-        ).unwrap();
+        let token = checker
+            .authority
+            .issue_token(
+                "test-user".to_string(),
+                [Permission::Read].into_iter().collect(),
+                vec!["*".to_string()],
+                Duration::from_secs(3600),
+                Some(metadata),
+            )
+            .unwrap();
 
-        let read_op = CacheOperation::Read { key: "test".to_string() };
+        let read_op = CacheOperation::Read {
+            key: "test".to_string(),
+        };
 
         // First two operations should succeed
-        assert_eq!(checker.check_permission(&token, &read_op).unwrap(), AuthorizationResult::Authorized);
-        assert_eq!(checker.check_permission(&token, &read_op).unwrap(), AuthorizationResult::Authorized);
+        assert_eq!(
+            checker.check_permission(&token, &read_op).unwrap(),
+            AuthorizationResult::Authorized
+        );
+        assert_eq!(
+            checker.check_permission(&token, &read_op).unwrap(),
+            AuthorizationResult::Authorized
+        );
 
         // Third operation should be rate limited
-        assert_eq!(checker.check_permission(&token, &read_op).unwrap(), AuthorizationResult::RateLimitExceeded);
+        assert_eq!(
+            checker.check_permission(&token, &read_op).unwrap(),
+            AuthorizationResult::RateLimitExceeded
+        );
     }
 }

@@ -10,14 +10,15 @@
 use cuenv::cache::{
     audit::{AuditConfig, AuditContext},
     capabilities::{
-        AuthorizationResult, CapabilityAuthority, CapabilityChecker, CapabilityToken, CacheOperation, Permission,
+        AuthorizationResult, CacheOperation, CapabilityAuthority, CapabilityChecker,
+        CapabilityToken, Permission,
     },
     errors::{CacheError, TokenInvalidReason},
     merkle::{CacheEntryMetadata, MerkleTree},
     secure_cache::{SecureCache, SecureCacheConfig},
     signing::{CacheSigner, SignedCacheEntry},
-    unified::UnifiedCache,
     traits::Cache,
+    unified::UnifiedCache,
 };
 use proptest::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -89,35 +90,55 @@ async fn test_capability_access_control() {
     let mut checker = CapabilityChecker::new(authority);
 
     // Create tokens with different permissions
-    let read_only_token = checker.authority.issue_token(
-        "read-user".to_string(),
-        [Permission::Read].into_iter().collect(),
-        vec!["data/*".to_string()],
-        Duration::from_secs(3600),
-        None,
-    ).unwrap();
+    let read_only_token = checker
+        .authority
+        .issue_token(
+            "read-user".to_string(),
+            [Permission::Read].into_iter().collect(),
+            vec!["data/*".to_string()],
+            Duration::from_secs(3600),
+            None,
+        )
+        .unwrap();
 
-    let write_token = checker.authority.issue_token(
-        "write-user".to_string(),
-        [Permission::Read, Permission::Write].into_iter().collect(),
-        vec!["data/*".to_string()],
-        Duration::from_secs(3600),
-        None,
-    ).unwrap();
+    let write_token = checker
+        .authority
+        .issue_token(
+            "write-user".to_string(),
+            [Permission::Read, Permission::Write].into_iter().collect(),
+            vec!["data/*".to_string()],
+            Duration::from_secs(3600),
+            None,
+        )
+        .unwrap();
 
-    let admin_token = checker.authority.issue_token(
-        "admin-user".to_string(),
-        [Permission::Read, Permission::Write, Permission::Delete, Permission::Clear].into_iter().collect(),
-        vec!["*".to_string()],
-        Duration::from_secs(3600),
-        None,
-    ).unwrap();
+    let admin_token = checker
+        .authority
+        .issue_token(
+            "admin-user".to_string(),
+            [
+                Permission::Read,
+                Permission::Write,
+                Permission::Delete,
+                Permission::Clear,
+            ]
+            .into_iter()
+            .collect(),
+            vec!["*".to_string()],
+            Duration::from_secs(3600),
+            None,
+        )
+        .unwrap();
 
     // Test read operation
-    let read_op = CacheOperation::Read { key: "data/test".to_string() };
-    
+    let read_op = CacheOperation::Read {
+        key: "data/test".to_string(),
+    };
+
     assert_eq!(
-        checker.check_permission(&read_only_token, &read_op).unwrap(),
+        checker
+            .check_permission(&read_only_token, &read_op)
+            .unwrap(),
         AuthorizationResult::Authorized
     );
     assert_eq!(
@@ -130,10 +151,14 @@ async fn test_capability_access_control() {
     );
 
     // Test write operation
-    let write_op = CacheOperation::Write { key: "data/test".to_string() };
-    
+    let write_op = CacheOperation::Write {
+        key: "data/test".to_string(),
+    };
+
     assert_eq!(
-        checker.check_permission(&read_only_token, &write_op).unwrap(),
+        checker
+            .check_permission(&read_only_token, &write_op)
+            .unwrap(),
         AuthorizationResult::InsufficientPermissions
     );
     assert_eq!(
@@ -147,9 +172,11 @@ async fn test_capability_access_control() {
 
     // Test clear operation
     let clear_op = CacheOperation::Clear;
-    
+
     assert_eq!(
-        checker.check_permission(&read_only_token, &clear_op).unwrap(),
+        checker
+            .check_permission(&read_only_token, &clear_op)
+            .unwrap(),
         AuthorizationResult::InsufficientPermissions
     );
     assert_eq!(
@@ -162,18 +189,26 @@ async fn test_capability_access_control() {
     );
 
     // Test key pattern restrictions
-    let restricted_read = CacheOperation::Read { key: "secret/data".to_string() };
-    
+    let restricted_read = CacheOperation::Read {
+        key: "secret/data".to_string(),
+    };
+
     assert_eq!(
-        checker.check_permission(&read_only_token, &restricted_read).unwrap(),
+        checker
+            .check_permission(&read_only_token, &restricted_read)
+            .unwrap(),
         AuthorizationResult::KeyAccessDenied
     );
     assert_eq!(
-        checker.check_permission(&write_token, &restricted_read).unwrap(),
+        checker
+            .check_permission(&write_token, &restricted_read)
+            .unwrap(),
         AuthorizationResult::KeyAccessDenied
     );
     assert_eq!(
-        checker.check_permission(&admin_token, &restricted_read).unwrap(),
+        checker
+            .check_permission(&admin_token, &restricted_read)
+            .unwrap(),
         AuthorizationResult::Authorized
     );
 }
@@ -182,15 +217,17 @@ async fn test_capability_access_control() {
 #[tokio::test]
 async fn test_token_lifecycle() {
     let mut authority = CapabilityAuthority::new("test-authority".to_string());
-    
+
     // Create short-lived token
-    let short_token = authority.issue_token(
-        "short-user".to_string(),
-        [Permission::Read].into_iter().collect(),
-        vec!["*".to_string()],
-        Duration::from_millis(100), // Very short expiration
-        None,
-    ).unwrap();
+    let short_token = authority
+        .issue_token(
+            "short-user".to_string(),
+            [Permission::Read].into_iter().collect(),
+            vec!["*".to_string()],
+            Duration::from_millis(100), // Very short expiration
+            None,
+        )
+        .unwrap();
 
     // Token should be valid initially
     assert_eq!(
@@ -208,13 +245,15 @@ async fn test_token_lifecycle() {
     );
 
     // Test revocation
-    let revokable_token = authority.issue_token(
-        "revoke-user".to_string(),
-        [Permission::Read].into_iter().collect(),
-        vec!["*".to_string()],
-        Duration::from_secs(3600),
-        None,
-    ).unwrap();
+    let revokable_token = authority
+        .issue_token(
+            "revoke-user".to_string(),
+            [Permission::Read].into_iter().collect(),
+            vec!["*".to_string()],
+            Duration::from_secs(3600),
+            None,
+        )
+        .unwrap();
 
     // Token should be valid
     assert_eq!(
@@ -260,7 +299,8 @@ async fn test_merkle_tree_integrity() {
             expires_at: None,
         };
 
-        tree.insert_entry(key.to_string(), content_hash, metadata).unwrap();
+        tree.insert_entry(key.to_string(), content_hash, metadata)
+            .unwrap();
     }
 
     // Verify initial integrity
@@ -274,7 +314,7 @@ async fn test_merkle_tree_integrity() {
     for (key, _, _) in &entries {
         let proof = tree.generate_proof(key).unwrap();
         assert!(proof.is_some());
-        
+
         let proof = proof.unwrap();
         assert_eq!(proof.cache_key, *key);
         assert!(tree.verify_proof(&proof).unwrap());
@@ -314,17 +354,32 @@ async fn test_audit_logging_integrity() {
 
     // Log cache operations
     for i in 0..10 {
-        logger.log_cache_read(&format!("key_{}", i), i % 2 == 0, Some(1024), 5, context.clone()).await.unwrap();
-        logger.log_cache_write(&format!("key_{}", i), 1024, false, 3, context.clone()).await.unwrap();
+        logger
+            .log_cache_read(
+                &format!("key_{}", i),
+                i % 2 == 0,
+                Some(1024),
+                5,
+                context.clone(),
+            )
+            .await
+            .unwrap();
+        logger
+            .log_cache_write(&format!("key_{}", i), 1024, false, 3, context.clone())
+            .await
+            .unwrap();
     }
 
     // Log security events
-    logger.log_security_violation(
-        cuenv::cache::audit::SecurityViolationType::InvalidSignature,
-        "Test security violation".to_string(),
-        cuenv::cache::audit::ViolationSeverity::High,
-        context.clone(),
-    ).await.unwrap();
+    logger
+        .log_security_violation(
+            cuenv::cache::audit::SecurityViolationType::InvalidSignature,
+            "Test security violation".to_string(),
+            cuenv::cache::audit::ViolationSeverity::High,
+            context.clone(),
+        )
+        .await
+        .unwrap();
 
     // Verify log integrity
     let report = logger.verify_log_integrity(&log_path).await.unwrap();
@@ -338,10 +393,10 @@ async fn test_audit_logging_integrity() {
 async fn test_secure_cache_end_to_end() {
     let temp_dir = TempDir::new().unwrap();
     let cache_dir = temp_dir.path().to_path_buf();
-    
+
     // Create underlying cache
     let inner_cache = UnifiedCache::new(cache_dir.join("cache")).await.unwrap();
-    
+
     // Create secure cache with all security features
     let secure_cache = SecureCache::builder(inner_cache)
         .cache_directory(&cache_dir)
@@ -360,8 +415,11 @@ async fn test_secure_cache_end_to_end() {
 
     // Test basic operations
     let test_data = TestCacheData::new(1, "secure_test".to_string());
-    
-    secure_cache.put("test/secure_key", &test_data, None).await.unwrap();
+
+    secure_cache
+        .put("test/secure_key", &test_data, None)
+        .await
+        .unwrap();
     let retrieved: Option<TestCacheData> = secure_cache.get("test/secure_key").await.unwrap();
     assert_eq!(retrieved, Some(test_data));
 
@@ -369,7 +427,10 @@ async fn test_secure_cache_end_to_end() {
     assert!(secure_cache.verify_integrity().await.unwrap());
 
     // Test Merkle proof generation
-    let proof = secure_cache.get_merkle_proof("test/secure_key").await.unwrap();
+    let proof = secure_cache
+        .get_merkle_proof("test/secure_key")
+        .await
+        .unwrap();
     assert!(proof.is_some());
 
     // Test removal
@@ -385,31 +446,40 @@ async fn test_secure_cache_end_to_end() {
 async fn test_security_error_handling() {
     let temp_dir = TempDir::new().unwrap();
     let mut authority = CapabilityAuthority::new("error-test".to_string());
-    
+
     // Test invalid token error
-    let expired_token = authority.issue_token(
-        "expired-user".to_string(),
-        [Permission::Read].into_iter().collect(),
-        vec!["*".to_string()],
-        Duration::from_millis(1), // Immediate expiration
-        None,
-    ).unwrap();
+    let expired_token = authority
+        .issue_token(
+            "expired-user".to_string(),
+            [Permission::Read].into_iter().collect(),
+            vec!["*".to_string()],
+            Duration::from_millis(1), // Immediate expiration
+            None,
+        )
+        .unwrap();
 
     sleep(Duration::from_millis(10)).await;
 
     let mut checker = CapabilityChecker::new(authority);
-    let operation = CacheOperation::Read { key: "test".to_string() };
-    
-    let result = checker.check_permission(&expired_token, &operation).unwrap();
-    assert_eq!(result, AuthorizationResult::TokenInvalid(
-        cuenv::cache::capabilities::TokenVerificationResult::Expired
-    ));
+    let operation = CacheOperation::Read {
+        key: "test".to_string(),
+    };
+
+    let result = checker
+        .check_permission(&expired_token, &operation)
+        .unwrap();
+    assert_eq!(
+        result,
+        AuthorizationResult::TokenInvalid(
+            cuenv::cache::capabilities::TokenVerificationResult::Expired
+        )
+    );
 
     // Test signature verification error
     let signer = CacheSigner::new(temp_dir.path()).unwrap();
     let test_data = TestCacheData::new(1, "test".to_string());
     let mut signed = signer.sign(&test_data).unwrap();
-    
+
     // Corrupt signature
     signed.signature[0] ^= 1;
     assert!(!signer.verify(&signed).unwrap());
@@ -503,7 +573,7 @@ proptest! {
             for pattern in patterns.iter() {
                 for key in keys.iter() {
                     let matches = checker.matches_pattern(key, pattern);
-                    
+
                     // Basic pattern matching properties
                     if pattern == "*" {
                         prop_assert!(matches);
@@ -528,33 +598,33 @@ proptest! {
 async fn test_concurrent_security_operations() {
     let temp_dir = TempDir::new().unwrap();
     let cache_dir = temp_dir.path().to_path_buf();
-    
+
     let inner_cache = UnifiedCache::new(cache_dir.join("cache")).await.unwrap();
     let secure_cache = std::sync::Arc::new(
         SecureCache::builder(inner_cache)
             .cache_directory(&cache_dir)
             .build()
             .await
-            .unwrap()
+            .unwrap(),
     );
 
     // Spawn concurrent operations
     let mut handles = Vec::new();
-    
+
     for i in 0..10 {
         let cache = secure_cache.clone();
         let handle = tokio::spawn(async move {
             for j in 0..10 {
                 let key = format!("thread_{}_key_{}", i, j);
                 let data = TestCacheData::new(i * 10 + j, format!("value_{}", j));
-                
+
                 // Put data
                 cache.put(&key, &data, None).await.unwrap();
-                
+
                 // Get data back
                 let retrieved: Option<TestCacheData> = cache.get(&key).await.unwrap();
                 assert_eq!(retrieved, Some(data));
-                
+
                 // Verify integrity periodically
                 if j % 5 == 0 {
                     assert!(cache.verify_integrity().await.unwrap());
@@ -578,7 +648,7 @@ async fn test_concurrent_security_operations() {
 async fn test_security_performance() {
     let temp_dir = TempDir::new().unwrap();
     let cache_dir = temp_dir.path().to_path_buf();
-    
+
     let inner_cache = UnifiedCache::new(cache_dir.join("cache")).await.unwrap();
     let secure_cache = SecureCache::builder(inner_cache)
         .cache_directory(&cache_dir)
@@ -587,21 +657,25 @@ async fn test_security_performance() {
         .unwrap();
 
     let start = std::time::Instant::now();
-    
+
     // Perform many operations
     for i in 0..1000 {
         let key = format!("perf_key_{}", i);
         let data = TestCacheData::new(i, format!("perf_value_{}", i));
-        
+
         secure_cache.put(&key, &data, None).await.unwrap();
         let _retrieved: Option<TestCacheData> = secure_cache.get(&key).await.unwrap();
     }
-    
+
     let duration = start.elapsed();
-    
+
     // Verify performance is reasonable (less than 10ms per operation on average)
-    assert!(duration.as_millis() < 10000, "Performance test took too long: {:?}", duration);
-    
+    assert!(
+        duration.as_millis() < 10000,
+        "Performance test took too long: {:?}",
+        duration
+    );
+
     // Verify integrity after performance test
     assert!(secure_cache.verify_integrity().await.unwrap());
 }

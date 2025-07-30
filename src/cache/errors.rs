@@ -125,7 +125,7 @@ pub enum CacheError {
     },
 
     /// Security-related errors (Phase 7)
-    
+
     /// Cryptographic signature verification failed
     SignatureVerification {
         algorithm: String,
@@ -187,6 +187,27 @@ pub enum CacheError {
         details: String,
         recovery_hint: RecoveryHint,
     },
+
+    /// Corruption is unrecoverable
+    CorruptionUnrecoverable {
+        key: String,
+        recovery_hint: RecoveryHint,
+    },
+
+    /// Repair is already in progress
+    RepairInProgress {
+        key: String,
+        recovery_hint: RecoveryHint,
+    },
+
+    /// All repair strategies failed
+    AllRepairStrategiesFailed {
+        key: String,
+        recovery_hint: RecoveryHint,
+    },
+
+    /// Feature not implemented
+    NotImplemented { recovery_hint: RecoveryHint },
 }
 
 /// Recovery hints for error handling
@@ -479,6 +500,14 @@ impl fmt::Display for CacheError {
                 "Cryptographic error during {} with {}: {}",
                 operation, algorithm, details
             ),
+            Self::CorruptionUnrecoverable { key, .. } => {
+                write!(f, "Corruption unrecoverable for key: {}", key)
+            }
+            Self::RepairInProgress { key, .. } => write!(f, "Repair in progress for key: {}", key),
+            Self::AllRepairStrategiesFailed { key, .. } => {
+                write!(f, "All repair strategies failed for key: {}", key)
+            }
+            Self::NotImplemented { .. } => write!(f, "Feature not implemented"),
         }
     }
 }
@@ -522,7 +551,11 @@ impl CacheError {
             | Self::MerkleTreeCorruption { recovery_hint, .. }
             | Self::RateLimitExceeded { recovery_hint, .. }
             | Self::SecurityPolicyViolation { recovery_hint, .. }
-            | Self::CryptographicError { recovery_hint, .. } => recovery_hint,
+            | Self::CryptographicError { recovery_hint, .. }
+            | Self::CorruptionUnrecoverable { recovery_hint, .. }
+            | Self::RepairInProgress { recovery_hint, .. }
+            | Self::AllRepairStrategiesFailed { recovery_hint, .. }
+            | Self::NotImplemented { recovery_hint, .. } => recovery_hint,
         }
     }
 

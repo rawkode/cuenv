@@ -14,7 +14,7 @@
 use crate::cache::{
     audit::{AuditConfig, AuditContext, AuditLogger},
     capabilities::{
-        AuthorizationResult, CapabilityChecker, CapabilityToken, CacheOperation, Permission,
+        AuthorizationResult, CacheOperation, CapabilityChecker, CapabilityToken, Permission,
     },
     errors::{CacheError, RecoveryHint, Result, TokenInvalidReason, ViolationSeverity},
     merkle::{CacheEntryMetadata, MerkleTree},
@@ -119,9 +119,9 @@ impl<T: Cache> SecureCacheBuilder<T> {
 
     /// Build the secure cache
     pub async fn build(self) -> Result<SecureCache<T>> {
-        let cache_dir = self.cache_dir.unwrap_or_else(|| {
-            std::env::temp_dir().join("cuenv_secure_cache")
-        });
+        let cache_dir = self
+            .cache_dir
+            .unwrap_or_else(|| std::env::temp_dir().join("cuenv_secure_cache"));
 
         let config = self.security_config.unwrap_or_default();
 
@@ -129,9 +129,8 @@ impl<T: Cache> SecureCacheBuilder<T> {
         let signer = Arc::new(CacheSigner::new(&cache_dir)?);
 
         // Initialize capability checker (requires a capability authority)
-        let authority = crate::cache::capabilities::CapabilityAuthority::new(
-            "cuenv-secure-cache".to_string()
-        );
+        let authority =
+            crate::cache::capabilities::CapabilityAuthority::new("cuenv-secure-cache".to_string());
         let capability_checker = Arc::new(RwLock::new(CapabilityChecker::new(authority)));
 
         // Initialize audit logger
@@ -246,7 +245,12 @@ impl<T: Cache> SecureCache<T> {
     }
 
     /// Update Merkle tree with cache entry
-    async fn update_merkle_tree(&self, key: &str, data: &[u8], metadata: &CacheMetadata) -> Result<()> {
+    async fn update_merkle_tree(
+        &self,
+        key: &str,
+        data: &[u8],
+        metadata: &CacheMetadata,
+    ) -> Result<()> {
         if !self.config.enable_merkle_tree {
             return Ok(());
         }
@@ -289,7 +293,10 @@ impl<T: Cache> SecureCache<T> {
             self.audit_logger
                 .log_security_violation(
                     crate::cache::audit::SecurityViolationType::IntegrityFailure,
-                    format!("Merkle tree integrity failure: {} corrupted entries", report.corrupted_entries.len()),
+                    format!(
+                        "Merkle tree integrity failure: {} corrupted entries",
+                        report.corrupted_entries.len()
+                    ),
                     crate::cache::audit::ViolationSeverity::High,
                     context,
                 )
@@ -300,7 +307,10 @@ impl<T: Cache> SecureCache<T> {
     }
 
     /// Get Merkle proof for a cache entry
-    pub async fn get_merkle_proof(&self, key: &str) -> Result<Option<crate::cache::merkle::MerkleProof>> {
+    pub async fn get_merkle_proof(
+        &self,
+        key: &str,
+    ) -> Result<Option<crate::cache::merkle::MerkleProof>> {
         if !self.config.enable_merkle_tree {
             return Ok(None);
         }
@@ -324,7 +334,8 @@ impl<T: Cache + Send + Sync> Cache for SecureCache<T> {
         let operation = CacheOperation::Read {
             key: key.to_string(),
         };
-        self.authorize_operation(&token, &operation, &context).await?;
+        self.authorize_operation(&token, &operation, &context)
+            .await?;
 
         let start_time = SystemTime::now();
 
@@ -388,7 +399,8 @@ impl<T: Cache + Send + Sync> Cache for SecureCache<T> {
         let operation = CacheOperation::Write {
             key: key.to_string(),
         };
-        self.authorize_operation(&token, &operation, &context).await?;
+        self.authorize_operation(&token, &operation, &context)
+            .await?;
 
         let start_time = SystemTime::now();
 
@@ -425,7 +437,8 @@ impl<T: Cache + Send + Sync> Cache for SecureCache<T> {
         let operation = CacheOperation::Delete {
             key: key.to_string(),
         };
-        self.authorize_operation(&token, &operation, &context).await?;
+        self.authorize_operation(&token, &operation, &context)
+            .await?;
 
         let start_time = SystemTime::now();
         let result = self.inner.remove(key).await?;
@@ -467,11 +480,12 @@ impl<T: Cache + Send + Sync> Cache for SecureCache<T> {
 
         // Authorize operation
         let operation = CacheOperation::Clear;
-        self.authorize_operation(&token, &operation, &context).await?;
+        self.authorize_operation(&token, &operation, &context)
+            .await?;
 
         let start_time = SystemTime::now();
         let stats_before = self.inner.statistics().await?;
-        
+
         self.inner.clear().await?;
 
         let duration_ms = start_time.elapsed().unwrap().as_millis() as u64;
@@ -509,7 +523,9 @@ impl<T: Cache> SecureCache<T> {
         let mut checker = self.capability_checker.write().await;
         let token = checker.authority.issue_token(
             "internal".to_string(),
-            [Permission::Read, Permission::Write, Permission::Delete].into_iter().collect(),
+            [Permission::Read, Permission::Write, Permission::Delete]
+                .into_iter()
+                .collect(),
             vec!["*".to_string()],
             Duration::from_secs(3600),
             None,
@@ -527,9 +543,9 @@ mod tests {
     async fn create_test_secure_cache() -> SecureCache<UnifiedCache> {
         let temp_dir = TempDir::new().unwrap();
         let cache_dir = temp_dir.path().to_path_buf();
-        
+
         let inner_cache = UnifiedCache::new(cache_dir.join("cache")).await.unwrap();
-        
+
         SecureCache::builder(inner_cache)
             .cache_directory(&cache_dir)
             .build()
@@ -540,16 +556,16 @@ mod tests {
     #[tokio::test]
     async fn test_secure_cache_operations() {
         let cache = create_test_secure_cache().await;
-        
+
         // Test put and get
         cache.put("test_key", &"test_value", None).await.unwrap();
         let result: Option<String> = cache.get("test_key").await.unwrap();
         assert_eq!(result, Some("test_value".to_string()));
-        
+
         // Test remove
         let removed = cache.remove("test_key").await.unwrap();
         assert!(removed);
-        
+
         let result: Option<String> = cache.get("test_key").await.unwrap();
         assert_eq!(result, None);
     }
@@ -557,12 +573,15 @@ mod tests {
     #[tokio::test]
     async fn test_integrity_verification() {
         let cache = create_test_secure_cache().await;
-        
+
         // Add some entries
         for i in 0..5 {
-            cache.put(&format!("key_{}", i), &format!("value_{}", i), None).await.unwrap();
+            cache
+                .put(&format!("key_{}", i), &format!("value_{}", i), None)
+                .await
+                .unwrap();
         }
-        
+
         // Verify integrity
         let integrity_ok = cache.verify_integrity().await.unwrap();
         assert!(integrity_ok);
@@ -571,14 +590,14 @@ mod tests {
     #[tokio::test]
     async fn test_merkle_proof_generation() {
         let cache = create_test_secure_cache().await;
-        
+
         // Add an entry
         cache.put("test_key", &"test_value", None).await.unwrap();
-        
+
         // Generate proof
         let proof = cache.get_merkle_proof("test_key").await.unwrap();
         assert!(proof.is_some());
-        
+
         let proof = proof.unwrap();
         assert_eq!(proof.cache_key, "test_key");
     }

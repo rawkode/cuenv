@@ -7,8 +7,8 @@
 #[cfg(test)]
 mod cache_invariant_tests {
     use cuenv::cache::{
-        Cache, CacheError, ProductionCache, SyncCache, UnifiedCache, UnifiedCacheConfig,
-        CacheMetadata,
+        Cache, CacheError, CacheMetadata, ProductionCache, SyncCache, UnifiedCache,
+        UnifiedCacheConfig,
     };
     use proptest::prelude::*;
     use std::collections::{HashMap, HashSet};
@@ -46,7 +46,7 @@ mod cache_invariant_tests {
 
         // Second run with same operations
         cache.clear().await.unwrap();
-        
+
         for (key, value) in &test_cases {
             cache.put(key, value, None).await.unwrap();
         }
@@ -58,14 +58,17 @@ mod cache_invariant_tests {
         }
 
         // Results should be identical
-        assert_eq!(first_results, second_results, "Cache operations should be deterministic");
+        assert_eq!(
+            first_results, second_results,
+            "Cache operations should be deterministic"
+        );
     }
 
     /// Invariant: Cache size limits are never exceeded
     #[tokio::test]
     async fn invariant_size_limits_respected() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         let config = UnifiedCacheConfig {
             max_memory_bytes: 1024 * 1024, // 1MB limit
             max_entries: 100,              // 100 entry limit
@@ -82,23 +85,31 @@ mod cache_invariant_tests {
             let key = format!("entry_limit_test_{}", i);
             let value = vec![i as u8; 1024]; // 1KB entries
             let _ = cache.put(&key, &value, None).await;
-            
+
             let stats = cache.statistics().await.unwrap();
-            assert!(stats.entries <= 100, 
-                "Entry count invariant violated: {} > 100 at iteration {}", stats.entries, i);
+            assert!(
+                stats.entries <= 100,
+                "Entry count invariant violated: {} > 100 at iteration {}",
+                stats.entries,
+                i
+            );
         }
 
         // Test memory limit
         cache.clear().await.unwrap();
-        
+
         for i in 0..200 {
             let key = format!("memory_limit_test_{}", i);
             let value = vec![i as u8; 8192]; // 8KB entries
             let _ = cache.put(&key, &value, None).await;
-            
+
             let stats = cache.statistics().await.unwrap();
-            assert!(stats.memory_bytes <= 2 * 1024 * 1024, // Allow some overhead
-                "Memory limit invariant violated: {} > 2MB at iteration {}", stats.memory_bytes, i);
+            assert!(
+                stats.memory_bytes <= 2 * 1024 * 1024, // Allow some overhead
+                "Memory limit invariant violated: {} > 2MB at iteration {}",
+                stats.memory_bytes,
+                i
+            );
         }
 
         // Test entry size limit
@@ -125,40 +136,61 @@ mod cache_invariant_tests {
             .unwrap();
 
         let mut previous_stats = cache.statistics().await.unwrap();
-        
+
         for i in 0..100 {
             let key = format!("stats_test_{}", i);
             let value = format!("value_{}", i);
-            
+
             // Perform operations
             cache.put(&key, value.as_bytes(), None).await.unwrap();
             let _: Option<Vec<u8>> = cache.get(&key).await.unwrap();
             let _ = cache.metadata(&key).await.unwrap();
-            
+
             let current_stats = cache.statistics().await.unwrap();
-            
+
             // Monotonic invariants
-            assert!(current_stats.total_operations >= previous_stats.total_operations,
-                "Total operations should be monotonic: {} < {} at iteration {}", 
-                current_stats.total_operations, previous_stats.total_operations, i);
-                
-            assert!(current_stats.hits >= previous_stats.hits,
-                "Hits should be monotonic: {} < {} at iteration {}", 
-                current_stats.hits, previous_stats.hits, i);
-                
-            assert!(current_stats.misses >= previous_stats.misses,
-                "Misses should be monotonic: {} < {} at iteration {}", 
-                current_stats.misses, previous_stats.misses, i);
+            assert!(
+                current_stats.total_operations >= previous_stats.total_operations,
+                "Total operations should be monotonic: {} < {} at iteration {}",
+                current_stats.total_operations,
+                previous_stats.total_operations,
+                i
+            );
+
+            assert!(
+                current_stats.hits >= previous_stats.hits,
+                "Hits should be monotonic: {} < {} at iteration {}",
+                current_stats.hits,
+                previous_stats.hits,
+                i
+            );
+
+            assert!(
+                current_stats.misses >= previous_stats.misses,
+                "Misses should be monotonic: {} < {} at iteration {}",
+                current_stats.misses,
+                previous_stats.misses,
+                i
+            );
 
             // Consistency invariants
-            assert_eq!(current_stats.hits + current_stats.misses + current_stats.errors, 
+            assert_eq!(
+                current_stats.hits + current_stats.misses + current_stats.errors,
                 current_stats.total_operations,
-                "Stats consistency invariant violated at iteration {}: {} + {} + {} != {}", 
-                i, current_stats.hits, current_stats.misses, current_stats.errors, current_stats.total_operations);
+                "Stats consistency invariant violated at iteration {}: {} + {} + {} != {}",
+                i,
+                current_stats.hits,
+                current_stats.misses,
+                current_stats.errors,
+                current_stats.total_operations
+            );
 
-            assert!(current_stats.hit_rate >= 0.0 && current_stats.hit_rate <= 1.0,
-                "Hit rate should be between 0 and 1: {} at iteration {}", 
-                current_stats.hit_rate, i);
+            assert!(
+                current_stats.hit_rate >= 0.0 && current_stats.hit_rate <= 1.0,
+                "Hit rate should be between 0 and 1: {} at iteration {}",
+                current_stats.hit_rate,
+                i
+            );
 
             previous_stats = current_stats;
         }
@@ -168,7 +200,7 @@ mod cache_invariant_tests {
     #[tokio::test]
     async fn invariant_data_integrity() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         let config = UnifiedCacheConfig {
             compression_enabled: true,
             checksums_enabled: true,
@@ -185,7 +217,10 @@ mod cache_invariant_tests {
             ("single_byte", vec![42]),
             ("pattern_aa", vec![0xAA; 1000]),
             ("pattern_55", vec![0x55; 1000]),
-            ("incremental", (0..256).cycle().take(1000).collect::<Vec<u8>>()),
+            (
+                "incremental",
+                (0..256).cycle().take(1000).collect::<Vec<u8>>(),
+            ),
             ("random", generate_random_data(2048, 12345)),
             ("utf8_text", "Hello, 世界! 🦀".as_bytes().to_vec()),
             ("binary_zeros", vec![0; 512]),
@@ -195,11 +230,15 @@ mod cache_invariant_tests {
         for (name, original_data) in &test_data {
             // Store data
             cache.put(name, original_data, None).await.unwrap();
-            
+
             // Retrieve and verify immediately
             let retrieved: Option<Vec<u8>> = cache.get(name).await.unwrap();
-            assert_eq!(retrieved.as_ref(), Some(original_data),
-                "Data integrity violated for {} (immediate retrieval)", name);
+            assert_eq!(
+                retrieved.as_ref(),
+                Some(original_data),
+                "Data integrity violated for {} (immediate retrieval)",
+                name
+            );
         }
 
         // Perform operations that might affect data
@@ -213,14 +252,17 @@ mod cache_invariant_tests {
         for (name, original_data) in &test_data {
             let retrieved: Option<Vec<u8>> = cache.get(name).await.unwrap();
             if let Some(actual_data) = retrieved {
-                assert_eq!(actual_data, *original_data,
-                    "Data integrity violated for {} (after interference)", name);
+                assert_eq!(
+                    actual_data, *original_data,
+                    "Data integrity violated for {} (after interference)",
+                    name
+                );
             }
         }
 
         // Test data integrity across cache restart
         drop(cache);
-        
+
         let restored_cache = ProductionCache::new(temp_dir.path().to_path_buf(), config)
             .await
             .unwrap();
@@ -228,8 +270,11 @@ mod cache_invariant_tests {
         for (name, original_data) in &test_data {
             let retrieved: Option<Vec<u8>> = restored_cache.get(name).await.unwrap();
             if let Some(actual_data) = retrieved {
-                assert_eq!(actual_data, *original_data,
-                    "Data integrity violated for {} (after restart)", name);
+                assert_eq!(
+                    actual_data, *original_data,
+                    "Data integrity violated for {} (after restart)",
+                    name
+                );
             }
         }
     }
@@ -238,7 +283,7 @@ mod cache_invariant_tests {
     #[tokio::test]
     async fn invariant_ttl_consistency() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         let config = UnifiedCacheConfig {
             ttl_secs: Some(Duration::from_secs(2)), // 2 second TTL
             ..Default::default()
@@ -259,8 +304,11 @@ mod cache_invariant_tests {
 
         // They should all be available immediately
         for key in &ttl_test_keys {
-            assert!(cache.get::<Vec<u8>>(key).await.unwrap().is_some(),
-                "TTL invariant violated: {} not found immediately after store", key);
+            assert!(
+                cache.get::<Vec<u8>>(key).await.unwrap().is_some(),
+                "TTL invariant violated: {} not found immediately after store",
+                key
+            );
         }
 
         // Wait for half the TTL period
@@ -268,8 +316,11 @@ mod cache_invariant_tests {
 
         // They should still be available
         for key in &ttl_test_keys {
-            assert!(cache.get::<Vec<u8>>(key).await.unwrap().is_some(),
-                "TTL invariant violated: {} not found at 1s (TTL=2s)", key);
+            assert!(
+                cache.get::<Vec<u8>>(key).await.unwrap().is_some(),
+                "TTL invariant violated: {} not found at 1s (TTL=2s)",
+                key
+            );
         }
 
         // Wait past the TTL period
@@ -283,9 +334,12 @@ mod cache_invariant_tests {
             }
         }
 
-        assert!(expired_count >= ttl_test_keys.len() / 2,
-            "TTL invariant violated: only {}/{} entries expired after TTL", 
-            expired_count, ttl_test_keys.len());
+        assert!(
+            expired_count >= ttl_test_keys.len() / 2,
+            "TTL invariant violated: only {}/{} entries expired after TTL",
+            expired_count,
+            ttl_test_keys.len()
+        );
     }
 
     /// Invariant: Concurrent operations maintain consistency
@@ -295,12 +349,16 @@ mod cache_invariant_tests {
         let cache = Arc::new(
             ProductionCache::new(temp_dir.path().to_path_buf(), Default::default())
                 .await
-                .unwrap()
+                .unwrap(),
         );
 
         let num_threads = 8;
         let operations_per_thread = 100;
-        let shared_keys = Arc::new((0..20).map(|i| format!("shared_key_{}", i)).collect::<Vec<_>>());
+        let shared_keys = Arc::new(
+            (0..20)
+                .map(|i| format!("shared_key_{}", i))
+                .collect::<Vec<_>>(),
+        );
         let consistency_violations = Arc::new(AtomicU64::new(0));
 
         let mut handles = Vec::new();
@@ -312,11 +370,11 @@ mod cache_invariant_tests {
 
             let handle = tokio::spawn(async move {
                 let mut rng = rand::rngs::StdRng::seed_from_u64(thread_id as u64);
-                
+
                 for op_id in 0..operations_per_thread {
                     let key = &keys_clone[rng.gen_range(0..keys_clone.len())];
                     let expected_value = format!("consistent_value_{}_{}", thread_id, op_id);
-                    
+
                     // Write operation
                     match cache_clone.put(key, expected_value.as_bytes(), None).await {
                         Ok(_) => {
@@ -355,24 +413,30 @@ mod cache_invariant_tests {
         let stats = cache.statistics().await.unwrap();
 
         // Consistency invariant: error rate should be low
-        assert!(total_violations < 10, 
-            "Concurrent consistency invariant violated: {} errors", total_violations);
+        assert!(
+            total_violations < 10,
+            "Concurrent consistency invariant violated: {} errors",
+            total_violations
+        );
 
         // The cache should still be functional after concurrent operations
         let test_key = "post_concurrent_test";
         let test_value = b"post_concurrent_value";
         cache.put(test_key, test_value, None).await.unwrap();
-        
+
         let retrieved: Option<Vec<u8>> = cache.get(test_key).await.unwrap();
-        assert_eq!(retrieved.as_ref(), Some(&test_value.to_vec()),
-            "Cache should remain functional after concurrent operations");
+        assert_eq!(
+            retrieved.as_ref(),
+            Some(&test_value.to_vec()),
+            "Cache should remain functional after concurrent operations"
+        );
     }
 
     /// Invariant: Error handling is consistent and safe
     #[tokio::test]
     async fn invariant_error_handling_safety() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         let config = UnifiedCacheConfig {
             max_entry_size: 1024, // 1KB limit for testing
             ..Default::default()
@@ -397,7 +461,7 @@ mod cache_invariant_tests {
             match cache.put(key, &value, None).await {
                 Ok(_) => {
                     success_count += 1;
-                    
+
                     // If put succeeded, get should work too
                     match cache.get::<Vec<u8>>(key).await {
                         Ok(_) => {
@@ -411,7 +475,7 @@ mod cache_invariant_tests {
                 }
                 Err(e) => {
                     error_count += 1;
-                    
+
                     // Error should be appropriate type
                     match e {
                         CacheError::InvalidKey { .. } => {
@@ -427,35 +491,51 @@ mod cache_invariant_tests {
                             // Other errors are also acceptable as long as they don't panic
                         }
                     }
-                    
+
                     // After error, cache should still be functional
                     let recovery_key = format!("recovery_after_{}", test_name);
                     let recovery_value = b"recovery_test";
-                    
-                    cache.put(&recovery_key, recovery_value, None).await
+
+                    cache
+                        .put(&recovery_key, recovery_value, None)
+                        .await
                         .expect("Cache should be functional after error");
-                    
-                    let retrieved: Option<Vec<u8>> = cache.get(&recovery_key).await
+
+                    let retrieved: Option<Vec<u8>> = cache
+                        .get(&recovery_key)
+                        .await
                         .expect("Cache should be functional after error");
-                    
-                    assert_eq!(retrieved.as_ref(), Some(&recovery_value.to_vec()),
-                        "Cache should maintain functionality after error in {}", test_name);
+
+                    assert_eq!(
+                        retrieved.as_ref(),
+                        Some(&recovery_value.to_vec()),
+                        "Cache should maintain functionality after error in {}",
+                        test_name
+                    );
                 }
             }
         }
 
-        println!("Error handling test: {} successes, {} errors (both acceptable)", 
-            success_count, error_count);
+        println!(
+            "Error handling test: {} successes, {} errors (both acceptable)",
+            success_count, error_count
+        );
 
         // Invariant: Cache should remain operational regardless of errors
         let final_test_key = "final_functionality_test";
         let final_test_value = b"final_test_value";
-        
-        cache.put(final_test_key, final_test_value, None).await.unwrap();
+
+        cache
+            .put(final_test_key, final_test_value, None)
+            .await
+            .unwrap();
         let final_result: Option<Vec<u8>> = cache.get(final_test_key).await.unwrap();
-        
-        assert_eq!(final_result.as_ref(), Some(&final_test_value.to_vec()),
-            "Error handling invariant violated: cache not functional after error tests");
+
+        assert_eq!(
+            final_result.as_ref(),
+            Some(&final_test_value.to_vec()),
+            "Error handling invariant violated: cache not functional after error tests"
+        );
     }
 
     /// Invariant: Cache clear operation removes all entries
@@ -484,8 +564,11 @@ mod cache_invariant_tests {
         assert!(stats_before.entries > 0, "Should have entries before clear");
 
         for (key, _) in &test_entries {
-            assert!(cache.get::<Vec<u8>>(key).await.unwrap().is_some(),
-                "Entry {} should exist before clear", key);
+            assert!(
+                cache.get::<Vec<u8>>(key).await.unwrap().is_some(),
+                "Entry {} should exist before clear",
+                key
+            );
         }
 
         // Clear cache
@@ -493,30 +576,42 @@ mod cache_invariant_tests {
 
         // Verify all entries are gone
         let stats_after = cache.statistics().await.unwrap();
-        assert_eq!(stats_after.entries, 0, 
-            "Clear invariant violated: {} entries remain after clear", stats_after.entries);
+        assert_eq!(
+            stats_after.entries, 0,
+            "Clear invariant violated: {} entries remain after clear",
+            stats_after.entries
+        );
 
         for (key, _) in &test_entries {
-            assert!(cache.get::<Vec<u8>>(key).await.unwrap().is_none(),
-                "Clear invariant violated: entry {} still exists after clear", key);
+            assert!(
+                cache.get::<Vec<u8>>(key).await.unwrap().is_none(),
+                "Clear invariant violated: entry {} still exists after clear",
+                key
+            );
         }
 
         // Verify cache is still functional after clear
         let post_clear_key = "post_clear_test";
         let post_clear_value = b"post_clear_value";
-        
-        cache.put(post_clear_key, post_clear_value, None).await.unwrap();
+
+        cache
+            .put(post_clear_key, post_clear_value, None)
+            .await
+            .unwrap();
         let result: Option<Vec<u8>> = cache.get(post_clear_key).await.unwrap();
-        
-        assert_eq!(result.as_ref(), Some(&post_clear_value.to_vec()),
-            "Cache should be functional after clear operation");
+
+        assert_eq!(
+            result.as_ref(),
+            Some(&post_clear_value.to_vec()),
+            "Cache should be functional after clear operation"
+        );
     }
 
     /// Invariant: Metadata is consistent with stored data
     #[tokio::test]
     async fn invariant_metadata_consistency() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         let config = UnifiedCacheConfig {
             compression_enabled: true,
             checksums_enabled: true,
@@ -538,39 +633,62 @@ mod cache_invariant_tests {
         for (key, value) in &metadata_test_cases {
             let store_time = SystemTime::now();
             cache.put(key, value, None).await.unwrap();
-            
+
             // Get metadata
-            let metadata = cache.metadata(key).await.unwrap()
+            let metadata = cache
+                .metadata(key)
+                .await
+                .unwrap()
                 .expect(&format!("Metadata should exist for key {}", key));
 
             // Verify metadata consistency
-            assert!(metadata.size_bytes > 0, 
-                "Metadata size should be positive for key {}", key);
-            
-            assert!(metadata.size_bytes >= value.len() as u64,
-                "Metadata size should be at least value size for key {}: {} < {}", 
-                key, metadata.size_bytes, value.len());
+            assert!(
+                metadata.size_bytes > 0,
+                "Metadata size should be positive for key {}",
+                key
+            );
 
-            assert!(metadata.created_at >= store_time.duration_since(SystemTime::UNIX_EPOCH).unwrap(),
-                "Metadata created time should be reasonable for key {}", key);
+            assert!(
+                metadata.size_bytes >= value.len() as u64,
+                "Metadata size should be at least value size for key {}: {} < {}",
+                key,
+                metadata.size_bytes,
+                value.len()
+            );
 
-            assert!(metadata.last_accessed >= metadata.created_at,
-                "Metadata last accessed should be >= created time for key {}", key);
+            assert!(
+                metadata.created_at >= store_time.duration_since(SystemTime::UNIX_EPOCH).unwrap(),
+                "Metadata created time should be reasonable for key {}",
+                key
+            );
+
+            assert!(
+                metadata.last_accessed >= metadata.created_at,
+                "Metadata last accessed should be >= created time for key {}",
+                key
+            );
 
             // Verify data can still be retrieved
             let retrieved: Option<Vec<u8>> = cache.get(key).await.unwrap();
-            assert_eq!(retrieved.as_ref(), Some(value),
-                "Data should be retrievable after metadata query for key {}", key);
+            assert_eq!(
+                retrieved.as_ref(),
+                Some(value),
+                "Data should be retrievable after metadata query for key {}",
+                key
+            );
 
             // Access again and verify last_accessed updates
             let metadata_before_access = cache.metadata(key).await.unwrap().unwrap();
             tokio::time::sleep(Duration::from_millis(10)).await; // Small delay
-            
+
             let _: Option<Vec<u8>> = cache.get(key).await.unwrap();
             let metadata_after_access = cache.metadata(key).await.unwrap().unwrap();
 
-            assert!(metadata_after_access.last_accessed >= metadata_before_access.last_accessed,
-                "Last accessed time should update after access for key {}", key);
+            assert!(
+                metadata_after_access.last_accessed >= metadata_before_access.last_accessed,
+                "Last accessed time should update after access for key {}",
+                key
+            );
         }
     }
 
@@ -581,13 +699,13 @@ mod cache_invariant_tests {
         let cache = Arc::new(
             ProductionCache::new(temp_dir.path().to_path_buf(), Default::default())
                 .await
-                .unwrap()
+                .unwrap(),
         );
 
         let atomicity_key = "atomicity_test";
         let num_writers = 10;
         let writes_per_writer = 50;
-        
+
         // Each writer will write a unique value that can be identified
         let barrier = Arc::new(Barrier::new(num_writers));
         let written_values = Arc::new(Mutex::new(Vec::new()));
@@ -601,17 +719,20 @@ mod cache_invariant_tests {
 
             let handle = tokio::spawn(async move {
                 barrier_clone.wait();
-                
+
                 for write_id in 0..writes_per_writer {
                     let unique_value = format!("writer_{}_write_{}", writer_id, write_id);
-                    
-                    match cache_clone.put(atomicity_key, unique_value.as_bytes(), None).await {
+
+                    match cache_clone
+                        .put(atomicity_key, unique_value.as_bytes(), None)
+                        .await
+                    {
                         Ok(_) => {
                             // Record that this value was successfully written
                             if let Ok(mut values) = values_clone.lock() {
                                 values.push(unique_value.clone());
                             }
-                            
+
                             // Small delay to increase chance of concurrent operations
                             tokio::time::sleep(Duration::from_micros(100)).await;
                         }
@@ -631,23 +752,31 @@ mod cache_invariant_tests {
 
         // Check final state
         let final_value: Option<Vec<u8>> = cache.get(atomicity_key).await.unwrap();
-        
+
         if let Some(final_bytes) = final_value {
             let final_string = String::from_utf8(final_bytes).unwrap();
-            
+
             // The final value should be one of the values that was written
             let written_values = written_values.lock().unwrap();
-            assert!(written_values.contains(&final_string),
-                "Atomicity invariant violated: final value '{}' was not in written values", 
-                final_string);
-                
+            assert!(
+                written_values.contains(&final_string),
+                "Atomicity invariant violated: final value '{}' was not in written values",
+                final_string
+            );
+
             // The final value should be a complete, valid value (not corrupted/partial)
-            assert!(final_string.starts_with("writer_") && final_string.contains("_write_"),
-                "Atomicity invariant violated: final value '{}' appears corrupted", final_string);
+            assert!(
+                final_string.starts_with("writer_") && final_string.contains("_write_"),
+                "Atomicity invariant violated: final value '{}' appears corrupted",
+                final_string
+            );
         }
 
-        println!("Atomicity test completed: {} values written by {} writers", 
-            written_values.lock().unwrap().len(), num_writers);
+        println!(
+            "Atomicity test completed: {} values written by {} writers",
+            written_values.lock().unwrap().len(),
+            num_writers
+        );
     }
 
     /// Property-based invariant tests using proptest
@@ -667,7 +796,7 @@ mod cache_invariant_tests {
                 match cache.put(&key, &value, None).await {
                     Ok(_) => {
                         let retrieved: Option<Vec<u8>> = cache.get(&key).await.unwrap();
-                        prop_assert_eq!(retrieved, Some(value), 
+                        prop_assert_eq!(retrieved, Some(value),
                             "Roundtrip invariant violated for key '{}'", key);
                     }
                     Err(CacheError::ValueTooLarge { .. }) => {
@@ -715,12 +844,12 @@ mod cache_invariant_tests {
                 }
 
                 let final_stats = cache.statistics().await.unwrap();
-                
+
                 // Statistics invariant: operations should be tracked
                 prop_assert!(final_stats.total_operations >= expected_operations,
-                    "Statistics invariant violated: {} < {}", 
+                    "Statistics invariant violated: {} < {}",
                     final_stats.total_operations, expected_operations);
-                    
+
                 // Hit rate invariant
                 prop_assert!(final_stats.hit_rate >= 0.0 && final_stats.hit_rate <= 1.0,
                     "Hit rate invariant violated: {}", final_stats.hit_rate);
@@ -729,7 +858,7 @@ mod cache_invariant_tests {
     }
 
     // Helper functions
-    
+
     fn generate_random_data(size: usize, seed: u64) -> Vec<u8> {
         let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
         use rand::Rng;

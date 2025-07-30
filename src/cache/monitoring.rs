@@ -9,9 +9,12 @@
 
 use crate::cache::errors::{CacheError, RecoveryHint, Result};
 use crate::cache::performance::PerfStats;
-use crate::cache::traits::{CacheStatistics, CacheKey};
+use crate::cache::traits::{CacheKey, CacheStatistics};
 use parking_lot::RwLock;
-use prometheus::{register_counter_vec, register_histogram_vec, register_int_gauge_vec, CounterVec, HistogramVec, IntGaugeVec, Encoder, TextEncoder, Registry};
+use prometheus::{
+    register_counter_vec, register_histogram_vec, register_int_gauge_vec, CounterVec, Encoder,
+    HistogramVec, IntGaugeVec, Registry, TextEncoder,
+};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -122,7 +125,7 @@ impl CacheMonitor {
     pub fn new(service_name: &str) -> Result<Self> {
         // Initialize Prometheus registry
         let registry = Registry::new();
-        
+
         // Initialize metrics
         let metrics = match Self::init_metrics(&registry) {
             Ok(m) => m,
@@ -175,9 +178,10 @@ impl CacheMonitor {
         Ok(Self { inner })
     }
 
-
     /// Initialize Prometheus metrics
-    fn init_metrics(registry: &Registry) -> std::result::Result<MetricsCollector, Box<dyn std::error::Error>> {
+    fn init_metrics(
+        registry: &Registry,
+    ) -> std::result::Result<MetricsCollector, Box<dyn std::error::Error>> {
         let cache_operations = register_counter_vec!(
             "cuenv_cache_operations_total",
             "Total number of cache operations",
@@ -192,11 +196,8 @@ impl CacheMonitor {
         )?;
         registry.register(Box::new(operation_duration.clone()))?;
 
-        let cache_gauges = register_int_gauge_vec!(
-            "cuenv_cache_stats",
-            "Cache statistics",
-            &["metric"]
-        )?;
+        let cache_gauges =
+            register_int_gauge_vec!("cuenv_cache_stats", "Cache statistics", &["metric"])?;
         registry.register(Box::new(cache_gauges.clone()))?;
 
         Ok(MetricsCollector {
@@ -209,11 +210,15 @@ impl CacheMonitor {
     /// Record a cache hit
     pub fn record_hit(&self, key: &str, operation: &str, duration: Duration) {
         // Update metrics
-        self.inner.metrics.cache_operations
+        self.inner
+            .metrics
+            .cache_operations
             .with_label_values(&[operation, "hit"])
             .inc();
-        
-        self.inner.metrics.operation_duration
+
+        self.inner
+            .metrics
+            .operation_duration
             .with_label_values(&[operation, "hit"])
             .observe(duration.as_secs_f64());
 
@@ -225,18 +230,24 @@ impl CacheMonitor {
 
         // Profile if enabled
         if self.inner.profiler.should_profile() {
-            self.inner.profiler.record_operation(operation, duration, true);
+            self.inner
+                .profiler
+                .record_operation(operation, duration, true);
         }
     }
 
     /// Record a cache miss
     pub fn record_miss(&self, key: &str, operation: &str, duration: Duration) {
         // Update metrics
-        self.inner.metrics.cache_operations
+        self.inner
+            .metrics
+            .cache_operations
             .with_label_values(&[operation, "miss"])
             .inc();
-        
-        self.inner.metrics.operation_duration
+
+        self.inner
+            .metrics
+            .operation_duration
             .with_label_values(&[operation, "miss"])
             .observe(duration.as_secs_f64());
 
@@ -248,17 +259,23 @@ impl CacheMonitor {
 
         // Profile if enabled
         if self.inner.profiler.should_profile() {
-            self.inner.profiler.record_operation(operation, duration, false);
+            self.inner
+                .profiler
+                .record_operation(operation, duration, false);
         }
     }
 
     /// Record a cache write
     pub fn record_write(&self, key: &str, size_bytes: u64, duration: Duration) {
-        self.inner.metrics.cache_operations
+        self.inner
+            .metrics
+            .cache_operations
             .with_label_values(&["write", "success"])
             .inc();
-        
-        self.inner.metrics.operation_duration
+
+        self.inner
+            .metrics
+            .operation_duration
             .with_label_values(&["write", "success"])
             .observe(duration.as_secs_f64());
 
@@ -267,11 +284,15 @@ impl CacheMonitor {
 
     /// Record a cache removal
     pub fn record_removal(&self, key: &str, duration: Duration) {
-        self.inner.metrics.cache_operations
+        self.inner
+            .metrics
+            .cache_operations
             .with_label_values(&["remove", "success"])
             .inc();
-        
-        self.inner.metrics.operation_duration
+
+        self.inner
+            .metrics
+            .operation_duration
             .with_label_values(&["remove", "success"])
             .observe(duration.as_secs_f64());
 
@@ -280,7 +301,9 @@ impl CacheMonitor {
 
     /// Record a cache error
     pub fn record_error(&self, operation: &str, error: &CacheError) {
-        self.inner.metrics.cache_operations
+        self.inner
+            .metrics
+            .cache_operations
             .with_label_values(&[operation, "error"])
             .inc();
     }
@@ -288,7 +311,9 @@ impl CacheMonitor {
     /// Record a cache eviction
     pub fn record_eviction(&self, reason: &str, count: u64) {
         for _ in 0..count {
-            self.inner.metrics.cache_operations
+            self.inner
+                .metrics
+                .cache_operations
                 .with_label_values(&["eviction", reason])
                 .inc();
         }
@@ -297,31 +322,41 @@ impl CacheMonitor {
     /// Update observable gauges with current statistics
     pub fn update_statistics(&self, stats: &CacheStatistics, memory_bytes: u64, disk_bytes: u64) {
         // Update gauge metrics
-        self.inner.metrics.cache_gauges
+        self.inner
+            .metrics
+            .cache_gauges
             .with_label_values(&["entries"])
             .set(stats.entry_count as i64);
-        
-        self.inner.metrics.cache_gauges
+
+        self.inner
+            .metrics
+            .cache_gauges
             .with_label_values(&["size_bytes"])
             .set(stats.total_bytes as i64);
-        
-        self.inner.metrics.cache_gauges
+
+        self.inner
+            .metrics
+            .cache_gauges
             .with_label_values(&["memory_bytes"])
             .set(memory_bytes as i64);
-        
-        self.inner.metrics.cache_gauges
+
+        self.inner
+            .metrics
+            .cache_gauges
             .with_label_values(&["disk_bytes"])
             .set(disk_bytes as i64);
-        
+
         // Calculate and update hit rate
         let total = stats.hits + stats.misses;
         if total > 0 {
             let hit_rate = (stats.hits as f64 / total as f64 * 100.0) as i64;
-            self.inner.metrics.cache_gauges
+            self.inner
+                .metrics
+                .cache_gauges
                 .with_label_values(&["hit_rate_percent"])
                 .set(hit_rate);
         }
-        
+
         debug!(
             "Cache statistics - hits: {}, misses: {}, size: {} bytes, entries: {}",
             stats.hits, stats.misses, stats.total_bytes, stats.entry_count
@@ -330,13 +365,12 @@ impl CacheMonitor {
 
     /// Start a traced operation
     pub fn start_operation(&self, operation: &str, key: &str) -> TracedOperation {
-        let span = tracing::info_span!(
-            "cache_operation",
-            operation = operation,
-            key = key
-        );
+        let span = tracing::info_span!("cache_operation", operation = operation, key = key);
 
-        self.inner.real_time_stats.operations_in_flight.fetch_add(1, Ordering::Relaxed);
+        self.inner
+            .real_time_stats
+            .operations_in_flight
+            .fetch_add(1, Ordering::Relaxed);
 
         TracedOperation {
             span,
@@ -416,23 +450,35 @@ impl TracedOperation {
     /// Complete the operation successfully
     pub fn complete(self) {
         tracing::info!(parent: &self.span, "Operation completed successfully");
-        
+
         let _duration = self.start_time.elapsed();
-        self.monitor.inner.real_time_stats.operations_in_flight.fetch_sub(1, Ordering::Relaxed);
+        self.monitor
+            .inner
+            .real_time_stats
+            .operations_in_flight
+            .fetch_sub(1, Ordering::Relaxed);
     }
 
     /// Complete the operation with an error
     pub fn error(self, error: &CacheError) {
         tracing::error!(parent: &self.span, error = %error, "Operation failed");
-        
-        self.monitor.inner.real_time_stats.operations_in_flight.fetch_sub(1, Ordering::Relaxed);
+
+        self.monitor
+            .inner
+            .real_time_stats
+            .operations_in_flight
+            .fetch_sub(1, Ordering::Relaxed);
     }
 }
 
 impl Drop for TracedOperation {
     fn drop(&mut self) {
         // Ensure we decrement the counter even if the operation wasn't properly completed
-        self.monitor.inner.real_time_stats.operations_in_flight.fetch_sub(1, Ordering::Relaxed);
+        self.monitor
+            .inner
+            .real_time_stats
+            .operations_in_flight
+            .fetch_sub(1, Ordering::Relaxed);
     }
 }
 
@@ -471,7 +517,7 @@ impl RollingWindow {
     fn roll_window(&self) {
         let now = Instant::now();
         let mut window_start = self.window_start.write();
-        
+
         if now.duration_since(*window_start) > self.window_duration {
             // Reset the window
             self.hits.store(0, Ordering::Relaxed);
@@ -507,11 +553,13 @@ impl HitRateAnalyzer {
         // Update operation type stats
         {
             let mut op_types = self.operation_types.write();
-            let stats = op_types.entry(operation.to_string()).or_insert_with(|| HitRateStats {
-                hits: AtomicU64::new(0),
-                misses: AtomicU64::new(0),
-                last_access: RwLock::new(Instant::now()),
-            });
+            let stats = op_types
+                .entry(operation.to_string())
+                .or_insert_with(|| HitRateStats {
+                    hits: AtomicU64::new(0),
+                    misses: AtomicU64::new(0),
+                    last_access: RwLock::new(Instant::now()),
+                });
             stats.hits.fetch_add(1, Ordering::Relaxed);
             *stats.last_access.write() = Instant::now();
         }
@@ -542,11 +590,13 @@ impl HitRateAnalyzer {
         // Update operation type stats
         {
             let mut op_types = self.operation_types.write();
-            let stats = op_types.entry(operation.to_string()).or_insert_with(|| HitRateStats {
-                hits: AtomicU64::new(0),
-                misses: AtomicU64::new(0),
-                last_access: RwLock::new(Instant::now()),
-            });
+            let stats = op_types
+                .entry(operation.to_string())
+                .or_insert_with(|| HitRateStats {
+                    hits: AtomicU64::new(0),
+                    misses: AtomicU64::new(0),
+                    last_access: RwLock::new(Instant::now()),
+                });
             stats.misses.fetch_add(1, Ordering::Relaxed);
             *stats.last_access.write() = Instant::now();
         }
@@ -559,7 +609,7 @@ impl HitRateAnalyzer {
 
     fn generate_report(&self) -> HitRateReport {
         let windows = self.time_windows.read();
-        
+
         let mut key_patterns = Vec::new();
         for (pattern, stats) in self.key_patterns.read().iter() {
             let hits = stats.hits.load(Ordering::Relaxed);
@@ -617,7 +667,7 @@ impl PerformanceProfiler {
         if self.enabled.load(Ordering::Relaxed) == 0 {
             return false;
         }
-        
+
         // Simple sampling
         fastrand::u64(1..=self.sampling_rate) == 1
     }
@@ -631,12 +681,14 @@ impl PerformanceProfiler {
         };
 
         let mut profiles = self.profiles.write();
-        let profile = profiles.entry(operation.to_string()).or_insert_with(|| ProfileData {
-            samples: Vec::new(),
-            total_time: Duration::ZERO,
-            operation_count: 0,
-        });
-        
+        let profile = profiles
+            .entry(operation.to_string())
+            .or_insert_with(|| ProfileData {
+                samples: Vec::new(),
+                total_time: Duration::ZERO,
+                operation_count: 0,
+            });
+
         profile.samples.push(sample);
         profile.total_time += duration;
         profile.operation_count += 1;
@@ -677,23 +729,23 @@ impl PerformanceProfiler {
 impl RealTimeStats {
     fn record_operation(&self, duration: Duration) {
         let duration_us = duration.as_micros() as u64;
-        
+
         // Update response times
         {
             let mut times = self.response_times.write();
             times.push(duration_us);
-            
+
             // Keep only recent samples
             if times.len() > 10000 {
                 times.drain(0..5000);
             }
-            
+
             // Calculate statistics
             if !times.is_empty() {
                 let sum: u64 = times.iter().sum();
                 let avg = sum / times.len() as u64;
                 self.avg_response_time_us.store(avg, Ordering::Relaxed);
-                
+
                 // Calculate P99
                 let mut sorted = times.clone();
                 sorted.sort_unstable();
@@ -771,7 +823,7 @@ mod tests {
     #[test]
     fn test_rolling_window() {
         let window = RollingWindow::new(Duration::from_secs(1));
-        
+
         // Record some hits and misses
         for _ in 0..7 {
             window.record_hit();
@@ -779,13 +831,13 @@ mod tests {
         for _ in 0..3 {
             window.record_miss();
         }
-        
+
         // Check hit rate
         assert!((window.hit_rate() - 0.7).abs() < 0.01);
-        
+
         // Wait for window to expire
         std::thread::sleep(Duration::from_millis(1100));
-        
+
         // After expiry, should reset
         assert_eq!(window.hit_rate(), 0.0);
     }
@@ -800,10 +852,7 @@ mod tests {
             HitRateAnalyzer::extract_pattern("path/to/file"),
             Some("path/*".to_string())
         );
-        assert_eq!(
-            HitRateAnalyzer::extract_pattern("simple_key"),
-            None
-        );
+        assert_eq!(HitRateAnalyzer::extract_pattern("simple_key"), None);
     }
 
     #[test]

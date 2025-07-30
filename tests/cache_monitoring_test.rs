@@ -59,8 +59,12 @@ async fn test_hit_rate_analysis() -> Result<(), CacheError> {
 
     // Generate pattern-based access
     for i in 0..10 {
-        monitored.put(&format!("user:{}", i), &format!("data{}", i), None).await?;
-        monitored.put(&format!("session:{}", i), &format!("data{}", i), None).await?;
+        monitored
+            .put(&format!("user:{}", i), &format!("data{}", i), None)
+            .await?;
+        monitored
+            .put(&format!("session:{}", i), &format!("data{}", i), None)
+            .await?;
     }
 
     // Access with patterns
@@ -80,10 +84,7 @@ async fn test_hit_rate_analysis() -> Result<(), CacheError> {
     assert!(report.one_minute >= 0.0 && report.one_minute <= 1.0);
 
     // Check pattern analysis
-    let user_pattern = report
-        .key_patterns
-        .iter()
-        .find(|p| p.pattern == "user:*");
+    let user_pattern = report.key_patterns.iter().find(|p| p.pattern == "user:*");
     assert!(user_pattern.is_some());
     assert_eq!(user_pattern.unwrap().hit_rate, 1.0); // All user keys were hits
 
@@ -112,7 +113,9 @@ async fn test_performance_profiling() -> Result<(), CacheError> {
 
     // Perform operations to generate profiling data
     for i in 0..100 {
-        monitored.put(&format!("key{}", i), &format!("value{}", i), None).await?;
+        monitored
+            .put(&format!("key{}", i), &format!("value{}", i), None)
+            .await?;
         let _: Option<String> = monitored.get(&format!("key{}", i)).await?;
     }
 

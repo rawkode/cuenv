@@ -13,9 +13,7 @@
 //! - Constant-time operations to prevent timing attacks
 
 use crate::cache::errors::{CacheError, RecoveryHint, Result};
-use ed25519_dalek::{
-    Signature, Signer, SigningKey, Verifier, VerifyingKey,
-};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -65,14 +63,20 @@ impl SecureKeypair {
         let mut csprng = OsRng;
         let signing_key = SigningKey::generate(&mut csprng);
         let verifying_key = signing_key.verifying_key();
-        Self { signing_key, verifying_key }
+        Self {
+            signing_key,
+            verifying_key,
+        }
     }
 
     /// Load keypair from seed bytes
     fn from_seed(seed: [u8; 32]) -> Result<Self> {
         let signing_key = SigningKey::from_bytes(&seed);
         let verifying_key = signing_key.verifying_key();
-        Ok(Self { signing_key, verifying_key })
+        Ok(Self {
+            signing_key,
+            verifying_key,
+        })
     }
 
     /// Get the public key bytes
@@ -170,11 +174,7 @@ impl CacheSigner {
     }
 
     /// Save keypair to disk with restricted permissions
-    fn save_keypair(
-        key_file: &Path,
-        keypair: &SecureKeypair,
-        cache_dir: &Path,
-    ) -> Result<()> {
+    fn save_keypair(key_file: &Path, keypair: &SecureKeypair, cache_dir: &Path) -> Result<()> {
         // Ensure cache directory exists
         if let Err(e) = fs::create_dir_all(cache_dir) {
             return Err(CacheError::Io {
@@ -319,8 +319,7 @@ impl CacheSigner {
             .as_secs();
 
         // Check if entry is too old
-        if current_time > entry.timestamp
-            && current_time - entry.timestamp > MAX_ENTRY_AGE_SECONDS
+        if current_time > entry.timestamp && current_time - entry.timestamp > MAX_ENTRY_AGE_SECONDS
         {
             return Ok(false);
         }
@@ -414,9 +413,8 @@ impl CacheSigner {
         nonce: &[u8; 32],
         timestamp: u64,
     ) -> Vec<u8> {
-        let mut message = Vec::with_capacity(
-            data_bytes.len() + nonce.len() + 8 + ED25519_PUBLIC_KEY_LENGTH,
-        );
+        let mut message =
+            Vec::with_capacity(data_bytes.len() + nonce.len() + 8 + ED25519_PUBLIC_KEY_LENGTH);
 
         message.extend_from_slice(data_bytes);
         message.extend_from_slice(nonce);

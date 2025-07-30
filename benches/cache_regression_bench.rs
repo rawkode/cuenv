@@ -42,38 +42,40 @@ fn bench_cache_throughput(c: &mut Criterion) {
     // Test different data sizes
     for size in [64, 1024, 4096, 16384, 65536, 262144].iter() {
         let data = generate_test_data(*size, 42);
-        
+
         group.throughput(Throughput::Bytes(*size as u64));
 
         // Production cache write throughput
-        group.bench_with_input(
-            BenchmarkId::new("production_write", size),
-            size,
-            |b, _| {
-                b.to_async(&rt).iter_batched(
-                    || {
-                        let temp_dir = TempDir::new().unwrap();
-                        let config = UnifiedCacheConfig {
-                            max_memory_bytes: 100 * 1024 * 1024, // 100MB
-                            compression_enabled: false, // Disable for pure throughput
-                            checksums_enabled: false,
-                            ..Default::default()
-                        };
-                        rt.block_on(async {
-                            ProductionCache::new(temp_dir.path().to_path_buf(), config)
-                                .await
-                                .unwrap()
-                        })
-                    },
-                    |cache| async {
-                        let key = format!("throughput_key_{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos());
-                        cache.put(&key, &data, None).await.unwrap();
-                        black_box(key);
-                    },
-                    BatchSize::SmallInput,
-                );
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("production_write", size), size, |b, _| {
+            b.to_async(&rt).iter_batched(
+                || {
+                    let temp_dir = TempDir::new().unwrap();
+                    let config = UnifiedCacheConfig {
+                        max_memory_bytes: 100 * 1024 * 1024, // 100MB
+                        compression_enabled: false,          // Disable for pure throughput
+                        checksums_enabled: false,
+                        ..Default::default()
+                    };
+                    rt.block_on(async {
+                        ProductionCache::new(temp_dir.path().to_path_buf(), config)
+                            .await
+                            .unwrap()
+                    })
+                },
+                |cache| async {
+                    let key = format!(
+                        "throughput_key_{}",
+                        SystemTime::now()
+                            .duration_since(SystemTime::UNIX_EPOCH)
+                            .unwrap()
+                            .as_nanos()
+                    );
+                    cache.put(&key, &data, None).await.unwrap();
+                    black_box(key);
+                },
+                BatchSize::SmallInput,
+            );
+        });
 
         // Production cache read throughput (hot data)
         group.bench_with_input(
@@ -93,13 +95,13 @@ fn bench_cache_throughput(c: &mut Criterion) {
                             let cache = ProductionCache::new(temp_dir.path().to_path_buf(), config)
                                 .await
                                 .unwrap();
-                            
+
                             // Pre-populate with hot data
                             let keys = generate_keys(100, 123);
                             for key in &keys {
                                 cache.put(key, &data, None).await.unwrap();
                             }
-                            
+
                             (cache, keys)
                         })
                     },
@@ -131,16 +133,16 @@ fn bench_cache_throughput(c: &mut Criterion) {
                             let cache = ProductionCache::new(temp_dir.path().to_path_buf(), config)
                                 .await
                                 .unwrap();
-                            
+
                             // Pre-populate data
                             let keys = generate_keys(10, 456);
                             for key in &keys {
                                 cache.put(key, &data, None).await.unwrap();
                             }
-                            
+
                             // Clear memory cache to force disk reads
                             cache.clear().await.unwrap();
-                            
+
                             (cache, keys)
                         })
                     },
@@ -190,16 +192,16 @@ fn bench_cache_concurrency(c: &mut Criterion) {
                             let cache = Arc::new(
                                 ProductionCache::new(temp_dir.path().to_path_buf(), config)
                                     .await
-                                    .unwrap()
+                                    .unwrap(),
                             );
-                            
+
                             // Pre-populate some data for reads
                             let base_keys = generate_keys(1000, 999);
                             for (i, key) in base_keys.iter().enumerate().take(500) {
                                 let value = generate_test_data(1024, i as u64);
                                 cache.put(key, &value, None).await.unwrap();
                             }
-                            
+
                             (cache, base_keys)
                         })
                     },
@@ -213,12 +215,13 @@ fn bench_cache_concurrency(c: &mut Criterion) {
 
                             let handle = tokio::spawn(async move {
                                 let mut rng = StdRng::seed_from_u64(task_id as u64);
-                                
+
                                 for i in 0..100 {
                                     if rng.gen_bool(0.7) {
                                         // 70% reads
                                         let key = &keys_clone[rng.gen_range(0..keys_clone.len())];
-                                        let _: Option<Vec<u8>> = cache_clone.get(key).await.unwrap_or(None);
+                                        let _: Option<Vec<u8>> =
+                                            cache_clone.get(key).await.unwrap_or(None);
                                     } else {
                                         // 30% writes
                                         let key = format!("task_{}_op_{}", task_id, i);
@@ -248,9 +251,12 @@ fn bench_cache_concurrency(c: &mut Criterion) {
                         let temp_dir = TempDir::new().unwrap();
                         rt.block_on(async {
                             Arc::new(
-                                ProductionCache::new(temp_dir.path().to_path_buf(), Default::default())
-                                    .await
-                                    .unwrap()
+                                ProductionCache::new(
+                                    temp_dir.path().to_path_buf(),
+                                    Default::default(),
+                                )
+                                .await
+                                .unwrap(),
                             )
                         })
                     },
@@ -289,18 +295,21 @@ fn bench_cache_concurrency(c: &mut Criterion) {
                         let temp_dir = TempDir::new().unwrap();
                         rt.block_on(async {
                             let cache = Arc::new(
-                                ProductionCache::new(temp_dir.path().to_path_buf(), Default::default())
-                                    .await
-                                    .unwrap()
+                                ProductionCache::new(
+                                    temp_dir.path().to_path_buf(),
+                                    Default::default(),
+                                )
+                                .await
+                                .unwrap(),
                             );
-                            
+
                             // Pre-populate data
                             let keys = generate_keys(1000, 111);
                             for (i, key) in keys.iter().enumerate() {
                                 let value = generate_test_data(1024, i as u64);
                                 cache.put(key, &value, None).await.unwrap();
                             }
-                            
+
                             (cache, keys)
                         })
                     },
@@ -313,10 +322,11 @@ fn bench_cache_concurrency(c: &mut Criterion) {
 
                             let handle = tokio::spawn(async move {
                                 let mut rng = StdRng::seed_from_u64(task_id as u64);
-                                
+
                                 for _ in 0..100 {
                                     let key = &keys_clone[rng.gen_range(0..keys_clone.len())];
-                                    let _: Option<Vec<u8>> = cache_clone.get(key).await.unwrap_or(None);
+                                    let _: Option<Vec<u8>> =
+                                        cache_clone.get(key).await.unwrap_or(None);
                                 }
                             });
                             handles.push(handle);
@@ -356,7 +366,7 @@ fn bench_cache_eviction(c: &mut Criterion) {
                         },
                         "size_pressure" => UnifiedCacheConfig {
                             max_memory_bytes: 100 * 1024 * 1024, // 100MB
-                            max_entry_size: 1024, // 1KB max entry size
+                            max_entry_size: 1024,                // 1KB max entry size
                             ..Default::default()
                         },
                         "count_pressure" => UnifiedCacheConfig {
@@ -366,7 +376,7 @@ fn bench_cache_eviction(c: &mut Criterion) {
                         },
                         _ => unreachable!(),
                     };
-                    
+
                     rt.block_on(async {
                         ProductionCache::new(temp_dir.path().to_path_buf(), config)
                             .await
@@ -401,7 +411,7 @@ fn bench_cache_eviction(c: &mut Criterion) {
                         }
                         _ => unreachable!(),
                     }
-                    
+
                     let stats = cache.statistics().await.unwrap();
                     black_box(stats);
                 },
@@ -428,9 +438,12 @@ fn bench_cache_metadata(c: &mut Criterion) {
                     || {
                         let temp_dir = TempDir::new().unwrap();
                         rt.block_on(async {
-                            let cache = ProductionCache::new(temp_dir.path().to_path_buf(), Default::default())
-                                .await
-                                .unwrap();
+                            let cache = ProductionCache::new(
+                                temp_dir.path().to_path_buf(),
+                                Default::default(),
+                            )
+                            .await
+                            .unwrap();
 
                             // Pre-populate cache
                             let keys = generate_keys(num_entries, 222);
@@ -444,13 +457,13 @@ fn bench_cache_metadata(c: &mut Criterion) {
                     },
                     |(cache, keys)| async {
                         let mut total_size = 0u64;
-                        
+
                         for key in keys {
                             if let Some(metadata) = cache.metadata(&key).await.unwrap() {
                                 total_size += metadata.size_bytes;
                             }
                         }
-                        
+
                         black_box(total_size);
                     },
                     BatchSize::SmallInput,
@@ -465,9 +478,10 @@ fn bench_cache_metadata(c: &mut Criterion) {
             || {
                 let temp_dir = TempDir::new().unwrap();
                 rt.block_on(async {
-                    let cache = ProductionCache::new(temp_dir.path().to_path_buf(), Default::default())
-                        .await
-                        .unwrap();
+                    let cache =
+                        ProductionCache::new(temp_dir.path().to_path_buf(), Default::default())
+                            .await
+                            .unwrap();
 
                     // Add some data
                     for i in 0..1000 {
@@ -500,16 +514,19 @@ fn bench_cache_compression(c: &mut Criterion) {
         ("random", 333),
         ("compressible", 444), // Repeated patterns
         ("text_like", 555),
-    ].iter() {
+    ]
+    .iter()
+    {
         let data = match *data_type {
             "random" => generate_test_data(8192, *seed),
             "compressible" => {
                 let pattern = b"Hello World! This is a test pattern that should compress well. ";
                 pattern.iter().cycle().take(8192).cloned().collect()
             }
-            "text_like" => {
-                "The quick brown fox jumps over the lazy dog. ".repeat(100).as_bytes().to_vec()
-            }
+            "text_like" => "The quick brown fox jumps over the lazy dog. "
+                .repeat(100)
+                .as_bytes()
+                .to_vec(),
             _ => unreachable!(),
         };
 
@@ -532,7 +549,13 @@ fn bench_cache_compression(c: &mut Criterion) {
                         })
                     },
                     |cache| async {
-                        let key = format!("compression_test_{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos());
+                        let key = format!(
+                            "compression_test_{}",
+                            SystemTime::now()
+                                .duration_since(SystemTime::UNIX_EPOCH)
+                                .unwrap()
+                                .as_nanos()
+                        );
                         cache.put(&key, data, None).await.unwrap();
                         let retrieved: Option<Vec<u8>> = cache.get(&key).await.unwrap();
                         black_box(retrieved);
@@ -561,7 +584,13 @@ fn bench_cache_compression(c: &mut Criterion) {
                         })
                     },
                     |cache| async {
-                        let key = format!("no_compression_test_{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos());
+                        let key = format!(
+                            "no_compression_test_{}",
+                            SystemTime::now()
+                                .duration_since(SystemTime::UNIX_EPOCH)
+                                .unwrap()
+                                .as_nanos()
+                        );
                         cache.put(&key, data, None).await.unwrap();
                         let retrieved: Option<Vec<u8>> = cache.get(&key).await.unwrap();
                         black_box(retrieved);
@@ -602,13 +631,13 @@ fn bench_cache_ttl(c: &mut Criterion) {
                     },
                     |cache| async {
                         let data = generate_test_data(1024, 666);
-                        
+
                         // Store entries with TTL
                         for i in 0..100 {
                             let key = format!("ttl_key_{}", i);
                             cache.put(&key, &data, None).await.unwrap();
                         }
-                        
+
                         // Read them back immediately
                         let mut found = 0;
                         for i in 0..100 {
@@ -617,7 +646,7 @@ fn bench_cache_ttl(c: &mut Criterion) {
                                 found += 1;
                             }
                         }
-                        
+
                         black_box(found);
                     },
                     BatchSize::SmallInput,
@@ -698,11 +727,11 @@ fn bench_cache_error_handling(c: &mut Criterion) {
             },
             |cache| async {
                 let invalid_keys = vec![
-                    "", // Empty key
+                    "",                // Empty key
                     "x".repeat(10000), // Very long key
-                    "invalid\0key", // Key with null bytes
+                    "invalid\0key",    // Key with null bytes
                 ];
-                
+
                 for key in invalid_keys {
                     let _ = cache.get::<Vec<u8>>(&key).await;
                     let _ = cache.put(&key, b"test", None).await;

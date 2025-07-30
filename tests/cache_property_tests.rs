@@ -108,7 +108,7 @@ mod cache_property_tests {
 
                 // Get value back
                 let retrieved: Option<Vec<u8>> = cache.get(&key).await.unwrap();
-                
+
                 match retrieved {
                     Some(retrieved_value) => {
                         prop_assert_eq!(retrieved_value, value, "Retrieved value must match stored value");
@@ -169,7 +169,7 @@ mod cache_property_tests {
                 for (key, expected_value) in stored_pairs {
                     let retrieved: Option<Vec<u8>> = cache.get(&key).await.unwrap();
                     if let Some(actual_value) = retrieved {
-                        prop_assert_eq!(actual_value, expected_value, 
+                        prop_assert_eq!(actual_value, expected_value,
                             "Key '{}' should return its stored value", key);
                     }
                 }
@@ -202,7 +202,7 @@ mod cache_property_tests {
                 if let Some(metadata) = cache.metadata(&key).await.unwrap() {
                     // Size should be reasonable
                     prop_assert!(metadata.size_bytes > 0, "Metadata size should be positive");
-                    prop_assert!(metadata.size_bytes >= value.len() as u64, 
+                    prop_assert!(metadata.size_bytes >= value.len() as u64,
                         "Metadata size should be at least value size");
 
                     // Timestamps should be reasonable
@@ -227,7 +227,7 @@ mod cache_property_tests {
                     ttl_secs: Some(Duration::from_millis(ttl_ms)),
                     ..Default::default()
                 };
-                
+
                 let cache = ProductionCache::new(temp_dir.path().to_path_buf(), config)
                     .await.unwrap();
 
@@ -268,14 +268,14 @@ mod cache_property_tests {
             let rt = Runtime::new().unwrap();
             rt.block_on(async {
                 let temp_dir = TempDir::new().unwrap();
-                
+
                 // Create cache with limited memory (10KB)
                 let config = UnifiedCacheConfig {
                     max_memory_bytes: 10 * 1024,
                     max_entries: 5, // Also limit by count
                     ..Default::default()
                 };
-                
+
                 let cache = ProductionCache::new(temp_dir.path().to_path_buf(), config)
                     .await.unwrap();
 
@@ -308,8 +308,8 @@ mod cache_property_tests {
 
                 // Cache should not exceed its configured limits
                 prop_assert!(
-                    found_count <= 5, 
-                    "Cache should not exceed max_entries limit (found {} entries)", 
+                    found_count <= 5,
+                    "Cache should not exceed max_entries limit (found {} entries)",
                     found_count
                 );
             });
@@ -323,7 +323,7 @@ mod cache_property_tests {
         ) {
             prop_assume!(shared_keys.len() >= 5);
             prop_assume!(values_per_key.len() >= 5);
-            
+
             let rt = Runtime::new().unwrap();
             rt.block_on(async {
                 let temp_dir = TempDir::new().unwrap();
@@ -346,7 +346,7 @@ mod cache_property_tests {
                         for (i, key) in keys.iter().enumerate() {
                             let value_index = (task_id + i) % values.len();
                             let value = &values[value_index];
-                            
+
                             // Alternate between puts and gets
                             if i % 2 == 0 {
                                 // Put operation
@@ -389,7 +389,7 @@ mod cache_property_tests {
                 // Verify the cache is still functional after concurrent access
                 let test_key = "post_concurrent_test";
                 let test_value = b"test_value".to_vec();
-                
+
                 match cache.put(test_key, &test_value, None).await {
                     Ok(_) => {
                         let retrieved: Option<Vec<u8>> = cache.get(test_key).await.unwrap();
@@ -557,8 +557,8 @@ mod cache_property_tests {
 
                     // Verify we get proper error types, not panics
                     match put_result {
-                        Ok(_) | Err(CacheError::InvalidKey { .. }) 
-                        | Err(CacheError::ValueTooLarge { .. }) 
+                        Ok(_) | Err(CacheError::InvalidKey { .. })
+                        | Err(CacheError::ValueTooLarge { .. })
                         | Err(CacheError::StorageError { .. }) => {
                             // These are all acceptable outcomes
                         }

@@ -11,8 +11,8 @@
 //! - Tamper detection using cryptographic hashes
 //! - Performance optimized with async I/O
 
+use crate::cache::capabilities::{CacheOperation, CapabilityToken};
 use crate::cache::errors::{CacheError, RecoveryHint, Result};
-use crate::cache::capabilities::{CapabilityToken, CacheOperation};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -268,14 +268,16 @@ impl AuditLogger {
     pub async fn new(config: AuditConfig) -> Result<Self> {
         // Ensure log directory exists
         if let Some(parent) = config.log_file_path.parent() {
-            tokio::fs::create_dir_all(parent).await.map_err(|e| CacheError::Io {
-                path: parent.to_path_buf(),
-                operation: "create audit log directory",
-                source: e,
-                recovery_hint: RecoveryHint::CheckPermissions {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(|e| CacheError::Io {
                     path: parent.to_path_buf(),
-                },
-            })?;
+                    operation: "create audit log directory",
+                    source: e,
+                    recovery_hint: RecoveryHint::CheckPermissions {
+                        path: parent.to_path_buf(),
+                    },
+                })?;
         }
 
         // Open log file for appending
@@ -292,7 +294,8 @@ impl AuditLogger {
                 },
             })?;
 
-        let current_size = file.metadata()
+        let current_size = file
+            .metadata()
             .map_err(|e| CacheError::Io {
                 path: config.log_file_path.clone(),
                 operation: "get audit log file metadata",
@@ -303,7 +306,10 @@ impl AuditLogger {
             })?
             .len();
 
-        let writer = Arc::new(Mutex::new(BufWriter::with_capacity(config.buffer_size, file)));
+        let writer = Arc::new(Mutex::new(BufWriter::with_capacity(
+            config.buffer_size,
+            file,
+        )));
         let current_size = Arc::new(Mutex::new(current_size));
         let previous_hash = Arc::new(Mutex::new(Self::compute_genesis_hash()));
         let entry_counter = Arc::new(Mutex::new(0));
@@ -420,7 +426,10 @@ impl AuditLogger {
         context: AuditContext,
     ) -> Result<()> {
         let mut error_context = HashMap::new();
-        error_context.insert("recovery_hint".to_string(), format!("{:?}", error.recovery_hint()));
+        error_context.insert(
+            "recovery_hint".to_string(),
+            format!("{:?}", error.recovery_hint()),
+        );
 
         let event = AuditEvent::Error {
             error_type: std::any::type_name_of_val(error).to_string(),
@@ -453,7 +462,7 @@ impl AuditLogger {
 
         // Compute integrity hash
         entry.integrity_hash = self.compute_entry_hash(&entry);
-        
+
         // Update previous hash for next entry
         let mut prev_hash = self.previous_hash.lock().await;
         *prev_hash = entry.integrity_hash.clone();
@@ -526,7 +535,7 @@ impl AuditLogger {
     /// Compute integrity hash for an entry
     fn compute_entry_hash(&self, entry: &AuditLogEntry) -> String {
         let mut hasher = Sha256::new();
-        
+
         // Hash all fields except the integrity_hash itself
         hasher.update(entry.entry_id.as_bytes());
         hasher.update(entry.timestamp.to_rfc3339().as_bytes());
@@ -534,7 +543,7 @@ impl AuditLogger {
         hasher.update(&serde_json::to_vec(&entry.context).unwrap_or_default());
         hasher.update(entry.previous_hash.as_bytes());
         hasher.update(&entry.schema_version.to_le_bytes());
-        
+
         let hash = hasher.finalize();
         hex::encode(hash)
     }
@@ -551,15 +560,17 @@ impl AuditLogger {
     /// Verify log integrity by checking hash chain
     pub async fn verify_log_integrity(&self, log_file: &Path) -> Result<LogIntegrityReport> {
         use tokio::io::{AsyncBufReadExt, BufReader};
-        
-        let file = tokio::fs::File::open(log_file).await.map_err(|e| CacheError::Io {
-            path: log_file.to_path_buf(),
-            operation: "open audit log for verification",
-            source: e,
-            recovery_hint: RecoveryHint::CheckPermissions {
+
+        let file = tokio::fs::File::open(log_file)
+            .await
+            .map_err(|e| CacheError::Io {
                 path: log_file.to_path_buf(),
-            },
-        })?;
+                operation: "open audit log for verification",
+                source: e,
+                recovery_hint: RecoveryHint::CheckPermissions {
+                    path: log_file.to_path_buf(),
+                },
+            })?;
 
         let reader = BufReader::new(file);
         let mut lines = reader.lines();
@@ -630,7 +641,7 @@ mod tests {
     async fn test_audit_logger_creation() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test_audit.jsonl");
-        
+
         let config = AuditConfig {
             log_file_path: log_path,
             ..Default::default()
@@ -644,7 +655,7 @@ mod tests {
     async fn test_audit_event_logging() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test_audit.jsonl");
-        
+
         let config = AuditConfig {
             log_file_path: log_path.clone(),
             immediate_flush: true,
@@ -652,7 +663,7 @@ mod tests {
         };
 
         let logger = AuditLogger::new(config).await.unwrap();
-        
+
         let context = AuditContext {
             principal: "test-user".to_string(),
             source_ip: Some("127.0.0.1".to_string()),
@@ -660,7 +671,10 @@ mod tests {
         };
 
         // Log a cache read event
-        logger.log_cache_read("test/key", true, Some(1024), 5, context).await.unwrap();
+        logger
+            .log_cache_read("test/key", true, Some(1024), 5, context)
+            .await
+            .unwrap();
 
         // Verify log file was written
         let log_content = tokio::fs::read_to_string(&log_path).await.unwrap();
@@ -673,7 +687,7 @@ mod tests {
     async fn test_log_integrity_verification() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test_audit.jsonl");
-        
+
         let config = AuditConfig {
             log_file_path: log_path.clone(),
             immediate_flush: true,
@@ -681,12 +695,21 @@ mod tests {
         };
 
         let logger = AuditLogger::new(config).await.unwrap();
-        
+
         let context = AuditContext::default();
 
         // Log multiple events
         for i in 0..5 {
-            logger.log_cache_read(&format!("key_{}", i), i % 2 == 0, Some(1024), 5, context.clone()).await.unwrap();
+            logger
+                .log_cache_read(
+                    &format!("key_{}", i),
+                    i % 2 == 0,
+                    Some(1024),
+                    5,
+                    context.clone(),
+                )
+                .await
+                .unwrap();
         }
 
         // Verify integrity
@@ -700,7 +723,7 @@ mod tests {
     async fn test_security_violation_logging() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test_audit.jsonl");
-        
+
         let config = AuditConfig {
             log_file_path: log_path.clone(),
             immediate_flush: true,
@@ -708,19 +731,22 @@ mod tests {
         };
 
         let logger = AuditLogger::new(config).await.unwrap();
-        
+
         let context = AuditContext {
             principal: "suspicious-user".to_string(),
             source_ip: Some("192.168.1.100".to_string()),
             ..Default::default()
         };
 
-        logger.log_security_violation(
-            SecurityViolationType::InvalidSignature,
-            "Detected tampered cache entry".to_string(),
-            ViolationSeverity::High,
-            context,
-        ).await.unwrap();
+        logger
+            .log_security_violation(
+                SecurityViolationType::InvalidSignature,
+                "Detected tampered cache entry".to_string(),
+                ViolationSeverity::High,
+                context,
+            )
+            .await
+            .unwrap();
 
         let log_content = tokio::fs::read_to_string(&log_path).await.unwrap();
         assert!(log_content.contains("SecurityViolation"));

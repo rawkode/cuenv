@@ -126,7 +126,7 @@ impl<C: Cache + Send + Sync> Cache for MonitoredCache<C> {
                 let duration = start.elapsed();
                 self.monitor.record_write(key, estimated_size, duration);
                 operation.complete();
-                
+
                 // Update stats asynchronously
                 let monitor = self.monitor.clone();
                 let cache = self.cache.clone();
@@ -135,7 +135,7 @@ impl<C: Cache + Send + Sync> Cache for MonitoredCache<C> {
                         monitor.update_statistics(&stats, 0, 0);
                     }
                 });
-                
+
                 Ok(())
             }
             Err(e) => {
@@ -224,10 +224,10 @@ impl<C: Cache + Send + Sync> Cache for MonitoredCache<C> {
                 let duration = start.elapsed();
                 info!("Cache cleared in {:?}", duration);
                 operation.complete();
-                
+
                 // Update stats to reflect the clear
                 let _ = self.update_stats().await;
-                
+
                 Ok(())
             }
             Err(e) => {
@@ -445,11 +445,8 @@ mod tests {
     #[tokio::test]
     async fn test_monitored_cache_operations() -> Result<()> {
         let temp_dir = TempDir::new().unwrap();
-        let base_cache = UnifiedCache::new(
-            temp_dir.path().to_path_buf(),
-            CacheConfig::default(),
-        )
-        .await?;
+        let base_cache =
+            UnifiedCache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
 
         let monitored = MonitoredCacheBuilder::new(base_cache)
             .with_service_name("test-cache")
@@ -457,7 +454,7 @@ mod tests {
 
         // Test operations
         monitored.put("test-key", &"test-value", None).await?;
-        
+
         let value: Option<String> = monitored.get("test-key").await?;
         assert_eq!(value, Some("test-value".to_string()));
 
@@ -476,11 +473,8 @@ mod tests {
     #[tokio::test]
     async fn test_profiling() -> Result<()> {
         let temp_dir = TempDir::new().unwrap();
-        let base_cache = UnifiedCache::new(
-            temp_dir.path().to_path_buf(),
-            CacheConfig::default(),
-        )
-        .await?;
+        let base_cache =
+            UnifiedCache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
 
         let monitored = MonitoredCacheBuilder::new(base_cache)
             .with_profiling()
@@ -488,7 +482,9 @@ mod tests {
 
         // Perform some operations
         for i in 0..10 {
-            monitored.put(&format!("key-{}", i), &format!("value-{}", i), None).await?;
+            monitored
+                .put(&format!("key-{}", i), &format!("value-{}", i), None)
+                .await?;
             let _: Option<String> = monitored.get(&format!("key-{}", i)).await?;
         }
 

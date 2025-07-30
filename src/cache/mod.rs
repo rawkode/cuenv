@@ -33,10 +33,20 @@ pub mod signing;
 mod types;
 
 // Security modules (Phase 7)
-pub mod capabilities;
 pub mod audit;
+pub mod capabilities;
 pub mod merkle;
 pub mod secure_cache;
+
+// Reliability and production features (Phase 9)
+pub mod health_endpoint;
+pub mod reliability;
+
+// Advanced features (Phase 10)
+pub mod analytics_dashboard;
+pub mod multi_tenant;
+pub mod platform_optimizations;
+pub mod predictive_cache;
 
 // Legacy implementations (deprecated - will be removed)
 mod action_cache;

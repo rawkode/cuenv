@@ -6,9 +6,7 @@
 
 #[cfg(test)]
 mod cache_chaos_tests {
-    use cuenv::cache::{
-        Cache, CacheError, ProductionCache, UnifiedCache, UnifiedCacheConfig,
-    };
+    use cuenv::cache::{Cache, CacheError, ProductionCache, UnifiedCache, UnifiedCacheConfig};
     use rand::prelude::*;
     use std::collections::HashMap;
     use std::fs;
@@ -67,7 +65,7 @@ mod cache_chaos_tests {
             // Inject failures
             if rng.gen::<f64>() < self.failure_rate {
                 self.failures_injected.fetch_add(1, Ordering::Relaxed);
-                
+
                 let error_kind = match rng.gen_range(0..6) {
                     0 => ErrorKind::PermissionDenied,
                     1 => ErrorKind::NotFound,
@@ -103,7 +101,7 @@ mod cache_chaos_tests {
         fn chaos_write(&self, path: &Path, mut data: Vec<u8>) -> Result<(), IoError> {
             self.maybe_inject_failure("write")?;
             self.maybe_corrupt_data(&mut data);
-            
+
             // Occasionally truncate writes
             let mut rng = thread_rng();
             if rng.gen::<f64>() < 0.05 && data.len() > 10 {
@@ -116,10 +114,10 @@ mod cache_chaos_tests {
 
         fn chaos_read(&self, path: &Path) -> Result<Vec<u8>, IoError> {
             self.maybe_inject_failure("read")?;
-            
+
             let mut data = fs::read(path)?;
             self.maybe_corrupt_data(&mut data);
-            
+
             Ok(data)
         }
 
@@ -158,7 +156,7 @@ mod cache_chaos_tests {
 
         fn start_pressure(&self) {
             self.enabled.store(true, Ordering::Relaxed);
-            
+
             let allocations = Arc::clone(&self.allocations);
             let enabled = Arc::clone(&self.enabled);
             let target_mb = self.max_memory_mb;
@@ -178,7 +176,7 @@ mod cache_chaos_tests {
                             }
                         }
                     }
-                    
+
                     thread::sleep(Duration::from_millis(100));
                 }
             });
@@ -187,7 +185,7 @@ mod cache_chaos_tests {
         fn stop_pressure(&self) {
             self.enabled.store(false, Ordering::Relaxed);
             thread::sleep(Duration::from_millis(200)); // Allow cleanup
-            
+
             if let Ok(mut allocs) = self.allocations.lock() {
                 allocs.clear();
             }
@@ -255,7 +253,10 @@ mod cache_chaos_tests {
             let mut failed_operations = 0;
             let mut data_corruption_detected = 0;
 
-            println!("Starting filesystem chaos test with {} operations", num_operations);
+            println!(
+                "Starting filesystem chaos test with {} operations",
+                num_operations
+            );
 
             for i in 0..num_operations {
                 let key = format!("chaos_key_{}", i);
@@ -304,13 +305,16 @@ mod cache_chaos_tests {
             println!("  Latency injections: {}", latency_injections);
 
             // System should handle chaos gracefully
-            assert!(successful_operations > 0, "Some operations should succeed despite chaos");
+            assert!(
+                successful_operations > 0,
+                "Some operations should succeed despite chaos"
+            );
             assert!(failures > 0, "Chaos should have injected some failures");
-            
+
             // Cache should remain functional
             let recovery_key = "recovery_test";
             let recovery_value = b"recovery_data";
-            
+
             assert!(
                 cache.put(recovery_key, recovery_value, None).await.is_ok(),
                 "Cache should recover after chaos"
@@ -444,7 +448,7 @@ mod cache_chaos_tests {
             let cache = Arc::new(
                 ProductionCache::new(temp_dir.path().to_path_buf(), Default::default())
                     .await
-                    .unwrap()
+                    .unwrap(),
             );
 
             // Start all chaos conditions
@@ -468,7 +472,7 @@ mod cache_chaos_tests {
 
                     tokio::spawn(async move {
                         barrier.wait();
-                        
+
                         let mut client_metrics = HashMap::new();
                         client_metrics.insert("puts".to_string(), 0u64);
                         client_metrics.insert("gets".to_string(), 0u64);
@@ -477,7 +481,7 @@ mod cache_chaos_tests {
                         client_metrics.insert("network_partitions".to_string(), 0u64);
 
                         let mut operation_id = 0;
-                        
+
                         while start_time.elapsed() < duration {
                             // Simulate network partition effects
                             if network_sim.is_partitioned() {
@@ -513,7 +517,7 @@ mod cache_chaos_tests {
                             }
 
                             operation_id += 1;
-                            
+
                             // Small delay to avoid overwhelming the system
                             tokio::time::sleep(Duration::from_millis(10)).await;
                         }
@@ -593,7 +597,10 @@ mod cache_chaos_tests {
 
             // Verify cache is still functional
             let final_test = cache.put("multi_chaos_recovery", b"recovered", None).await;
-            assert!(final_test.is_ok(), "Cache should recover from multi-vector chaos");
+            assert!(
+                final_test.is_ok(),
+                "Cache should recover from multi-vector chaos"
+            );
         });
     }
 
@@ -606,7 +613,7 @@ mod cache_chaos_tests {
             let cache = Arc::new(
                 ProductionCache::new(temp_dir.path().to_path_buf(), Default::default())
                     .await
-                    .unwrap()
+                    .unwrap(),
             );
 
             // Stage 1: Normal operation
@@ -624,15 +631,15 @@ mod cache_chaos_tests {
             println!("Stage 2: Filesystem corruption");
             let chaos_fs = ChaosFilesystem::new(
                 temp_dir.path().to_path_buf(),
-                0.5,  // 50% failure rate
-                0.3,  // 30% corruption rate
+                0.5, // 50% failure rate
+                0.3, // 30% corruption rate
             );
 
             let mut corruption_survived = 0;
             for i in 100..200 {
                 let key = format!("corrupt_{}", i);
                 let value = format!("value_{}", i);
-                
+
                 match cache.put(&key, value.as_bytes(), None).await {
                     Ok(_) => {
                         // Try to read back
@@ -657,7 +664,7 @@ mod cache_chaos_tests {
             for i in 200..300 {
                 let key = format!("pressure_{}", i);
                 let value = vec![i as u8; 1000]; // Larger values under pressure
-                
+
                 match cache.put(&key, &value, None).await {
                     Ok(_) => pressure_survived += 1,
                     Err(_) => {
@@ -680,7 +687,7 @@ mod cache_chaos_tests {
             for i in 300..350 {
                 let key = format!("recovery_{}", i);
                 let value = format!("recovered_{}", i);
-                
+
                 match cache.put(&key, value.as_bytes(), None).await {
                     Ok(_) => {
                         if cache.get::<Vec<u8>>(&key).await.unwrap_or(None).is_some() {
@@ -696,13 +703,28 @@ mod cache_chaos_tests {
             println!("  Recovery operations: {}", recovery_operations);
 
             let final_stats = cache.statistics().await.unwrap();
-            println!("Final stats: {} total operations", final_stats.total_operations);
+            println!(
+                "Final stats: {} total operations",
+                final_stats.total_operations
+            );
 
             // Verify graceful degradation
-            assert!(corruption_survived < 90, "Should show degradation under corruption");
-            assert!(pressure_survived < corruption_survived, "Should degrade further under pressure");
-            assert!(recovery_operations > pressure_survived, "Should recover after chaos ends");
-            assert!(final_stats.total_operations > stats1.total_operations, "Stats should accumulate");
+            assert!(
+                corruption_survived < 90,
+                "Should show degradation under corruption"
+            );
+            assert!(
+                pressure_survived < corruption_survived,
+                "Should degrade further under pressure"
+            );
+            assert!(
+                recovery_operations > pressure_survived,
+                "Should recover after chaos ends"
+            );
+            assert!(
+                final_stats.total_operations > stats1.total_operations,
+                "Stats should accumulate"
+            );
         });
     }
 
@@ -712,7 +734,7 @@ mod cache_chaos_tests {
         let rt = Runtime::new().unwrap();
         rt.block_on(async {
             let temp_dir = TempDir::new().unwrap();
-            
+
             // Start with large cache
             let initial_config = UnifiedCacheConfig {
                 max_memory_bytes: 10 * 1024 * 1024, // 10MB
@@ -760,51 +782,68 @@ mod cache_chaos_tests {
             ];
 
             for (i, config) in configs.iter().enumerate() {
-                println!("Configuration change {}: max_memory={} bytes, max_entries={}", 
-                    i + 1, config.max_memory_bytes, config.max_entries);
+                println!(
+                    "Configuration change {}: max_memory={} bytes, max_entries={}",
+                    i + 1,
+                    config.max_memory_bytes,
+                    config.max_entries
+                );
 
                 // Create new cache with different config
-                let new_cache = match ProductionCache::new(temp_dir.path().to_path_buf(), config.clone()).await {
-                    Ok(cache) => cache,
-                    Err(e) => {
-                        println!("Failed to create cache with config {}: {}", i + 1, e);
-                        continue;
-                    }
-                };
+                let new_cache =
+                    match ProductionCache::new(temp_dir.path().to_path_buf(), config.clone()).await
+                    {
+                        Ok(cache) => cache,
+                        Err(e) => {
+                            println!("Failed to create cache with config {}: {}", i + 1, e);
+                            continue;
+                        }
+                    };
 
                 // Test basic operations
                 let mut operations_succeeded = 0;
                 for j in 0..50 {
                     let key = format!("config_change_{}_{}", i, j);
                     let value = vec![j as u8; 100];
-                    
+
                     if new_cache.put(&key, &value, None).await.is_ok() {
-                        if new_cache.get::<Vec<u8>>(&key).await.unwrap_or(None).is_some() {
+                        if new_cache
+                            .get::<Vec<u8>>(&key)
+                            .await
+                            .unwrap_or(None)
+                            .is_some()
+                        {
                             operations_succeeded += 1;
                         }
                     }
                 }
 
                 let stats = new_cache.statistics().await.unwrap();
-                println!("  Operations succeeded: {}, Current entries: {}", 
-                    operations_succeeded, stats.entries);
+                println!(
+                    "  Operations succeeded: {}, Current entries: {}",
+                    operations_succeeded, stats.entries
+                );
 
                 // Wait a bit for TTL effects
                 if config.ttl_secs.is_some() {
                     tokio::time::sleep(config.ttl_secs.unwrap() + Duration::from_millis(100)).await;
-                    
+
                     let post_ttl_stats = new_cache.statistics().await.unwrap();
                     println!("  Post-TTL entries: {}", post_ttl_stats.entries);
                 }
             }
 
             // Verify final cache is still functional
-            let final_cache = ProductionCache::new(temp_dir.path().to_path_buf(), Default::default())
-                .await
-                .unwrap();
+            let final_cache =
+                ProductionCache::new(temp_dir.path().to_path_buf(), Default::default())
+                    .await
+                    .unwrap();
 
             let final_test = final_cache.put("final_test", b"final_value", None).await;
-            assert!(final_test.is_ok(), "Cache should remain functional after config chaos");
+            assert!(
+                final_test.is_ok(),
+                "Cache should remain functional after config chaos"
+            );
 
             let final_stats = final_cache.statistics().await.unwrap();
             println!("Final cache state: {} entries", final_stats.entries);
