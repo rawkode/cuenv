@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use sysinfo::{System, SystemExt};
+use sysinfo::System;
 use tokio::time::interval;
 
 /// Memory pressure levels

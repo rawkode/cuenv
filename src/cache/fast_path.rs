@@ -34,7 +34,7 @@ struct LruTracker {
 }
 
 impl FastPathCache {
-    pub const fn new(small_value_threshold: usize, max_entries: usize) -> Self {
+    pub fn new(small_value_threshold: usize, max_entries: usize) -> Self {
         Self {
             small_values: DashMap::new(),
             small_value_threshold,

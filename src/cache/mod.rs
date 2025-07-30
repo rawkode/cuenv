@@ -10,6 +10,9 @@ mod errors;
 mod eviction;
 mod fast_path;
 mod memory_manager;
+mod metrics_endpoint;
+mod monitored_cache;
+mod monitoring;
 mod performance;
 mod storage_backend;
 mod streaming;
@@ -41,6 +44,9 @@ mod remote_integration;
 // Public exports - new unified API
 pub use bridge::{CacheBuilder, SyncCache};
 pub use errors::{CacheError, RecoveryHint, Result as CacheResult};
+pub use metrics_endpoint::MetricsEndpoint;
+pub use monitored_cache::{MonitoredCache, MonitoredCacheBuilder};
+pub use monitoring::{CacheMonitor, HitRateReport, RealTimeStatsReport, TracedOperation};
 pub use storage_backend::{CompressionConfig, StorageBackend};
 pub use streaming::{CacheReader, CacheWriter, StreamingCache};
 pub use traits::{
