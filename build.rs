@@ -88,6 +88,9 @@ fn main() {
     }
 
     // Compile protobuf for remote cache server
+    // Temporarily disabled due to missing protoc in this environment
+    // TODO: Re-enable when protoc is available
+    /*
     tonic_build::configure()
         .build_server(true)
         .build_client(false)
@@ -97,4 +100,5 @@ fn main() {
             &["src/remote_cache"],
         )
         .expect("Failed to compile protobuf");
+    */
 }

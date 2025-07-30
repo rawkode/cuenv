@@ -118,6 +118,7 @@ enum Commands {
         #[command(subcommand)]
         command: CacheCommands,
     },
+    /* Temporarily disabled due to missing protoc dependency
     /// Start remote cache server for Bazel/Buck2
     RemoteCacheServer {
         /// Address to listen on
@@ -131,6 +132,21 @@ enum Commands {
         /// Maximum cache size in bytes
         #[arg(long, default_value = "10737418240")]
         max_cache_size: u64,
+    },
+    */
+    /// Start MCP (Model Context Protocol) server
+    Mcp {
+        /// Transport type (stdio, tcp)
+        #[arg(long, default_value = "stdio")]
+        transport: String,
+
+        /// TCP port (only for tcp transport)
+        #[arg(long, default_value = "8765")]
+        port: u16,
+
+        /// Allow task execution (default: read-only)
+        #[arg(long)]
+        allow_exec: bool,
     },
 }
 
@@ -603,6 +619,7 @@ async fn main() -> Result<()> {
                 }
             }
         }
+        /* Temporarily disabled due to missing protoc dependency
         Some(Commands::RemoteCacheServer {
             address,
             cache_dir,
@@ -618,7 +635,7 @@ async fn main() -> Result<()> {
 
             let cache_config = CacheConfig {
                 base_dir: cache_dir,
-                max_size: max_cache_size,
+                max_cache_size,
                 mode: CacheMode::ReadWrite,
                 inline_threshold: 1024,
             };
@@ -646,6 +663,32 @@ async fn main() -> Result<()> {
                     )));
                 }
             }
+        }
+        */
+        Some(Commands::Mcp {
+            transport,
+            port,
+            allow_exec,
+        }) => {
+            use cuenv::mcp::types::McpServerOptions;
+
+            let options = McpServerOptions {
+                transport: transport.clone(),
+                port,
+                allow_exec,
+            };
+
+            println!("Starting cuenv MCP server...");
+            println!("Transport: {}", transport);
+            if transport == "tcp" {
+                println!("Port: {}", port);
+            }
+            println!(
+                "Task execution: {}",
+                if allow_exec { "enabled" } else { "read-only" }
+            );
+
+            cuenv::mcp::run(options).await?
         }
         None => {
             let current_dir = match DirectoryManager::get_current_directory() {

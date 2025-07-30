@@ -50,28 +50,26 @@ func extractSecretReference(val cue.Value) string {
 		return ""
 	}
 
-	// Decode args array
-	iter, _ := argsField.List()
 	var args []string
-	for iter.Next() {
-		var arg string
-		if err := iter.Value().Decode(&arg); err == nil {
-			args = append(args, arg)
-		}
+	if err := argsField.Decode(&args); err != nil {
+		return ""
 	}
 
-	resolver := Resolver{
-		Cmd:  cmd,
-		Args: args,
-	}
-
-	// Encode as JSON with a special prefix to identify it as a resolver
+	resolver := Resolver{Cmd: cmd, Args: args}
 	jsonBytes, err := json.Marshal(resolver)
 	if err != nil {
 		return ""
 	}
 
-	return "cuenv-resolver://" + string(jsonBytes)
+	// Return with a special prefix so Rust knows this is a secret resolver
+	return "secret:" + string(jsonBytes)
+}
+
+// escapeJSON escapes a string for safe inclusion in a JSON string
+func escapeJSON(s string) string {
+	b, _ := json.Marshal(s)
+	// Remove the surrounding quotes
+	return string(b[1 : len(b)-1])
 }
 
 //export cue_free_string
@@ -79,26 +77,62 @@ func cue_free_string(s *C.char) {
 	C.free(unsafe.Pointer(s))
 }
 
-//export cue_eval_package
-func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
+//export cue_eval_package_with_options
+func cue_eval_package_with_options(dirPath *C.char, packageName *C.char, environment *C.char, capabilities *C.char) *C.char {
 	goDir := C.GoString(dirPath)
 	goPkg := C.GoString(packageName)
 
-	// Only allow loading the "env" package
-	if goPkg != "env" {
-		errMsg := map[string]string{"error": fmt.Sprintf("Only 'env' package is supported, got '%s'. Please ensure your .cue files use 'package env'", goPkg)}
-		errBytes, _ := json.Marshal(errMsg)
-		return C.CString(string(errBytes))
+	var envName string
+	if environment != nil {
+		envName = C.GoString(environment)
 	}
 
+	var capList []string
+	if capabilities != nil {
+		capsStr := C.GoString(capabilities)
+		if capsStr != "" {
+			// Parse comma-separated capabilities
+			capList = strings.Split(capsStr, ",")
+			for i := range capList {
+				capList[i] = strings.TrimSpace(capList[i])
+			}
+		}
+	}
+
+	// Only allow loading the "env" package
+	if goPkg != "env" {
+		return C.CString(`{"error": "only 'env' package is allowed"}`)
+	}
+
+	result, err := evalCUEPackageWithOptions(goDir, goPkg, envName, capList)
+	if err != nil {
+		errMsg := fmt.Sprintf(`{"error": "%s"}`, escapeJSON(err.Error()))
+		return C.CString(errMsg)
+	}
+
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		errMsg := fmt.Sprintf(`{"error": "failed to marshal result: %s"}`, escapeJSON(err.Error()))
+		return C.CString(errMsg)
+	}
+
+	return C.CString(string(jsonBytes))
+}
+
+//export cue_eval_package
+func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
+	// Call the new function with nil options for backward compatibility
+	return cue_eval_package_with_options(dirPath, packageName, nil, nil)
+}
+
+// evalCUEPackageWithOptions evaluates a CUE package with environment and capability options
+func evalCUEPackageWithOptions(goDir, goPkg, envName string, capabilities []string) (map[string]interface{}, error) {
 	// Create a registry for module resolution
 	registry, err := modconfig.NewRegistry(&modconfig.Config{
 		Env: os.Environ(),
 	})
 	if err != nil {
-		errMsg := map[string]string{"error": "Failed to create registry: " + err.Error()}
-		errBytes, _ := json.Marshal(errMsg)
-		return C.CString(string(errBytes))
+		return nil, fmt.Errorf("Failed to create registry: %w", err)
 	}
 
 	// Load the CUE package from the directory
@@ -113,17 +147,13 @@ func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
 	// Load all .cue files in the directory
 	instances := load.Instances(nil, cfg)
 	if len(instances) == 0 {
-		errMsg := map[string]string{"error": "No CUE instances found in directory"}
-		errBytes, _ := json.Marshal(errMsg)
-		return C.CString(string(errBytes))
+		return nil, fmt.Errorf("No CUE instances found in directory")
 	}
 
 	// Check for load errors
 	inst := instances[0]
 	if inst.Err != nil {
-		errMsg := map[string]string{"error": inst.Err.Error()}
-		errBytes, _ := json.Marshal(errMsg)
-		return C.CString(string(errBytes))
+		return nil, inst.Err
 	}
 
 	// Build the instance
@@ -131,27 +161,17 @@ func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
 	v := ctx.BuildInstance(inst)
 
 	if v.Err() != nil {
-		errMsg := map[string]string{"error": v.Err().Error()}
-		errBytes, _ := json.Marshal(errMsg)
-		return C.CString(string(errBytes))
+		return nil, v.Err()
 	}
 
-	// Use the same extraction logic as cue_parse_string
-	result := extractCueData(v)
+	// Use the same extraction logic as extractCueData but with environment merging
+	result := extractCueDataWithOptions(v, envName, capabilities)
 
-	// Convert to JSON
-	jsonBytes, err := json.Marshal(result)
-	if err != nil {
-		errMsg := map[string]string{"error": err.Error()}
-		errBytes, _ := json.Marshal(errMsg)
-		return C.CString(string(errBytes))
-	}
-
-	return C.CString(string(jsonBytes))
+	return result, nil
 }
 
-// extractCueData extracts the structured data from a CUE value
-func extractCueData(v cue.Value) map[string]interface{} {
+// extractCueDataWithOptions extracts the structured data from a CUE value with environment and capability filtering
+func extractCueDataWithOptions(v cue.Value, envName string, capabilities []string) map[string]interface{} {
 	result := map[string]interface{}{
 		"variables":    make(map[string]interface{}),
 		"metadata":     make(map[string]interface{}),
@@ -171,38 +191,67 @@ func extractCueData(v cue.Value) map[string]interface{} {
 		return result
 	}
 
-	// Extract environment configurations if present
-	if envField := envRoot.LookupPath(cue.ParsePath("environment")); envField.Exists() {
+	// First, extract base variables from env field
+	vars := result["variables"].(map[string]interface{})
+	iter, _ := envRoot.Fields()
+	for iter.Next() {
+		key := iter.Label()
+		val := iter.Value()
+
+		// Skip internal CUE fields, private fields, and special keys
+		if strings.HasPrefix(key, "_") || strings.HasPrefix(key, "#") ||
+			key == "environment" || key == "environments" || key == "capabilities" || key == "hooks" || key == "tasks" {
+			continue
+		}
+
+		// Extract attributes (like @capability)
+		attrs := val.Attributes(cue.ValueAttr)
+		varMeta := make(map[string]interface{})
+
+		for _, attr := range attrs {
+			if attr.Name() == "capability" {
+				if caps, err := attr.String(0); err == nil {
+					varMeta["capability"] = caps
+				}
+			}
+		}
+
+		// Check if this is a secret type and convert accordingly
+		secretRef := extractSecretReference(val)
+		if secretRef != "" {
+			vars[key] = secretRef
+			if len(varMeta) > 0 {
+				metadata[key] = varMeta
+			}
+		} else {
+			// Convert CUE value to Go value
+			var goVal interface{}
+			if err := val.Decode(&goVal); err == nil {
+				vars[key] = goVal
+				if len(varMeta) > 0 {
+					metadata[key] = varMeta
+				}
+			}
+		}
+	}
+
+	// Extract all environment configurations
+	// First check for environments at root level
+	envsField := v.LookupPath(cue.ParsePath("environments"))
+	if !envsField.Exists() {
+		// Check for environment inside env field (legacy location)
+		envsField = envRoot.LookupPath(cue.ParsePath("environment"))
+	}
+	if envsField.Exists() {
 		envs := make(map[string]interface{})
-		iter, _ := envField.Fields()
+		iter, _ := envsField.Fields()
 		for iter.Next() {
-			envName := iter.Label()
+			envKey := iter.Label()
 			envVars := make(map[string]interface{})
-			envMeta := make(map[string]interface{})
 			envIter, _ := iter.Value().Fields()
 			for envIter.Next() {
 				key := envIter.Label()
 				val := envIter.Value()
-
-				// Extract attributes for environment-specific variables
-				attrs := val.Attributes(cue.ValueAttr)
-				varMeta := make(map[string]interface{})
-
-				for _, attr := range attrs {
-					if attr.Name() == "capability" {
-						if caps, err := attr.String(0); err == nil {
-							varMeta["capability"] = caps
-							// Also store in parent metadata if not already there
-							if _, exists := metadata[key]; !exists {
-								metadata[key] = map[string]interface{}{"capability": caps}
-							}
-						}
-					}
-				}
-
-				if len(varMeta) > 0 {
-					envMeta[key] = varMeta
-				}
 
 				// Check if this is a secret type
 				secretRef := extractSecretReference(val)
@@ -216,37 +265,67 @@ func extractCueData(v cue.Value) map[string]interface{} {
 					}
 				}
 			}
-			envs[envName] = envVars
+			envs[envKey] = envVars
 		}
 		result["environments"] = envs
 	}
 
-	// Extract capabilities configuration if present (from env field)
-	if capField := envRoot.LookupPath(cue.ParsePath("capabilities")); capField.Exists() {
-		caps := make(map[string]interface{})
-		iter, _ := capField.Fields()
-		for iter.Next() {
-			capName := iter.Label()
-			capConfig := make(map[string]interface{})
-			if cmdsField := iter.Value().LookupPath(cue.ParsePath("commands")); cmdsField.Exists() {
-				var cmds []string
-				if err := cmdsField.Decode(&cmds); err == nil {
-					capConfig["commands"] = cmds
+	// If an environment is specified, merge environment-specific overrides
+	if envName != "" {
+		// Try to find the specific environment
+		var envField cue.Value
+
+		// First check root level environments
+		rootEnvsField := v.LookupPath(cue.ParsePath("environments"))
+		if rootEnvsField.Exists() {
+			envField = rootEnvsField.LookupPath(cue.ParsePath(envName))
+		}
+
+		// If not found, check inside env field
+		if !envField.Exists() {
+			envEnvsField := envRoot.LookupPath(cue.ParsePath("environment"))
+			if envEnvsField.Exists() {
+				envField = envEnvsField.LookupPath(cue.ParsePath(envName))
+			}
+		}
+
+		if envField.Exists() {
+			// Merge environment-specific variables
+			envIter, _ := envField.Fields()
+			for envIter.Next() {
+				key := envIter.Label()
+				val := envIter.Value()
+
+				// Check if this is a secret type
+				secretRef := extractSecretReference(val)
+				if secretRef != "" {
+					vars[key] = secretRef
+				} else {
+					// Regular value - override the base value
+					var goVal interface{}
+					if err := val.Decode(&goVal); err == nil {
+						// Convert to string for consistency with env vars
+						switch v := goVal.(type) {
+						case string:
+							vars[key] = v
+						case bool:
+							vars[key] = fmt.Sprintf("%t", v)
+						case int, int32, int64:
+							vars[key] = fmt.Sprintf("%d", v)
+						case float32, float64:
+							vars[key] = fmt.Sprintf("%g", v)
+						default:
+							vars[key] = fmt.Sprintf("%v", v)
+						}
+					}
 				}
 			}
-			caps[capName] = capConfig
 		}
-		result["capabilities"] = caps
 	}
 
-	// Also check for capabilities at the top level (outside env)
+	// Extract capabilities configuration if present
 	if capField := v.LookupPath(cue.ParsePath("capabilities")); capField.Exists() {
-		var caps map[string]interface{}
-		if existing, ok := result["capabilities"].(map[string]interface{}); ok {
-			caps = existing
-		} else {
-			caps = make(map[string]interface{})
-		}
+		caps := make(map[string]interface{})
 		iter, _ := capField.Fields()
 		for iter.Next() {
 			capName := iter.Label()
@@ -297,155 +376,64 @@ func extractCueData(v cue.Value) map[string]interface{} {
 			}
 		}
 
-		result["commands"] = commands
+		// Only include commands in result if there are any
+		if len(commands) > 0 {
+			result["commands"] = commands
+		}
 	}
 
-	// Extract tasks configuration if present (top-level only)
+	// Extract tasks if present
 	if tasksField := v.LookupPath(cue.ParsePath("tasks")); tasksField.Exists() {
 		tasks := make(map[string]interface{})
 		iter, _ := tasksField.Fields()
 		for iter.Next() {
 			taskName := iter.Label()
-			taskConfig := make(map[string]interface{})
+			taskValue := iter.Value()
+			taskData := make(map[string]interface{})
 
-			// Extract description
-			if descField := iter.Value().LookupPath(cue.ParsePath("description")); descField.Exists() {
-				var desc string
-				if err := descField.Decode(&desc); err == nil {
-					taskConfig["description"] = desc
+			// Extract all task fields
+			fields := []string{"description", "command", "script", "dependencies", "workingDir", "shell", "inputs", "outputs", "cache", "cacheKey", "timeout"}
+			for _, field := range fields {
+				if fieldValue := taskValue.LookupPath(cue.ParsePath(field)); fieldValue.Exists() {
+					var val interface{}
+					if err := fieldValue.Decode(&val); err == nil {
+						taskData[field] = val
+					}
 				}
 			}
 
-			// Extract command
-			if cmdField := iter.Value().LookupPath(cue.ParsePath("command")); cmdField.Exists() {
-				var cmd string
-				if err := cmdField.Decode(&cmd); err == nil {
-					taskConfig["command"] = cmd
-				}
-			}
-
-			// Extract script
-			if scriptField := iter.Value().LookupPath(cue.ParsePath("script")); scriptField.Exists() {
-				var script string
-				if err := scriptField.Decode(&script); err == nil {
-					taskConfig["script"] = script
-				}
-			}
-
-			// Extract dependencies
-			if depsField := iter.Value().LookupPath(cue.ParsePath("dependencies")); depsField.Exists() {
-				var deps []string
-				if err := depsField.Decode(&deps); err == nil {
-					taskConfig["dependencies"] = deps
-				}
-			}
-
-			// Extract workingDir
-			if wdField := iter.Value().LookupPath(cue.ParsePath("workingDir")); wdField.Exists() {
-				var wd string
-				if err := wdField.Decode(&wd); err == nil {
-					taskConfig["workingDir"] = wd
-				}
-			}
-
-			// Extract shell
-			if shellField := iter.Value().LookupPath(cue.ParsePath("shell")); shellField.Exists() {
-				var shell string
-				if err := shellField.Decode(&shell); err == nil {
-					taskConfig["shell"] = shell
-				}
-			}
-
-			// Extract inputs
-			if inputsField := iter.Value().LookupPath(cue.ParsePath("inputs")); inputsField.Exists() {
-				var inputs []string
-				if err := inputsField.Decode(&inputs); err == nil {
-					taskConfig["inputs"] = inputs
-				}
-			}
-
-			// Extract outputs
-			if outputsField := iter.Value().LookupPath(cue.ParsePath("outputs")); outputsField.Exists() {
-				var outputs []string
-				if err := outputsField.Decode(&outputs); err == nil {
-					taskConfig["outputs"] = outputs
-				}
-			}
-
-			// Extract security configuration
-			if securityField := iter.Value().LookupPath(cue.ParsePath("security")); securityField.Exists() {
+			// Extract security configuration if present
+			if secField := taskValue.LookupPath(cue.ParsePath("security")); secField.Exists() {
 				security := make(map[string]interface{})
-
-				// Extract restrictDisk
-				if rdField := securityField.LookupPath(cue.ParsePath("restrictDisk")); rdField.Exists() {
-					var restrictDisk bool
-					if err := rdField.Decode(&restrictDisk); err == nil {
-						security["restrictDisk"] = restrictDisk
+				secFields := []string{"restrictDisk", "restrictNetwork", "readOnlyPaths", "readWritePaths", "denyPaths", "allowedHosts", "inferFromInputsOutputs"}
+				for _, field := range secFields {
+					if fieldValue := secField.LookupPath(cue.ParsePath(field)); fieldValue.Exists() {
+						var val interface{}
+						if err := fieldValue.Decode(&val); err == nil {
+							security[field] = val
+						}
 					}
 				}
-
-				// Extract restrictNetwork
-				if rnField := securityField.LookupPath(cue.ParsePath("restrictNetwork")); rnField.Exists() {
-					var restrictNetwork bool
-					if err := rnField.Decode(&restrictNetwork); err == nil {
-						security["restrictNetwork"] = restrictNetwork
-					}
-				}
-
-				// Extract readOnlyPaths
-				if roField := securityField.LookupPath(cue.ParsePath("readOnlyPaths")); roField.Exists() {
-					var readOnlyPaths []string
-					if err := roField.Decode(&readOnlyPaths); err == nil {
-						security["readOnlyPaths"] = readOnlyPaths
-					}
-				}
-
-				// Extract readWritePaths
-				if rwField := securityField.LookupPath(cue.ParsePath("readWritePaths")); rwField.Exists() {
-					var readWritePaths []string
-					if err := rwField.Decode(&readWritePaths); err == nil {
-						security["readWritePaths"] = readWritePaths
-					}
-				}
-
-				// Extract allowedHosts
-				if ahField := securityField.LookupPath(cue.ParsePath("allowedHosts")); ahField.Exists() {
-					var allowedHosts []string
-					if err := ahField.Decode(&allowedHosts); err == nil {
-						security["allowedHosts"] = allowedHosts
-					}
-				}
-
-				// Extract allowNew
-				if anField := securityField.LookupPath(cue.ParsePath("allowNew")); anField.Exists() {
-					var allowNew bool
-					if err := anField.Decode(&allowNew); err == nil {
-						security["allowNew"] = allowNew
-					}
-				}
-
-				taskConfig["security"] = security
-			}
-
-			// Extract cache
-			if cacheField := iter.Value().LookupPath(cue.ParsePath("cache")); cacheField.Exists() {
-				var cache bool
-				if err := cacheField.Decode(&cache); err == nil {
-					taskConfig["cache"] = cache
+				if len(security) > 0 {
+					taskData["security"] = security
 				}
 			}
 
-			// Extract cacheKey
-			if cacheKeyField := iter.Value().LookupPath(cue.ParsePath("cacheKey")); cacheKeyField.Exists() {
-				var cacheKey string
-				if err := cacheKeyField.Decode(&cacheKey); err == nil {
-					taskConfig["cacheKey"] = cacheKey
+			// Extract capabilities for the task
+			if capField := taskValue.LookupPath(cue.ParsePath("capabilities")); capField.Exists() {
+				var caps []string
+				if err := capField.Decode(&caps); err == nil {
+					taskData["capabilities"] = caps
 				}
 			}
 
-			tasks[taskName] = taskConfig
+			if len(taskData) > 0 {
+				tasks[taskName] = taskData
+			}
 		}
-		result["tasks"] = tasks
+		if len(tasks) > 0 {
+			result["tasks"] = tasks
+		}
 	}
 
 	// Extract hooks configuration if present (at root level, not under env)
@@ -523,47 +511,32 @@ func extractCueData(v cue.Value) map[string]interface{} {
 		}
 	}
 
-	// Extract variables with capability metadata
-	vars := result["variables"].(map[string]interface{})
+	// Extract metadata if present
+	if metaField := v.LookupPath(cue.ParsePath("metadata")); metaField.Exists() {
+		iter, _ := metaField.Fields()
+		for iter.Next() {
+			varName := iter.Label()
+			metaValue := iter.Value()
+			varMeta := make(map[string]interface{})
 
-	iter, _ := envRoot.Fields()
-	for iter.Next() {
-		key := iter.Label()
-		val := iter.Value()
-
-		// Skip internal CUE fields, private fields, and special keys
-		if strings.HasPrefix(key, "_") || strings.HasPrefix(key, "#") ||
-			key == "environment" || key == "capabilities" || key == "hooks" || key == "tasks" {
-			continue
-		}
-
-		// Extract attributes (like @capability)
-		attrs := val.Attributes(cue.ValueAttr)
-		varMeta := make(map[string]interface{})
-
-		for _, attr := range attrs {
-			if attr.Name() == "capability" {
-				if caps, err := attr.String(0); err == nil {
-					varMeta["capability"] = caps
+			// Extract capability
+			if capField := metaValue.LookupPath(cue.ParsePath("capability")); capField.Exists() {
+				var cap string
+				if err := capField.Decode(&cap); err == nil {
+					varMeta["capability"] = cap
 				}
 			}
-		}
 
-		// Check if this is a secret type and convert accordingly
-		secretRef := extractSecretReference(val)
-		if secretRef != "" {
-			vars[key] = secretRef
+			// Extract sensitive flag
+			if sensField := metaValue.LookupPath(cue.ParsePath("sensitive")); sensField.Exists() {
+				var sensitive bool
+				if err := sensField.Decode(&sensitive); err == nil {
+					varMeta["sensitive"] = sensitive
+				}
+			}
+
 			if len(varMeta) > 0 {
-				metadata[key] = varMeta
-			}
-		} else {
-			// Convert CUE value to Go value
-			var goVal interface{}
-			if err := val.Decode(&goVal); err == nil {
-				vars[key] = goVal
-				if len(varMeta) > 0 {
-					metadata[key] = varMeta
-				}
+				metadata[varName] = varMeta
 			}
 		}
 	}
