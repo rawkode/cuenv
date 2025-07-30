@@ -102,6 +102,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
 name = "critical_paths"
 harness = false
 
-[[bin]]
-name = "remote_cache_server"
-path = "src/remote_cache/bin/server.rs"
+# Temporarily disabled due to missing protoc dependency
+# [[bin]]
+# name = "remote_cache_server"
+# path = "src/remote_cache/bin/server.rs"

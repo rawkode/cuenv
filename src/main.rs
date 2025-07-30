@@ -118,6 +118,7 @@ enum Commands {
         #[command(subcommand)]
         command: CacheCommands,
     },
+    /* Temporarily disabled due to missing protoc dependency
     /// Start remote cache server for Bazel/Buck2
     RemoteCacheServer {
         /// Address to listen on
@@ -132,6 +133,8 @@ enum Commands {
         #[arg(long, default_value = "10737418240")]
         max_cache_size: u64,
     },
+    */
+    /* Temporarily disabled due to MCP API compatibility issues
     /// Start MCP (Model Context Protocol) server
     Mcp {
         /// Transport type (stdio, tcp)
@@ -146,6 +149,7 @@ enum Commands {
         #[arg(long)]
         allow_exec: bool,
     },
+    */
 }
 
 #[derive(Subcommand)]
@@ -617,6 +621,7 @@ async fn main() -> Result<()> {
                 }
             }
         }
+        /* Temporarily disabled due to missing protoc dependency
         Some(Commands::RemoteCacheServer {
             address,
             cache_dir,
@@ -632,7 +637,7 @@ async fn main() -> Result<()> {
 
             let cache_config = CacheConfig {
                 base_dir: cache_dir,
-                max_size: max_cache_size,
+                max_cache_size,
                 mode: CacheMode::ReadWrite,
                 inline_threshold: 1024,
             };
@@ -661,6 +666,8 @@ async fn main() -> Result<()> {
                 }
             }
         }
+        */
+        /* Temporarily disabled due to MCP API compatibility issues
         Some(Commands::Mcp {
             transport,
             port,
@@ -686,6 +693,7 @@ async fn main() -> Result<()> {
 
             cuenv::mcp::server::run(options).await?
         }
+        */
         None => {
             let current_dir = match DirectoryManager::get_current_directory() {
                 Ok(d) => d,

@@ -4,12 +4,11 @@ use crate::env_manager::EnvManager;
 use crate::errors::{Error, Result};
 use crate::mcp::types::*;
 use crate::task_executor::TaskExecutor;
-use rmcp_macros::{tool, tool_box};
-use std::collections::HashMap;
+use rmcp_macros::tool;
+use std::future::Future;
 use std::path::PathBuf;
 
 /// Tool box containing all cuenv MCP tools
-#[tool_box]
 pub struct CuenvToolBox {
     pub allow_exec: bool,
 }

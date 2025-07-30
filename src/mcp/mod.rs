@@ -7,5 +7,5 @@ pub mod server;
 pub mod tools;
 pub mod types;
 
-pub use server::{run, McpServerOptions};
+pub use server::run;
 pub use types::*;

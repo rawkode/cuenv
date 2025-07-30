@@ -16,12 +16,14 @@ pub mod errors;
 pub mod file_times;
 pub mod gzenv;
 pub mod hook_manager;
-pub mod mcp;
+// Temporarily disabled due to MCP API compatibility issues
+// pub mod mcp;
 pub mod memory;
 pub mod output_filter;
 pub mod platform;
 pub mod rate_limit;
-pub mod remote_cache;
+// Temporarily disabled due to missing protoc dependency
+// pub mod remote_cache;
 pub mod resilience;
 pub mod resource_limits;
 pub mod retry;
