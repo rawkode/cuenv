@@ -1,5 +1,4 @@
 use clap::{Parser, Subcommand};
-use clap_complete::{generate, Generator, Shell as CompletionShell};
 
 use cuenv::constants::{CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR, ENV_CUE_FILENAME};
 use cuenv::errors::{Error, Result};
@@ -428,9 +427,7 @@ edit:complete:arg-completer[cuenv] = {|@words|
     Ok(())
 }
 
-fn print_clap_completion<G: Generator>(gen: G, cmd: &mut clap::Command) {
-    generate(gen, cmd, cmd.get_name().to_string(), &mut std::io::stdout());
-}
+
 
 fn generate_powershell_completion() -> Result<()> {
     let script = r#"
@@ -500,14 +497,11 @@ async fn complete_tasks() -> Result<()> {
     };
 
     let mut env_manager = EnvManager::new();
-    match env_manager.load_env(&current_dir).await {
-        Ok(()) => {
-            let tasks = env_manager.list_tasks();
-            for (name, _description) in tasks {
-                println!("{name}");
-            }
+    if let Ok(()) = env_manager.load_env(&current_dir).await {
+        let tasks = env_manager.list_tasks();
+        for (name, _description) in tasks {
+            println!("{name}");
         }
-        Err(_) => {} // Silent fail for completion
     }
     Ok(())
 }
@@ -520,56 +514,53 @@ async fn complete_environments() -> Result<()> {
 
     // Try to extract environment names from env.cue file content
     if current_dir.join("env.cue").exists() {
-        match std::fs::read_to_string(current_dir.join("env.cue")) {
-            Ok(content) => {
-                // Parse to find environment section
-                let lines: Vec<&str> = content.lines().collect();
-                let mut in_environment_section = false;
-                let mut brace_count = 0;
+        if let Ok(content) = std::fs::read_to_string(current_dir.join("env.cue")) {
+            // Parse to find environment section
+            let lines: Vec<&str> = content.lines().collect();
+            let mut in_environment_section = false;
+            let mut brace_count = 0;
 
-                for line in lines {
-                    let trimmed = line.trim();
+            for line in lines {
+                let trimmed = line.trim();
 
-                    // Look for "environment:" line (with or without opening brace)
-                    if trimmed.starts_with("environment:") {
-                        in_environment_section = true;
-                        // Count opening braces on this line
-                        brace_count += trimmed.matches('{').count() as i32;
-                        brace_count -= trimmed.matches('}').count() as i32;
-                        continue;
-                    }
+                // Look for "environment:" line (with or without opening brace)
+                if trimmed.starts_with("environment:") {
+                    in_environment_section = true;
+                    // Count opening braces on this line
+                    brace_count += trimmed.matches('{').count() as i32;
+                    brace_count -= trimmed.matches('}').count() as i32;
+                    continue;
+                }
 
-                    if in_environment_section {
-                        // Look for environment names BEFORE updating brace count
-                        // We want to catch "dev: {" when brace_count is still 1
-                        if brace_count == 1 && trimmed.contains(':') && trimmed.contains('{') {
-                            if let Some(colon_pos) = trimmed.find(':') {
-                                let env_name = trimmed[..colon_pos].trim();
-                                // Only accept valid identifiers that don't start with uppercase (not types)
-                                if !env_name.is_empty()
-                                    && env_name
-                                        .chars()
-                                        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
-                                    && !env_name.chars().next().unwrap_or('A').is_uppercase()
-                                {
-                                    println!("{env_name}");
-                                }
+                if in_environment_section {
+                    // Look for environment names BEFORE updating brace count
+                    // We want to catch "dev: {" when brace_count is still 1
+                    if brace_count == 1 && trimmed.contains(':') && trimmed.contains('{') {
+                        if let Some(colon_pos) = trimmed.find(':') {
+                            let env_name = trimmed[..colon_pos].trim();
+                            // Only accept valid identifiers that don't start with uppercase (not types)
+                            if !env_name.is_empty()
+                                && env_name
+                                    .chars()
+                                    .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+                                && !env_name.chars().next().unwrap_or('A').is_uppercase()
+                            {
+                                println!("{env_name}");
                             }
                         }
+                    }
 
-                        // Count braces to track nesting
-                        brace_count += trimmed.matches('{').count() as i32;
-                        brace_count -= trimmed.matches('}').count() as i32;
+                    // Count braces to track nesting
+                    brace_count += trimmed.matches('{').count() as i32;
+                    brace_count -= trimmed.matches('}').count() as i32;
 
-                        // If we're back to 0 braces, we've exited the environment section
-                        if brace_count <= 0 {
-                            in_environment_section = false;
-                            continue;
-                        }
+                    // If we're back to 0 braces, we've exited the environment section
+                    if brace_count <= 0 {
+                        in_environment_section = false;
+                        continue;
                     }
                 }
             }
-            Err(_) => {} // Silent fail
         }
     }
 
@@ -583,20 +574,17 @@ async fn complete_hosts() -> Result<()> {
     };
 
     let mut env_manager = EnvManager::new();
-    match env_manager.load_env(&current_dir).await {
-        Ok(()) => {
-            let tasks = env_manager.get_tasks();
-            for (_name, task) in tasks {
-                if let Some(security) = &task.security {
-                    if let Some(allowed_hosts) = &security.allowed_hosts {
-                        for host in allowed_hosts {
-                            println!("{host}");
-                        }
+    if let Ok(()) = env_manager.load_env(&current_dir).await {
+        let tasks = env_manager.get_tasks();
+        for task in tasks.values() {
+            if let Some(security) = &task.security {
+                if let Some(allowed_hosts) = &security.allowed_hosts {
+                    for host in allowed_hosts {
+                        println!("{host}");
                     }
                 }
             }
         }
-        Err(_) => {} // Silent fail for completion
     }
 
     Ok(())

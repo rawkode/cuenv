@@ -299,11 +299,13 @@ if (has-external cuenv) {
 The completion system provides intelligent suggestions for:
 
 ##### Static Completions
+
 - **Commands**: `load`, `unload`, `status`, `init`, `allow`, `deny`, `run`, `exec`, `hook`, `export`, `dump`, `prune`, `clear-cache`, `cache`, `remote-cache-server`, `completion`
 - **Global flags**: `-h/--help`, `-V/--version`, `-e/--env`, `-c/--capability`, `--audit`
 - **Command-specific flags**: Context-sensitive options for each command
 
 ##### Dynamic Completions
+
 - **Task names**: When using `cuenv run <TAB>`, completes with available task names from `env.cue`
 - **Environment names**: When using `-e <TAB>` or `--env <TAB>`, completes with defined environments
 - **Capability names**: When using `-c <TAB>` or `--capability <TAB>`, completes with available capabilities
@@ -343,22 +345,24 @@ The completion system understands CUE file structure and provides:
 If completion isn't working:
 
 1. **Verify installation**:
+
    ```bash
    # Check if cuenv is in PATH
    which cuenv
-   
+
    # Test completion generation
    cuenv completion bash
    ```
 
 2. **Reload shell configuration**:
+
    ```bash
    # Bash
    source ~/.bashrc
-   
+
    # Zsh
    source ~/.zshrc
-   
+
    # Fish
    source ~/.config/fish/config.fish
    ```
