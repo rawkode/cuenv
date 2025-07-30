@@ -427,8 +427,6 @@ edit:complete:arg-completer[cuenv] = {|@words|
     Ok(())
 }
 
-
-
 fn generate_powershell_completion() -> Result<()> {
     let script = r#"
 # PowerShell completion for cuenv
