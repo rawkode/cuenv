@@ -35,6 +35,9 @@ mod cache_manager;
 mod concurrent_cache;
 mod content_addressed_store;
 
+// Remote cache integration
+mod remote_integration;
+
 // Public exports - new unified API
 pub use bridge::{CacheBuilder, SyncCache};
 pub use errors::{CacheError, RecoveryHint, Result as CacheResult};
@@ -66,6 +69,11 @@ pub use concurrent_cache::{ConcurrentCache, ConcurrentCacheBuilder};
 pub use content_addressed_store::{ContentAddressedStore, ObjectMetadata};
 pub use key_generator::{CacheKeyFilterConfig, CacheKeyGenerator, FilterStats};
 pub use types::CachedTaskResult;
+
+// Remote cache integration exports
+pub use remote_integration::{
+    CacheIntegrationConfig, IntegratedCache, IntegratedCacheBuilder, IntegratedCacheStats,
+};
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};

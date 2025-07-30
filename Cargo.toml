@@ -113,3 +113,7 @@ harness = false
 [[bin]]
 name = "remote_cache_server"
 path = "src/remote_cache/bin/server.rs"
+
+[[bin]]
+name = "bazel_cache_server"
+path = "src/remote_cache/bin/bazel_server.rs"
