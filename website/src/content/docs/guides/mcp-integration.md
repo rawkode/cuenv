@@ -40,51 +40,63 @@ The MCP server provides 8 tools for interacting with cuenv:
 ### Environment Tools
 
 #### `list_env_vars`
+
 Lists all environment variables for a directory.
 
 **Parameters:**
+
 - `directory` (required): Directory containing env.cue file
 - `environment` (optional): Environment name (dev, staging, production, etc.)
 - `capabilities` (optional): List of capabilities to enable
 
 #### `get_env_var`
+
 Gets a specific environment variable value.
 
 **Parameters:**
+
 - `directory` (required): Directory containing env.cue file
 - `name` (required): Environment variable name to retrieve
 - `environment` (optional): Environment name
 - `capabilities` (optional): List of capabilities to enable
 
 #### `list_environments`
+
 Lists available environments (extracted from CUE schema).
 
 **Parameters:**
+
 - `directory` (required): Directory containing env.cue file
 
 ### Task Tools
 
 #### `list_tasks`
+
 Lists all available tasks.
 
 **Parameters:**
+
 - `directory` (required): Directory containing env.cue file
 - `environment` (optional): Environment name
 - `capabilities` (optional): List of capabilities to enable
 
 #### `get_task`
+
 Gets details for a specific task.
 
 **Parameters:**
+
 - `directory` (required): Directory containing env.cue file
 - `name` (required): Task name to retrieve
 - `environment` (optional): Environment name
 - `capabilities` (optional): List of capabilities to enable
 
 #### `run_task`
+
 Executes a task (requires `--allow-exec` flag).
 
 **Parameters:**
+
 - `directory` (required): Directory containing env.cue file
 - `name` (required): Task name to execute
 - `args` (optional): Arguments to pass to the task
@@ -94,15 +106,19 @@ Executes a task (requires `--allow-exec` flag).
 ### Discovery Tools
 
 #### `check_directory`
+
 Checks if a directory is valid and allowed.
 
 **Parameters:**
+
 - `directory` (required): Directory path to check
 
 #### `list_capabilities`
+
 Lists available capabilities (extracted from CUE metadata).
 
 **Parameters:**
+
 - `directory` (required): Directory containing env.cue file
 
 ## Security Model
@@ -143,12 +159,12 @@ Add cuenv MCP server to your Claude Code configuration:
 
 ```json
 {
-  "mcpServers": {
-    "cuenv": {
-      "command": "cuenv",
-      "args": ["mcp", "--allow-exec"]
-    }
-  }
+	"mcpServers": {
+		"cuenv": {
+			"command": "cuenv",
+			"args": ["mcp", "--allow-exec"]
+		}
+	}
 }
 ```
 
@@ -228,9 +244,9 @@ cuenv mcp --allow-exec
 
 ```javascript
 // MCP client code example
-const envVars = await callTool('list_env_vars', {
-  directory: '/path/to/project',
-  environment: 'dev'
+const envVars = await callTool("list_env_vars", {
+	directory: "/path/to/project",
+	environment: "dev",
 });
 ```
 
@@ -238,10 +254,10 @@ const envVars = await callTool('list_env_vars', {
 
 ```javascript
 // Execute a build task
-const result = await callTool('run_task', {
-  directory: '/path/to/project',
-  name: 'build',
-  environment: 'dev'
+const result = await callTool("run_task", {
+	directory: "/path/to/project",
+	name: "build",
+	environment: "dev",
 });
 ```
 
