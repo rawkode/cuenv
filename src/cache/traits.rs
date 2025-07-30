@@ -239,6 +239,15 @@ pub struct CacheConfig {
     /// Minimum size for compression in bytes (Phase 2)
     #[serde(default)]
     pub compression_min_size: Option<usize>,
+    /// Eviction policy (Phase 4) - "lru", "lfu", or "arc"
+    #[serde(default)]
+    pub eviction_policy: Option<String>,
+    /// Maximum memory size in bytes (Phase 4)
+    #[serde(default)]
+    pub max_memory_size: Option<u64>,
+    /// Maximum disk size in bytes (Phase 4)
+    #[serde(default)]
+    pub max_disk_size: Option<u64>,
 }
 
 fn default_compression_enabled() -> bool {
@@ -257,6 +266,9 @@ impl Default for CacheConfig {
             compression_enabled: true,
             compression_level: Some(3),       // Fast compression
             compression_min_size: Some(1024), // 1KB minimum
+            eviction_policy: Some("lru".to_string()),
+            max_memory_size: Some(1024 * 1024 * 1024), // 1GB
+            max_disk_size: Some(10 * 1024 * 1024 * 1024), // 10GB
         }
     }
 }

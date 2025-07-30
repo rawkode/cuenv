@@ -96,4 +96,29 @@ package cuenv
 
 	// Output files/patterns (for future implementation)
 	outputs?: [...string]
+
+	// Cache configuration for this task
+	// Can be a boolean (true/false) or an object with advanced settings
+	cache?: bool | #CacheConfig
+}
+
+// #CacheConfig defines advanced cache configuration for tasks
+#CacheConfig: {
+	// Whether caching is enabled for this task (default: true)
+	enabled?: bool
+
+	// Custom environment filtering configuration
+	env?: #CacheEnvConfig
+}
+
+// #CacheEnvConfig defines environment variable filtering for cache keys
+#CacheEnvConfig: {
+	// Patterns to include (allowlist) - supports wildcards like "BUILD_*"
+	include?: [...string]
+
+	// Patterns to exclude (denylist) - supports wildcards like "*_SECRET"
+	exclude?: [...string]
+
+	// Whether to use smart defaults for common build tools (default: true)
+	useSmartDefaults?: bool
 }

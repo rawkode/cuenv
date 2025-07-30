@@ -74,8 +74,9 @@ async fn test_action_cache_signing_integration() {
         shell: None,
         inputs: None,
         outputs: None,
-        cache: Some(true),
+        cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
         cache_key: None,
+        cache_env: None,
         timeout: None,
         security: None,
     };

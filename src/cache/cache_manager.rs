@@ -1,7 +1,11 @@
 //! Unified cache manager with security and remote cache support
-use super::{ActionCache, CacheConfig, CacheEngine, CachedTaskResult, ContentAddressedStore};
+use super::{
+    ActionCache, CacheConfig, CacheEngine, CacheKeyFilterConfig, CachedTaskResult,
+    ContentAddressedStore,
+};
 use crate::async_runtime::{run_async, AsyncRuntime};
 use crate::atomic_file::write_atomic_string;
+use crate::cache::key_generator::CacheKeyGenerator;
 use crate::cache::signing::CacheSigner;
 use crate::cue_parser::TaskConfig;
 use crate::errors::{Error, Result};
@@ -43,6 +47,8 @@ pub struct CacheManager {
     signer: Arc<CacheSigner>,
     /// Simple in-memory cache for task results
     memory_cache: Arc<Mutex<HashMap<String, CachedTaskResult>>>,
+    /// Cache key generator with selective environment variable filtering
+    key_generator: Arc<CacheKeyGenerator>,
 }
 
 impl CacheManager {
@@ -59,6 +65,8 @@ impl CacheManager {
             max_size: 1024 * 1024 * 1024, // 1GB default
             mode: super::CacheMode::ReadWrite,
             inline_threshold: 4096, // 4KB default
+            env_filter: Default::default(),
+            task_env_filters: HashMap::new(),
         };
 
         if AsyncRuntime::is_in_async_context() {
@@ -99,6 +107,16 @@ impl CacheManager {
         let stats = Arc::new(RwLock::new(CacheStatistics::default()));
         let signer = Arc::new(CacheSigner::new(&config.base_dir)?);
 
+        // Initialize cache key generator with configuration
+        let mut key_generator = CacheKeyGenerator::with_config(config.env_filter.clone())?;
+
+        // Add task-specific configurations
+        for (task_name, task_config) in &config.task_env_filters {
+            key_generator.add_task_config(task_name, task_config.clone())?;
+        }
+
+        let key_generator = Arc::new(key_generator);
+
         let manager = Self {
             config,
             content_store,
@@ -108,6 +126,7 @@ impl CacheManager {
             version: CACHE_VERSION,
             signer,
             memory_cache: Arc::new(Mutex::new(HashMap::new())),
+            key_generator,
         };
 
         // Check and migrate cache if needed
@@ -196,6 +215,27 @@ impl CacheManager {
 
     /// Get cached result for a task
     pub fn get_cached_result(&self, cache_key: &str) -> Option<CachedTaskResult> {
+        // First try to get from ActionCache
+        if let Some(action_result) = self.action_cache.get_cached_action_result(cache_key) {
+            // Convert ActionResult back to CachedTaskResult for backward compatibility
+            let cached_result = CachedTaskResult {
+                cache_key: cache_key.to_string(),
+                executed_at: action_result.executed_at,
+                exit_code: action_result.exit_code,
+                stdout: action_result.stdout_hash.map(|s| s.as_bytes().to_vec()),
+                stderr: action_result.stderr_hash.map(|s| s.as_bytes().to_vec()),
+                output_files: action_result.output_files,
+            };
+
+            // Only return successful results (exit_code == 0)
+            if cached_result.exit_code == 0 {
+                let mut stats = self.stats.write().unwrap();
+                stats.hits += 1;
+                return Some(cached_result);
+            }
+        }
+
+        // Fallback to in-memory cache for backward compatibility
         if let Ok(cache) = self.memory_cache.lock() {
             if let Some(result) = cache.get(cache_key) {
                 // Only return successful results (exit_code == 0)
@@ -219,8 +259,10 @@ impl CacheManager {
 
         // Only cache successful results (exit_code == 0)
         if result.exit_code == 0 {
+            // Store in ActionCache (this will be handled by ActionCache::execute_action)
+            // For backward compatibility, also store in memory cache
             if let Ok(mut cache) = self.memory_cache.lock() {
-                cache.insert(cache_key, result);
+                cache.insert(cache_key.clone(), result.clone());
             }
         }
 
@@ -238,25 +280,21 @@ impl CacheManager {
         env_vars: &HashMap<String, String>,
         working_dir: &Path,
     ) -> Result<String> {
-        // Generate a simple cache key based on task name and config
-        use sha2::{Digest, Sha256};
+        // Use the selective cache key generator for improved cache hit rates
+        let config_hash = hash_task_config(task_config)?;
+        let command = task_config.command.as_ref().or(task_config.script.as_ref());
 
-        let mut hasher = Sha256::new();
-        hasher.update(task_name.as_bytes());
-        hasher.update(
-            serde_json::to_string(task_config)
-                .unwrap_or_default()
-                .as_bytes(),
-        );
-        hasher.update(working_dir.to_string_lossy().as_bytes());
+        // For now, use empty input files since we don't have them in this context
+        let input_files = HashMap::new();
 
-        // Include relevant environment variables
-        for (key, value) in env_vars {
-            hasher.update(key.as_bytes());
-            hasher.update(value.as_bytes());
-        }
-
-        Ok(format!("{:x}", hasher.finalize()))
+        self.key_generator.generate_cache_key(
+            task_name,
+            &config_hash,
+            working_dir,
+            &input_files,
+            env_vars,
+            command.map(|s| s.as_str()),
+        )
     }
 
     /// Legacy API for backward compatibility with tests
@@ -319,4 +357,49 @@ impl CacheManager {
 
         Ok(())
     }
+
+    /// Get the cache key generator for advanced configuration
+    pub fn key_generator(&self) -> Arc<CacheKeyGenerator> {
+        Arc::clone(&self.key_generator)
+    }
+
+    /// Apply task-specific cache environment configurations
+    pub fn apply_task_configs(&mut self, tasks: &HashMap<String, TaskConfig>) -> Result<()> {
+        // Create a new key generator with the current global config
+        let mut new_key_generator = CacheKeyGenerator::with_config(self.config.env_filter.clone())?;
+
+        // Process each task to extract cache environment configurations
+        for (task_name, task_config) in tasks {
+            if let Some(cache_env) = &task_config.cache_env {
+                // Convert CacheEnvConfig to CacheKeyFilterConfig
+                let filter_config: CacheKeyFilterConfig = cache_env.clone().into();
+
+                // Add task-specific configuration
+                new_key_generator.add_task_config(task_name, filter_config.clone())?;
+
+                // Also update the task_env_filters in the config for persistence
+                self.config
+                    .task_env_filters
+                    .insert(task_name.clone(), filter_config);
+            }
+        }
+
+        // Replace the key generator with the updated one
+        self.key_generator = Arc::new(new_key_generator);
+
+        Ok(())
+    }
+}
+
+/// Compute hash of task configuration for cache key generation
+fn hash_task_config(config: &TaskConfig) -> Result<String> {
+    let serialized = serde_json::to_string(config).map_err(|e| Error::Json {
+        message: "Failed to serialize task config for hashing".to_string(),
+        source: e,
+    })?;
+
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(serialized.as_bytes());
+    Ok(format!("{:x}", hasher.finalize()))
 }

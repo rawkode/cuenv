@@ -108,8 +108,9 @@ mod chaos_concurrent_tests {
                             inputs: None,
                             outputs: Some(vec![format!("output_{}_{}.txt", thread_id, op)]),
                             security: None,
-                            cache: Some(true),
+                            cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
                             cache_key: None,
+                            cache_env: None,
                             timeout: None,
                         };
 
@@ -399,8 +400,9 @@ mod chaos_concurrent_tests {
             inputs: None,
             outputs: Some(vec!["output.txt".to_string()]),
             security: None,
-            cache: Some(true),
+            cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
             cache_key: None,
+            cache_env: None,
             timeout: None,
         };
 

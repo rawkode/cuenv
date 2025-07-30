@@ -110,8 +110,9 @@ fn test_concurrent_cache_writes() {
                     shell: None,
                     inputs: Some(vec![format!("src/file_{}.rs", i)]),
                     outputs: Some(vec![format!("build/output_{}.o", i)]),
-                    cache: Some(true),
+                    cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
                     cache_key: None,
+                    cache_env: None,
                     timeout: None,
                     security: None,
                 };
@@ -174,8 +175,9 @@ fn test_concurrent_same_key_access() {
         shell: None,
         inputs: Some(vec!["src/*.rs".to_string()]),
         outputs: Some(vec!["build/shared.o".to_string()]),
-        cache: Some(true),
+        cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
         cache_key: Some("shared_key".to_string()), // Force same cache key
+        cache_env: None,
         timeout: None,
         security: None,
     });
@@ -254,8 +256,9 @@ fn test_cache_invalidation_race() {
         shell: None,
         inputs: None,
         outputs: None,
-        cache: Some(true),
+        cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
         cache_key: None,
+        cache_env: None,
         timeout: None,
         security: None,
     };
@@ -300,8 +303,9 @@ fn test_cache_invalidation_race() {
                     shell: None,
                     inputs: None,
                     outputs: None,
-                    cache: Some(true),
+                    cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
                     cache_key: None,
+                    cache_env: None,
                     timeout: None,
                     security: None,
                 };
@@ -431,8 +435,9 @@ fn test_cache_cleanup() {
             shell: None,
             inputs: None,
             outputs: None,
-            cache: Some(true),
+            cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
             cache_key: Some(format!("old_key_{}", i)),
+            cache_env: None,
             timeout: None,
             security: None,
         };
@@ -488,8 +493,9 @@ fn test_cache_lock_timeout() {
         shell: None,
         inputs: None,
         outputs: Some(vec!["output.txt".to_string()]),
-        cache: Some(true),
+        cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
         cache_key: Some("lock_test_key".to_string()),
+        cache_env: None,
         timeout: None,
         security: None,
     };

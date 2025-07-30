@@ -1,5 +1,6 @@
 //! Cache configuration types
-use super::CacheMode;
+use super::{key_generator::CacheKeyFilterConfig, CacheMode};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// Configuration for cache systems
@@ -13,6 +14,10 @@ pub struct CacheConfig {
     pub mode: CacheMode,
     /// Threshold for inline storage optimization (bytes)
     pub inline_threshold: usize,
+    /// Global environment variable filtering configuration
+    pub env_filter: CacheKeyFilterConfig,
+    /// Task-specific environment filtering configurations
+    pub task_env_filters: HashMap<String, CacheKeyFilterConfig>,
 }
 
 impl Default for CacheConfig {
@@ -24,6 +29,8 @@ impl Default for CacheConfig {
             max_size: 10 * 1024 * 1024 * 1024, // 10GB
             mode: CacheMode::ReadWrite,
             inline_threshold: 1024, // 1KB
+            env_filter: CacheKeyFilterConfig::default(),
+            task_env_filters: HashMap::new(),
         }
     }
 }

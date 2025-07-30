@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 
+use cuenv::cache::{CacheConfigLoader, CacheMode};
 use cuenv::constants::{CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR, ENV_CUE_FILENAME};
 use cuenv::errors::{Error, Result};
 use cuenv::platform::{PlatformOps, Shell};
@@ -24,6 +25,14 @@ use cuenv::platform::WindowsPlatform as Platform;
 #[command(about = "A direnv alternative using CUE files", long_about = None)]
 #[command(version)]
 struct Cli {
+    /// Cache mode (off, read, read-write, write)
+    #[arg(long, value_parser = ["off", "read", "read-write", "write"])]
+    cache: Option<String>,
+
+    /// Enable or disable caching globally
+    #[arg(long)]
+    cache_enabled: Option<bool>,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -597,6 +606,30 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
+    // Apply CLI cache configuration if provided
+    if let Some(cache_mode) = &cli.cache {
+        let mode = match cache_mode.as_str() {
+            "off" => CacheMode::Off,
+            "read" => CacheMode::Read,
+            "read-write" => CacheMode::ReadWrite,
+            "write" => CacheMode::Write,
+            _ => {
+                return Err(Error::configuration(format!(
+                    "Invalid cache mode: {}",
+                    cache_mode
+                )))
+            }
+        };
+
+        // Set environment variable for cache mode (highest precedence)
+        std::env::set_var("CUENV_CACHE", cache_mode);
+    }
+
+    if let Some(enabled) = cli.cache_enabled {
+        // Set environment variable for cache enabled/disabled
+        std::env::set_var("CUENV_CACHE_ENABLED", enabled.to_string());
+    }
+
     match cli.command {
         Some(Commands::Load {
             directory,
@@ -1061,6 +1094,8 @@ async fn main() -> Result<()> {
                 max_size: max_cache_size,
                 mode: CacheMode::ReadWrite,
                 inline_threshold: 1024,
+                env_filter: Default::default(),
+                task_env_filters: Default::default(),
             };
 
             let remote_config = RemoteCacheConfig {

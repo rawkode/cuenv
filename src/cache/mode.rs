@@ -1,7 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Cache mode determines how the cache behaves
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub enum CacheMode {
     /// Caching is disabled
     Off,

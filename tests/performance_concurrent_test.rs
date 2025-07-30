@@ -74,8 +74,9 @@ mod performance_concurrent_tests {
                                 inputs: Some(vec![format!("src_{}/input.txt", num_threads)]),
                                 outputs: None,
                                 security: None,
-                                cache: Some(true),
+                                cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
                                 cache_key: Some(format!("perf_{}_{}", thread_id, op)),
+                                cache_env: None,
                                 timeout: None,
                             };
 
@@ -176,8 +177,9 @@ mod performance_concurrent_tests {
                             inputs: None,
                             outputs: None,
                             security: None,
-                            cache: Some(true),
+                            cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
                             cache_key: Some(format!("stress_{}", thread_id)),
+                            cache_env: None,
                             timeout: None,
                         };
 
@@ -296,8 +298,9 @@ mod performance_concurrent_tests {
                                 inputs: Some(vec![format!("src/file{}.txt", file_index)]),
                                 outputs: None,
                                 security: None,
-                                cache: Some(true),
+                                cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
                                 cache_key: None,
+                                cache_env: None,
                                 timeout: None,
                             };
 
@@ -485,8 +488,9 @@ tasks: {{
                 inputs: None,
                 outputs: None,
                 security: None,
-                cache: Some(true),
+                cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
                 cache_key: Some(format!("cleanup_key_{}", i)),
+                cache_env: None,
                 timeout: None,
             };
 

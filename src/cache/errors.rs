@@ -95,6 +95,14 @@ pub enum CacheError {
         recovery_hint: RecoveryHint,
     },
 
+    /// Disk quota exceeded
+    DiskQuotaExceeded {
+        current: u64,
+        requested: u64,
+        limit: u64,
+        recovery_hint: RecoveryHint,
+    },
+
     /// Integrity check failed
     IntegrityFailure {
         key: String,
@@ -136,6 +144,12 @@ pub enum RecoveryHint {
     Manual { instructions: String },
     /// Operation can be safely ignored
     Ignore,
+    /// Use a default value
+    UseDefault { value: String },
+    /// Check available disk space
+    CheckDiskSpace,
+    /// Run cache eviction
+    RunEviction,
 }
 
 /// Serialization operation type
@@ -239,6 +253,16 @@ impl fmt::Display for CacheError {
                 duration,
                 ..
             } => write!(f, "Timeout during {} after {:?}", operation, duration),
+            Self::DiskQuotaExceeded {
+                current,
+                requested,
+                limit,
+                ..
+            } => write!(
+                f,
+                "Disk quota exceeded: current {}, requested {}, limit {}",
+                current, requested, limit
+            ),
             Self::IntegrityFailure {
                 key,
                 expected_hash,
@@ -287,6 +311,7 @@ impl CacheError {
             | Self::PermissionDenied { recovery_hint, .. }
             | Self::Network { recovery_hint, .. }
             | Self::Timeout { recovery_hint, .. }
+            | Self::DiskQuotaExceeded { recovery_hint, .. }
             | Self::IntegrityFailure { recovery_hint, .. }
             | Self::Configuration { recovery_hint, .. }
             | Self::Compression { recovery_hint, .. } => recovery_hint,

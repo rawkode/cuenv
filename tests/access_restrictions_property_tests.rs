@@ -208,6 +208,7 @@ proptest! {
             security: None,
             cache: None,
             cache_key: None,
+            cache_env: None,
             timeout: None,
         };
 

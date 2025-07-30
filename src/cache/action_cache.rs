@@ -5,6 +5,7 @@
 
 use crate::cache::concurrent_cache::ConcurrentCache;
 use crate::cache::content_addressed_store::ContentAddressedStore;
+use crate::cache::key_generator::CacheKeyGenerator;
 use crate::cache::signing::{CacheSigner, SignedCacheEntry};
 use crate::cue_parser::TaskConfig;
 use crate::errors::{Error, Result};
@@ -70,6 +71,8 @@ pub struct ActionCache {
     in_flight: Arc<DashMap<String, Arc<tokio::sync::Notify>>>,
     /// Cryptographic signer for cache entries
     signer: Arc<CacheSigner>,
+    /// Cache key generator with selective environment variable filtering
+    key_generator: Arc<CacheKeyGenerator>,
 }
 
 impl ActionCache {
@@ -80,11 +83,13 @@ impl ActionCache {
         cache_dir: &Path,
     ) -> Result<Self> {
         let signer = Arc::new(CacheSigner::new(cache_dir)?);
+        let key_generator = Arc::new(CacheKeyGenerator::new()?);
         Ok(Self {
             result_cache: Arc::new(ConcurrentCache::new(max_cache_size)),
             cas,
             in_flight: Arc::new(DashMap::new()),
             signer,
+            key_generator,
         })
     }
 
@@ -96,11 +101,14 @@ impl ActionCache {
         working_dir: &Path,
         env_vars: HashMap<String, String>,
     ) -> Result<ActionDigest> {
+        // Filter environment variables using selective filtering
+        let filtered_env_vars = self.key_generator.filter_env_vars(task_name, &env_vars);
+
         let mut components = ActionComponents {
             task_name: task_name.to_string(),
             command: task_config.command.clone().or(task_config.script.clone()),
             working_dir: working_dir.to_path_buf(),
-            env_vars,
+            env_vars: filtered_env_vars,
             input_files: HashMap::new(),
             config_hash: hash_task_config(task_config)?,
         };
@@ -132,7 +140,7 @@ impl ActionCache {
     }
 
     /// Get cached action result from storage with signature verification
-    fn get_cached_action_result(&self, hash: &str) -> Option<ActionResult> {
+    pub fn get_cached_action_result(&self, hash: &str) -> Option<ActionResult> {
         self.result_cache.get(hash).and_then(|cached| {
             // Deserialize signed cache entry from stdout field
             if let Some(stdout_bytes) = &cached.stdout {
@@ -434,8 +442,9 @@ mod tests {
             shell: None,
             inputs: None,
             outputs: None,
-            cache: Some(true),
+            cache: Some(crate::cache::TaskCacheConfig::Simple(true)),
             cache_key: None,
+            cache_env: None,
             timeout: None,
             security: None,
         };
@@ -466,8 +475,9 @@ mod tests {
             shell: None,
             inputs: None,
             outputs: None,
-            cache: Some(true),
+            cache: Some(crate::cache::TaskCacheConfig::Simple(true)),
             cache_key: None,
+            cache_env: None,
             timeout: None,
             security: None,
         };
@@ -520,8 +530,9 @@ mod tests {
             shell: None,
             inputs: None,
             outputs: None,
-            cache: Some(true),
+            cache: Some(crate::cache::TaskCacheConfig::Simple(true)),
             cache_key: None,
+            cache_env: None,
             timeout: None,
             security: None,
         };

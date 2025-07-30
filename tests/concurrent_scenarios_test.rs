@@ -34,6 +34,8 @@ mod concurrent_scenarios {
             max_size: 1024 * 1024 * 1024, // 1GB for tests
             mode: CacheMode::ReadWrite,
             inline_threshold: 4096,
+            env_filter: Default::default(),
+            task_env_filters: std::collections::HashMap::new(),
         };
 
         // Use the runtime helper to create cache manager asynchronously
@@ -84,8 +86,9 @@ mod concurrent_scenarios {
                         inputs: Some(vec!["src/*".to_string()]),
                         outputs: Some(vec!["build/output.txt".to_string()]),
                         security: None,
-                        cache: Some(true),
+                        cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
                         cache_key: None,
+                        cache_env: None,
                         timeout: None,
                     };
 
@@ -275,8 +278,9 @@ mod concurrent_scenarios {
             inputs: Some(vec!["src/*".to_string()]),
             outputs: Some(vec!["build/output.txt".to_string()]),
             security: None,
-            cache: Some(true),
+            cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
             cache_key: None,
+            cache_env: None,
             timeout: None,
         };
 
@@ -297,6 +301,7 @@ mod concurrent_scenarios {
         // Now test successful execution
         let success_config = TaskConfig {
             command: Some("echo success > build/output.txt".to_string()),
+            cache_env: None,
             ..task_config
         };
 
@@ -351,8 +356,9 @@ mod concurrent_scenarios {
                         inputs: None,
                         outputs: None,
                         security: None,
-                        cache: Some(false), // Disable cache for this test
+                        cache: Some(cuenv::cache::TaskCacheConfig::Simple(false)), // Disable cache for this test
                         cache_key: None,
+                        cache_env: None,
                         timeout: Some(5), // 5 second timeout
                     };
 
@@ -441,8 +447,9 @@ mod concurrent_scenarios {
                         inputs: Some(vec![format!("src/file{}.txt", i)]),
                         outputs: Some(vec![format!("build/compiled_{}.txt", i)]),
                         security: None,
-                        cache: Some(true),
+                        cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
                         cache_key: None,
+                        cache_env: None,
                         timeout: None,
                     },
                 );
@@ -465,8 +472,9 @@ mod concurrent_scenarios {
                     inputs: Some(vec!["build/compiled_*.txt".to_string()]),
                     outputs: Some(vec!["build/bundle.txt".to_string()]),
                     security: None,
-                    cache: Some(true),
+                    cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
                     cache_key: None,
+                    cache_env: None,
                     timeout: None,
                 },
             );
@@ -601,8 +609,9 @@ tasks: {
                         inputs: Some(vec!["src/input.txt".to_string()]),
                         outputs: None,
                         security: None,
-                        cache: Some(true),
+                        cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
                         cache_key: None,
+                        cache_env: None,
                         timeout: None,
                     };
 

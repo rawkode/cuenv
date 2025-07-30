@@ -31,8 +31,9 @@ mod concurrent_cache_tests {
             inputs: Some(vec!["src/*".to_string()]),
             outputs: Some(vec!["build/output.txt".to_string()]),
             security: None,
-            cache: Some(cache_enabled),
+            cache: Some(cuenv::cache::TaskCacheConfig::Simple(cache_enabled)),
             cache_key: None,
+            cache_env: None,
             timeout: None,
         }
     }

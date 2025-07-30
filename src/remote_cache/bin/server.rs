@@ -64,6 +64,8 @@ async fn main() -> Result<()> {
         max_size: args.max_cache_size,
         mode: CacheMode::ReadWrite,
         inline_threshold: 1024, // 1KB for inline storage
+        env_filter: Default::default(),
+        task_env_filters: Default::default(),
     };
 
     // Create remote cache configuration

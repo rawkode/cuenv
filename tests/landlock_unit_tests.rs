@@ -73,6 +73,7 @@ mod landlock_unit_tests {
             security: None,
             cache: None,
             cache_key: None,
+            cache_env: None,
             timeout: None,
         };
 
@@ -116,6 +117,7 @@ mod landlock_unit_tests {
             security: None,
             cache: None,
             cache_key: None,
+            cache_env: None,
             timeout: None,
         };
 

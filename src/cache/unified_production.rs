@@ -9,17 +9,24 @@
 //! - Comprehensive observability and metrics
 
 use crate::cache::errors::{CacheError, RecoveryHint, Result, SerializationOp, StoreType};
+use crate::cache::eviction::{create_eviction_policy, EvictionPolicy};
+use crate::cache::fast_path::FastPathCache;
+use crate::cache::memory_manager::{MemoryManager, MemoryThresholds};
+use crate::cache::streaming::{CacheReader, CacheWriter, StreamingCache};
 use crate::cache::traits::{Cache, CacheConfig, CacheKey, CacheMetadata, CacheStatistics};
 use async_trait::async_trait;
 use dashmap::DashMap;
+use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use memmap2::{Mmap, MmapOptions};
 use parking_lot::RwLock;
 use serde::{de::DeserializeOwned, Serialize};
 use sha2::{Digest, Sha256};
 use std::fmt;
 use std::fs::File;
+use std::future::Future;
 use std::io::Write;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
@@ -40,6 +47,12 @@ struct CacheInner {
     base_dir: PathBuf,
     /// In-memory cache for hot data
     memory_cache: DashMap<String, Arc<InMemoryEntry>>,
+    /// Fast path cache for small values
+    fast_path: FastPathCache,
+    /// Eviction policy
+    eviction_policy: Box<dyn EvictionPolicy>,
+    /// Memory manager
+    memory_manager: Arc<MemoryManager>,
     /// Statistics
     stats: CacheStats,
     /// Semaphore for limiting concurrent I/O operations
@@ -116,10 +129,33 @@ impl UnifiedCache {
             }
         }
 
+        // Create eviction policy
+        let eviction_policy = match create_eviction_policy(
+            config.eviction_policy.as_deref().unwrap_or("lru"),
+            config.max_memory_size.unwrap_or(1024 * 1024 * 1024), // 1GB default
+        ) {
+            Ok(policy) => policy,
+            Err(e) => return Err(e),
+        };
+
+        // Create memory manager
+        let memory_manager = Arc::new(MemoryManager::new(
+            base_dir.clone(),
+            config.max_disk_size.unwrap_or(10 * 1024 * 1024 * 1024), // 10GB default
+            MemoryThresholds::default(),
+        ));
+
+        // Start memory monitoring
+        let manager_clone = Arc::clone(&memory_manager);
+        manager_clone.start_monitoring();
+
         let inner = Arc::new(CacheInner {
             config,
             base_dir,
             memory_cache: DashMap::new(),
+            fast_path: FastPathCache::new(1024, 10000), // 1KB threshold, 10k entries
+            eviction_policy,
+            memory_manager,
             stats: CacheStats {
                 hits: AtomicU64::new(0),
                 misses: AtomicU64::new(0),
@@ -132,7 +168,7 @@ impl UnifiedCache {
             },
             io_semaphore: Semaphore::new(100), // Limit concurrent I/O operations
             cleanup_handle: RwLock::new(None),
-            version: 2, // Version 2 with improved architecture
+            version: 3, // Version 3 with streaming and performance optimizations
         });
 
         let cache = Self { inner };
@@ -222,44 +258,45 @@ impl UnifiedCache {
         Ok(())
     }
 
-    /// Get the path for a cached object using 4-level sharding
+    /// Get the path for a cached object using optimized 256-shard distribution
+    #[inline(always)]
     fn object_path(inner: &CacheInner, key: &str) -> PathBuf {
         let hash = Self::hash_key(inner, key);
-        // 4-level sharding: 2/2/2/2/remaining for better distribution
-        let shard1 = &hash[..2];
-        let shard2 = &hash[2..4];
-        let shard3 = &hash[4..6];
-        let shard4 = &hash[6..8];
-        inner
-            .base_dir
-            .join("objects")
-            .join(shard1)
-            .join(shard2)
-            .join(shard3)
-            .join(shard4)
-            .join(&hash)
+        // Use first byte of hash for 256-way sharding (00-ff)
+        // This provides optimal distribution for file systems
+        let shard = &hash[..2];
+        inner.base_dir.join("objects").join(shard).join(&hash)
     }
 
-    /// Get the path for cached metadata
+    /// Get the path for cached metadata using optimized 256-shard distribution
+    #[inline(always)]
     fn metadata_path(inner: &CacheInner, key: &str) -> PathBuf {
         let hash = Self::hash_key(inner, key);
-        // Same 4-level sharding for metadata
-        let shard1 = &hash[..2];
-        let shard2 = &hash[2..4];
-        let shard3 = &hash[4..6];
-        let shard4 = &hash[6..8];
+        // Use first byte of hash for 256-way sharding (00-ff)
+        let shard = &hash[..2];
         inner
             .base_dir
             .join("metadata")
-            .join(shard1)
-            .join(shard2)
-            .join(shard3)
-            .join(shard4)
+            .join(shard)
             .join(format!("{}.meta", &hash))
     }
 
-    /// Hash a cache key
+    /// Hash a cache key with performance optimizations
+    #[inline(always)]
     fn hash_key(inner: &CacheInner, key: &str) -> String {
+        // Use SIMD-accelerated hashing when available
+        #[cfg(all(target_arch = "x86_64", feature = "simd"))]
+        {
+            use crate::cache::performance::simd_hash;
+            if simd_hash::is_simd_available() {
+                let simd_hash = unsafe { simd_hash::hash_key_simd(key.as_bytes()) };
+                // Mix with version for cache invalidation
+                let mixed = simd_hash ^ (inner.version as u64);
+                return format!("{:016x}", mixed);
+            }
+        }
+
+        // Fallback to SHA256 for cryptographic strength
         let mut hasher = Sha256::new();
         hasher.update(key.as_bytes());
         hasher.update(&inner.version.to_le_bytes());
@@ -322,6 +359,61 @@ impl UnifiedCache {
             }),
         }
     }
+
+    /// Evict entries based on the configured eviction policy
+    async fn evict_entries(&self) -> Result<()> {
+        let mut evicted_count = 0;
+        let target_memory = self.inner.memory_manager.memory_stats().total_memory * 7 / 10; // Target 70% usage
+
+        loop {
+            // Check if we need to evict more
+            if self.inner.eviction_policy.memory_usage() <= target_memory {
+                break;
+            }
+
+            // Get next key to evict
+            let key_to_evict = match self.inner.eviction_policy.next_eviction() {
+                Some(key) => key,
+                None => break, // No more entries to evict
+            };
+
+            // Remove the entry
+            match self.remove(&key_to_evict).await {
+                Ok(removed) => {
+                    if removed {
+                        evicted_count += 1;
+                        // Record disk space freed
+                        if let Some((_, entry)) = self.inner.memory_cache.remove(&key_to_evict) {
+                            let size = if entry.mmap.is_some() {
+                                entry.metadata.size_bytes
+                            } else {
+                                entry.data.len() as u64
+                            };
+                            self.inner.memory_manager.record_disk_usage(
+                                &Self::object_path(&self.inner, &key_to_evict),
+                                -(size as i64),
+                            );
+                            self.inner.eviction_policy.on_remove(&key_to_evict, size);
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to evict {}: {}", key_to_evict, e);
+                }
+            }
+
+            // Limit evictions per call to prevent blocking too long
+            if evicted_count >= 100 {
+                break;
+            }
+        }
+
+        if evicted_count > 0 {
+            tracing::info!("Evicted {} entries to free memory", evicted_count);
+        }
+
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -333,6 +425,28 @@ impl Cache for UnifiedCache {
         match key.validate() {
             Ok(()) => {}
             Err(e) => return Err(e),
+        }
+
+        // Try fast path for small values first
+        if let Some((data, metadata)) = self.inner.fast_path.get_small(key) {
+            // Check if expired
+            if let Some(expires_at) = metadata.expires_at {
+                if expires_at <= SystemTime::now() {
+                    // Expired - continue to regular path
+                } else {
+                    self.inner.stats.hits.fetch_add(1, Ordering::Relaxed);
+                    match Self::deserialize::<T>(&data) {
+                        Ok(value) => return Ok(Some(value)),
+                        Err(e) => return Err(e),
+                    }
+                }
+            } else {
+                self.inner.stats.hits.fetch_add(1, Ordering::Relaxed);
+                match Self::deserialize::<T>(&data) {
+                    Ok(value) => return Ok(Some(value)),
+                    Err(e) => return Err(e),
+                }
+            }
         }
 
         // Check memory cache first
@@ -505,6 +619,32 @@ impl Cache for UnifiedCache {
 
         let now = SystemTime::now();
 
+        // Try fast path for small values
+        if data.len() <= 1024 {
+            let metadata = CacheMetadata {
+                created_at: now,
+                last_accessed: now,
+                expires_at: ttl.map(|d| now + d),
+                size_bytes: data.len() as u64,
+                access_count: 0,
+                content_hash: {
+                    let mut hasher = Sha256::new();
+                    hasher.update(&data);
+                    format!("{:x}", hasher.finalize())
+                },
+                cache_version: self.inner.version,
+            };
+
+            if self
+                .inner
+                .fast_path
+                .put_small(key.to_string(), data.clone(), metadata.clone())
+            {
+                self.inner.stats.writes.fetch_add(1, Ordering::Relaxed);
+                // Continue to also store in regular cache for persistence
+            }
+        }
+
         let metadata = CacheMetadata {
             created_at: now,
             last_accessed: now,
@@ -518,6 +658,45 @@ impl Cache for UnifiedCache {
             },
             cache_version: self.inner.version,
         };
+
+        // Check memory pressure and disk quota
+        if !self.inner.memory_manager.can_allocate(data.len() as u64) {
+            // Run eviction
+            match self.evict_entries().await {
+                Ok(()) => {}
+                Err(e) => {
+                    tracing::warn!("Failed to evict entries: {}", e);
+                }
+            }
+        }
+
+        match self
+            .inner
+            .memory_manager
+            .check_disk_quota(data.len() as u64)
+        {
+            Ok(_) => {}
+            Err(e) => {
+                // Try eviction first
+                match self.evict_entries().await {
+                    Ok(()) => {
+                        // Retry quota check
+                        match self
+                            .inner
+                            .memory_manager
+                            .check_disk_quota(data.len() as u64)
+                        {
+                            Ok(_) => {}
+                            Err(e) => return Err(e),
+                        }
+                    }
+                    Err(_) => return Err(e),
+                }
+            }
+        }
+
+        // Notify eviction policy
+        self.inner.eviction_policy.on_insert(key, data.len() as u64);
 
         // Check capacity
         let new_total = self
@@ -972,6 +1151,289 @@ impl Drop for CacheInner {
         if let Some(handle) = self.cleanup_handle.write().take() {
             handle.abort();
         }
+    }
+}
+
+impl StreamingCache for UnifiedCache {
+    fn get_reader<'a>(
+        &'a self,
+        key: &'a str,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<CacheReader>>> + Send + 'a>> {
+        Box::pin(async move {
+            match key.validate() {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
+
+            // Check if the entry exists and get metadata
+            let metadata_path = Self::metadata_path(&self.inner, key);
+            let data_path = Self::object_path(&self.inner, key);
+
+            let _permit = match self.inner.io_semaphore.acquire().await {
+                Ok(permit) => permit,
+                Err(_) => {
+                    return Err(CacheError::StoreUnavailable {
+                        store_type: StoreType::Local,
+                        reason: "I/O semaphore closed".to_string(),
+                        recovery_hint: RecoveryHint::Retry {
+                            after: Duration::from_millis(100),
+                        },
+                    });
+                }
+            };
+
+            // Read metadata
+            let metadata_bytes = match fs::read(&metadata_path).await {
+                Ok(bytes) => bytes,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    return Ok(None);
+                }
+                Err(e) => {
+                    return Err(CacheError::Io {
+                        path: metadata_path,
+                        operation: "read metadata for streaming",
+                        source: e,
+                        recovery_hint: RecoveryHint::Retry {
+                            after: Duration::from_millis(100),
+                        },
+                    });
+                }
+            };
+
+            let metadata: CacheMetadata = match Self::deserialize(&metadata_bytes) {
+                Ok(m) => m,
+                Err(e) => return Err(e),
+            };
+
+            // Check if expired
+            if let Some(expires_at) = metadata.expires_at {
+                if expires_at <= SystemTime::now() {
+                    // Remove expired entry
+                    let _ = fs::remove_file(&metadata_path).await;
+                    let _ = fs::remove_file(&data_path).await;
+                    return Ok(None);
+                }
+            }
+
+            // Update access time in memory cache if present
+            if let Some(entry) = self.inner.memory_cache.get(key) {
+                *entry.last_accessed.write() = Instant::now();
+            }
+
+            // Prefer memory-mapped reader for performance
+            #[cfg(target_os = "linux")]
+            {
+                match CacheReader::from_mmap(data_path.clone(), metadata).await {
+                    Ok(reader) => return Ok(Some(reader)),
+                    Err(_) => {
+                        // Fall back to regular file reader
+                    }
+                }
+            }
+
+            // Use file-based reader
+            match CacheReader::from_file(data_path, metadata).await {
+                Ok(reader) => Ok(Some(reader)),
+                Err(e) => Err(e),
+            }
+        })
+    }
+
+    fn get_writer<'a>(
+        &'a self,
+        key: &'a str,
+        ttl: Option<Duration>,
+    ) -> Pin<Box<dyn Future<Output = Result<CacheWriter>> + Send + 'a>> {
+        Box::pin(async move {
+            match key.validate() {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
+
+            // Check capacity before creating writer
+            if self.inner.config.max_size_bytes > 0 {
+                let current_size = self.inner.stats.total_bytes.load(Ordering::Relaxed);
+                if current_size >= self.inner.config.max_size_bytes {
+                    return Err(CacheError::CapacityExceeded {
+                        requested_bytes: 0,
+                        available_bytes: 0,
+                        recovery_hint: RecoveryHint::IncreaseCapacity {
+                            suggested_bytes: self.inner.config.max_size_bytes * 2,
+                        },
+                    });
+                }
+            }
+
+            match CacheWriter::new(&self.inner.base_dir, key, ttl).await {
+                Ok(writer) => Ok(writer),
+                Err(e) => Err(e),
+            }
+        })
+    }
+
+    fn put_stream<'a, R>(
+        &'a self,
+        key: &'a str,
+        mut reader: R,
+        ttl: Option<Duration>,
+    ) -> Pin<Box<dyn Future<Output = Result<u64>> + Send + 'a>>
+    where
+        R: AsyncRead + Send + 'a,
+    {
+        Box::pin(async move {
+            let mut writer = match self.get_writer(key, ttl).await {
+                Ok(w) => w,
+                Err(e) => return Err(e),
+            };
+
+            // High-performance streaming copy
+            const BUFFER_SIZE: usize = 64 * 1024; // 64KB buffer
+            let mut buffer = vec![0u8; BUFFER_SIZE];
+            let mut total_bytes = 0u64;
+
+            loop {
+                let n = match reader.read(&mut buffer).await {
+                    Ok(0) => break, // EOF
+                    Ok(n) => n,
+                    Err(e) => {
+                        return Err(CacheError::Io {
+                            path: PathBuf::from(key),
+                            operation: "read from stream",
+                            source: std::io::Error::new(std::io::ErrorKind::Other, e),
+                            recovery_hint: RecoveryHint::Retry {
+                                after: Duration::from_millis(100),
+                            },
+                        });
+                    }
+                };
+
+                match writer.write_all(&buffer[..n]).await {
+                    Ok(()) => {}
+                    Err(e) => {
+                        return Err(CacheError::Io {
+                            path: PathBuf::from(key),
+                            operation: "write to cache stream",
+                            source: std::io::Error::new(std::io::ErrorKind::Other, e),
+                            recovery_hint: RecoveryHint::Retry {
+                                after: Duration::from_millis(100),
+                            },
+                        });
+                    }
+                }
+
+                total_bytes += n as u64;
+            }
+
+            // Finalize the write
+            let metadata = match writer.finalize().await {
+                Ok(m) => m,
+                Err(e) => return Err(e),
+            };
+
+            // Update statistics
+            self.inner.stats.writes.fetch_add(1, Ordering::Relaxed);
+            self.inner
+                .stats
+                .total_bytes
+                .fetch_add(total_bytes, Ordering::Relaxed);
+
+            // Add to memory cache for hot access
+            let hash = Self::hash_key(&self.inner, key);
+            let data_path = Self::object_path(&self.inner, key);
+
+            // Try to memory-map for future reads
+            let mmap_option = Self::mmap_file(&data_path).ok();
+
+            let entry = Arc::new(InMemoryEntry {
+                mmap: mmap_option,
+                data: Vec::new(), // Empty for streamed entries
+                metadata,
+                last_accessed: RwLock::new(Instant::now()),
+            });
+
+            self.inner.memory_cache.insert(key.to_string(), entry);
+
+            Ok(total_bytes)
+        })
+    }
+
+    fn get_stream<'a, W>(
+        &'a self,
+        key: &'a str,
+        mut writer: W,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<u64>>> + Send + 'a>>
+    where
+        W: AsyncWrite + Send + 'a,
+    {
+        Box::pin(async move {
+            let reader = match self.get_reader(key).await {
+                Ok(Some(r)) => r,
+                Ok(None) => return Ok(None),
+                Err(e) => return Err(e),
+            };
+
+            let expected_size = reader.metadata().size_bytes;
+
+            // High-performance streaming copy
+            // Note: Zero-copy implementation would be added here for Linux systems
+            // using sendfile/splice system calls for optimal performance
+
+            // Standard async copy
+            let mut reader = reader;
+            const BUFFER_SIZE: usize = 64 * 1024; // 64KB buffer
+            let mut buffer = vec![0u8; BUFFER_SIZE];
+            let mut total_bytes = 0u64;
+
+            loop {
+                let n = match reader.read(&mut buffer).await {
+                    Ok(0) => break, // EOF
+                    Ok(n) => n,
+                    Err(e) => {
+                        return Err(CacheError::Io {
+                            path: PathBuf::from(key),
+                            operation: "read from cache stream",
+                            source: std::io::Error::new(std::io::ErrorKind::Other, e),
+                            recovery_hint: RecoveryHint::Retry {
+                                after: Duration::from_millis(100),
+                            },
+                        });
+                    }
+                };
+
+                match writer.write_all(&buffer[..n]).await {
+                    Ok(()) => {}
+                    Err(e) => {
+                        return Err(CacheError::Io {
+                            path: PathBuf::from(key),
+                            operation: "write to output stream",
+                            source: std::io::Error::new(std::io::ErrorKind::Other, e),
+                            recovery_hint: RecoveryHint::Retry {
+                                after: Duration::from_millis(100),
+                            },
+                        });
+                    }
+                }
+
+                total_bytes += n as u64;
+            }
+
+            match writer.flush().await {
+                Ok(()) => {}
+                Err(e) => {
+                    return Err(CacheError::Io {
+                        path: PathBuf::from(key),
+                        operation: "flush output stream",
+                        source: std::io::Error::new(std::io::ErrorKind::Other, e),
+                        recovery_hint: RecoveryHint::Retry {
+                            after: Duration::from_millis(10),
+                        },
+                    });
+                }
+            }
+
+            self.inner.stats.hits.fetch_add(1, Ordering::Relaxed);
+            Ok(Some(total_bytes))
+        })
     }
 }
 

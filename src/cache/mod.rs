@@ -5,8 +5,14 @@
 
 // Core modules
 mod bridge;
+mod cache_warming;
 mod errors;
+mod eviction;
+mod fast_path;
+mod memory_manager;
+mod performance;
 mod storage_backend;
+mod streaming;
 mod traits;
 mod unified;
 mod unified_production;
@@ -33,6 +39,7 @@ mod content_addressed_store;
 pub use bridge::{CacheBuilder, SyncCache};
 pub use errors::{CacheError, RecoveryHint, Result as CacheResult};
 pub use storage_backend::{CompressionConfig, StorageBackend};
+pub use streaming::{CacheReader, CacheWriter, StreamingCache};
 pub use traits::{
     Cache, CacheConfig as UnifiedCacheConfig, CacheEntry, CacheKey, CacheMetadata,
     CacheStatistics as UnifiedCacheStatistics,

@@ -1,4 +1,6 @@
-use crate::cache::CacheManager;
+use crate::cache::{
+    ActionCache, CacheConfigLoader, CacheConfigResolver, CacheConfiguration, CacheManager,
+};
 use crate::cleanup::ProcessGuard;
 use crate::cue_parser::TaskConfig;
 use crate::env_manager::EnvManager;
@@ -25,16 +27,30 @@ pub struct TaskExecutor {
     env_manager: EnvManager,
     working_dir: PathBuf,
     cache_manager: Arc<CacheManager>,
+    action_cache: Arc<ActionCache>,
+    cache_config: CacheConfiguration,
 }
 
 impl TaskExecutor {
     /// Create a new task executor
     pub async fn new(env_manager: EnvManager, working_dir: PathBuf) -> Result<Self> {
-        let cache_config = crate::cache::CacheConfig::default();
+        let cache_config = CacheConfigLoader::load()?;
+        let cache_config_struct = Self::create_cache_config_struct(&cache_config)?;
+        let mut cache_manager = CacheManager::new(cache_config_struct).await?;
+
+        // Apply task-specific cache environment configurations
+        let tasks = env_manager.get_tasks();
+        cache_manager.apply_task_configs(&tasks)?;
+
+        let cache_manager = Arc::new(cache_manager);
+        let action_cache = cache_manager.action_cache();
+
         Ok(Self {
             env_manager,
             working_dir,
-            cache_manager: Arc::new(CacheManager::new(cache_config).await?),
+            cache_manager,
+            action_cache,
+            cache_config,
         })
     }
 
@@ -45,10 +61,22 @@ impl TaskExecutor {
         working_dir: PathBuf,
         cache_config: crate::cache::CacheConfig,
     ) -> Result<Self> {
+        let cache_configuration = CacheConfiguration::default();
+        let mut cache_manager = CacheManager::new(cache_config).await?;
+
+        // Apply task-specific cache environment configurations
+        let tasks = env_manager.get_tasks();
+        cache_manager.apply_task_configs(&tasks)?;
+
+        let cache_manager = Arc::new(cache_manager);
+        let action_cache = cache_manager.action_cache();
+
         Ok(Self {
             env_manager,
             working_dir,
-            cache_manager: Arc::new(CacheManager::new(cache_config).await?),
+            cache_manager,
+            action_cache,
+            cache_config: cache_configuration,
         })
     }
 
@@ -94,14 +122,20 @@ impl TaskExecutor {
                 let failed_tasks = Arc::clone(&failed_tasks);
                 let task_name = task_name.clone();
                 let cache_manager = Arc::clone(&self.cache_manager);
+                let action_cache = Arc::clone(&self.action_cache);
 
+                let cache_manager = Arc::clone(&self.cache_manager);
+                let action_cache = Arc::clone(&self.action_cache);
+                let cache_config = self.cache_config.clone();
                 join_set.spawn(async move {
                     match Self::execute_single_task_with_cache(
+                        &cache_config,
                         &task_name,
                         &task_config,
                         &working_dir,
                         &task_args,
                         &cache_manager,
+                        &action_cache,
                         audit_mode,
                     )
                     .await
@@ -313,46 +347,94 @@ impl TaskExecutor {
         Ok(levels)
     }
 
+    /// Create cache config struct from configuration
+    fn create_cache_config_struct(
+        cache_config: &CacheConfiguration,
+    ) -> Result<crate::cache::CacheConfig> {
+        let mut config = crate::cache::CacheConfig::default();
+
+        // Apply global configuration
+        if let Some(base_dir) = &cache_config.global.base_dir {
+            config.base_dir = base_dir.clone();
+        }
+
+        if let Some(max_size) = cache_config.global.max_size {
+            config.max_size = max_size;
+        }
+
+        if let Some(inline_threshold) = cache_config.global.inline_threshold {
+            config.inline_threshold = inline_threshold;
+        }
+
+        if let Some(env_filter) = &cache_config.global.env_filter {
+            config.env_filter = env_filter.clone();
+        }
+
+        config.mode = cache_config.global.mode;
+
+        Ok(config)
+    }
+
     /// Execute a single task with caching support
     async fn execute_single_task_with_cache(
+        cache_config: &CacheConfiguration,
         task_name: &str,
         task_config: &TaskConfig,
         working_dir: &Path,
         args: &[String],
-        cache_manager: &CacheManager,
+        _cache_manager: &CacheManager,
+        action_cache: &ActionCache,
         audit_mode: bool,
     ) -> Result<i32> {
-        // Generate cache key
+        // Check if caching is enabled for this task using the new configuration system
+        let cache_enabled = CacheConfigResolver::should_cache_task(
+            &cache_config.global,
+            task_config.cache.as_ref(),
+            task_name,
+        );
+
+        if !cache_enabled {
+            // Execute without caching
+            println!("→ Executing task '{task_name}' (cache disabled)");
+            return Self::execute_single_task(task_config, working_dir, args, audit_mode).await;
+        }
+
+        // Generate action digest using ActionCache
         let env_vars = std::env::vars().collect();
-        let cache_key =
-            cache_manager.generate_cache_key(task_name, task_config, &env_vars, working_dir)?;
+        let digest = action_cache
+            .compute_digest(task_name, task_config, working_dir, env_vars)
+            .await?;
 
-        // Check if task result is cached
-        if let Some(cached_result) = cache_manager.get_cached_result(&cache_key) {
-            println!("✓ Task '{task_name}' found in cache, skipping execution");
-            return Ok(cached_result.exit_code);
+        // Execute with ActionCache
+        let result = action_cache
+            .execute_action(&digest, || async {
+                println!("→ Executing task '{task_name}'");
+                let exit_code =
+                    Self::execute_single_task(task_config, working_dir, args, audit_mode).await?;
+
+                // Create ActionResult for caching
+                Ok(crate::cache::ActionResult {
+                    exit_code,
+                    stdout_hash: None, // Not captured in current implementation
+                    stderr_hash: None, // Not captured in current implementation
+                    output_files: std::collections::HashMap::new(),
+                    executed_at: std::time::SystemTime::now(),
+                    duration_ms: 0, // Not tracked in current implementation
+                })
+            })
+            .await?;
+
+        // Update cache manager statistics for backward compatibility
+        if result.exit_code == 0 {
+            println!("✓ Task '{task_name}' completed successfully (cached)");
+        } else {
+            println!(
+                "✗ Task '{task_name}' failed with exit code {}",
+                result.exit_code
+            );
         }
 
-        // Execute the task
-        println!("→ Executing task '{task_name}'");
-        let exit_code =
-            Self::execute_single_task(task_config, working_dir, args, audit_mode).await?;
-
-        // Cache the result
-        let cached_result = crate::cache::CachedTaskResult {
-            cache_key: cache_key.clone(),
-            executed_at: std::time::SystemTime::now(),
-            exit_code,
-            stdout: None,
-            stderr: None,
-            output_files: std::collections::HashMap::new(),
-        };
-
-        if let Err(e) = cache_manager.store_result(cache_key, cached_result) {
-            log::warn!("Failed to cache task '{task_name}' result: {e}");
-        }
-
-        Ok(exit_code)
+        Ok(result.exit_code)
     }
 
     /// Execute a single task
@@ -585,6 +667,8 @@ tasks: {
             max_size: 1024 * 1024, // 1MB for tests
             mode: crate::cache::CacheMode::ReadWrite,
             inline_threshold: 4096,
+            env_filter: Default::default(),
+            task_env_filters: std::collections::HashMap::new(),
         };
         let executor =
             TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)
@@ -623,6 +707,8 @@ tasks: {
             max_size: 1024 * 1024, // 1MB for tests
             mode: crate::cache::CacheMode::ReadWrite,
             inline_threshold: 4096,
+            env_filter: Default::default(),
+            task_env_filters: std::collections::HashMap::new(),
         };
         let executor =
             TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)
@@ -662,6 +748,8 @@ tasks: {
             max_size: 1024 * 1024, // 1MB for tests
             mode: crate::cache::CacheMode::ReadWrite,
             inline_threshold: 4096,
+            env_filter: Default::default(),
+            task_env_filters: std::collections::HashMap::new(),
         };
         let executor =
             TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)
@@ -694,6 +782,8 @@ tasks: {
             max_size: 1024 * 1024, // 1MB for tests
             mode: crate::cache::CacheMode::ReadWrite,
             inline_threshold: 4096,
+            env_filter: Default::default(),
+            task_env_filters: std::collections::HashMap::new(),
         };
         let executor =
             TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)
@@ -724,6 +814,8 @@ tasks: {
             max_size: 1024 * 1024, // 1MB for tests
             mode: crate::cache::CacheMode::ReadWrite,
             inline_threshold: 4096,
+            env_filter: Default::default(),
+            task_env_filters: std::collections::HashMap::new(),
         };
         let executor =
             TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)
@@ -765,6 +857,8 @@ tasks: {
             max_size: 1024 * 1024, // 1MB for tests
             mode: crate::cache::CacheMode::ReadWrite,
             inline_threshold: 4096,
+            env_filter: Default::default(),
+            task_env_filters: std::collections::HashMap::new(),
         };
         let executor =
             TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)

@@ -71,8 +71,9 @@ mod comprehensive_concurrent_tests {
                         inputs: None,
                         outputs: None,
                         security: None,
-                        cache: Some(false),
+                        cache: Some(cuenv::cache::TaskCacheConfig::Simple(false)),
                         cache_key: None,
+                        cache_env: None,
                         timeout: Some(task_timeout.as_secs() as u32),
                     };
 
@@ -176,8 +177,9 @@ mod comprehensive_concurrent_tests {
                             inputs: Some(vec!["src/*.txt".to_string()]),
                             outputs: None,
                             security: None,
-                            cache: Some(true),
+                            cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
                             cache_key: None,
+                            cache_env: None,
                             timeout: None,
                         };
 
@@ -435,8 +437,9 @@ tasks: {
             inputs: Some(vec!["large.bin".to_string()]),
             outputs: None,
             security: None,
-            cache: Some(true),
+            cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
             cache_key: None,
+            cache_env: None,
             timeout: Some(1), // 1 second timeout
         };
 
