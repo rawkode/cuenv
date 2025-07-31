@@ -1,4 +1,4 @@
-use crate::types::SharedString;
+use crate::core::types::SharedString;
 use std::borrow::Cow;
 use std::sync::Arc;
 

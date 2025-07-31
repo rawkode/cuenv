@@ -1,8 +1,8 @@
 use crate::audit::{audit_logger, AuditLogger};
-use crate::errors::{Error, Result};
-use crate::retry::convenience::retry_command;
+use crate::core::errors::{Error, Result};
+use crate::core::types::{CommandArguments, EnvironmentVariables};
 use crate::security::SecurityValidator;
-use crate::types::{CommandArguments, EnvironmentVariables};
+use crate::utils::network::retry::convenience::retry_command;
 use async_trait::async_trait;
 #[cfg(test)]
 use std::collections::HashMap;

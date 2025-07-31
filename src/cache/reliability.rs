@@ -1,8 +1,15 @@
 pub use crate::cache::audit::HealthStatus;
 use crate::cache::errors::RecoveryHint;
+<<<<<<< HEAD
 use crate::cache::metrics::CacheMetrics;
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+use crate::cache::metrics::CacheMetrics;
+=======
+use crate::cache::monitoring::CacheMonitor;
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 use crate::cache::traits::Cache;
 use crate::cache::{CacheError, CacheResult, MonitoredCache};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -13,8 +20,15 @@ use tracing::{error, info, warn};
 
 /// Automatic corruption recovery system
 pub struct CorruptionRecovery<C: Cache> {
+<<<<<<< HEAD
     #[allow(dead_code)]
     cache: Arc<C>,
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+pub struct CorruptionRecovery {
+    cache: Arc<MonitoredCache>,
+=======
+    cache: Arc<MonitoredCache<C>>,
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
     repair_history: Arc<RwLock<HashMap<String, RepairRecord>>>,
     config: RecoveryConfig,
 }
@@ -41,7 +55,14 @@ struct RepairRecord {
 }
 
 impl<C: Cache> CorruptionRecovery<C> {
+<<<<<<< HEAD
     pub fn new(cache: Arc<C>, config: RecoveryConfig) -> Self {
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+impl CorruptionRecovery {
+    pub fn new(cache: Arc<MonitoredCache>, config: RecoveryConfig) -> Self {
+=======
+    pub fn new(cache: Arc<MonitoredCache<C>>, config: RecoveryConfig) -> Self {
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
         Self {
             cache,
             repair_history: Arc::new(RwLock::new(HashMap::new())),
@@ -162,10 +183,19 @@ impl<C: Cache> CorruptionRecovery<C> {
 
 /// Self-tuning cache parameters
 pub struct SelfTuningCache<C: Cache> {
+<<<<<<< HEAD
     #[allow(dead_code)]
     cache: Arc<C>,
     #[allow(dead_code)]
     metrics: Arc<CacheMetrics>,
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+pub struct SelfTuningCache {
+    cache: Arc<MonitoredCache>,
+    metrics: Arc<CacheMetrics>,
+=======
+    cache: Arc<MonitoredCache<C>>,
+    metrics: Arc<CacheMonitor>,
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
     tuning_state: Arc<RwLock<TuningState>>,
     config: TuningConfig,
 }
@@ -196,6 +226,7 @@ pub struct TuningState {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+<<<<<<< HEAD
 pub struct PerformanceSnapshot {
     #[serde(with = "crate::cache::serde_helpers::time::instant_as_nanos")]
     pub timestamp: Instant,
@@ -203,10 +234,40 @@ pub struct PerformanceSnapshot {
     pub p99_latency: f64,
     pub memory_usage: usize,
     pub cpu_usage: f64,
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+struct PerformanceSnapshot {
+    timestamp: Instant,
+    hit_rate: f64,
+    p99_latency: f64,
+    memory_usage: usize,
+    cpu_usage: f64,
+=======
+struct PerformanceSnapshot {
+    timestamp: DateTime<Utc>,
+    hit_rate: f64,
+    p99_latency: f64,
+    memory_usage: usize,
+    cpu_usage: f64,
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 }
 
 impl<C: Cache> SelfTuningCache<C> {
+<<<<<<< HEAD
     pub fn new(cache: Arc<C>, metrics: Arc<CacheMetrics>, config: TuningConfig) -> Self {
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+impl SelfTuningCache {
+    pub fn new(
+        cache: Arc<MonitoredCache>,
+        metrics: Arc<CacheMetrics>,
+        config: TuningConfig,
+    ) -> Self {
+=======
+    pub fn new(
+        cache: Arc<MonitoredCache<C>>,
+        metrics: Arc<CacheMonitor>,
+        config: TuningConfig,
+    ) -> Self {
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
         let initial_state = TuningState {
             current_size: config.max_cache_size / 2,
             current_eviction_threshold: 0.9,
@@ -286,7 +347,7 @@ impl<C: Cache> SelfTuningCache<C> {
         let cpu_usage = 0.15; // Placeholder
 
         Ok(PerformanceSnapshot {
-            timestamp: Instant::now(),
+            timestamp: Utc::now(),
             hit_rate,
             p99_latency,
             memory_usage,
@@ -302,8 +363,14 @@ impl<C: Cache> SelfTuningCache<C> {
 
 /// SLO/SLI monitoring and enforcement
 pub struct SloMonitor {
+<<<<<<< HEAD
     #[allow(dead_code)]
     metrics: Arc<CacheMetrics>,
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+    metrics: Arc<CacheMetrics>,
+=======
+    metrics: Arc<CacheMonitor>,
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
     slos: Vec<ServiceLevelObjective>,
     alerts: Arc<RwLock<Vec<SloViolation>>>,
 }
@@ -328,8 +395,14 @@ pub enum SloMetricType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SloViolation {
     pub slo_name: String,
+<<<<<<< HEAD
     #[serde(with = "crate::cache::serde_helpers::time::instant_as_nanos")]
     pub timestamp: Instant,
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+    pub timestamp: Instant,
+=======
+    pub timestamp: DateTime<Utc>,
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
     pub actual_value: f64,
     pub target_value: f64,
     pub severity: ViolationSeverity,
@@ -343,7 +416,7 @@ pub enum ViolationSeverity {
 }
 
 impl SloMonitor {
-    pub fn new(metrics: Arc<CacheMetrics>) -> Self {
+    pub fn new(metrics: Arc<CacheMonitor>) -> Self {
         // Define default SLOs
         let slos = vec![
             ServiceLevelObjective {
@@ -405,7 +478,7 @@ impl SloMonitor {
             let severity = self.determine_severity(slo, current_value);
             let violation = SloViolation {
                 slo_name: slo.name.clone(),
-                timestamp: Instant::now(),
+                timestamp: Utc::now(),
                 actual_value: current_value,
                 target_value: slo.target,
                 severity,

@@ -3,7 +3,7 @@
 //! This module provides reusable utilities for handling transient failures
 //! and protecting against cascading failures in external operations.
 
-use crate::errors::{Error, Result};
+use crate::core::errors::{Error, Result};
 use std::future::Future;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;

@@ -1,10 +1,11 @@
 use crate::audit::{audit_logger, AuditLogger};
 use crate::command_executor::CommandExecutor;
+use crate::core::types::{CommandArguments, EnvironmentVariables};
 use crate::cue_parser::{HookConfig, HookConstraint};
-use crate::rate_limit::RateLimitManager;
-use crate::resilience::{CircuitBreaker, CircuitBreakerConfig, RetryConfig};
 use crate::security::SecurityValidator;
-use crate::types::{CommandArguments, EnvironmentVariables};
+use crate::utils::network::rate_limit::RateLimitManager;
+use crate::utils::network::retry::RetryConfig;
+use crate::utils::resilience::{CircuitBreaker, CircuitBreakerConfig};
 use anyhow::{anyhow, Result};
 use lru::LruCache;
 use std::collections::HashMap;
@@ -67,7 +68,7 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
             half_open_max_calls: 3,
         };
 
-        let retry_config = RetryConfig::for_network();
+        let retry_config = RetryConfig::network();
 
         Ok(Self {
             executor,

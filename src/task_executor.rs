@@ -1,16 +1,20 @@
 use crate::cache::{
     ActionCache, CacheConfigLoader, CacheConfigResolver, CacheConfiguration, CacheManager,
 };
-use crate::cleanup::ProcessGuard;
+use crate::core::errors::{Error, Result};
 use crate::cue_parser::TaskConfig;
 use crate::env_manager::EnvManager;
-use crate::errors::{Error, Result};
 use crate::security::SecurityValidator;
+use crate::tracing::{
+    self, cache_event, level_span, pipeline_span, task_completed, task_progress, task_span,
+};
+use crate::utils::cleanup::handler::ProcessGuard;
+use ::tracing::Instrument;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::task::JoinSet;
 
 /// Context for task execution to reduce function parameter count
@@ -31,6 +35,7 @@ pub struct TaskExecutionPlan {
 }
 
 /// Main task executor that handles dependency resolution and execution
+#[derive(Clone)]
 pub struct TaskExecutor {
     env_manager: EnvManager,
     working_dir: PathBuf,
@@ -107,11 +112,42 @@ impl TaskExecutor {
         args: &[String],
         audit_mode: bool,
     ) -> Result<i32> {
+        self.execute_tasks_with_dependencies_internal(task_names, args, audit_mode, false)
+            .await
+    }
+
+    /// Internal method that supports output capture for TUI mode
+    pub async fn execute_tasks_with_dependencies_internal(
+        &self,
+        task_names: &[String],
+        args: &[String],
+        audit_mode: bool,
+        capture_output: bool,
+    ) -> Result<i32> {
         // Build execution plan
         let plan = self.build_execution_plan(task_names)?;
 
+        // Create pipeline span for the entire execution
+        let _pipeline_span = pipeline_span(plan.tasks.len());
+        let pipeline_guard = _pipeline_span.enter();
+
+        tracing::info!(
+            requested_tasks = ?task_names,
+            total_tasks = %plan.tasks.len(),
+            levels = %plan.levels.len(),
+            "Starting task execution pipeline"
+        );
+
         // Execute tasks level by level
-        for level in &plan.levels {
+        for (level_idx, level) in plan.levels.iter().enumerate() {
+            let _level_span = level_span(level_idx, level.len());
+            let level_guard = _level_span.enter();
+
+            tracing::info!(
+                level = %level_idx,
+                tasks = ?level,
+                "Starting execution level"
+            );
             let mut join_set = JoinSet::new();
             let failed_tasks = Arc::new(Mutex::new(Vec::with_capacity(level.len())));
 
@@ -128,9 +164,21 @@ impl TaskExecutor {
                 let working_dir = self.working_dir.clone();
                 let task_args = args.to_vec();
                 let failed_tasks = Arc::clone(&failed_tasks);
+<<<<<<< HEAD
                 let task_name = task_name.clone();
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+                let task_name = task_name.clone();
+                let cache_manager = Arc::clone(&self.cache_manager);
                 let action_cache = Arc::clone(&self.action_cache);
+
+                let cache_manager = Arc::clone(&self.cache_manager);
+=======
+                let task_name_owned = task_name.clone();
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+                let action_cache = Arc::clone(&self.action_cache);
+                let env_manager_clone = self.env_manager.clone();
                 let cache_config = self.cache_config.clone();
+<<<<<<< HEAD
                 join_set.spawn(async move {
                     let ctx = TaskExecutionContext {
                         cache_config: &cache_config,
@@ -152,21 +200,209 @@ impl TaskExecutor {
                                     guard.push((task_name, status));
                                 } else {
                                     log::error!("Failed to acquire lock for failed tasks tracking");
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+                join_set.spawn(async move {
+                    match Self::execute_single_task_with_cache(
+                        &cache_config,
+                        &task_name,
+                        &task_config,
+                        &working_dir,
+                        &task_args,
+                        &cache_manager,
+                        &action_cache,
+                        audit_mode,
+                    )
+                    .await
+                    {
+                        Ok(status) => {
+                            if status != 0 {
+                                if let Ok(mut guard) = failed_tasks.lock() {
+                                    guard.push((task_name, status));
+                                } else {
+                                    log::error!("Failed to acquire lock for failed tasks tracking");
+=======
+
+                // Create task span
+                let task_span = task_span(&task_name_owned, task_config.working_dir.as_deref());
+
+                join_set.spawn(
+                    async move {
+                        let start_time = Instant::now();
+
+                        // Publish task started event
+                        if let Some(event_bus) = crate::tui::event_bus::EventBus::global() {
+                            event_bus
+                                .publish(crate::tui::events::TaskEvent::Started {
+                                    task_name: task_name_owned.clone(),
+                                    timestamp: start_time,
+                                })
+                                .await;
+
+                            // Send task configuration info as progress messages
+                            // Show capabilities for this task's command
+                            if let Some(cmd) = &task_config.command {
+                                let capabilities = env_manager_clone.get_command_capabilities(cmd);
+                                if !capabilities.is_empty() {
+                                    event_bus
+                                        .publish(crate::tui::events::TaskEvent::Progress {
+                                            task_name: task_name_owned.clone(),
+                                            message: format!(
+                                                "Capabilities: {}",
+                                                capabilities.join(", ")
+                                            ),
+                                        })
+                                        .await;
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
                                 }
                             }
-                            status
-                        }
-                        Err(e) => {
-                            if let Ok(mut guard) = failed_tasks.lock() {
-                                guard.push((task_name.clone(), -1));
-                            } else {
-                                log::error!("Failed to acquire lock for failed tasks tracking");
+
+                            if let Some(shell) = &task_config.shell {
+                                event_bus
+                                    .publish(crate::tui::events::TaskEvent::Progress {
+                                        task_name: task_name_owned.clone(),
+                                        message: format!("Shell: {}", shell),
+                                    })
+                                    .await;
                             }
-                            eprintln!("Task '{task_name}' failed: {e}");
-                            -1
+
+                            if let Some(timeout) = task_config.timeout {
+                                event_bus
+                                    .publish(crate::tui::events::TaskEvent::Progress {
+                                        task_name: task_name_owned.clone(),
+                                        message: format!("Timeout: {}s", timeout),
+                                    })
+                                    .await;
+                            }
+
+                            if task_config.cache.unwrap_or(false) {
+                                event_bus
+                                    .publish(crate::tui::events::TaskEvent::Progress {
+                                        task_name: task_name_owned.clone(),
+                                        message: "Cache: enabled".to_string(),
+                                    })
+                                    .await;
+                            }
+
+                            if let Some(working_dir) = &task_config.working_dir {
+                                event_bus
+                                    .publish(crate::tui::events::TaskEvent::Progress {
+                                        task_name: task_name_owned.clone(),
+                                        message: format!("Working dir: {}", working_dir),
+                                    })
+                                    .await;
+                            }
+
+                            if let Some(security) = &task_config.security {
+                                let mut restrictions = Vec::new();
+                                if security.restrict_disk.unwrap_or(false) {
+                                    restrictions.push("disk");
+                                }
+                                if security.restrict_network.unwrap_or(false) {
+                                    restrictions.push("network");
+                                }
+                                if !restrictions.is_empty() {
+                                    event_bus
+                                        .publish(crate::tui::events::TaskEvent::Progress {
+                                            task_name: task_name_owned.clone(),
+                                            message: format!(
+                                                "Security: {} restricted",
+                                                restrictions.join(", ")
+                                            ),
+                                        })
+                                        .await;
+                                }
+                            }
+                        }
+
+                        match Self::execute_single_task_with_cache(
+                            &cache_config,
+                            &task_name_owned,
+                            &task_config,
+                            &working_dir,
+                            &task_args,
+                            &self.cache_manager,
+                            &action_cache,
+                            audit_mode,
+                            capture_output,
+                        )
+                        .await
+                        {
+                            Ok(status) => {
+                                let duration_ms = start_time.elapsed().as_millis() as u64;
+                                if status != 0 {
+                                    if let Ok(mut guard) = failed_tasks.lock() {
+                                        guard.push((task_name_owned.clone(), status));
+                                    } else {
+                                        tracing::error!(
+                                            "Failed to acquire lock for failed tasks tracking"
+                                        );
+                                    }
+
+                                    // Publish task failed event
+                                    if let Some(event_bus) =
+                                        crate::tui::event_bus::EventBus::global()
+                                    {
+                                        event_bus
+                                            .publish(crate::tui::events::TaskEvent::Failed {
+                                                task_name: task_name_owned.clone(),
+                                                error: format!("Task exited with code {}", status),
+                                                duration_ms,
+                                            })
+                                            .await;
+                                    }
+
+                                    task_completed(&task_name_owned, duration_ms, false);
+                                } else {
+                                    // Publish task completed event
+                                    if let Some(event_bus) =
+                                        crate::tui::event_bus::EventBus::global()
+                                    {
+                                        event_bus
+                                            .publish(crate::tui::events::TaskEvent::Completed {
+                                                task_name: task_name_owned.clone(),
+                                                exit_code: status,
+                                                duration_ms,
+                                            })
+                                            .await;
+                                    }
+
+                                    task_completed(&task_name_owned, duration_ms, true);
+                                }
+                                status
+                            }
+                            Err(e) => {
+                                let duration_ms = start_time.elapsed().as_millis() as u64;
+                                if let Ok(mut guard) = failed_tasks.lock() {
+                                    guard.push((task_name_owned.clone(), -1));
+                                } else {
+                                    tracing::error!(
+                                        "Failed to acquire lock for failed tasks tracking"
+                                    );
+                                }
+
+                                // Publish task failed event
+                                if let Some(event_bus) = crate::tui::event_bus::EventBus::global() {
+                                    event_bus
+                                        .publish(crate::tui::events::TaskEvent::Failed {
+                                            task_name: task_name_owned.clone(),
+                                            error: e.to_string(),
+                                            duration_ms,
+                                        })
+                                        .await;
+                                }
+
+                                tracing::error!(
+                                    task_name = %task_name_owned,
+                                    error = %e,
+                                    "Task execution failed"
+                                );
+                                task_completed(&task_name_owned, duration_ms, false);
+                                -1
+                            }
                         }
                     }
-                });
+                    .instrument(task_span),
+                );
             }
 
             // Wait for all tasks in this level to complete
@@ -188,8 +424,12 @@ impl TaskExecutor {
                     failed_names.join(", ")
                 )));
             }
+
+            drop(level_guard);
         }
 
+        drop(pipeline_guard);
+        tracing::info!("Task execution pipeline completed successfully");
         Ok(0)
     }
 
@@ -387,6 +627,17 @@ impl TaskExecutor {
         task_name: &str,
         task_config: &TaskConfig,
         args: &[String],
+<<<<<<< HEAD
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+        _cache_manager: &CacheManager,
+        action_cache: &ActionCache,
+        audit_mode: bool,
+=======
+        _cache_manager: &CacheManager,
+        action_cache: &ActionCache,
+        audit_mode: bool,
+        capture_output: bool,
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
     ) -> Result<i32> {
         // Check if caching is enabled for this task using the new configuration system
         let cache_enabled = CacheConfigResolver::should_cache_task(
@@ -413,10 +664,29 @@ impl TaskExecutor {
         let result = ctx
             .action_cache
             .execute_action(&digest, || async {
+<<<<<<< HEAD
                 println!("→ Executing task '{task_name}'");
                 let exit_code =
                     Self::execute_single_task(task_config, ctx.working_dir, args, ctx.audit_mode)
                         .await?;
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+                println!("→ Executing task '{task_name}'");
+                let exit_code =
+                    Self::execute_single_task(task_config, working_dir, args, audit_mode).await?;
+=======
+                cache_event(task_name, false, "task_result");
+                task_progress(task_name, Some(0), "Starting task execution");
+
+                let exit_code = Self::execute_single_task(
+                    task_name,
+                    task_config,
+                    working_dir,
+                    args,
+                    audit_mode,
+                    capture_output,
+                )
+                .await?;
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 
                 // Create ActionResult for caching
                 Ok(crate::cache::ActionResult {
@@ -432,12 +702,17 @@ impl TaskExecutor {
 
         // Update cache manager statistics for backward compatibility
         if result.exit_code == 0 {
-            println!("✓ Task '{task_name}' completed successfully (cached)");
+            task_progress(task_name, Some(100), "Task completed successfully");
+            if !capture_output {
+                println!("✓ Task '{task_name}' completed successfully");
+            }
         } else {
-            println!(
-                "✗ Task '{task_name}' failed with exit code {}",
-                result.exit_code
-            );
+            if !capture_output {
+                println!(
+                    "✗ Task '{task_name}' failed with exit code {}",
+                    result.exit_code
+                );
+            }
         }
 
         Ok(result.exit_code)
@@ -445,10 +720,12 @@ impl TaskExecutor {
 
     /// Execute a single task
     async fn execute_single_task(
+        task_name: &str,
         task_config: &TaskConfig,
         working_dir: &Path,
         args: &[String],
         audit_mode: bool,
+        capture_output: bool,
     ) -> Result<i32> {
         // Determine what to execute
         let (shell, script_content) = match (&task_config.command, &task_config.script) {
@@ -517,12 +794,19 @@ impl TaskExecutor {
 
         // Configure process group for better cleanup
         let mut cmd = Command::new(&shell);
-        cmd.arg("-c")
-            .arg(&script_content)
-            .current_dir(&exec_dir)
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit());
+        cmd.arg("-c").arg(&script_content).current_dir(&exec_dir);
+
+        if capture_output {
+            // Capture output for TUI mode to prevent interference
+            cmd.stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
+        } else {
+            // Normal mode - inherit stdio
+            cmd.stdin(Stdio::inherit())
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit());
+        }
 
         // On Unix, create a new process group for better cleanup
         #[cfg(unix)]
@@ -564,7 +848,7 @@ impl TaskExecutor {
         }
 
         // Spawn the process with timeout
-        let child = cmd.spawn().map_err(|e| {
+        let mut child = cmd.spawn().map_err(|e| {
             Error::command_execution(
                 &shell,
                 vec!["-c".to_string(), script_content.clone()],
@@ -572,6 +856,84 @@ impl TaskExecutor {
                 None,
             )
         })?;
+
+        // Handle output streaming if capturing
+        let (stdout_handle, stderr_handle) = if capture_output {
+            use std::io::{BufRead, BufReader};
+
+            // Take stdout and stderr from child
+            let stdout = child.stdout.take();
+            let stderr = child.stderr.take();
+
+            let task_name_stdout = task_name.to_string();
+            let task_name_stderr = task_name.to_string();
+
+            // Spawn thread to read stdout
+            let stdout_handle = stdout.map(|stdout| {
+                std::thread::spawn(move || {
+                    // Create a tokio runtime for this thread
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build();
+
+                    if let Ok(rt) = rt {
+                        let reader = BufReader::new(stdout);
+                        for line in reader.lines().flatten() {
+                            // Try to publish to event bus
+                            if let Some(event_bus) = crate::tui::event_bus::EventBus::global() {
+                                let task_name = task_name_stdout.clone();
+                                let event = crate::tui::events::TaskEvent::Log {
+                                    task_name,
+                                    stream: crate::tui::events::LogStream::Stdout,
+                                    content: line,
+                                };
+
+                                // Use spawn instead of block_on to avoid blocking the runtime
+                                let event_bus_clone = event_bus.clone();
+                                rt.spawn(async move {
+                                    event_bus_clone.publish(event).await;
+                                });
+                            }
+                        }
+                    }
+                })
+            });
+
+            // Spawn thread to read stderr
+            let stderr_handle = stderr.map(|stderr| {
+                std::thread::spawn(move || {
+                    // Create a tokio runtime for this thread
+                    let rt = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build();
+
+                    if let Ok(rt) = rt {
+                        let reader = BufReader::new(stderr);
+                        for line in reader.lines().flatten() {
+                            // Try to publish to event bus
+                            if let Some(event_bus) = crate::tui::event_bus::EventBus::global() {
+                                let task_name = task_name_stderr.clone();
+                                let event = crate::tui::events::TaskEvent::Log {
+                                    task_name,
+                                    stream: crate::tui::events::LogStream::Stderr,
+                                    content: line,
+                                };
+
+                                // Use spawn instead of block_on to avoid blocking the runtime
+                                let event_bus_clone = event_bus.clone();
+                                rt.spawn(async move {
+                                    event_bus_clone.publish(event).await;
+                                });
+                            }
+                        }
+                    }
+                })
+            });
+
+            (stdout_handle, stderr_handle)
+        } else {
+            (None, None)
+        };
 
         // Use ProcessGuard for automatic cleanup
         let timeout = match task_config.timeout {
@@ -591,12 +953,47 @@ impl TaskExecutor {
             )
         })?;
 
+        // Wait for output threads to complete
+        if let Some(handle) = stdout_handle {
+            let _ = handle.join();
+        }
+        if let Some(handle) = stderr_handle {
+            let _ = handle.join();
+        }
+
         Ok(status.code().unwrap_or(1))
     }
 
     /// List all available tasks
     pub fn list_tasks(&self) -> Vec<(String, Option<String>)> {
         self.env_manager.list_tasks()
+    }
+
+    /// Get CUE environment variables
+    pub fn get_env_vars(&self) -> &HashMap<String, String> {
+        self.env_manager.get_cue_vars()
+    }
+
+    /// Get filtered environment variables for a specific task
+    pub fn get_task_env_vars(&self, task_name: &str) -> HashMap<String, String> {
+        // Get the task config
+        let all_tasks = self.env_manager.get_tasks();
+        let task_config = match all_tasks.get(task_name) {
+            Some(config) => config,
+            None => return HashMap::new(),
+        };
+
+        // Get the command from the task
+        let command = match &task_config.command {
+            Some(cmd) => cmd,
+            None => return self.env_manager.get_cue_vars().clone(), // No command, return all vars
+        };
+
+        // Get capabilities for this command
+        let capabilities = self.env_manager.get_command_capabilities(command);
+
+        // Return filtered variables based on capabilities
+        self.env_manager.get_filtered_vars(&capabilities)
     }
 
     /// Clear the task cache

@@ -12,6 +12,10 @@ readme = "README.md"
 keywords = ["environment", "cue", "direnv", "env", "shell"]
 categories = ["command-line-utilities", "development-tools", "config"]
 
+[features]
+default = []
+remote-cache = []
+
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 clap_complete = "4.5"
@@ -21,8 +25,8 @@ anyhow = "1.0"
 thiserror = "1.0"
 dirs = "5.0"
 shellexpand = "3.1"
-env_logger = "0.11"
-log = "0.4"
+crossterm = "0.27"
+unicode-width = "0.1"
 libc = "0.2"
 regex = "1.10"
 lazy_static = "1.4"
@@ -51,6 +55,7 @@ rand = "0.8"
 # Moon cache system for robust build caching
 miette = "7.4"
 tracing = "0.1"
+log = "0.4"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 fs2 = "0.4"
 globset = "0.4"
@@ -89,6 +94,9 @@ pin-project-lite = "0.2"
 # Ed25519 signatures for cryptographic integrity (Phase 7)
 ed25519-dalek = { version = "2.1", features = ["rand_core"] }
 getrandom = "0.2"
+# TUI dependencies
+ratatui = { version = "0.28", features = ["crossterm"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
 
 [target.'cfg(unix)'.dependencies]
 signal-hook = "0.3"
@@ -124,3 +132,24 @@ harness = false
 [[bench]]
 name = "cache_regression_bench"
 harness = false
+<<<<<<< HEAD
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+
+[[bin]]
+name = "remote_cache_server"
+path = "src/remote_cache/bin/server.rs"
+
+[[bin]]
+name = "bazel_cache_server"
+path = "src/remote_cache/bin/bazel_server.rs"
+=======
+
+[[bin]]
+name = "remote_cache_server"
+path = "src/remote_cache/bin/server.rs"
+required-features = ["remote-cache"]
+
+[[bin]]
+name = "bazel_cache_server"
+path = "src/remote_cache/bin/bazel_server.rs"
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)

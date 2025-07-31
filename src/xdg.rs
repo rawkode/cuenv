@@ -79,7 +79,7 @@ impl XdgPaths {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sync_env::SyncEnv;
+    use crate::utils::sync::env::SyncEnv;
     use std::env;
 
     #[test]

@@ -1,5 +1,5 @@
-use crate::constants::{AUDIT_IGNORED_PATH_PREFIXES, AUDIT_LOG_PATH, LD_SO_CACHE};
-use crate::errors::{Error, Result};
+use crate::core::constants::{AUDIT_IGNORED_PATH_PREFIXES, AUDIT_LOG_PATH, LD_SO_CACHE};
+use crate::core::errors::{Error, Result};
 use std::path::PathBuf;
 use std::process::Command;
 

@@ -83,6 +83,14 @@ enum Commands {
         /// Run in audit mode to see file and network access without restrictions
         #[arg(long)]
         audit: bool,
+
+        /// Output format for task execution (tui or simple)
+        #[arg(long, value_name = "FORMAT", default_value = "tui")]
+        output: String,
+
+        /// Generate Chrome trace output file
+        #[arg(long)]
+        trace_output: bool,
     },
     Exec {
         /// Environment to use (e.g., dev, staging, production)
@@ -128,6 +136,7 @@ enum Commands {
         command: CacheCommands,
     },
     /// Start remote cache server for Bazel/Buck2
+    #[cfg(feature = "remote-cache")]
     RemoteCacheServer {
         /// Address to listen on
         #[arg(short, long, default_value = "127.0.0.1:50051")]
@@ -599,7 +608,18 @@ async fn complete_hosts() -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::init();
+    // Check if --output=tui is present before initializing tracing
+    let args: Vec<String> = env::args().collect();
+    let use_tui = args.windows(2).any(|w| w[0] == "--output" && w[1] == "tui")
+        || !args.iter().any(|arg| arg == "--output"); // Default is tui
+
+    // Only initialize tracing if not using TUI
+    if !use_tui {
+        if let Err(e) = cuenv::tracing::init() {
+            eprintln!("Failed to initialize tracing: {}", e);
+            std::process::exit(1);
+        }
+    }
 
     // Initialize cleanup handling for proper resource management
     cuenv::cleanup::init_cleanup_handler();
@@ -753,6 +773,8 @@ async fn main() -> Result<()> {
             task_name,
             task_args,
             audit,
+            output,
+            trace_output,
         }) => {
             let current_dir = match env::current_dir() {
                 Ok(d) => d,
@@ -792,7 +814,24 @@ async fn main() -> Result<()> {
                     if env_manager.get_task(&name).is_some() {
                         // Execute the specified task
                         let executor = TaskExecutor::new(env_manager, current_dir).await?;
-                        let status = if audit {
+                        let status = if output == "simple" {
+                            // Force simple output
+                            use cuenv::task_executor_tui::TaskExecutorTui;
+                            executor
+                                .execute_with_simple_output(
+                                    &[name.clone()],
+                                    &task_args,
+                                    audit,
+                                    trace_output,
+                                )
+                                .await?
+                        } else if output == "tui" {
+                            // Use TUI mode
+                            use cuenv::task_executor_tui::TaskExecutorTui;
+                            executor
+                                .execute_with_tui(&[name.clone()], &task_args, audit)
+                                .await?
+                        } else if audit {
                             executor.execute_task_with_audit(&name, &task_args).await?
                         } else {
                             executor.execute_task(&name, &task_args).await?
@@ -1075,6 +1114,7 @@ async fn main() -> Result<()> {
                 }
             }
         }
+        #[cfg(feature = "remote-cache")]
         Some(Commands::RemoteCacheServer {
             address: _,
             cache_dir: _,

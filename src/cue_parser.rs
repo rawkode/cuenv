@@ -1,7 +1,7 @@
 use crate::cache::TaskCacheConfig;
-use crate::constants::ENV_PACKAGE_NAME;
-use crate::errors::{Error, Result};
-use crate::resilience::suggest_recovery;
+use crate::core::constants::ENV_PACKAGE_NAME;
+use crate::core::errors::{Error, Result};
+use crate::utils::resilience::suggest_recovery;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
@@ -97,9 +97,9 @@ pub enum HookValue {
     Multiple(Vec<Hook>),
 }
 
-#[derive(Debug, Deserialize)]
-struct VariableMetadata {
-    capability: Option<String>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VariableMetadata {
+    pub capability: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -354,6 +354,7 @@ pub struct ParseOptions {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ParseResult {
     pub variables: HashMap<String, String>,
+    pub metadata: HashMap<String, VariableMetadata>,
     pub commands: HashMap<String, CommandConfig>,
     pub tasks: HashMap<String, TaskConfig>,
     pub hooks: HashMap<String, Vec<Hook>>,
@@ -521,6 +522,7 @@ impl CueParser {
 
         Ok(ParseResult {
             variables: final_vars,
+            metadata: std::mem::take(&mut cue_result.metadata),
             commands: std::mem::take(&mut cue_result.commands),
             tasks: std::mem::take(&mut cue_result.tasks),
             hooks,

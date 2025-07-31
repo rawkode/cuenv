@@ -1,5 +1,5 @@
-use crate::errors::{Error, Result};
-use crate::sync_env::SyncEnv;
+use crate::core::errors::{Error, Result};
+use crate::utils::sync::env::SyncEnv;
 use std::collections::{HashMap, HashSet};
 use std::io::{self, BufReader};
 use std::path::Path;
@@ -7,13 +7,29 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, RwLock};
 
 use crate::access_restrictions::AccessRestrictions;
+<<<<<<< HEAD
 use crate::cue_parser::{CommandConfig, CueParser, ExecConfig, Hook, ParseOptions, TaskConfig};
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+use crate::command_executor::CommandExecutor;
+use crate::cue_parser::{CommandConfig, CueParser, HookConfig, HookType, ParseOptions, TaskConfig};
+=======
+use crate::command_executor::CommandExecutor;
+use crate::core::types::{CommandArguments, EnvironmentVariables};
+use crate::cue_parser::{CommandConfig, CueParser, HookConfig, HookType, ParseOptions, TaskConfig};
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 use crate::env_diff::EnvDiff;
 use crate::file_times::FileTimes;
 use crate::output_filter::OutputFilter;
 use crate::platform::{PlatformOps, Shell};
 use crate::secrets::SecretManager;
 use crate::state::StateManager;
+<<<<<<< HEAD
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+use crate::types::{CommandArguments, EnvironmentVariables};
+use async_trait::async_trait;
+=======
+use async_trait::async_trait;
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 
 // Import the platform-specific implementation
 #[cfg(unix)]
@@ -21,9 +37,11 @@ use crate::platform::UnixPlatform as Platform;
 #[cfg(windows)]
 use crate::platform::WindowsPlatform as Platform;
 
+#[derive(Clone)]
 pub struct EnvManager {
     original_env: HashMap<String, String>,
     cue_vars: HashMap<String, String>,
+    cue_vars_metadata: HashMap<String, crate::cue_parser::VariableMetadata>,
     commands: HashMap<String, CommandConfig>,
     tasks: HashMap<String, TaskConfig>,
     hooks: HashMap<String, Vec<Hook>>,
@@ -35,6 +53,7 @@ impl EnvManager {
             // Pre-allocate with reasonable initial capacities to reduce rehashing
             original_env: HashMap::with_capacity(100), // Environment typically has many vars
             cue_vars: HashMap::with_capacity(50),      // CUE vars are usually fewer
+            cue_vars_metadata: HashMap::with_capacity(50), // Metadata for each var
             commands: HashMap::with_capacity(20),      // Commands are limited
             tasks: HashMap::with_capacity(20),         // Tasks are also limited
             hooks: HashMap::with_capacity(4),          // Usually only a few hooks
@@ -80,14 +99,18 @@ impl EnvManager {
                 // Look up the command in our commands configuration
                 if let Some(cmd_config) = self.commands.get(cmd) {
                     if let Some(cmd_caps) = &cmd_config.capabilities {
-                        log::info!("Inferred capabilities for command '{cmd}': {cmd_caps:?}");
+                        tracing::info!(
+                            command = %cmd,
+                            capabilities = ?cmd_caps,
+                            "Inferred capabilities for command"
+                        );
                         capabilities = cmd_caps.clone();
                     }
                 }
             }
 
             if capabilities.is_empty() {
-                log::info!(
+                tracing::info!(
                     "No capabilities specified or inferred, will load all non-capability-tagged variables"
                 );
             }
@@ -99,11 +122,11 @@ impl EnvManager {
             capabilities,
         };
 
-        log::info!(
-            "Loading CUE package from: {} with env={:?}, capabilities={:?}",
-            dir.display(),
-            options.environment,
-            options.capabilities
+        tracing::info!(
+            path = %dir.display(),
+            environment = ?options.environment,
+            capabilities = ?options.capabilities,
+            "Loading CUE package"
         );
 
         // First, parse CUE package to get hooks and initial environment
@@ -167,7 +190,80 @@ impl EnvManager {
             if !exit_hooks.is_empty() {
                 log::info!("Executing {} onExit hooks", exit_hooks.len());
 
+<<<<<<< HEAD
                 // Execute onExit hooks using async runtime
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+        if !exit_hooks.is_empty() {
+            log::info!("Executing {} onExit hooks", exit_hooks.len());
+            // Use run_async to avoid creating a new runtime if already in one
+            // This is safe because unload_env is called from a sync context (main.rs)
+            // but the hook execution itself is async.
+            // We don't need a separate runtime here, as hook_manager.execute_hook is async.
+            // The block_on will be handled by run_async if needed.
+
+            // Create command executor and hook manager
+            let executor = Arc::new(crate::command_executor::SystemCommandExecutor::new());
+            let hook_manager = match HookManager::new(executor) {
+                Ok(hm) => hm,
+                Err(e) => {
+                    log::error!("Failed to create hook manager: {e}");
+                    return Err(Error::configuration(format!(
+                        "Failed to create hook manager: {e}"
+                    )));
+                }
+            };
+
+            // Get current environment variables for hook execution
+            let current_env_vars: HashMap<String, String> = SyncEnv::vars()
+                .map_err(|e| Error::Configuration {
+                    message: format!("Failed to get environment variables: {e}"),
+                })?
+                .into_iter()
+                .collect();
+
+            for (name, config) in exit_hooks {
+                log::debug!("Executing onExit hook: {name}");
+=======
+        if !exit_hooks.is_empty() {
+            tracing::info!(
+                count = %exit_hooks.len(),
+                "Executing onExit hooks"
+            );
+            // Use run_async to avoid creating a new runtime if already in one
+            // This is safe because unload_env is called from a sync context (main.rs)
+            // but the hook execution itself is async.
+            // We don't need a separate runtime here, as hook_manager.execute_hook is async.
+            // The block_on will be handled by run_async if needed.
+
+            // Create command executor and hook manager
+            let executor = Arc::new(crate::command_executor::SystemCommandExecutor::new());
+            let hook_manager = match HookManager::new(executor) {
+                Ok(hm) => hm,
+                Err(e) => {
+                    tracing::error!(
+                        error = %e,
+                        "Failed to create hook manager"
+                    );
+                    return Err(Error::configuration(format!(
+                        "Failed to create hook manager: {e}"
+                    )));
+                }
+            };
+
+            // Get current environment variables for hook execution
+            let current_env_vars: HashMap<String, String> = SyncEnv::vars()
+                .map_err(|e| Error::Configuration {
+                    message: format!("Failed to get environment variables: {e}"),
+                })?
+                .into_iter()
+                .collect();
+
+            for (name, config) in exit_hooks {
+                tracing::debug!(
+                    hook_name = %name,
+                    "Executing onExit hook"
+                );
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
                 match crate::async_runtime::run_async(async {
                     for hook in exit_hooks {
                         if let Err(e) = self.execute_non_sourcing_hook(hook).await {
@@ -177,11 +273,26 @@ impl EnvManager {
                     }
                     Ok::<(), Error>(())
                 }) {
+<<<<<<< HEAD
                     Ok(()) => {}
                     Err(e) => {
                         log::error!("Failed to execute onExit hooks: {e}");
                         return Err(e);
                     }
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+                    Ok(_) => log::info!("Successfully executed onExit hook: {name}"),
+                    Err(e) => log::error!("Failed to execute onExit hook {name}: {e}"),
+=======
+                    Ok(_) => tracing::info!(
+                        hook_name = %name,
+                        "Successfully executed onExit hook"
+                    ),
+                    Err(e) => tracing::error!(
+                        hook_name = %name,
+                        error = %e,
+                        "Failed to execute onExit hook"
+                    ),
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
                 }
             }
         }
@@ -204,8 +315,9 @@ impl EnvManager {
             }
         }
 
-        // Clear CUE vars
+        // Clear CUE vars and metadata
         self.cue_vars.clear();
+        self.cue_vars_metadata.clear();
 
         Ok(())
     }
@@ -249,6 +361,10 @@ impl EnvManager {
         self.tasks.extend(parse_result.tasks);
         self.hooks.extend(parse_result.hooks);
 
+        // Store variable metadata
+        self.cue_vars_metadata.clear();
+        self.cue_vars_metadata.extend(parse_result.metadata);
+
         // Build the new environment
         let mut new_env = self.original_env.clone();
         self.cue_vars.clear();
@@ -263,7 +379,11 @@ impl EnvManager {
                 }
             };
 
-            log::debug!("Setting {key}={expanded_value}");
+            tracing::debug!(
+                key = %key,
+                value = %expanded_value,
+                "Setting environment variable"
+            );
             new_env.insert(key.clone(), expanded_value.clone());
             self.cue_vars.insert(key.clone(), expanded_value.clone());
             SyncEnv::set_var(key, expanded_value).map_err(|e| Error::Configuration {
@@ -304,21 +424,62 @@ impl EnvManager {
             .into_iter()
             .collect();
 
-        println!("Environment changes:");
+        // Emit structured events for environment changes while maintaining user output
+        let is_tty = std::io::IsTerminal::is_terminal(&std::io::stderr());
 
-        for (key, value) in &current_env {
-            if let Some(original) = self.original_env.get(key) {
-                if original != value {
-                    println!("  {key} (modified): {original} -> {value}");
+        if is_tty {
+            // In TTY mode, emit structured events for the tree view
+            tracing::info!("Environment changes detected");
+
+            for (key, value) in &current_env {
+                if let Some(original) = self.original_env.get(key) {
+                    if original != value {
+                        tracing::info!(
+                            key = %key,
+                            old_value = %original,
+                            new_value = %value,
+                            change_type = "modified",
+                            "Environment variable modified"
+                        );
+                    }
+                } else {
+                    tracing::info!(
+                        key = %key,
+                        value = %value,
+                        change_type = "new",
+                        "Environment variable added"
+                    );
                 }
-            } else {
-                println!("  {key} (new): {value}");
             }
-        }
 
-        for (key, value) in &self.original_env {
-            if !current_env.contains_key(key) {
-                println!("  {key} (removed): {value}");
+            for (key, value) in &self.original_env {
+                if !current_env.contains_key(key) {
+                    tracing::info!(
+                        key = %key,
+                        value = %value,
+                        change_type = "removed",
+                        "Environment variable removed"
+                    );
+                }
+            }
+        } else {
+            // In non-TTY mode, maintain original output format
+            println!("Environment changes:");
+
+            for (key, value) in &current_env {
+                if let Some(original) = self.original_env.get(key) {
+                    if original != value {
+                        println!("  {key} (modified): {original} -> {value}");
+                    }
+                } else {
+                    println!("  {key} (new): {value}");
+                }
+            }
+
+            for (key, value) in &self.original_env {
+                if !current_env.contains_key(key) {
+                    println!("  {key} (removed): {value}");
+                }
             }
         }
 
@@ -376,7 +537,7 @@ impl EnvManager {
         // Resolve secrets in the environment variables
         let (resolved_env, secret_values) = if cfg!(test) {
             // Skip secret resolution in tests
-            use crate::types::SecretValues;
+            use crate::core::types::SecretValues;
             (env_from_cue, SecretValues::new())
         } else {
             let secret_manager = SecretManager::new();
@@ -568,7 +729,7 @@ impl EnvManager {
         // Resolve secrets in the environment variables
         let (resolved_env, secret_values) = if cfg!(test) {
             // Skip secret resolution in tests
-            use crate::types::SecretValues;
+            use crate::core::types::SecretValues;
             (env_from_cue, SecretValues::new())
         } else {
             let secret_manager = SecretManager::new();
@@ -761,6 +922,7 @@ impl EnvManager {
         &self.tasks
     }
 
+<<<<<<< HEAD
     async fn execute_on_enter_hooks(&self) -> Result<()> {
         // Execute onEnter hooks that are NOT sourcing hooks (those were already executed)
         if let Some(on_enter_hooks) = self.hooks.get("onEnter") {
@@ -768,6 +930,62 @@ impl EnvManager {
                 .iter()
                 .filter(|hook| !self.should_source_hook(hook))
                 .collect();
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+    fn execute_on_enter_hooks(&self) -> Result<()> {
+        // Filter for onEnter hooks
+        let on_enter_hooks: Vec<(&String, &HookConfig)> = self
+            .hooks
+            .iter()
+            .filter(|(_, config)| config.hook_type == HookType::OnEnter)
+            .collect();
+=======
+    /// Get CUE environment variables
+    pub fn get_cue_vars(&self) -> &HashMap<String, String> {
+        &self.cue_vars
+    }
+
+    /// Get the capabilities for a specific command
+    pub fn get_command_capabilities(&self, command: &str) -> Vec<String> {
+        // Extract the base command from the full command string
+        let base_command = command.split_whitespace().next().unwrap_or("");
+
+        self.commands
+            .get(base_command)
+            .and_then(|config| config.capabilities.clone())
+            .unwrap_or_default()
+    }
+
+    /// Get filtered environment variables based on capabilities
+    pub fn get_filtered_vars(&self, capabilities: &[String]) -> HashMap<String, String> {
+        self.cue_vars
+            .iter()
+            .filter(|(key, _)| {
+                // Check if this variable should be included based on capabilities
+                if let Some(metadata) = self.cue_vars_metadata.get(*key) {
+                    if let Some(capability) = &metadata.capability {
+                        // Variable has a capability requirement
+                        capabilities.contains(capability)
+                    } else {
+                        // No capability requirement, always include
+                        true
+                    }
+                } else {
+                    // No metadata, always include
+                    true
+                }
+            })
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
+    }
+
+    fn execute_on_enter_hooks(&self) -> Result<()> {
+        // Filter for onEnter hooks
+        let on_enter_hooks: Vec<(&String, &HookConfig)> = self
+            .hooks
+            .iter()
+            .filter(|(_, config)| config.hook_type == HookType::OnEnter)
+            .collect();
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 
             if non_sourcing_hooks.is_empty() {
                 return Ok(());
@@ -783,6 +1001,7 @@ impl EnvManager {
             }
         }
 
+<<<<<<< HEAD
         Ok(())
     }
 
@@ -897,6 +1116,14 @@ impl EnvManager {
     async fn execute_exec_hook(&self, exec: &crate::cue_parser::ExecConfig) -> Result<()> {
         use crate::command_executor::CommandExecutor;
         use crate::types::{CommandArguments, EnvironmentVariables};
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+        log::info!("Executing {} onEnter hooks", on_enter_hooks.len());
+=======
+        tracing::info!(
+            count = %on_enter_hooks.len(),
+            "Executing onEnter hooks"
+        );
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 
         let env_vars = self.collect_cue_env_vars()?;
         let hook_env = EnvironmentVariables::from_map(env_vars);
@@ -930,6 +1157,7 @@ impl EnvManager {
             eprint!("{}", String::from_utf8_lossy(&output.stderr));
         }
 
+<<<<<<< HEAD
         Ok(())
     }
 
@@ -1193,11 +1421,50 @@ impl EnvManager {
         for (key, value) in variables {
             let expanded_value = match shellexpand::full(&value) {
                 Ok(expanded) => expanded.to_string(),
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+        for (name, config) in on_enter_hooks {
+            log::debug!("Executing onEnter hook: {name}");
+            match crate::async_runtime::run_async(async {
+                hook_manager
+                    .execute_hook(config, &env_vars)
+                    .await
+                    .map_err(Error::from)
+            }) {
+                Ok(_) => log::info!("Successfully executed onEnter hook: {name}"),
+=======
+        for (name, config) in on_enter_hooks {
+            tracing::debug!(
+                hook_name = %name,
+                "Executing onEnter hook"
+            );
+            match crate::async_runtime::run_async(async {
+                hook_manager
+                    .execute_hook(config, &env_vars)
+                    .await
+                    .map_err(Error::from)
+            }) {
+                Ok(_) => tracing::info!(
+                    hook_name = %name,
+                    "Successfully executed onEnter hook"
+                ),
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
                 Err(e) => {
+<<<<<<< HEAD
                     return Err(Error::shell_expansion(
                         &value,
                         format!("Failed to expand value for {key}: {e}"),
                     ));
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+                    // Log error but continue with other hooks
+                    log::error!("Failed to execute onEnter hook '{name}': {e}");
+=======
+                    // Log error but continue with other hooks
+                    tracing::error!(
+                        hook_name = %name,
+                        error = %e,
+                        "Failed to execute onEnter hook"
+                    );
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
                 }
             };
 

@@ -7,8 +7,13 @@
 //! - Cache-line aware memory layouts
 //! - Prefetching and branch prediction hints
 
+<<<<<<< HEAD
 #![allow(dead_code)]
 
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+use parking_lot::{Mutex, RwLock};
+=======
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 use parking_lot::Mutex;
 use std::alloc::{alloc, dealloc, Layout};
 use std::ptr;
@@ -239,6 +244,12 @@ pub fn unlikely() {
 }
 
 #[inline(always)]
+<<<<<<< HEAD
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+#[hot]
+=======
+// #[hot] - custom attribute not available
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 pub fn likely() {
     // This function is marked hot to hint that it's likely to be called
 }

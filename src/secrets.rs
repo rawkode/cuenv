@@ -1,9 +1,10 @@
 use crate::audit::{audit_logger, AuditLogger};
 use crate::command_executor::{CommandExecutor, CommandExecutorFactory};
-use crate::errors::{Error, Result};
-use crate::rate_limit::RateLimitManager;
-use crate::resilience::{retry, CircuitBreaker, CircuitBreakerConfig, RetryConfig};
-use crate::types::{CommandArguments, EnvironmentVariables, SecretValues};
+use crate::core::errors::{Error, Result};
+use crate::core::types::{CommandArguments, EnvironmentVariables, SecretValues};
+use crate::utils::network::rate_limit::RateLimitManager;
+use crate::utils::network::retry::{retry_async as retry, RetryConfig};
+use crate::utils::resilience::{CircuitBreaker, CircuitBreakerConfig};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -44,7 +45,7 @@ impl CommandResolver {
     }
 
     pub fn with_executor(max_concurrent: usize, executor: Box<dyn CommandExecutor>) -> Self {
-        let retry_config = RetryConfig::for_network();
+        let retry_config = RetryConfig::network();
         let circuit_breaker_config = CircuitBreakerConfig {
             failure_threshold: 5,
             success_threshold: 2,
@@ -75,7 +76,7 @@ impl CommandResolver {
         if !*shown {
             // In a real implementation, we might want to prompt the user here
             // For now, we'll just log that we're starting secret resolution
-            log::info!("Starting secret resolution. This may prompt for authentication...");
+            tracing::info!("Starting secret resolution. This may prompt for authentication...");
             *shown = true;
         }
         Ok(())
@@ -106,7 +107,7 @@ impl CommandResolver {
         let executor = &self.executor;
         let circuit_breaker = &self.circuit_breaker;
 
-        retry(&self.retry_config, || {
+        retry(self.retry_config.clone(), || {
             let cmd = cmd.clone();
             let args = args.clone();
             circuit_breaker.call(|| async move {
@@ -239,7 +240,11 @@ impl SecretManager {
                     match result {
                         Ok(opt) => Ok((key_clone, value_clone, opt)),
                         Err(e) => {
-                            log::warn!("Failed to resolve secret for {key_clone}: {e}");
+                            tracing::warn!(
+                                key = %key_clone,
+                                error = %e,
+                                "Failed to resolve secret"
+                            );
                             // Return Ok with None to indicate failure but preserve the original value
                             Ok((key_clone, value_clone, None))
                         }
@@ -260,7 +265,10 @@ impl SecretManager {
             if let Some(secret) = resolved {
                 resolved_env.insert(key.clone(), secret.clone());
                 secret_values.insert(secret);
-                log::debug!("Resolved secret for {key}");
+                tracing::debug!(
+                    key = %key,
+                    "Resolved secret"
+                );
             } else {
                 // If resolution failed, keep the original value
                 resolved_env.insert(key, original_value);

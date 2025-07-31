@@ -1,4 +1,4 @@
-use crate::errors::{Error, Result};
+use crate::core::errors::{Error, Result};
 use crate::xdg::XdgPaths;
 use sha2::{Digest, Sha256};
 use std::env;

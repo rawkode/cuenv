@@ -274,7 +274,7 @@ impl CASService for BazelCASService {
     async fn find_missing_blobs(
         &self,
         request: Request<FindMissingBlobsRequest>,
-    ) -> Result<Response<FindMissingBlobsResponse>, Status> {
+    ) -> std::result::Result<Response<FindMissingBlobsResponse>, Status> {
         self.record_stat("cas.find_missing_blobs");
 
         if self.circuit_breaker.is_open() {
@@ -329,7 +329,7 @@ impl CASService for BazelCASService {
     async fn batch_update_blobs(
         &self,
         request: Request<BatchUpdateBlobsRequest>,
-    ) -> Result<Response<BatchUpdateBlobsResponse>, Status> {
+    ) -> std::result::Result<Response<BatchUpdateBlobsResponse>, Status> {
         self.record_stat("cas.batch_update_blobs");
 
         if self.circuit_breaker.is_open() {
@@ -380,7 +380,7 @@ impl CASService for BazelCASService {
             if update_req.data.len() as u64 != digest.size_bytes as u64 {
                 responses.push(
                     super::grpc_proto::proto::batch_update_blobs_response::Response {
-                        digest: Some(digest),
+                        digest: Some(digest.clone()),
                         status: Some(super::grpc_proto::proto::Status {
                             code: tonic::Code::InvalidArgument as i32,
                             message: format!(
@@ -398,7 +398,7 @@ impl CASService for BazelCASService {
             if digest.size_bytes > self.max_blob_size as i64 {
                 responses.push(
                     super::grpc_proto::proto::batch_update_blobs_response::Response {
-                        digest: Some(digest),
+                        digest: Some(digest.clone()),
                         status: Some(super::grpc_proto::proto::Status {
                             code: tonic::Code::InvalidArgument as i32,
                             message: format!(
@@ -465,7 +465,7 @@ impl CASService for BazelCASService {
     async fn batch_read_blobs(
         &self,
         request: Request<BatchReadBlobsRequest>,
-    ) -> Result<Response<BatchReadBlobsResponse>, Status> {
+    ) -> std::result::Result<Response<BatchReadBlobsResponse>, Status> {
         self.record_stat("cas.batch_read_blobs");
 
         if self.circuit_breaker.is_open() {
@@ -544,7 +544,7 @@ impl CASService for BazelCASService {
                         );
                     }
                 }
-                Err(e) => {
+                Err(_e) => {
                     debug!("Blob not found: {}", hash);
                     responses.push(
                         super::grpc_proto::proto::batch_read_blobs_response::Response {
@@ -587,7 +587,7 @@ impl ActionCacheService for BazelActionCacheService {
     async fn get_action_result(
         &self,
         request: Request<GetActionResultRequest>,
-    ) -> Result<Response<ActionResult>, Status> {
+    ) -> std::result::Result<Response<ActionResult>, Status> {
         self.record_stat("action_cache.get");
 
         if self.circuit_breaker.is_open() {
@@ -648,7 +648,7 @@ impl ActionCacheService for BazelActionCacheService {
     async fn update_action_result(
         &self,
         request: Request<UpdateActionResultRequest>,
-    ) -> Result<Response<ActionResult>, Status> {
+    ) -> std::result::Result<Response<ActionResult>, Status> {
         self.record_stat("action_cache.update");
 
         if self.circuit_breaker.is_open() {
@@ -674,7 +674,7 @@ impl ActionCacheService for BazelActionCacheService {
             .map_err(|e| Status::invalid_argument(e.to_string()))?;
 
         // Convert Bazel ActionResult to internal format
-        let internal_result = crate::cache::action_cache::ActionResult {
+        let internal_result = crate::cache::ActionResult {
             exit_code: action_result.exit_code,
             stdout_hash: action_result.stdout_digest.map(|d| d.hash),
             stderr_hash: action_result.stderr_digest.map(|d| d.hash),
@@ -688,9 +688,9 @@ impl ActionCacheService for BazelActionCacheService {
         };
 
         // Create a fake digest for storing
-        let digest = crate::cache::action_cache::ActionDigest {
+        let digest = crate::cache::ActionDigest {
             hash: action_digest.hash.clone(),
-            components: crate::cache::action_cache::ActionComponents {
+            components: crate::cache::ActionComponents {
                 task_name: format!("bazel_action_{}", instance_name),
                 command: None,
                 working_dir: std::path::PathBuf::from("/"),
@@ -750,7 +750,7 @@ impl CapabilitiesService for BazelCapabilitiesService {
     async fn get_capabilities(
         &self,
         request: Request<GetCapabilitiesRequest>,
-    ) -> Result<Response<ServerCapabilities>, Status> {
+    ) -> std::result::Result<Response<ServerCapabilities>, Status> {
         let req = request.into_inner();
         debug!(
             "GetCapabilities request for instance '{}'",
@@ -758,12 +758,12 @@ impl CapabilitiesService for BazelCapabilitiesService {
         );
 
         let cache_capabilities = CacheCapabilities {
-            digest_function: vec![CacheCapabilities::DigestFunction::SHA256 as i32],
+            digest_function: vec![1], // SHA256
             action_cache_update_capabilities: Some(ActionCacheUpdateCapabilities {
                 update_enabled: self.enable_action_cache,
             }),
             symlink_absolute_path_strategy: vec![
-                CacheCapabilities::SymlinkAbsolutePathStrategy::DISALLOWED as i32,
+                1, // DISALLOWED
             ],
             max_batch_total_size_bytes: (self.max_batch_size * 1024 * 1024) as i64, // Approximate
         };
