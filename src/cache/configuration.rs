@@ -457,7 +457,7 @@ impl CacheConfigResolver {
     /// Get the effective cache mode for a task
     pub fn get_task_cache_mode(
         global_config: &GlobalCacheConfig,
-        task_config: Option<&TaskCacheConfig>,
+        _task_config: Option<&TaskCacheConfig>,
     ) -> CacheMode {
         // For now, use global mode. In the future, task-specific modes could be supported.
         global_config.mode

@@ -4,7 +4,6 @@
 //! with production-grade reliability.
 
 use crate::cache::errors::{CacheError, RecoveryHint, Result};
-use crate::cache::eviction::EvictionPolicy;
 use parking_lot::{Mutex, RwLock};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -15,7 +14,7 @@ use sysinfo::System;
 use tokio::time::interval;
 
 /// Memory pressure levels
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MemoryPressure {
     /// Plenty of memory available
     Low,

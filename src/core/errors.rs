@@ -210,6 +210,14 @@ impl From<anyhow::Error> for Error {
     }
 }
 
+impl From<crate::cache::CacheError> for Error {
+    fn from(error: crate::cache::CacheError) -> Self {
+        Error::Configuration {
+            message: format!("Cache error: {error}"),
+        }
+    }
+}
+
 // Helper methods for creating errors with context
 impl Error {
     /// Create a CUE parse error with context

@@ -39,12 +39,12 @@ pub mod merkle;
 pub mod secure_cache;
 
 // Reliability and production features (Phase 9)
-pub mod health_endpoint;
+// pub mod health_endpoint; // Disabled - missing ProductionHardening type
 pub mod reliability;
 
 // Advanced features (Phase 10)
-pub mod analytics_dashboard;
-pub mod multi_tenant;
+// pub mod analytics_dashboard; // Disabled - requires axum dependency
+// pub mod multi_tenant; // Disabled - missing CacheCapability type
 pub mod platform_optimizations;
 pub mod predictive_cache;
 
@@ -85,7 +85,7 @@ pub use item::CacheItem;
 pub use mode::{get_cache_mode, CacheMode};
 
 // Legacy advanced caching components (deprecated)
-pub use action_cache::{ActionCache, ActionDigest, ActionResult};
+pub use action_cache::{ActionCache, ActionComponents, ActionDigest, ActionResult};
 pub use cache_manager::{CacheManager, CacheStatistics};
 pub use concurrent_cache::{ConcurrentCache, ConcurrentCacheBuilder};
 pub use content_addressed_store::{ContentAddressedStore, ObjectMetadata};

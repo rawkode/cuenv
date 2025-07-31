@@ -7,7 +7,6 @@ use crate::cache::traits::Cache;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use tokio::time::interval;

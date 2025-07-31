@@ -4,7 +4,7 @@
 //! using DashMap for concurrent access without explicit locking.
 
 use crate::cache::CachedTaskResult;
-use crate::errors::{Error, Result};
+use crate::core::errors::{Error, Result};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};

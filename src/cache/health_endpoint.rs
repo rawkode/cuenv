@@ -10,7 +10,7 @@
 //! - Comprehensive health checks and metrics exposure
 //! - Security considerations for operational endpoints
 
-use crate::cache::reliability::{HealthStatus, ProductionHardening, SystemHealthReport};
+use crate::cache::audit::HealthStatus;
 use crate::cache::traits::Cache;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, Request, Response, Server, StatusCode};

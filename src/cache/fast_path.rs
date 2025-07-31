@@ -3,8 +3,7 @@
 //! This module provides specialized implementations for hot code paths
 //! to minimize latency and maximize throughput.
 
-use crate::cache::errors::Result;
-use crate::cache::traits::{CacheKey, CacheMetadata};
+use crate::cache::traits::CacheMetadata;
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use std::sync::Arc;
@@ -121,7 +120,7 @@ impl FastPathCache {
 /// Specialized implementations for common value types
 pub mod specialized {
     use super::*;
-    use serde::{Deserialize, Serialize};
+    use serde::Deserialize;
 
     /// Fast path for string values
     #[inline(always)]

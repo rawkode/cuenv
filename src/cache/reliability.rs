@@ -1,6 +1,8 @@
 use crate::cache::errors::RecoveryHint;
-use crate::cache::metrics::CacheMetrics;
+use crate::cache::monitoring::CacheMonitor;
+use crate::cache::traits::Cache;
 use crate::cache::{CacheError, CacheResult, MonitoredCache};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -10,8 +12,8 @@ use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 
 /// Automatic corruption recovery system
-pub struct CorruptionRecovery {
-    cache: Arc<MonitoredCache>,
+pub struct CorruptionRecovery<C: Cache> {
+    cache: Arc<MonitoredCache<C>>,
     repair_history: Arc<RwLock<HashMap<String, RepairRecord>>>,
     config: RecoveryConfig,
 }
@@ -36,8 +38,8 @@ struct RepairRecord {
     error_details: Option<String>,
 }
 
-impl CorruptionRecovery {
-    pub fn new(cache: Arc<MonitoredCache>, config: RecoveryConfig) -> Self {
+impl<C: Cache> CorruptionRecovery<C> {
+    pub fn new(cache: Arc<MonitoredCache<C>>, config: RecoveryConfig) -> Self {
         Self {
             cache,
             repair_history: Arc::new(RwLock::new(HashMap::new())),
@@ -157,9 +159,9 @@ impl CorruptionRecovery {
 }
 
 /// Self-tuning cache parameters
-pub struct SelfTuningCache {
-    cache: Arc<MonitoredCache>,
-    metrics: Arc<CacheMetrics>,
+pub struct SelfTuningCache<C: Cache> {
+    cache: Arc<MonitoredCache<C>>,
+    metrics: Arc<CacheMonitor>,
     tuning_state: Arc<RwLock<TuningState>>,
     config: TuningConfig,
 }
@@ -190,17 +192,17 @@ struct TuningState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PerformanceSnapshot {
-    timestamp: Instant,
+    timestamp: DateTime<Utc>,
     hit_rate: f64,
     p99_latency: f64,
     memory_usage: usize,
     cpu_usage: f64,
 }
 
-impl SelfTuningCache {
+impl<C: Cache> SelfTuningCache<C> {
     pub fn new(
-        cache: Arc<MonitoredCache>,
-        metrics: Arc<CacheMetrics>,
+        cache: Arc<MonitoredCache<C>>,
+        metrics: Arc<CacheMonitor>,
         config: TuningConfig,
     ) -> Self {
         let initial_state = TuningState {
@@ -282,7 +284,7 @@ impl SelfTuningCache {
         let cpu_usage = 0.15; // Placeholder
 
         Ok(PerformanceSnapshot {
-            timestamp: Instant::now(),
+            timestamp: Utc::now(),
             hit_rate,
             p99_latency,
             memory_usage,
@@ -298,7 +300,7 @@ impl SelfTuningCache {
 
 /// SLO/SLI monitoring and enforcement
 pub struct SloMonitor {
-    metrics: Arc<CacheMetrics>,
+    metrics: Arc<CacheMonitor>,
     slos: Vec<ServiceLevelObjective>,
     alerts: Arc<RwLock<Vec<SloViolation>>>,
 }
@@ -323,7 +325,7 @@ pub enum SloMetricType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SloViolation {
     pub slo_name: String,
-    pub timestamp: Instant,
+    pub timestamp: DateTime<Utc>,
     pub actual_value: f64,
     pub target_value: f64,
     pub severity: ViolationSeverity,
@@ -337,7 +339,7 @@ pub enum ViolationSeverity {
 }
 
 impl SloMonitor {
-    pub fn new(metrics: Arc<CacheMetrics>) -> Self {
+    pub fn new(metrics: Arc<CacheMonitor>) -> Self {
         // Define default SLOs
         let slos = vec![
             ServiceLevelObjective {
@@ -399,7 +401,7 @@ impl SloMonitor {
             let severity = self.determine_severity(slo, current_value);
             let violation = SloViolation {
                 slo_name: slo.name.clone(),
-                timestamp: Instant::now(),
+                timestamp: Utc::now(),
                 actual_value: current_value,
                 target_value: slo.target,
                 severity,

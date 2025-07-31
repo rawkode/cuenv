@@ -381,7 +381,7 @@ impl PlatformOptimizations {
     }
 
     /// Get platform-specific cache directory recommendations
-    pub fn recommended_cache_path() -> PathBuf {
+    pub fn recommended_cache_path() -> std::path::PathBuf {
         use std::path::PathBuf;
 
         #[cfg(target_os = "linux")]

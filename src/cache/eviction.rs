@@ -4,13 +4,12 @@
 //! production-grade performance and correctness.
 
 use crate::cache::errors::{CacheError, RecoveryHint, Result};
-use crate::cache::traits::{CacheKey, CacheMetadata};
+use crate::cache::traits::CacheMetadata;
 use dashmap::DashMap;
 use parking_lot::{Mutex, RwLock};
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, VecDeque};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::{Instant, SystemTime};
+use std::time::SystemTime;
 
 /// Eviction policy trait
 pub trait EvictionPolicy: Send + Sync {

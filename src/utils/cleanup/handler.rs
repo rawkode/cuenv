@@ -3,7 +3,7 @@
 //! This module provides RAII guards and cleanup utilities to ensure
 //! proper resource cleanup in all scenarios including errors and panics.
 
-use crate::errors::{Error, Result};
+use crate::core::errors::{Error, Result};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::fs;

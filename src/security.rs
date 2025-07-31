@@ -1,4 +1,4 @@
-use crate::errors::{Error, Result};
+use crate::core::errors::{Error, Result};
 use std::collections::HashSet;
 use std::path::{Component, Path, PathBuf};
 
