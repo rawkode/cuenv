@@ -25,6 +25,9 @@ env: {
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
         .arg("load")
+        .env_clear() // Clear all environment variables to ensure clean test
+        .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
+        .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string())) // CUE needs HOME
         .output()
         .expect("Failed to execute command");
 
@@ -60,6 +63,9 @@ env: {
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
         .arg("load")
+        .env_clear() // Clear all environment variables to ensure clean test
+        .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
+        .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string())) // CUE needs HOME
         .output()
         .expect("Failed to execute command");
 
@@ -139,6 +145,9 @@ GITHUB_TOKEN: "github://myorg/myrepo/GITHUB_TOKEN"
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
         .arg("load")
+        .env_clear() // Clear all environment variables to ensure clean test
+        .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
+        .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string())) // CUE needs HOME
         .output()
         .expect("Failed to execute command");
 
@@ -207,6 +216,9 @@ INVALID_SYNTAX: {
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
         .arg("load")
+        .env_clear() // Clear all environment variables to ensure clean test
+        .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
+        .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string())) // CUE needs HOME
         .output()
         .expect("Failed to execute command");
 
@@ -228,6 +240,9 @@ DATABASE_URL: "postgres://localhost/mydb"
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
         .arg("load")
+        .env_clear() // Clear all environment variables to ensure clean test
+        .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
+        .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string())) // CUE needs HOME
         .output()
         .expect("Failed to execute command");
 

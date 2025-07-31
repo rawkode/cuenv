@@ -24,8 +24,17 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::{Duration, SystemTime};
 use tokio::fs::File;
+<<<<<<< HEAD
 use tokio::io::AsyncWriteExt as TokioAsyncWriteExt;
 use tokio::io::{AsyncRead as TokioAsyncRead, AsyncWrite as TokioAsyncWrite, ReadBuf};
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+use tokio::io::{AsyncRead as TokioAsyncRead, AsyncWrite as TokioAsyncWrite, ReadBuf};
+=======
+use tokio::io::{
+    AsyncRead as TokioAsyncRead, AsyncWrite as TokioAsyncWrite,
+    AsyncWriteExt as TokioAsyncWriteExt, ReadBuf,
+};
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 
 /// Streaming cache operations trait
 ///
@@ -564,10 +573,16 @@ pub mod vectored {
     ) -> io::Result<usize> {
         let mut total = 0;
         for buf in bufs {
+<<<<<<< HEAD
             // IoSlice doesn't implement DerefMut, so we need to work around this
             let slice =
                 unsafe { std::slice::from_raw_parts_mut(buf.as_ptr() as *mut u8, buf.len()) };
             let n = reader.read(slice).await?;
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+            let n = reader.read(buf).await?;
+=======
+            let n = reader.read(&mut **buf).await?;
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
             total += n;
             if n < buf.len() {
                 break;

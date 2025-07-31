@@ -1,13 +1,13 @@
-use crate::cache::metrics::CacheMetrics;
+use crate::cache::monitoring::CacheMonitor;
 use crate::cache::monitoring::CacheStatistics;
 use crate::cache::reliability::{SloViolation, ViolationSeverity};
-use axum::{
-    extract::{Query, State},
-    http::StatusCode,
-    response::{Html, Json},
-    routing::{get, post},
-    Router,
-};
+// use axum::{
+//     extract::{Query, State},
+//     http::StatusCode,
+//     response::{Html, Json},
+//     routing::{get, post},
+//     Router,
+// };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -16,7 +16,7 @@ use tokio::sync::RwLock;
 
 /// Cache analytics dashboard for real-time monitoring and insights
 pub struct AnalyticsDashboard {
-    metrics: Arc<CacheMetrics>,
+    metrics: Arc<CacheMonitor>,
     time_series_data: Arc<RwLock<TimeSeriesData>>,
     config: DashboardConfig,
 }
@@ -60,7 +60,7 @@ struct DataPoint<T> {
 }
 
 impl AnalyticsDashboard {
-    pub fn new(metrics: Arc<CacheMetrics>, config: DashboardConfig) -> Self {
+    pub fn new(metrics: Arc<CacheMonitor>, config: DashboardConfig) -> Self {
         Self {
             metrics,
             time_series_data: Arc::new(RwLock::new(TimeSeriesData {
@@ -147,7 +147,7 @@ impl AnalyticsDashboard {
         })
     }
 
-    async fn collect_current_stats(metrics: &CacheMetrics) -> CurrentStats {
+    async fn collect_current_stats(metrics: &CacheMonitor) -> CurrentStats {
         // In real implementation, would collect from metrics
         CurrentStats {
             hit_rate: 0.85,
@@ -188,7 +188,7 @@ impl AnalyticsDashboard {
 
 #[derive(Clone)]
 struct AppState {
-    metrics: Arc<CacheMetrics>,
+    metrics: Arc<CacheMonitor>,
     time_series: Arc<RwLock<TimeSeriesData>>,
 }
 

@@ -1,6 +1,6 @@
 //! Atomic file operations to prevent corrupted cache files
 
-use crate::errors::{Error, Result};
+use crate::core::errors::{Error, Result};
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::Path;

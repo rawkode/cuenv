@@ -174,9 +174,9 @@ impl RemoteCacheClient {
             let address = config.server_address.strip_prefix("grpc://").unwrap();
             Endpoint::from_shared(format!("http://{}", address))?
         } else if config.server_address.starts_with("grpcs://") {
-            let address = config.server_address.strip_prefix("grpcs://").unwrap();
-            Endpoint::from_shared(format!("https://{}", address))?
-                .tls_config(tonic::transport::ClientTlsConfig::new())?
+            return Err(anyhow::anyhow!(
+                "TLS support not enabled. Please use grpc:// instead of grpcs://"
+            ));
         } else {
             return Err(anyhow::anyhow!(
                 "Invalid server address format. Use grpc:// or grpcs://"

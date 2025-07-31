@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::errors::{Error, Result};
+use crate::core::errors::{Error, Result};
 
 /// Wrapper type for environment variables with domain-specific operations
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

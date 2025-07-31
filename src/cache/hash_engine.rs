@@ -1,5 +1,5 @@
 use crate::atomic_file::write_atomic_string;
-use crate::errors::{Error, Result};
+use crate::core::errors::{Error, Result};
 use globset::{Glob, GlobSetBuilder};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

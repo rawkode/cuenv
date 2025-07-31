@@ -3,8 +3,14 @@
 //! This module provides specialized implementations for hot code paths
 //! to minimize latency and maximize throughput.
 
+<<<<<<< HEAD
 #![allow(dead_code)]
 
+||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
+use crate::cache::errors::Result;
+use crate::cache::traits::{CacheKey, CacheMetadata};
+=======
+>>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 use crate::cache::traits::CacheMetadata;
 use dashmap::DashMap;
 use parking_lot::RwLock;
