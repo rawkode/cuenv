@@ -1,6 +1,6 @@
 use crate::atomic_file::write_atomic_string;
 use crate::cache::{get_cache_mode, resolve_cache_path};
-use crate::errors::{Error, Result};
+use crate::core::errors::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};

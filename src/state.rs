@@ -2,7 +2,7 @@ use crate::audit::audit_logger;
 use crate::env_diff::EnvDiff;
 use crate::file_times::FileTimes;
 use crate::gzenv;
-use crate::sync_env::SyncEnv;
+use crate::utils::sync::env::SyncEnv;
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};

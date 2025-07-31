@@ -7,8 +7,8 @@ use crate::async_runtime::{run_async, AsyncRuntime};
 use crate::atomic_file::write_atomic_string;
 use crate::cache::key_generator::CacheKeyGenerator;
 use crate::cache::signing::CacheSigner;
+use crate::core::errors::{Error, Result};
 use crate::cue_parser::TaskConfig;
-use crate::errors::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -103,9 +103,16 @@ impl CacheManager {
         )?);
 
         // Initialize cache engine for legacy compatibility
-        let engine = Arc::new(CacheEngine::new()?);
+        let engine = Arc::new(CacheEngine::new().map_err(|e| Error::Configuration {
+            message: format!("Failed to initialize cache engine: {}", e),
+        })?);
         let stats = Arc::new(RwLock::new(CacheStatistics::default()));
-        let signer = Arc::new(CacheSigner::new(&config.base_dir)?);
+        let signer =
+            Arc::new(
+                CacheSigner::new(&config.base_dir).map_err(|e| Error::Configuration {
+                    message: format!("Failed to initialize cache signer: {}", e),
+                })?,
+            );
 
         // Initialize cache key generator with configuration
         let mut key_generator = CacheKeyGenerator::with_config(config.env_filter.clone())?;
@@ -255,7 +262,12 @@ impl CacheManager {
     /// Store a cached result
     pub fn store_result(&self, cache_key: String, result: CachedTaskResult) -> Result<()> {
         // Sign the result for integrity
-        let _signed_result = self.signer.sign(&result)?;
+        let _signed_result = self
+            .signer
+            .sign(&result)
+            .map_err(|e| Error::Configuration {
+                message: format!("Failed to sign cache result: {}", e),
+            })?;
 
         // Only cache successful results (exit_code == 0)
         if result.exit_code == 0 {

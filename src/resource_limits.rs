@@ -1,4 +1,4 @@
-use crate::errors::{Error, Result};
+use crate::core::errors::{Error, Result};
 
 /// Configuration for resource limits
 #[derive(Debug, Clone)]

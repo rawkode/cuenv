@@ -1,4 +1,4 @@
-use crate::errors::Result;
+use crate::core::errors::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -119,7 +119,7 @@ impl AuditLogger {
                 .create(true)
                 .append(true)
                 .open(path)
-                .map_err(|e| crate::errors::Error::FileSystem {
+                .map_err(|e| crate::core::errors::Error::FileSystem {
                     path: path.clone(),
                     operation: "open".to_string(),
                     source: e,
@@ -378,7 +378,7 @@ impl AuditLogger {
     }
 
     async fn write_entry(&self, entry: &AuditEntry) -> Result<()> {
-        let json = serde_json::to_string(entry).map_err(|e| crate::errors::Error::Json {
+        let json = serde_json::to_string(entry).map_err(|e| crate::core::errors::Error::Json {
             message: "Failed to serialize audit entry".to_string(),
             source: e,
         })?;
@@ -386,16 +386,17 @@ impl AuditLogger {
         let mut writer = self.writer.lock().await;
 
         if let Some(ref mut w) = *writer {
-            writeln!(w, "{json}").map_err(|e| crate::errors::Error::FileSystem {
+            writeln!(w, "{json}").map_err(|e| crate::core::errors::Error::FileSystem {
                 path: PathBuf::from("audit.log"),
                 operation: "write".to_string(),
                 source: e,
             })?;
-            w.flush().map_err(|e| crate::errors::Error::FileSystem {
-                path: PathBuf::from("audit.log"),
-                operation: "flush".to_string(),
-                source: e,
-            })?;
+            w.flush()
+                .map_err(|e| crate::core::errors::Error::FileSystem {
+                    path: PathBuf::from("audit.log"),
+                    operation: "flush".to_string(),
+                    source: e,
+                })?;
         } else {
             // If no file configured, log to stderr
             eprintln!("AUDIT: {json}");
@@ -412,7 +413,7 @@ static AUDIT_LOGGER: once_cell::sync::OnceCell<Arc<AuditLogger>> = once_cell::sy
 pub fn init_audit_logger(config: AuditConfig) -> Result<()> {
     let logger = Arc::new(AuditLogger::new(config)?);
     AUDIT_LOGGER.set(logger).map_err(|_| {
-        crate::errors::Error::configuration("Audit logger already initialized".to_string())
+        crate::core::errors::Error::configuration("Audit logger already initialized".to_string())
     })?;
     Ok(())
 }

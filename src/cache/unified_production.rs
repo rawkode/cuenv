@@ -24,7 +24,6 @@ use sha2::{Digest, Sha256};
 use std::fmt;
 use std::fs::File;
 use std::future::Future;
-use std::io::Write;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -1223,7 +1222,7 @@ impl StreamingCache for UnifiedCache {
             // Prefer memory-mapped reader for performance
             #[cfg(target_os = "linux")]
             {
-                match CacheReader::from_mmap(data_path.clone(), metadata).await {
+                match CacheReader::from_mmap(data_path.clone(), metadata.clone()).await {
                     Ok(reader) => return Ok(Some(reader)),
                     Err(_) => {
                         // Fall back to regular file reader

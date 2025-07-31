@@ -7,9 +7,8 @@
 //! - Cache-line aware memory layouts
 //! - Prefetching and branch prediction hints
 
-use parking_lot::{Mutex, RwLock};
+use parking_lot::Mutex;
 use std::alloc::{alloc, dealloc, Layout};
-use std::mem::{align_of, size_of};
 use std::ptr;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
@@ -237,7 +236,7 @@ pub fn unlikely() {
 }
 
 #[inline(always)]
-#[hot]
+// #[hot] - custom attribute not available
 pub fn likely() {
     // This function is marked hot to hint that it's likely to be called
 }

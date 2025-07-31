@@ -1,6 +1,6 @@
-use crate::cleanup::TempFileGuard;
 use crate::cue_parser::ParseResult;
-use crate::retry::{retry_blocking, RetryConfig};
+use crate::utils::cleanup::handler::TempFileGuard;
+use crate::utils::network::retry::{retry_blocking, RetryConfig};
 use crate::xdg::XdgPaths;
 use serde::{Deserialize, Serialize};
 use std::fs;

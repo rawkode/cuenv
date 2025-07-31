@@ -1,4 +1,4 @@
-use crate::errors::Result;
+use crate::core::errors::Result;
 use crate::shell::ShellType;
 
 pub struct ShellHook;

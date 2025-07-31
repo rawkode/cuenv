@@ -5,7 +5,7 @@
 //! and integrity.
 
 use crate::atomic_file::{write_atomic, write_atomic_string};
-use crate::errors::{Error, Result};
+use crate::core::errors::{Error, Result};
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};

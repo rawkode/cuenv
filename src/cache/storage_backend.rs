@@ -10,7 +10,7 @@
 
 use crate::cache::errors::{CacheError, RecoveryHint, Result, SerializationOp, StoreType};
 use crate::cache::traits::CacheMetadata;
-use bincode::{DefaultOptions, Options};
+use bincode::Options;
 use crc32c::crc32c;
 use parking_lot::{Mutex, RwLock};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};

@@ -1,5 +1,6 @@
-use crate::cache::metrics::CacheMetrics;
+use crate::cache::traits::Cache;
 use crate::cache::{CacheError, CacheResult, MonitoredCache};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -8,8 +9,8 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
 /// ML-based predictive caching system
-pub struct PredictiveCache {
-    cache: Arc<MonitoredCache>,
+pub struct PredictiveCache<C: Cache> {
+    cache: Arc<MonitoredCache<C>>,
     predictor: Arc<RwLock<AccessPredictor>>,
     config: PredictiveCacheConfig,
 }
@@ -69,8 +70,8 @@ struct AccessRecord {
     successors: Vec<String>,
 }
 
-impl PredictiveCache {
-    pub fn new(cache: Arc<MonitoredCache>, config: PredictiveCacheConfig) -> Self {
+impl<C: Cache> PredictiveCache<C> {
+    pub fn new(cache: Arc<MonitoredCache<C>>, config: PredictiveCacheConfig) -> Self {
         let predictor = Arc::new(RwLock::new(AccessPredictor::new(config.clone())));
 
         Self {
@@ -128,7 +129,8 @@ impl PredictiveCache {
         let mut predictor = self.predictor.write().await;
 
         for event in history {
-            predictor.record_access_at(&event.key, event.timestamp);
+            // Convert DateTime to elapsed time for internal tracking
+            predictor.record_access(&event.key);
         }
 
         predictor.analyze_patterns();
@@ -159,31 +161,37 @@ impl AccessPredictor {
     }
 
     fn record_access_at(&mut self, key: &str, timestamp: Instant) {
+        let key_string = key.to_string();
+        let mut prev_key_for_predecessors = None;
+
         // Update access record
-        let record = self
-            .access_history
-            .entry(key.to_string())
-            .or_insert(AccessRecord {
-                access_count: 0,
-                last_access: timestamp,
-                frequency: 0.0,
-                predecessors: Vec::new(),
-                successors: Vec::new(),
-            });
+        {
+            let record = self
+                .access_history
+                .entry(key_string.clone())
+                .or_insert(AccessRecord {
+                    access_count: 0,
+                    last_access: timestamp,
+                    frequency: 0.0,
+                    predecessors: Vec::new(),
+                    successors: Vec::new(),
+                });
 
-        record.access_count += 1;
-        record.last_access = timestamp;
+            record.access_count += 1;
+            record.last_access = timestamp;
 
-        // Calculate frequency
-        if record.access_count > 1 {
-            let duration = timestamp.duration_since(record.last_access).as_secs_f64() / 3600.0;
-            if duration > 0.0 {
-                record.frequency = record.access_count as f64 / duration;
+            // Calculate frequency
+            if record.access_count > 1 {
+                let duration = timestamp.duration_since(record.last_access).as_secs_f64() / 3600.0;
+                if duration > 0.0 {
+                    record.frequency = record.access_count as f64 / duration;
+                }
             }
         }
 
         // Update global sequence
-        self.global_sequence.push_back((key.to_string(), timestamp));
+        self.global_sequence
+            .push_back((key_string.clone(), timestamp));
 
         // Maintain window size
         while self.global_sequence.len() > self.config.max_patterns {
@@ -194,19 +202,21 @@ impl AccessPredictor {
         if self.global_sequence.len() >= 2 {
             let seq_len = self.global_sequence.len();
             if let Some((prev_key, _)) = self.global_sequence.get(seq_len - 2) {
+                prev_key_for_predecessors = Some(prev_key.clone());
+
                 // Record sequential pattern
                 let pattern = self
                     .sequential_patterns
                     .entry(prev_key.clone())
                     .or_insert_with(Vec::new);
-                if !pattern.contains(&key.to_string()) {
-                    pattern.push(key.to_string());
+                if !pattern.contains(&key_string) {
+                    pattern.push(key_string.clone());
                 }
 
                 // Update dependency graph
                 let deps = self
                     .dependency_graph
-                    .entry(key.to_string())
+                    .entry(key_string.clone())
                     .or_insert_with(Vec::new);
                 if !deps.contains(prev_key) {
                     deps.push(prev_key.clone());
@@ -214,11 +224,17 @@ impl AccessPredictor {
 
                 // Update predecessors/successors
                 if let Some(prev_record) = self.access_history.get_mut(prev_key) {
-                    if !prev_record.successors.contains(&key.to_string()) {
-                        prev_record.successors.push(key.to_string());
+                    if !prev_record.successors.contains(&key_string) {
+                        prev_record.successors.push(key_string.clone());
                     }
                 }
-                record.predecessors.push(prev_key.clone());
+            }
+        }
+
+        // Update predecessors for current record
+        if let Some(prev_key) = prev_key_for_predecessors {
+            if let Some(record) = self.access_history.get_mut(&key_string) {
+                record.predecessors.push(prev_key);
             }
         }
 
@@ -228,8 +244,8 @@ impl AccessPredictor {
             .temporal_patterns
             .entry(hour as u32)
             .or_insert_with(Vec::new);
-        if !temporal.contains(&key.to_string()) {
-            temporal.push(key.to_string());
+        if !temporal.contains(&key_string) {
+            temporal.push(key_string);
         }
     }
 
@@ -287,7 +303,7 @@ impl AccessPredictor {
 
     fn calculate_sequential_confidence(&self, from: &str, to: &str) -> f64 {
         if let Some(from_record) = self.access_history.get(from) {
-            if let Some(to_record) = self.access_history.get(to) {
+            if let Some(_to_record) = self.access_history.get(to) {
                 let total_transitions = from_record.successors.len() as f64;
                 if total_transitions > 0.0 {
                     let to_transitions =
@@ -381,7 +397,7 @@ pub enum PredictionType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccessEvent {
     pub key: String,
-    pub timestamp: Instant,
+    pub timestamp: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -7,7 +7,6 @@ use crate::cache::{ActionCache, ContentAddressedStore};
 use crate::errors::{Error, Result};
 use crate::remote_cache::{RemoteCacheClient, RemoteCacheClientConfig};
 use parking_lot::RwLock;
-use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -44,7 +43,7 @@ impl Default for CacheIntegrationConfig {
 }
 
 /// Statistics for integrated cache operations
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct IntegratedCacheStats {
     pub local_hits: u64,
     pub local_misses: u64,
@@ -122,7 +121,7 @@ impl IntegratedCache {
         // Upload to remote if configured
         if self.config.upload_on_miss {
             if let Some(ref mut client) = *self.remote_client.write() {
-                let digest = super::grpc_proto::proto::Digest {
+                let digest = crate::remote_cache::grpc_proto::proto::Digest {
                     hash: hash.clone(),
                     size_bytes: content.len() as i64,
                 };
@@ -178,7 +177,7 @@ impl IntegratedCache {
 
         // Try remote cache if local miss
         if let Some(ref mut client) = *self.remote_client.write() {
-            let digest = super::grpc_proto::proto::Digest {
+            let digest = crate::remote_cache::grpc_proto::proto::Digest {
                 hash: hash.to_string(),
                 size_bytes: 0, // We don't know the size
             };
@@ -248,7 +247,7 @@ impl IntegratedCache {
 
         // Check remote
         if let Some(ref mut client) = *self.remote_client.write() {
-            let digest = super::grpc_proto::proto::Digest {
+            let digest = crate::remote_cache::grpc_proto::proto::Digest {
                 hash: hash.to_string(),
                 size_bytes: 0,
             };
@@ -271,7 +270,7 @@ impl IntegratedCache {
 
     /// Get statistics
     pub fn stats(&self) -> IntegratedCacheStats {
-        self.stats.read().clone()
+        (*self.stats.read()).clone()
     }
 
     /// Clear statistics

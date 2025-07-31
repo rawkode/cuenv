@@ -24,7 +24,10 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::{Duration, SystemTime};
 use tokio::fs::File;
-use tokio::io::{AsyncRead as TokioAsyncRead, AsyncWrite as TokioAsyncWrite, ReadBuf};
+use tokio::io::{
+    AsyncRead as TokioAsyncRead, AsyncWrite as TokioAsyncWrite,
+    AsyncWriteExt as TokioAsyncWriteExt, ReadBuf,
+};
 
 /// Streaming cache operations trait
 ///
@@ -547,7 +550,7 @@ pub mod vectored {
     ) -> io::Result<usize> {
         let mut total = 0;
         for buf in bufs {
-            let n = reader.read(buf).await?;
+            let n = reader.read(&mut **buf).await?;
             total += n;
             if n < buf.len() {
                 break;

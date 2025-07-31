@@ -8,8 +8,7 @@
 //! - Real-time dashboards
 
 use crate::cache::errors::{CacheError, RecoveryHint, Result};
-use crate::cache::performance::PerfStats;
-use crate::cache::traits::{CacheKey, CacheStatistics};
+pub use crate::cache::traits::CacheStatistics;
 use parking_lot::RwLock;
 use prometheus::{
     register_counter_vec, register_histogram_vec, register_int_gauge_vec, CounterVec, Encoder,
@@ -18,8 +17,8 @@ use prometheus::{
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
-use tracing::{debug, error, info, warn, Span};
+use std::time::{Duration, Instant};
+use tracing::{debug, info, Span};
 
 /// Cache monitoring system with comprehensive observability
 pub struct CacheMonitor {
@@ -122,7 +121,7 @@ struct RealTimeStats {
 
 impl CacheMonitor {
     /// Create a new cache monitor with full observability stack
-    pub fn new(service_name: &str) -> Result<Self> {
+    pub fn new(_service_name: &str) -> Result<Self> {
         // Initialize Prometheus registry
         let registry = Registry::new();
 
@@ -266,7 +265,7 @@ impl CacheMonitor {
     }
 
     /// Record a cache write
-    pub fn record_write(&self, key: &str, size_bytes: u64, duration: Duration) {
+    pub fn record_write(&self, _key: &str, _size_bytes: u64, duration: Duration) {
         self.inner
             .metrics
             .cache_operations
@@ -283,7 +282,7 @@ impl CacheMonitor {
     }
 
     /// Record a cache removal
-    pub fn record_removal(&self, key: &str, duration: Duration) {
+    pub fn record_removal(&self, _key: &str, duration: Duration) {
         self.inner
             .metrics
             .cache_operations
@@ -300,7 +299,7 @@ impl CacheMonitor {
     }
 
     /// Record a cache error
-    pub fn record_error(&self, operation: &str, error: &CacheError) {
+    pub fn record_error(&self, operation: &str, _error: &CacheError) {
         self.inner
             .metrics
             .cache_operations
@@ -713,7 +712,7 @@ impl PerformanceProfiler {
         let profiles = self.profiles.read();
         let mut output = String::new();
 
-        for (operation, profile) in profiles.iter() {
+        for (_operation, profile) in profiles.iter() {
             for sample in &profile.samples {
                 // Format: stack;frames;here count
                 let stack = sample.stack_trace.join(";");

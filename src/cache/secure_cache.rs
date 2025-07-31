@@ -29,6 +29,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
 
 /// Secure cache wrapper with integrated security features
+#[derive(Debug)]
 pub struct SecureCache<T: Cache> {
     /// Underlying cache implementation
     inner: T,

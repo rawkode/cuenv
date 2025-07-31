@@ -1,4 +1,4 @@
-use crate::errors::{Error, Result};
+use crate::core::errors::{Error, Result};
 use std::time::Duration;
 use tokio::time::sleep;
 
