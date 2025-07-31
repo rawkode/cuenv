@@ -582,12 +582,8 @@ dependencies = [
  "cc",
  "chrono",
  "clap",
-<<<<<<< HEAD
  "clap_complete",
-||||||| parent of e95126d (feat: Phase 6 - Comprehensive monitoring and observability)
-=======
  "crc32c",
->>>>>>> e95126d (feat: Phase 6 - Comprehensive monitoring and observability)
  "criterion",
  "crossbeam",
  "dashmap",
