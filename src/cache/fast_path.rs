@@ -90,7 +90,7 @@ impl FastPathCache {
         self.small_values.insert(key.clone(), entry);
 
         // Track in LRU
-        if let Ok(mut tracker) = self.lru_tracker.try_write() {
+        if let Some(mut tracker) = self.lru_tracker.try_write() {
             tracker.access_order.retain(|k| k != &key);
             tracker.access_order.push(key);
         }
@@ -100,7 +100,7 @@ impl FastPathCache {
 
     /// Evict least recently used entry
     fn evict_lru(&self) {
-        if let Ok(mut tracker) = self.lru_tracker.try_write() {
+        if let Some(mut tracker) = self.lru_tracker.try_write() {
             if let Some(key) = tracker.access_order.first() {
                 let key = key.clone();
                 tracker.access_order.remove(0);
@@ -112,7 +112,7 @@ impl FastPathCache {
     /// Clear all fast path entries
     pub fn clear(&self) {
         self.small_values.clear();
-        if let Ok(mut tracker) = self.lru_tracker.try_write() {
+        if let Some(mut tracker) = self.lru_tracker.try_write() {
             tracker.access_order.clear();
         }
     }

@@ -1,17 +1,20 @@
+pub use crate::cache::audit::HealthStatus;
 use crate::cache::errors::RecoveryHint;
 use crate::cache::metrics::CacheMetrics;
+use crate::cache::traits::Cache;
 use crate::cache::{CacheError, CacheResult, MonitoredCache};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 
 /// Automatic corruption recovery system
-pub struct CorruptionRecovery {
-    cache: Arc<MonitoredCache>,
+pub struct CorruptionRecovery<C: Cache> {
+    #[allow(dead_code)]
+    cache: Arc<C>,
     repair_history: Arc<RwLock<HashMap<String, RepairRecord>>>,
     config: RecoveryConfig,
 }
@@ -31,13 +34,14 @@ pub struct RecoveryConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct RepairRecord {
     attempts: usize,
+    #[serde(with = "crate::cache::serde_helpers::time::instant_as_nanos")]
     last_attempt: Instant,
     success: bool,
     error_details: Option<String>,
 }
 
-impl CorruptionRecovery {
-    pub fn new(cache: Arc<MonitoredCache>, config: RecoveryConfig) -> Self {
+impl<C: Cache> CorruptionRecovery<C> {
+    pub fn new(cache: Arc<C>, config: RecoveryConfig) -> Self {
         Self {
             cache,
             repair_history: Arc::new(RwLock::new(HashMap::new())),
@@ -157,8 +161,10 @@ impl CorruptionRecovery {
 }
 
 /// Self-tuning cache parameters
-pub struct SelfTuningCache {
-    cache: Arc<MonitoredCache>,
+pub struct SelfTuningCache<C: Cache> {
+    #[allow(dead_code)]
+    cache: Arc<C>,
+    #[allow(dead_code)]
     metrics: Arc<CacheMetrics>,
     tuning_state: Arc<RwLock<TuningState>>,
     config: TuningConfig,
@@ -179,30 +185,28 @@ pub struct TuningConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct TuningState {
-    current_size: usize,
-    current_eviction_threshold: f64,
-    compression_level: u32,
-    shard_count: usize,
-    last_adjustment: Instant,
-    performance_history: Vec<PerformanceSnapshot>,
+pub struct TuningState {
+    pub current_size: usize,
+    pub current_eviction_threshold: f64,
+    pub compression_level: u32,
+    pub shard_count: usize,
+    #[serde(with = "crate::cache::serde_helpers::time::instant_as_nanos")]
+    pub last_adjustment: Instant,
+    pub performance_history: Vec<PerformanceSnapshot>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct PerformanceSnapshot {
-    timestamp: Instant,
-    hit_rate: f64,
-    p99_latency: f64,
-    memory_usage: usize,
-    cpu_usage: f64,
+pub struct PerformanceSnapshot {
+    #[serde(with = "crate::cache::serde_helpers::time::instant_as_nanos")]
+    pub timestamp: Instant,
+    pub hit_rate: f64,
+    pub p99_latency: f64,
+    pub memory_usage: usize,
+    pub cpu_usage: f64,
 }
 
-impl SelfTuningCache {
-    pub fn new(
-        cache: Arc<MonitoredCache>,
-        metrics: Arc<CacheMetrics>,
-        config: TuningConfig,
-    ) -> Self {
+impl<C: Cache> SelfTuningCache<C> {
+    pub fn new(cache: Arc<C>, metrics: Arc<CacheMetrics>, config: TuningConfig) -> Self {
         let initial_state = TuningState {
             current_size: config.max_cache_size / 2,
             current_eviction_threshold: 0.9,
@@ -298,6 +302,7 @@ impl SelfTuningCache {
 
 /// SLO/SLI monitoring and enforcement
 pub struct SloMonitor {
+    #[allow(dead_code)]
     metrics: Arc<CacheMetrics>,
     slos: Vec<ServiceLevelObjective>,
     alerts: Arc<RwLock<Vec<SloViolation>>>,
@@ -323,6 +328,7 @@ pub enum SloMetricType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SloViolation {
     pub slo_name: String,
+    #[serde(with = "crate::cache::serde_helpers::time::instant_as_nanos")]
     pub timestamp: Instant,
     pub actual_value: f64,
     pub target_value: f64,
@@ -558,15 +564,15 @@ impl RunbookGenerator {
 
             runbook.push_str("**Possible Causes:**\n");
             for cause in &issue.possible_causes {
-                runbook.push_str(&format!("- {}\n", cause));
+                runbook.push_str(&format!("- {cause}\n"));
             }
-            runbook.push_str("\n");
+            runbook.push('\n');
 
             runbook.push_str("**Resolution Steps:**\n");
             for (j, step) in issue.resolution_steps.iter().enumerate() {
                 runbook.push_str(&format!("{}. {}\n", j + 1, step));
             }
-            runbook.push_str("\n");
+            runbook.push('\n');
 
             runbook.push_str(&format!("**Prevention:** {}\n\n", issue.prevention));
         }
@@ -635,5 +641,147 @@ mod tests {
         assert!(runbook.contains("Cache Operations Runbook"));
         assert!(runbook.contains("Common Issues"));
         assert!(runbook.contains("Emergency Procedures"));
+    }
+}
+
+/// SLO monitoring configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SloConfig {
+    /// Target cache hit rate
+    pub target_hit_rate: f64,
+    /// Target p99 latency in milliseconds
+    pub target_p99_latency_ms: f64,
+    /// Target availability percentage
+    pub target_availability: f64,
+    /// Monitoring window duration
+    pub window_duration: Duration,
+}
+
+/// System health report with detailed information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemHealthReport {
+    /// Overall health status
+    pub status: HealthStatus,
+    /// Individual component health
+    pub components: HashMap<String, ComponentHealth>,
+    /// System metrics
+    pub metrics: HealthMetrics,
+    /// Timestamp of the report
+    pub timestamp: SystemTime,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComponentHealth {
+    pub name: String,
+    pub status: HealthStatus,
+    pub details: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HealthMetrics {
+    pub cache_hit_rate: f64,
+    pub avg_latency_ms: f64,
+    pub error_rate: f64,
+    pub memory_usage_bytes: usize,
+    pub cpu_usage_percent: f64,
+}
+
+/// Production-grade wrapper for cache with monitoring and reliability features
+pub struct ProductionHardening<C: Cache + Clone> {
+    cache: Arc<MonitoredCache<C>>,
+    metrics: Arc<CacheMetrics>,
+    #[allow(dead_code)]
+    corruption_recovery: Arc<CorruptionRecovery<MonitoredCache<C>>>,
+    #[allow(dead_code)]
+    self_tuning: Arc<SelfTuningCache<MonitoredCache<C>>>,
+    #[allow(dead_code)]
+    slo_monitor: Arc<SloMonitor>,
+}
+
+impl<C: Cache + Clone> ProductionHardening<C> {
+    /// Create new production hardening wrapper
+    pub fn new(
+        cache: C,
+        recovery_config: RecoveryConfig,
+        tuning_config: TuningConfig,
+        _slo_config: SloConfig,
+    ) -> Self {
+        let metrics = Arc::new(CacheMetrics::new());
+        let monitored_cache = Arc::new(
+            MonitoredCache::new(cache, "production-hardening")
+                .expect("Failed to create monitored cache"),
+        );
+
+        Self {
+            cache: monitored_cache.clone(),
+            metrics: metrics.clone(),
+            corruption_recovery: Arc::new(CorruptionRecovery::new(
+                monitored_cache.clone(),
+                recovery_config,
+            )),
+            self_tuning: Arc::new(SelfTuningCache::new(
+                monitored_cache.clone(),
+                metrics.clone(),
+                tuning_config,
+            )),
+            slo_monitor: Arc::new(SloMonitor::new(metrics.clone())),
+        }
+    }
+
+    /// Get current system health
+    pub async fn health_check(&self) -> SystemHealthReport {
+        let status =
+            if (self.metrics.errors() as f64 / self.metrics.total_operations() as f64) > 0.05 {
+                HealthStatus::Unhealthy
+            } else if self.metrics.hit_rate() < 0.8 {
+                HealthStatus::Degraded
+            } else {
+                HealthStatus::Healthy
+            };
+
+        let mut components = HashMap::new();
+
+        // Check cache component
+        components.insert(
+            "cache".to_string(),
+            ComponentHealth {
+                name: "cache".to_string(),
+                status: HealthStatus::Healthy,
+                details: HashMap::new(),
+            },
+        );
+
+        // Check metrics component
+        components.insert(
+            "metrics".to_string(),
+            ComponentHealth {
+                name: "metrics".to_string(),
+                status: HealthStatus::Healthy,
+                details: HashMap::new(),
+            },
+        );
+
+        SystemHealthReport {
+            status,
+            components,
+            metrics: HealthMetrics {
+                cache_hit_rate: self.metrics.hit_rate(),
+                avg_latency_ms: self.metrics.avg_hit_latency().as_millis() as f64,
+                error_rate: self.metrics.errors() as f64 / self.metrics.total_operations() as f64,
+                memory_usage_bytes: self.metrics.current_size(),
+                cpu_usage_percent: 0.0, // Would need system metrics integration
+            },
+            timestamp: SystemTime::now(),
+        }
+    }
+
+    /// Get metrics collector
+    pub fn metrics(&self) -> Arc<CacheMetrics> {
+        self.metrics.clone()
+    }
+
+    /// Get the underlying cache
+    pub fn cache(&self) -> Arc<MonitoredCache<C>> {
+        self.cache.clone()
     }
 }

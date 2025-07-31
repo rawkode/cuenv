@@ -27,6 +27,7 @@ fn hash_to_hex(hash: &Hash) -> String {
 }
 
 /// Convert hex string to hash
+#[allow(dead_code)]
 fn hex_to_hash(hex: &str) -> Result<Hash> {
     if hex.len() != 64 {
         return Err(CacheError::Configuration {
@@ -41,7 +42,7 @@ fn hex_to_hash(hex: &str) -> Result<Hash> {
     match hex::decode_to_slice(hex, &mut hash) {
         Ok(()) => Ok(hash),
         Err(e) => Err(CacheError::Configuration {
-            message: format!("Invalid hex hash: {}", e),
+            message: format!("Invalid hex hash: {e}"),
             recovery_hint: RecoveryHint::Manual {
                 instructions: "Provide valid hexadecimal hash".to_string(),
             },
@@ -104,6 +105,7 @@ pub struct ProofStep {
 }
 
 /// Production-grade Merkle tree for cache integrity
+#[derive(Debug)]
 pub struct MerkleTree {
     /// All nodes in the tree indexed by hash
     nodes: HashMap<Hash, MerkleNode>,
@@ -332,10 +334,10 @@ impl MerkleTree {
         hasher.update(b"LEAF:");
         hasher.update(cache_key.as_bytes());
         hasher.update(content_hash);
-        hasher.update(&metadata.size_bytes.to_le_bytes());
-        hasher.update(&metadata.modified_at.to_le_bytes());
+        hasher.update(metadata.size_bytes.to_le_bytes());
+        hasher.update(metadata.modified_at.to_le_bytes());
         if let Some(expires_at) = metadata.expires_at {
-            hasher.update(&expires_at.to_le_bytes());
+            hasher.update(expires_at.to_le_bytes());
         }
         hasher.finalize().into()
     }
@@ -397,7 +399,7 @@ impl MerkleTree {
             current_level = next_level;
         }
 
-        self.root_hash = current_level.get(0).copied();
+        self.root_hash = current_level.first().copied();
         self.stats.height = height;
 
         Ok(())

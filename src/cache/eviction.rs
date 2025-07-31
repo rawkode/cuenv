@@ -3,14 +3,13 @@
 //! Implements LRU, LFU, and ARC eviction strategies with
 //! production-grade performance and correctness.
 
+#![allow(dead_code)]
+
 use crate::cache::errors::{CacheError, RecoveryHint, Result};
-use crate::cache::traits::{CacheKey, CacheMetadata};
 use dashmap::DashMap;
 use parking_lot::{Mutex, RwLock};
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, VecDeque};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::{Instant, SystemTime};
 
 /// Eviction policy trait
 pub trait EvictionPolicy: Send + Sync {
@@ -97,6 +96,7 @@ impl EvictionPolicy for LruPolicy {
             return None;
         }
 
+        #[allow(clippy::question_mark)]
         let order = match self.access_order.try_lock() {
             Some(guard) => guard,
             None => return None,
@@ -198,6 +198,7 @@ impl EvictionPolicy for LfuPolicy {
             return None;
         }
 
+        #[allow(clippy::question_mark)]
         let freq_map = match self.freq_map.try_read() {
             Some(guard) => guard,
             None => return None,
@@ -403,8 +404,8 @@ pub fn create_eviction_policy(
         "lru" => Ok(Box::new(LruPolicy::new(max_memory))),
         "lfu" => Ok(Box::new(LfuPolicy::new(max_memory))),
         "arc" => Ok(Box::new(ArcPolicy::new(max_memory))),
-        _ => Err(CacheError::Config {
-            message: format!("Unknown eviction policy: {}", policy_type),
+        _ => Err(CacheError::Configuration {
+            message: format!("Unknown eviction policy: {policy_type}"),
             recovery_hint: RecoveryHint::UseDefault {
                 value: "lru".to_string(),
             },

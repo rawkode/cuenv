@@ -24,7 +24,6 @@ use sha2::{Digest, Sha256};
 use std::fmt;
 use std::fs::File;
 use std::future::Future;
-use std::io::Write;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -65,7 +64,7 @@ struct CacheInner {
 
 struct InMemoryEntry {
     /// Memory-mapped data for zero-copy access
-    mmap: Option<Mmap>,
+    mmap: Option<Arc<Mmap>>,
     /// Raw data (used when mmap is not available)
     data: Vec<u8>,
     metadata: CacheMetadata,
@@ -285,14 +284,14 @@ impl UnifiedCache {
     #[inline(always)]
     fn hash_key(inner: &CacheInner, key: &str) -> String {
         // Use SIMD-accelerated hashing when available
-        #[cfg(all(target_arch = "x86_64", feature = "simd"))]
+        #[cfg(target_arch = "x86_64")]
         {
             use crate::cache::performance::simd_hash;
             if simd_hash::is_simd_available() {
                 let simd_hash = unsafe { simd_hash::hash_key_simd(key.as_bytes()) };
                 // Mix with version for cache invalidation
                 let mixed = simd_hash ^ (inner.version as u64);
-                return format!("{:016x}", mixed);
+                return format!("{mixed:016x}");
             }
         }
 
@@ -469,7 +468,7 @@ impl Cache for UnifiedCache {
 
             // Use memory-mapped data if available
             let data = if let Some(ref mmap) = entry.mmap {
-                &mmap[..]
+                &mmap.as_ref()[..]
             } else {
                 &entry.data
             };
@@ -569,16 +568,19 @@ impl Cache for UnifiedCache {
         };
 
         // Store in memory cache for hot access
+        let mmap_arc = mmap_option.map(Arc::new);
         let entry = Arc::new(InMemoryEntry {
-            mmap: mmap_option.clone(),
+            mmap: mmap_arc.clone(),
             data: data.clone(),
             metadata: metadata.clone(),
             last_accessed: RwLock::new(Instant::now()),
         });
 
-        self.inner.memory_cache.insert(key.to_string(), entry);
+        self.inner
+            .memory_cache
+            .insert(key.to_string(), entry.clone());
 
-        let size = if mmap_option.is_some() {
+        let size = if mmap_arc.is_some() {
             metadata.size_bytes
         } else {
             data.len() as u64
@@ -591,8 +593,8 @@ impl Cache for UnifiedCache {
         self.inner.stats.hits.fetch_add(1, Ordering::Relaxed);
 
         // Deserialize from the appropriate source
-        let data_slice = if let Some(ref mmap) = mmap_option {
-            &mmap[..]
+        let data_slice = if let Some(ref mmap) = mmap_arc {
+            &mmap.as_ref()[..]
         } else {
             &data
         };
@@ -1131,6 +1133,10 @@ impl Cache for UnifiedCache {
             max_bytes: self.inner.config.max_size_bytes,
             expired_cleanups: self.inner.stats.expired_cleanups.load(Ordering::Relaxed),
             stats_since: self.inner.stats.stats_since,
+            compression_enabled: self.inner.config.compression_enabled,
+            compression_ratio: 1.0, // TODO: Track actual compression ratio
+            wal_recoveries: 0,      // TODO: Track WAL recoveries
+            checksum_failures: 0,   // TODO: Track checksum failures
         })
     }
 }
@@ -1223,7 +1229,7 @@ impl StreamingCache for UnifiedCache {
             // Prefer memory-mapped reader for performance
             #[cfg(target_os = "linux")]
             {
-                match CacheReader::from_mmap(data_path.clone(), metadata).await {
+                match CacheReader::from_mmap(data_path.clone(), metadata.clone()).await {
                     Ok(reader) => return Ok(Some(reader)),
                     Err(_) => {
                         // Fall back to regular file reader
@@ -1274,7 +1280,7 @@ impl StreamingCache for UnifiedCache {
     fn put_stream<'a, R>(
         &'a self,
         key: &'a str,
-        mut reader: R,
+        reader: R,
         ttl: Option<Duration>,
     ) -> Pin<Box<dyn Future<Output = Result<u64>> + Send + 'a>>
     where
@@ -1291,6 +1297,8 @@ impl StreamingCache for UnifiedCache {
             let mut buffer = vec![0u8; BUFFER_SIZE];
             let mut total_bytes = 0u64;
 
+            tokio::pin!(reader);
+
             loop {
                 let n = match reader.read(&mut buffer).await {
                     Ok(0) => break, // EOF
@@ -1299,7 +1307,7 @@ impl StreamingCache for UnifiedCache {
                         return Err(CacheError::Io {
                             path: PathBuf::from(key),
                             operation: "read from stream",
-                            source: std::io::Error::new(std::io::ErrorKind::Other, e),
+                            source: std::io::Error::other(e),
                             recovery_hint: RecoveryHint::Retry {
                                 after: Duration::from_millis(100),
                             },
@@ -1313,7 +1321,7 @@ impl StreamingCache for UnifiedCache {
                         return Err(CacheError::Io {
                             path: PathBuf::from(key),
                             operation: "write to cache stream",
-                            source: std::io::Error::new(std::io::ErrorKind::Other, e),
+                            source: std::io::Error::other(e),
                             recovery_hint: RecoveryHint::Retry {
                                 after: Duration::from_millis(100),
                             },
@@ -1338,11 +1346,11 @@ impl StreamingCache for UnifiedCache {
                 .fetch_add(total_bytes, Ordering::Relaxed);
 
             // Add to memory cache for hot access
-            let hash = Self::hash_key(&self.inner, key);
+            let _hash = Self::hash_key(&self.inner, key);
             let data_path = Self::object_path(&self.inner, key);
 
             // Try to memory-map for future reads
-            let mmap_option = Self::mmap_file(&data_path).ok();
+            let mmap_option = Self::mmap_file(&data_path).ok().map(Arc::new);
 
             let entry = Arc::new(InMemoryEntry {
                 mmap: mmap_option,
@@ -1360,7 +1368,7 @@ impl StreamingCache for UnifiedCache {
     fn get_stream<'a, W>(
         &'a self,
         key: &'a str,
-        mut writer: W,
+        writer: W,
     ) -> Pin<Box<dyn Future<Output = Result<Option<u64>>> + Send + 'a>>
     where
         W: AsyncWrite + Send + 'a,
@@ -1372,7 +1380,7 @@ impl StreamingCache for UnifiedCache {
                 Err(e) => return Err(e),
             };
 
-            let expected_size = reader.metadata().size_bytes;
+            let _expected_size = reader.metadata().size_bytes;
 
             // High-performance streaming copy
             // Note: Zero-copy implementation would be added here for Linux systems
@@ -1384,6 +1392,8 @@ impl StreamingCache for UnifiedCache {
             let mut buffer = vec![0u8; BUFFER_SIZE];
             let mut total_bytes = 0u64;
 
+            tokio::pin!(writer);
+
             loop {
                 let n = match reader.read(&mut buffer).await {
                     Ok(0) => break, // EOF
@@ -1392,7 +1402,7 @@ impl StreamingCache for UnifiedCache {
                         return Err(CacheError::Io {
                             path: PathBuf::from(key),
                             operation: "read from cache stream",
-                            source: std::io::Error::new(std::io::ErrorKind::Other, e),
+                            source: std::io::Error::other(e),
                             recovery_hint: RecoveryHint::Retry {
                                 after: Duration::from_millis(100),
                             },
@@ -1406,7 +1416,7 @@ impl StreamingCache for UnifiedCache {
                         return Err(CacheError::Io {
                             path: PathBuf::from(key),
                             operation: "write to output stream",
-                            source: std::io::Error::new(std::io::ErrorKind::Other, e),
+                            source: std::io::Error::other(e),
                             recovery_hint: RecoveryHint::Retry {
                                 after: Duration::from_millis(100),
                             },

@@ -10,10 +10,12 @@ mod errors;
 mod eviction;
 mod fast_path;
 mod memory_manager;
+mod metrics;
 mod metrics_endpoint;
 mod monitored_cache;
 mod monitoring;
 mod performance;
+mod serde_helpers;
 mod storage_backend;
 mod streaming;
 mod traits;
@@ -39,23 +41,20 @@ pub mod merkle;
 pub mod secure_cache;
 
 // Reliability and production features (Phase 9)
-pub mod health_endpoint;
+// pub mod health_endpoint;
 pub mod reliability;
 
 // Advanced features (Phase 10)
-pub mod analytics_dashboard;
-pub mod multi_tenant;
-pub mod platform_optimizations;
-pub mod predictive_cache;
+// pub mod analytics_dashboard;
+// pub mod multi_tenant;
+// pub mod platform_optimizations;
+// pub mod predictive_cache;
 
 // Legacy implementations (deprecated - will be removed)
 mod action_cache;
 mod cache_manager;
 mod concurrent_cache;
 mod content_addressed_store;
-
-// Remote cache integration
-mod remote_integration;
 
 // Public exports - new unified API
 pub use bridge::{CacheBuilder, SyncCache};
@@ -91,11 +90,6 @@ pub use concurrent_cache::{ConcurrentCache, ConcurrentCacheBuilder};
 pub use content_addressed_store::{ContentAddressedStore, ObjectMetadata};
 pub use key_generator::{CacheKeyFilterConfig, CacheKeyGenerator, FilterStats};
 pub use types::CachedTaskResult;
-
-// Remote cache integration exports
-pub use remote_integration::{
-    CacheIntegrationConfig, IntegratedCache, IntegratedCacheBuilder, IntegratedCacheStats,
-};
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};

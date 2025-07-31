@@ -3,8 +3,9 @@
 //! Handles memory pressure, disk quotas, and resource limits
 //! with production-grade reliability.
 
+#![allow(dead_code)]
+
 use crate::cache::errors::{CacheError, RecoveryHint, Result};
-use crate::cache::eviction::EvictionPolicy;
 use parking_lot::{Mutex, RwLock};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -15,7 +16,7 @@ use sysinfo::System;
 use tokio::time::interval;
 
 /// Memory pressure levels
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MemoryPressure {
     /// Plenty of memory available
     Low,
@@ -151,6 +152,7 @@ impl MemoryManager {
 
         let usage_ratio = used_memory as f64 / total_memory as f64;
 
+        #[allow(clippy::if_same_then_else)]
         let pressure = if free_memory < self.thresholds.min_free_memory {
             MemoryPressure::Critical
         } else if usage_ratio >= self.thresholds.critical_watermark {
@@ -177,7 +179,7 @@ impl MemoryManager {
         .map_err(|e| CacheError::Io {
             path: self.disk_quota.base_dir.clone(),
             operation: "calculate disk usage",
-            source: std::io::Error::new(std::io::ErrorKind::Other, e),
+            source: std::io::Error::other(e),
             recovery_hint: RecoveryHint::CheckDiskSpace,
         })?;
 
@@ -467,19 +469,26 @@ mod tests {
         warmer.add_to_warm_list("key1".to_string());
         warmer.add_to_warm_list("key2".to_string());
 
-        let mut warmed = Vec::new();
-        let warmed_ref = &mut warmed;
+        use parking_lot::Mutex;
+        use std::sync::Arc;
+
+        let warmed = Arc::new(Mutex::new(Vec::new()));
+        let warmed_clone = Arc::clone(&warmed);
 
         warmer
-            .warm_cache(|key| async move {
-                warmed_ref.push(key);
-                Ok(())
+            .warm_cache(|key| {
+                let warmed_clone = Arc::clone(&warmed_clone);
+                async move {
+                    warmed_clone.lock().push(key);
+                    Ok(())
+                }
             })
             .await
             .unwrap();
 
-        assert_eq!(warmed.len(), 2);
-        assert!(warmed.contains(&"key1".to_string()));
-        assert!(warmed.contains(&"key2".to_string()));
+        let warmed_vec = warmed.lock();
+        assert_eq!(warmed_vec.len(), 2);
+        assert!(warmed_vec.contains(&"key1".to_string()));
+        assert!(warmed_vec.contains(&"key2".to_string()));
     }
 }

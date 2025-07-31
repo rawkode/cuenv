@@ -12,7 +12,7 @@ use crate::errors::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::SystemTime;
 
@@ -105,7 +105,14 @@ impl CacheManager {
         // Initialize cache engine for legacy compatibility
         let engine = Arc::new(CacheEngine::new()?);
         let stats = Arc::new(RwLock::new(CacheStatistics::default()));
-        let signer = Arc::new(CacheSigner::new(&config.base_dir)?);
+        let signer =
+            Arc::new(
+                CacheSigner::new(&config.base_dir).map_err(|e| Error::FileSystem {
+                    path: config.base_dir.clone(),
+                    operation: "create cache signer".to_string(),
+                    source: std::io::Error::other(format!("Failed to create cache signer: {e}")),
+                })?,
+            );
 
         // Initialize cache key generator with configuration
         let mut key_generator = CacheKeyGenerator::with_config(config.env_filter.clone())?;
@@ -255,7 +262,11 @@ impl CacheManager {
     /// Store a cached result
     pub fn store_result(&self, cache_key: String, result: CachedTaskResult) -> Result<()> {
         // Sign the result for integrity
-        let _signed_result = self.signer.sign(&result)?;
+        let _signed_result = self.signer.sign(&result).map_err(|e| Error::FileSystem {
+            path: PathBuf::from("cache"),
+            operation: "sign cache result".to_string(),
+            source: std::io::Error::other(e.to_string()),
+        })?;
 
         // Only cache successful results (exit_code == 0)
         if result.exit_code == 0 {
@@ -343,11 +354,7 @@ impl CacheManager {
         // Run garbage collection on content store
         let (removed_count, removed_bytes) = self.content_store.garbage_collect()?;
 
-        log::info!(
-            "Cache cleanup: removed {} entries, freed {} bytes",
-            removed_count,
-            removed_bytes
-        );
+        log::info!("Cache cleanup: removed {removed_count} entries, freed {removed_bytes} bytes");
 
         // Update statistics
         {

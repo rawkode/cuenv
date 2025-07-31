@@ -7,17 +7,13 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, RwLock};
 
 use crate::access_restrictions::AccessRestrictions;
-use crate::command_executor::CommandExecutor;
-use crate::cue_parser::{CommandConfig, CueParser, HookConfig, HookType, ParseOptions, TaskConfig};
+use crate::cue_parser::{CommandConfig, CueParser, Hook, ParseOptions, TaskConfig};
 use crate::env_diff::EnvDiff;
 use crate::file_times::FileTimes;
-use crate::hook_manager::HookManager;
 use crate::output_filter::OutputFilter;
 use crate::platform::{PlatformOps, Shell};
 use crate::secrets::SecretManager;
 use crate::state::StateManager;
-use crate::types::{CommandArguments, EnvironmentVariables};
-use async_trait::async_trait;
 
 // Import the platform-specific implementation
 #[cfg(unix)]
@@ -30,7 +26,7 @@ pub struct EnvManager {
     cue_vars: HashMap<String, String>,
     commands: HashMap<String, CommandConfig>,
     tasks: HashMap<String, TaskConfig>,
-    hooks: HashMap<String, HookConfig>,
+    hooks: HashMap<String, Vec<Hook>>,
 }
 
 impl EnvManager {
@@ -110,13 +106,55 @@ impl EnvManager {
             options.capabilities
         );
 
+        // First, parse CUE package to get hooks and initial environment
+        let parse_result = match CueParser::eval_package_with_options(dir, "env", &options) {
+            Ok(result) => result,
+            Err(e) => {
+                return Err(Error::cue_parse_with_source(
+                    dir,
+                    format!("Failed to evaluate CUE package: {}", dir.display()),
+                    e,
+                ));
+            }
+        };
+
+        // Store commands, tasks and hooks
+        self.commands.extend(parse_result.commands.clone());
+        self.tasks.extend(parse_result.tasks.clone());
+        self.hooks.extend(parse_result.hooks.clone());
+
+        // Execute sourcing hooks first to capture additional environment variables
+        let mut sourced_env_vars = HashMap::new();
+        if let Some(on_enter_hooks) = parse_result.hooks.get("onEnter") {
+            for hook in on_enter_hooks {
+                // Check if this hook should be sourced
+                if self.should_source_hook(hook) {
+                    match self.execute_sourcing_hook(hook).await {
+                        Ok(vars) => {
+                            log::info!("Sourced {} environment variables from hook", vars.len());
+                            sourced_env_vars.extend(vars);
+                        }
+                        Err(e) => {
+                            log::error!("Failed to execute sourcing hook: {e}");
+                            // Continue with other hooks instead of failing completely
+                        }
+                    }
+                }
+            }
+        }
+
+        // Merge CUE variables with sourced variables (CUE takes precedence)
+        let mut merged_variables = sourced_env_vars;
+        merged_variables.extend(parse_result.variables);
+
+        // Apply the merged environment
         match self
-            .apply_cue_package_with_options(dir, "env", &options)
+            .apply_merged_environment(dir, merged_variables, &options)
             .await
         {
             Ok(()) => {
-                // Execute onEnter hooks after environment variables are set
-                self.execute_on_enter_hooks()?;
+                // Execute remaining onEnter hooks after environment variables are set
+                self.execute_on_enter_hooks().await?;
                 Ok(())
             }
             Err(e) => Err(e),
@@ -125,50 +163,25 @@ impl EnvManager {
 
     pub fn unload_env(&mut self) -> Result<()> {
         // Execute onExit hooks before unloading environment
-        let exit_hooks: Vec<_> = self
-            .hooks
-            .iter()
-            .filter(|(_, config)| config.hook_type == HookType::OnExit)
-            .collect();
+        if let Some(exit_hooks) = self.hooks.get("onExit") {
+            if !exit_hooks.is_empty() {
+                log::info!("Executing {} onExit hooks", exit_hooks.len());
 
-        if !exit_hooks.is_empty() {
-            log::info!("Executing {} onExit hooks", exit_hooks.len());
-            // Use run_async to avoid creating a new runtime if already in one
-            // This is safe because unload_env is called from a sync context (main.rs)
-            // but the hook execution itself is async.
-            // We don't need a separate runtime here, as hook_manager.execute_hook is async.
-            // The block_on will be handled by run_async if needed.
-
-            // Create command executor and hook manager
-            let executor = Arc::new(crate::command_executor::SystemCommandExecutor::new());
-            let hook_manager = match HookManager::new(executor) {
-                Ok(hm) => hm,
-                Err(e) => {
-                    log::error!("Failed to create hook manager: {e}");
-                    return Err(Error::configuration(format!(
-                        "Failed to create hook manager: {e}"
-                    )));
-                }
-            };
-
-            // Get current environment variables for hook execution
-            let current_env_vars: HashMap<String, String> = SyncEnv::vars()
-                .map_err(|e| Error::Configuration {
-                    message: format!("Failed to get environment variables: {e}"),
-                })?
-                .into_iter()
-                .collect();
-
-            for (name, config) in exit_hooks {
-                log::debug!("Executing onExit hook: {name}");
+                // Execute onExit hooks using async runtime
                 match crate::async_runtime::run_async(async {
-                    hook_manager
-                        .execute_hook(config, &current_env_vars)
-                        .await
-                        .map_err(Error::from)
+                    for hook in exit_hooks {
+                        if let Err(e) = self.execute_non_sourcing_hook(hook).await {
+                            log::error!("Failed to execute onExit hook: {e}");
+                            // Continue with other hooks instead of failing completely
+                        }
+                    }
+                    Ok::<(), Error>(())
                 }) {
-                    Ok(_) => log::info!("Successfully executed onExit hook: {name}"),
-                    Err(e) => log::error!("Failed to execute onExit hook {name}: {e}"),
+                    Ok(()) => {}
+                    Err(e) => {
+                        log::error!("Failed to execute onExit hooks: {e}");
+                        return Err(e);
+                    }
                 }
             }
         }
@@ -207,6 +220,7 @@ impl EnvManager {
         Ok(())
     }
 
+    #[allow(dead_code)]
     async fn apply_cue_package_with_options(
         &mut self,
         dir: &Path,
@@ -747,95 +761,447 @@ impl EnvManager {
         &self.tasks
     }
 
-    fn execute_on_enter_hooks(&self) -> Result<()> {
-        // Filter for onEnter hooks
-        let on_enter_hooks: Vec<(&String, &HookConfig)> = self
-            .hooks
-            .iter()
-            .filter(|(_, config)| config.hook_type == HookType::OnEnter)
-            .collect();
+    async fn execute_on_enter_hooks(&self) -> Result<()> {
+        // Execute onEnter hooks that are NOT sourcing hooks (those were already executed)
+        if let Some(on_enter_hooks) = self.hooks.get("onEnter") {
+            let non_sourcing_hooks: Vec<&Hook> = on_enter_hooks
+                .iter()
+                .filter(|hook| !self.should_source_hook(hook))
+                .collect();
 
-        if on_enter_hooks.is_empty() {
-            return Ok(());
+            if non_sourcing_hooks.is_empty() {
+                return Ok(());
+            }
+
+            log::info!("Executing {} onEnter hooks", non_sourcing_hooks.len());
+
+            for hook in non_sourcing_hooks {
+                if let Err(e) = self.execute_non_sourcing_hook(hook).await {
+                    log::error!("Failed to execute onEnter hook: {e}");
+                    // Continue with other hooks instead of failing completely
+                }
+            }
         }
 
-        log::info!("Executing {} onEnter hooks", on_enter_hooks.len());
+        Ok(())
+    }
 
-        // Collect current environment variables for hook execution
+    /// Check if a hook should be sourced
+    fn should_source_hook(&self, hook: &Hook) -> bool {
+        match hook {
+            Hook::Exec(exec) => exec.source.unwrap_or(false),
+            Hook::NixFlake { exec, .. } => exec.source.unwrap_or(false),
+            Hook::Devenv { exec, .. } => exec.source.unwrap_or(false),
+        }
+    }
+
+    /// Execute sourcing hooks to capture environment variables from new Hook enum
+    async fn execute_sourcing_hook(&self, hook: &Hook) -> Result<HashMap<String, String>> {
+        match hook {
+            Hook::Exec(exec) => self.execute_exec_sourcing_hook(exec).await,
+            Hook::NixFlake { exec, flake } => {
+                self.execute_nix_flake_sourcing_hook(exec, flake).await
+            }
+            Hook::Devenv { exec, devenv } => self.execute_devenv_sourcing_hook(exec, devenv).await,
+        }
+    }
+
+    /// Execute basic exec hook for sourcing
+    async fn execute_exec_sourcing_hook(
+        &self,
+        exec: &crate::cue_parser::ExecConfig,
+    ) -> Result<HashMap<String, String>> {
+        use crate::command_executor::CommandExecutor;
+        use crate::types::{CommandArguments, EnvironmentVariables};
+
+        // Create a basic environment for hook execution
+        let hook_env = EnvironmentVariables::from_map(
+            self.original_env
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+        );
+
+        // Execute the hook command and capture output
+        let args = CommandArguments::from_vec(exec.args.clone().unwrap_or_default());
+        let executor = crate::command_executor::SystemCommandExecutor::new();
+
+        log::debug!("Executing sourcing hook: {} {:?}", exec.command, exec.args);
+
+        let output = executor
+            .execute_with_env(&exec.command, &args, hook_env)
+            .await?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(Error::command_execution(
+                &exec.command,
+                exec.args.clone().unwrap_or_default(),
+                format!(
+                    "Hook execution failed with status {}: {}",
+                    output.status, stderr
+                ),
+                Some(output.status.code().unwrap_or(-1)),
+            ));
+        }
+
+        // Parse the stdout as shell export statements
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let env_vars = parse_shell_exports(&stdout);
+
+        log::debug!(
+            "Parsed {} environment variables from hook output",
+            env_vars.len()
+        );
+
+        Ok(env_vars)
+    }
+
+    /// Execute a non-sourcing hook (for regular hook execution)
+    async fn execute_non_sourcing_hook(&self, hook: &Hook) -> Result<()> {
+        match hook {
+            Hook::Exec(exec) => self.execute_exec_hook(exec).await,
+            Hook::NixFlake { exec, flake } => self.execute_nix_flake_hook(exec, flake).await,
+            Hook::Devenv { exec, devenv } => self.execute_devenv_hook(exec, devenv).await,
+        }
+    }
+
+    /// Execute basic exec hook (non-sourcing)
+    async fn execute_exec_hook(&self, exec: &crate::cue_parser::ExecConfig) -> Result<()> {
+        use crate::command_executor::CommandExecutor;
+        use crate::types::{CommandArguments, EnvironmentVariables};
+
         let env_vars = self.collect_cue_env_vars()?;
+        let hook_env = EnvironmentVariables::from_map(env_vars);
+        let args = CommandArguments::from_vec(exec.args.clone().unwrap_or_default());
+        let executor = crate::command_executor::SystemCommandExecutor::new();
 
-        // Create a command executor that uses the system's Command
-        struct SystemCommandExecutor;
+        log::debug!("Executing exec hook: {} {:?}", exec.command, exec.args);
 
-        #[async_trait]
-        impl CommandExecutor for SystemCommandExecutor {
-            async fn execute(
-                &self,
-                cmd: &str,
-                args: &CommandArguments,
-            ) -> Result<std::process::Output> {
-                match std::process::Command::new(cmd)
-                    .args(args.as_slice())
-                    .output()
-                {
-                    Ok(output) => Ok(output),
-                    Err(e) => Err(Error::command_execution(
-                        cmd,
-                        args.clone().into_inner(),
-                        format!("failed to execute command: {e}"),
-                        None,
-                    )),
-                }
-            }
+        let output = executor
+            .execute_with_env(&exec.command, &args, hook_env)
+            .await?;
 
-            async fn execute_with_env(
-                &self,
-                cmd: &str,
-                args: &CommandArguments,
-                env: EnvironmentVariables,
-            ) -> Result<std::process::Output> {
-                match std::process::Command::new(cmd)
-                    .args(args.as_slice())
-                    .envs(env.into_inner())
-                    .output()
-                {
-                    Ok(output) => Ok(output),
-                    Err(e) => Err(Error::command_execution(
-                        cmd,
-                        args.clone().into_inner(),
-                        format!("failed to execute command with environment: {e}"),
-                        None,
-                    )),
-                }
-            }
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(Error::command_execution(
+                &exec.command,
+                exec.args.clone().unwrap_or_default(),
+                format!(
+                    "Hook execution failed with status {}: {}",
+                    output.status, stderr
+                ),
+                Some(output.status.code().unwrap_or(-1)),
+            ));
         }
 
-        // Execute hooks
-        let executor = Arc::new(SystemCommandExecutor);
-        let hook_manager = match HookManager::new(executor) {
-            Ok(hm) => hm,
-            Err(e) => {
-                return Err(Error::configuration(format!(
-                    "Failed to create hook manager: {e}"
-                )));
-            }
-        };
+        // Print hook output if any
+        if !output.stdout.is_empty() {
+            print!("{}", String::from_utf8_lossy(&output.stdout));
+        }
+        if !output.stderr.is_empty() {
+            eprint!("{}", String::from_utf8_lossy(&output.stderr));
+        }
 
-        for (name, config) in on_enter_hooks {
-            log::debug!("Executing onEnter hook: {name}");
-            match crate::async_runtime::run_async(async {
-                hook_manager
-                    .execute_hook(config, &env_vars)
-                    .await
-                    .map_err(Error::from)
-            }) {
-                Ok(_) => log::info!("Successfully executed onEnter hook: {name}"),
+        Ok(())
+    }
+
+    /// Execute nix flake hook (non-sourcing)
+    async fn execute_nix_flake_hook(
+        &self,
+        _exec: &crate::cue_parser::ExecConfig,
+        flake: &crate::cue_parser::NixFlakeConfig,
+    ) -> Result<()> {
+        // For non-sourcing nix flake hooks, we just execute nix develop
+        // instead of print-dev-env (since we're not capturing environment)
+        use crate::command_executor::CommandExecutor;
+        use crate::types::{CommandArguments, EnvironmentVariables};
+
+        let env_vars = self.collect_cue_env_vars()?;
+        let hook_env = EnvironmentVariables::from_map(env_vars);
+        let executor = crate::command_executor::SystemCommandExecutor::new();
+
+        // Build nix develop command
+        let mut nix_args = vec!["develop".to_string()];
+
+        if let Some(ref reference) = flake.reference {
+            nix_args.push(reference.clone());
+        } else {
+            let flake_dir = flake.dir.as_deref().unwrap_or(".");
+            nix_args.push(format!("{flake_dir}#devShell"));
+        }
+
+        if let Some(ref shell) = flake.shell {
+            nix_args.push(format!("#{shell}"));
+        }
+
+        if flake.impure.unwrap_or(false) {
+            nix_args.push("--impure".to_string());
+        }
+
+        // Add a command to run in the nix develop shell
+        nix_args.extend(["--command".to_string(), "true".to_string()]);
+
+        let args = CommandArguments::from_vec(nix_args.clone());
+
+        log::debug!("Executing nix flake hook: nix {nix_args:?}");
+
+        let output = executor.execute_with_env("nix", &args, hook_env).await?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(Error::command_execution(
+                "nix",
+                nix_args,
+                format!(
+                    "Nix flake hook execution failed with status {}: {}",
+                    output.status, stderr
+                ),
+                Some(output.status.code().unwrap_or(-1)),
+            ));
+        }
+
+        if !output.stdout.is_empty() {
+            print!("{}", String::from_utf8_lossy(&output.stdout));
+        }
+        if !output.stderr.is_empty() {
+            eprint!("{}", String::from_utf8_lossy(&output.stderr));
+        }
+
+        Ok(())
+    }
+
+    /// Execute devenv hook (non-sourcing)
+    async fn execute_devenv_hook(
+        &self,
+        _exec: &crate::cue_parser::ExecConfig,
+        devenv: &crate::cue_parser::DevenvConfig,
+    ) -> Result<()> {
+        // For non-sourcing devenv hooks, we just execute devenv shell
+        use crate::command_executor::CommandExecutor;
+        use crate::types::{CommandArguments, EnvironmentVariables};
+
+        let env_vars = self.collect_cue_env_vars()?;
+        let hook_env = EnvironmentVariables::from_map(env_vars);
+        let executor = crate::command_executor::SystemCommandExecutor::new();
+
+        let mut devenv_args = vec!["shell".to_string()];
+
+        if let Some(ref options) = devenv.options {
+            devenv_args.extend(options.clone());
+        }
+
+        // Add a command to run in the devenv shell
+        devenv_args.extend(["--command".to_string(), "true".to_string()]);
+
+        let args = CommandArguments::from_vec(devenv_args.clone());
+
+        log::debug!("Executing devenv hook: devenv {devenv_args:?}");
+
+        let output = executor.execute_with_env("devenv", &args, hook_env).await?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(Error::command_execution(
+                "devenv",
+                devenv_args,
+                format!(
+                    "Devenv hook execution failed with status {}: {}",
+                    output.status, stderr
+                ),
+                Some(output.status.code().unwrap_or(-1)),
+            ));
+        }
+
+        if !output.stdout.is_empty() {
+            print!("{}", String::from_utf8_lossy(&output.stdout));
+        }
+        if !output.stderr.is_empty() {
+            eprint!("{}", String::from_utf8_lossy(&output.stderr));
+        }
+
+        Ok(())
+    }
+
+    /// Execute nix flake hook for sourcing
+    async fn execute_nix_flake_sourcing_hook(
+        &self,
+        _exec: &crate::cue_parser::ExecConfig,
+        flake: &crate::cue_parser::NixFlakeConfig,
+    ) -> Result<HashMap<String, String>> {
+        use crate::command_executor::CommandExecutor;
+        use crate::types::{CommandArguments, EnvironmentVariables};
+
+        // Create environment for nix command execution
+        let hook_env = EnvironmentVariables::from_map(
+            self.original_env
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+        );
+
+        let executor = crate::command_executor::SystemCommandExecutor::new();
+
+        // Build nix print-dev-env command
+        let mut nix_args = vec!["print-dev-env".to_string()];
+
+        // Add flake reference if specified, otherwise use current directory
+        if let Some(ref reference) = flake.reference {
+            nix_args.push(reference.clone());
+        } else {
+            let flake_dir = flake.dir.as_deref().unwrap_or(".");
+            nix_args.push(format!("{flake_dir}#devShell"));
+        }
+
+        // Add shell name if specified
+        if let Some(ref shell) = flake.shell {
+            nix_args.push(format!("#{shell}"));
+        }
+
+        // Add impure flag if requested
+        if flake.impure.unwrap_or(false) {
+            nix_args.push("--impure".to_string());
+        }
+
+        let args = CommandArguments::from_vec(nix_args.clone());
+
+        log::debug!("Executing nix flake sourcing hook: nix {nix_args:?}");
+
+        let output = executor.execute_with_env("nix", &args, hook_env).await?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(Error::command_execution(
+                "nix",
+                nix_args,
+                format!(
+                    "Nix flake hook execution failed with status {}: {}",
+                    output.status, stderr
+                ),
+                Some(output.status.code().unwrap_or(-1)),
+            ));
+        }
+
+        // Parse the stdout as shell export statements
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let env_vars = parse_shell_exports(&stdout);
+
+        log::debug!(
+            "Parsed {} environment variables from nix flake hook output",
+            env_vars.len()
+        );
+
+        Ok(env_vars)
+    }
+
+    /// Execute devenv hook for sourcing
+    async fn execute_devenv_sourcing_hook(
+        &self,
+        _exec: &crate::cue_parser::ExecConfig,
+        devenv: &crate::cue_parser::DevenvConfig,
+    ) -> Result<HashMap<String, String>> {
+        use crate::command_executor::CommandExecutor;
+        use crate::types::{CommandArguments, EnvironmentVariables};
+
+        // Create environment for devenv command execution
+        let hook_env = EnvironmentVariables::from_map(
+            self.original_env
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+        );
+
+        let executor = crate::command_executor::SystemCommandExecutor::new();
+
+        // Build devenv print-dev-env command
+        let mut devenv_args = vec!["print-dev-env".to_string()];
+
+        // Add additional options if specified
+        if let Some(ref options) = devenv.options {
+            devenv_args.extend(options.clone());
+        }
+
+        let args = CommandArguments::from_vec(devenv_args.clone());
+
+        log::debug!("Executing devenv sourcing hook: devenv {devenv_args:?}");
+
+        let output = executor.execute_with_env("devenv", &args, hook_env).await?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(Error::command_execution(
+                "devenv",
+                devenv_args,
+                format!(
+                    "Devenv hook execution failed with status {}: {}",
+                    output.status, stderr
+                ),
+                Some(output.status.code().unwrap_or(-1)),
+            ));
+        }
+
+        // Parse the stdout as shell export statements
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let env_vars = parse_shell_exports(&stdout);
+
+        log::debug!(
+            "Parsed {} environment variables from devenv hook output",
+            env_vars.len()
+        );
+
+        Ok(env_vars)
+    }
+
+    /// Apply merged environment variables (sourced + CUE)
+    async fn apply_merged_environment(
+        &mut self,
+        dir: &Path,
+        variables: HashMap<String, String>,
+        options: &ParseOptions,
+    ) -> Result<()> {
+        // Build the new environment
+        let mut new_env = self.original_env.clone();
+        self.cue_vars.clear();
+
+        for (key, value) in variables {
+            let expanded_value = match shellexpand::full(&value) {
+                Ok(expanded) => expanded.to_string(),
                 Err(e) => {
-                    // Log error but continue with other hooks
-                    log::error!("Failed to execute onEnter hook '{name}': {e}");
+                    return Err(Error::shell_expansion(
+                        &value,
+                        format!("Failed to expand value for {key}: {e}"),
+                    ));
                 }
-            }
+            };
+
+            log::debug!("Setting {key}={expanded_value}");
+            new_env.insert(key.clone(), expanded_value.clone());
+            self.cue_vars.insert(key.clone(), expanded_value.clone());
+            SyncEnv::set_var(key, expanded_value).map_err(|e| Error::Configuration {
+                message: format!("Failed to set environment variable: {e}"),
+            })?;
         }
+
+        // Create environment diff
+        let diff = EnvDiff::new(self.original_env.clone(), new_env);
+
+        // Create file watches
+        let mut watches = FileTimes::new();
+        let env_cue = dir.join("env.cue");
+        if env_cue.exists() {
+            watches.watch(&env_cue);
+        }
+
+        // Save state
+        StateManager::load(
+            dir,
+            &env_cue,
+            options.environment.as_deref(),
+            &options.capabilities,
+            &diff,
+            &watches,
+        )
+        .await?;
 
         Ok(())
     }
@@ -876,6 +1242,55 @@ impl EnvManager {
 
         Ok(cue_env_vars)
     }
+}
+
+/// Parse shell export statements from command output
+/// Handles formats like:
+/// - export VAR=value
+/// - VAR=value
+/// - export VAR="quoted value"
+/// - export VAR='single quoted'
+fn parse_shell_exports(output: &str) -> HashMap<String, String> {
+    let mut env_vars = HashMap::new();
+
+    for line in output.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        // Handle export statements: export VAR=value or VAR=value
+        let export_line = if let Some(stripped) = line.strip_prefix("export ") {
+            stripped
+        } else {
+            line
+        };
+
+        // Find the first = to split key=value
+        if let Some(eq_pos) = export_line.find('=') {
+            let key = export_line[..eq_pos].trim();
+            let value = export_line[eq_pos + 1..].trim();
+
+            // Skip invalid variable names
+            if key.is_empty() || !key.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                continue;
+            }
+
+            // Handle quoted values
+            let cleaned_value = if (value.starts_with('"') && value.ends_with('"'))
+                || (value.starts_with('\'') && value.ends_with('\''))
+            {
+                // Remove surrounding quotes
+                &value[1..value.len() - 1]
+            } else {
+                value
+            };
+
+            env_vars.insert(key.to_string(), cleaned_value.to_string());
+        }
+    }
+
+    env_vars
 }
 
 #[cfg(test)]
@@ -1118,5 +1533,39 @@ env: {
 
         let restrictions = AccessRestrictions::new(false, false);
         assert!(!restrictions.has_any_restrictions());
+    }
+
+    #[test]
+    fn test_parse_shell_exports() {
+        // Test basic export statements
+        let output = r#"
+export PATH=/usr/bin:/bin
+export HOME=/home/user
+DB_URL=postgres://localhost/test
+export API_KEY="secret-key"
+export TOKEN='bearer-token'
+# This is a comment
+export EMPTY_VAR=
+INVALID_VAR
+export =invalid
+export 123INVALID=value
+        "#;
+
+        let vars = parse_shell_exports(output);
+
+        assert_eq!(vars.get("PATH"), Some(&"/usr/bin:/bin".to_string()));
+        assert_eq!(vars.get("HOME"), Some(&"/home/user".to_string()));
+        assert_eq!(
+            vars.get("DB_URL"),
+            Some(&"postgres://localhost/test".to_string())
+        );
+        assert_eq!(vars.get("API_KEY"), Some(&"secret-key".to_string()));
+        assert_eq!(vars.get("TOKEN"), Some(&"bearer-token".to_string()));
+        assert_eq!(vars.get("EMPTY_VAR"), Some(&"".to_string()));
+
+        // Invalid variables should not be included
+        assert!(!vars.contains_key("INVALID_VAR"));
+        assert!(!vars.contains_key(""));
+        assert!(!vars.contains_key("123INVALID"));
     }
 }

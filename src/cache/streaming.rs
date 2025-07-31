@@ -24,6 +24,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::{Duration, SystemTime};
 use tokio::fs::File;
+use tokio::io::AsyncWriteExt as TokioAsyncWriteExt;
 use tokio::io::{AsyncRead as TokioAsyncRead, AsyncWrite as TokioAsyncWrite, ReadBuf};
 
 /// Streaming cache operations trait
@@ -213,7 +214,20 @@ impl AsyncRead for CacheReader {
                     Poll::Pending => Poll::Pending,
                 }
             }
-            CacheReaderInner::Memory(cursor) => Pin::new(cursor).poll_read(cx, buf),
+            CacheReaderInner::Memory(cursor) => {
+                let bytes_to_read = buf
+                    .len()
+                    .min(cursor.get_ref().len() - cursor.position() as usize);
+                if bytes_to_read == 0 {
+                    Poll::Ready(Ok(0))
+                } else {
+                    let start = cursor.position() as usize;
+                    let end = start + bytes_to_read;
+                    buf[..bytes_to_read].copy_from_slice(&cursor.get_ref()[start..end]);
+                    cursor.set_position((start + bytes_to_read) as u64);
+                    Poll::Ready(Ok(bytes_to_read))
+                }
+            }
             #[cfg(target_os = "linux")]
             CacheReaderInner::Mmap(reader) => {
                 let remaining = reader.mmap.len() - reader.position;
@@ -457,7 +471,7 @@ impl CacheWriter {
         let metadata_path = cache_dir
             .join("metadata")
             .join(shard)
-            .join(format!("{}.meta", hash));
+            .join(format!("{hash}.meta"));
 
         (data_path, metadata_path)
     }
@@ -488,7 +502,7 @@ impl AsyncWrite for CacheWriter {
     }
 
     fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        self.project().file.poll_close(cx)
+        self.project().file.poll_flush(cx)
     }
 }
 
@@ -496,9 +510,10 @@ impl AsyncWrite for CacheWriter {
 #[cfg(target_os = "linux")]
 pub mod zero_copy {
     use super::*;
-    use std::os::unix::io::{AsRawFd, RawFd};
+    use std::os::unix::io::RawFd;
 
     /// Copy data between file descriptors using sendfile (zero-copy)
+    #[allow(dead_code)]
     pub async fn sendfile_copy(from_fd: RawFd, to_fd: RawFd, count: usize) -> io::Result<usize> {
         use libc::{off_t, sendfile};
 
@@ -512,6 +527,7 @@ pub mod zero_copy {
     }
 
     /// Copy data using splice for pipe operations (zero-copy)
+    #[allow(dead_code)]
     pub async fn splice_copy(from_fd: RawFd, to_fd: RawFd, count: usize) -> io::Result<usize> {
         use libc::{splice, SPLICE_F_MORE, SPLICE_F_MOVE};
 
@@ -541,13 +557,17 @@ pub mod vectored {
     use std::io::IoSlice;
 
     /// Read into multiple buffers (scatter)
+    #[allow(dead_code)]
     pub async fn read_vectored<R: AsyncRead + Unpin>(
         reader: &mut R,
         bufs: &mut [IoSlice<'_>],
     ) -> io::Result<usize> {
         let mut total = 0;
         for buf in bufs {
-            let n = reader.read(buf).await?;
+            // IoSlice doesn't implement DerefMut, so we need to work around this
+            let slice =
+                unsafe { std::slice::from_raw_parts_mut(buf.as_ptr() as *mut u8, buf.len()) };
+            let n = reader.read(slice).await?;
             total += n;
             if n < buf.len() {
                 break;
@@ -557,6 +577,7 @@ pub mod vectored {
     }
 
     /// Write from multiple buffers (gather)
+    #[allow(dead_code)]
     pub async fn write_vectored<W: AsyncWrite + Unpin>(
         writer: &mut W,
         bufs: &[IoSlice<'_>],

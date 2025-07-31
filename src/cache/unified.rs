@@ -689,6 +689,10 @@ impl Cache for UnifiedCache {
             max_bytes: self.inner.config.max_size_bytes,
             expired_cleanups: self.inner.stats.expired_cleanups.load(Ordering::Relaxed),
             stats_since: self.inner.stats.stats_since,
+            compression_enabled: self.inner.config.compression_enabled,
+            compression_ratio: 1.0, // TODO: Track actual compression ratio
+            wal_recoveries: 0,      // TODO: Track WAL recoveries
+            checksum_failures: 0,   // TODO: Track checksum failures
         })
     }
 }

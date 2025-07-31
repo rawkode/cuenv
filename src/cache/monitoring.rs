@@ -810,8 +810,11 @@ impl CacheError {
             CacheError::Configuration { .. } => "configuration",
             CacheError::StoreUnavailable { .. } => "store_unavailable",
             CacheError::ConcurrencyConflict { .. } => "concurrency_conflict",
-            CacheError::RemoteError { .. } => "remote_error",
+            // RemoteError variant has been removed - map to network error
+            CacheError::Network { .. } => "remote_error",
             CacheError::Timeout { .. } => "timeout",
+            // Handle any other variants
+            _ => "unknown",
         }
     }
 }

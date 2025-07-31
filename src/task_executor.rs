@@ -13,6 +13,14 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::task::JoinSet;
 
+/// Context for task execution to reduce function parameter count
+struct TaskExecutionContext<'a> {
+    cache_config: &'a CacheConfiguration,
+    working_dir: &'a Path,
+    action_cache: &'a ActionCache,
+    audit_mode: bool,
+}
+
 /// Represents a task execution plan with resolved dependencies
 #[derive(Debug, Clone)]
 pub struct TaskExecutionPlan {
@@ -40,7 +48,7 @@ impl TaskExecutor {
 
         // Apply task-specific cache environment configurations
         let tasks = env_manager.get_tasks();
-        cache_manager.apply_task_configs(&tasks)?;
+        cache_manager.apply_task_configs(tasks)?;
 
         let cache_manager = Arc::new(cache_manager);
         let action_cache = cache_manager.action_cache();
@@ -66,7 +74,7 @@ impl TaskExecutor {
 
         // Apply task-specific cache environment configurations
         let tasks = env_manager.get_tasks();
-        cache_manager.apply_task_configs(&tasks)?;
+        cache_manager.apply_task_configs(tasks)?;
 
         let cache_manager = Arc::new(cache_manager);
         let action_cache = cache_manager.action_cache();
@@ -121,22 +129,20 @@ impl TaskExecutor {
                 let task_args = args.to_vec();
                 let failed_tasks = Arc::clone(&failed_tasks);
                 let task_name = task_name.clone();
-                let cache_manager = Arc::clone(&self.cache_manager);
-                let action_cache = Arc::clone(&self.action_cache);
-
-                let cache_manager = Arc::clone(&self.cache_manager);
                 let action_cache = Arc::clone(&self.action_cache);
                 let cache_config = self.cache_config.clone();
                 join_set.spawn(async move {
+                    let ctx = TaskExecutionContext {
+                        cache_config: &cache_config,
+                        working_dir: &working_dir,
+                        action_cache: &action_cache,
+                        audit_mode,
+                    };
                     match Self::execute_single_task_with_cache(
-                        &cache_config,
+                        &ctx,
                         &task_name,
                         &task_config,
-                        &working_dir,
                         &task_args,
-                        &cache_manager,
-                        &action_cache,
-                        audit_mode,
                     )
                     .await
                     {
@@ -377,18 +383,14 @@ impl TaskExecutor {
 
     /// Execute a single task with caching support
     async fn execute_single_task_with_cache(
-        cache_config: &CacheConfiguration,
+        ctx: &TaskExecutionContext<'_>,
         task_name: &str,
         task_config: &TaskConfig,
-        working_dir: &Path,
         args: &[String],
-        _cache_manager: &CacheManager,
-        action_cache: &ActionCache,
-        audit_mode: bool,
     ) -> Result<i32> {
         // Check if caching is enabled for this task using the new configuration system
         let cache_enabled = CacheConfigResolver::should_cache_task(
-            &cache_config.global,
+            &ctx.cache_config.global,
             task_config.cache.as_ref(),
             task_name,
         );
@@ -396,21 +398,25 @@ impl TaskExecutor {
         if !cache_enabled {
             // Execute without caching
             println!("→ Executing task '{task_name}' (cache disabled)");
-            return Self::execute_single_task(task_config, working_dir, args, audit_mode).await;
+            return Self::execute_single_task(task_config, ctx.working_dir, args, ctx.audit_mode)
+                .await;
         }
 
         // Generate action digest using ActionCache
         let env_vars = std::env::vars().collect();
-        let digest = action_cache
-            .compute_digest(task_name, task_config, working_dir, env_vars)
+        let digest = ctx
+            .action_cache
+            .compute_digest(task_name, task_config, ctx.working_dir, env_vars)
             .await?;
 
         // Execute with ActionCache
-        let result = action_cache
+        let result = ctx
+            .action_cache
             .execute_action(&digest, || async {
                 println!("→ Executing task '{task_name}'");
                 let exit_code =
-                    Self::execute_single_task(task_config, working_dir, args, audit_mode).await?;
+                    Self::execute_single_task(task_config, ctx.working_dir, args, ctx.audit_mode)
+                        .await?;
 
                 // Create ActionResult for caching
                 Ok(crate::cache::ActionResult {
@@ -614,7 +620,7 @@ impl TaskExecutor {
         println!("  Lock contentions: {}", stats.lock_contentions);
         println!("  Total bytes saved: {}", stats.total_bytes_saved);
         if let Some(last_cleanup) = stats.last_cleanup {
-            println!("  Last cleanup: {:?}", last_cleanup);
+            println!("  Last cleanup: {last_cleanup:?}");
         }
         Ok(())
     }

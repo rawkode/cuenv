@@ -144,7 +144,7 @@ impl MemoryPool {
     /// Allocate a block from the pool
     pub fn allocate(&self) -> Option<*mut u8> {
         // Try to get from pool first
-        if let Ok(mut blocks) = self.blocks.try_lock() {
+        if let Some(mut blocks) = self.blocks.try_lock() {
             if let Some(block) = blocks.pop() {
                 return Some(block);
             }
@@ -166,7 +166,7 @@ impl MemoryPool {
 
     /// Return a block to the pool
     pub fn deallocate(&self, ptr: *mut u8) {
-        if let Ok(mut blocks) = self.blocks.try_lock() {
+        if let Some(mut blocks) = self.blocks.try_lock() {
             if blocks.len() < self.max_blocks {
                 blocks.push(ptr);
                 return;
@@ -188,7 +188,8 @@ impl Drop for MemoryPool {
         let layout =
             Layout::from_size_align(self.block_size, CACHE_LINE_SIZE).expect("Invalid layout");
 
-        if let Ok(blocks) = self.blocks.lock() {
+        let blocks = self.blocks.lock();
+        if true {
             for ptr in blocks.iter() {
                 unsafe {
                     dealloc(*ptr, layout);
@@ -237,7 +238,6 @@ pub fn unlikely() {
 }
 
 #[inline(always)]
-#[hot]
 pub fn likely() {
     // This function is marked hot to hint that it's likely to be called
 }
@@ -285,7 +285,7 @@ pub unsafe fn aligned_copy(dst: *mut u8, src: *const u8, len: usize) {
 }
 
 /// Batch operations for improved throughput
-pub struct BatchProcessor<T> {
+pub struct BatchProcessor<T: Send> {
     batch: Vec<T>,
     batch_size: usize,
     processor: Box<dyn Fn(Vec<T>) + Send + Sync>,
@@ -316,7 +316,7 @@ impl<T: Send> BatchProcessor<T> {
     }
 }
 
-impl<T> Drop for BatchProcessor<T> {
+impl<T: Send> Drop for BatchProcessor<T> {
     fn drop(&mut self) {
         self.flush();
     }

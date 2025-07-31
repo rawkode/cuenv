@@ -9,7 +9,7 @@
 //! - Atomic multi-file updates
 //! - Zero-copy operations where possible
 
-use crate::cache::errors::{CacheError, RecoveryHint, Result, SerializationOp, StoreType};
+use crate::cache::errors::{CacheError, RecoveryHint, Result, SerializationOp};
 use crate::cache::storage_backend::{CompressionConfig, StorageBackend};
 use crate::cache::traits::{Cache, CacheConfig, CacheKey, CacheMetadata, CacheStatistics};
 use async_trait::async_trait;
@@ -68,6 +68,7 @@ struct CacheStats {
     errors: AtomicU64,
     total_bytes: AtomicU64,
     expired_cleanups: AtomicU64,
+    #[allow(dead_code)]
     compression_saves: AtomicU64,
     wal_recoveries: AtomicU64,
     stats_since: SystemTime,

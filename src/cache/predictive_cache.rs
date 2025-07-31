@@ -159,66 +159,86 @@ impl AccessPredictor {
     }
 
     fn record_access_at(&mut self, key: &str, timestamp: Instant) {
-        // Update access record
-        let record = self
-            .access_history
-            .entry(key.to_string())
-            .or_insert(AccessRecord {
-                access_count: 0,
-                last_access: timestamp,
-                frequency: 0.0,
-                predecessors: Vec::new(),
-                successors: Vec::new(),
-            });
+        let key_string = key.to_string();
 
-        record.access_count += 1;
-        record.last_access = timestamp;
+        // Update access record and collect data we need
+        let (prev_key_opt, _should_update_predecessors) = {
+            let record = self
+                .access_history
+                .entry(key_string.clone())
+                .or_insert(AccessRecord {
+                    access_count: 0,
+                    last_access: timestamp,
+                    frequency: 0.0,
+                    predecessors: Vec::new(),
+                    successors: Vec::new(),
+                });
 
-        // Calculate frequency
-        if record.access_count > 1 {
-            let duration = timestamp.duration_since(record.last_access).as_secs_f64() / 3600.0;
-            if duration > 0.0 {
-                record.frequency = record.access_count as f64 / duration;
+            record.access_count += 1;
+            record.last_access = timestamp;
+
+            // Calculate frequency
+            if record.access_count > 1 {
+                let duration = timestamp.duration_since(record.last_access).as_secs_f64() / 3600.0;
+                if duration > 0.0 {
+                    record.frequency = record.access_count as f64 / duration;
+                }
             }
-        }
 
-        // Update global sequence
-        self.global_sequence.push_back((key.to_string(), timestamp));
+            // Update global sequence
+            self.global_sequence
+                .push_back((key_string.clone(), timestamp));
 
-        // Maintain window size
-        while self.global_sequence.len() > self.config.max_patterns {
-            self.global_sequence.pop_front();
-        }
+            // Maintain window size
+            while self.global_sequence.len() > self.config.max_patterns {
+                self.global_sequence.pop_front();
+            }
 
-        // Update sequential patterns
-        if self.global_sequence.len() >= 2 {
-            let seq_len = self.global_sequence.len();
-            if let Some((prev_key, _)) = self.global_sequence.get(seq_len - 2) {
-                // Record sequential pattern
-                let pattern = self
-                    .sequential_patterns
-                    .entry(prev_key.clone())
-                    .or_insert_with(Vec::new);
-                if !pattern.contains(&key.to_string()) {
-                    pattern.push(key.to_string());
-                }
+            // Check for sequential patterns
+            let mut prev_key_opt = None;
+            let mut should_update = false;
 
-                // Update dependency graph
-                let deps = self
-                    .dependency_graph
-                    .entry(key.to_string())
-                    .or_insert_with(Vec::new);
-                if !deps.contains(prev_key) {
-                    deps.push(prev_key.clone());
-                }
+            if self.global_sequence.len() >= 2 {
+                let seq_len = self.global_sequence.len();
+                if let Some((prev_key, _)) = self.global_sequence.get(seq_len - 2) {
+                    prev_key_opt = Some(prev_key.clone());
 
-                // Update predecessors/successors
-                if let Some(prev_record) = self.access_history.get_mut(prev_key) {
-                    if !prev_record.successors.contains(&key.to_string()) {
-                        prev_record.successors.push(key.to_string());
+                    // Update predecessors for current record
+                    if !record.predecessors.contains(prev_key) {
+                        record.predecessors.push(prev_key.clone());
+                        should_update = true;
                     }
                 }
-                record.predecessors.push(prev_key.clone());
+            }
+
+            (prev_key_opt, should_update)
+        };
+
+        // Now update other data structures without holding a borrow on access_history
+        if let Some(prev_key) = prev_key_opt {
+            // Record sequential pattern
+            let pattern = self
+                .sequential_patterns
+                .entry(prev_key.clone())
+                .or_insert_with(Vec::new);
+            if !pattern.contains(&key_string) {
+                pattern.push(key_string.clone());
+            }
+
+            // Update dependency graph
+            let deps = self
+                .dependency_graph
+                .entry(key_string.clone())
+                .or_insert_with(Vec::new);
+            if !deps.contains(&prev_key) {
+                deps.push(prev_key.clone());
+            }
+
+            // Update successors for previous record
+            if let Some(prev_record) = self.access_history.get_mut(&prev_key) {
+                if !prev_record.successors.contains(&key_string) {
+                    prev_record.successors.push(key_string.clone());
+                }
             }
         }
 
@@ -228,8 +248,8 @@ impl AccessPredictor {
             .temporal_patterns
             .entry(hour as u32)
             .or_insert_with(Vec::new);
-        if !temporal.contains(&key.to_string()) {
-            temporal.push(key.to_string());
+        if !temporal.contains(&key_string) {
+            temporal.push(key_string);
         }
     }
 
@@ -287,7 +307,7 @@ impl AccessPredictor {
 
     fn calculate_sequential_confidence(&self, from: &str, to: &str) -> f64 {
         if let Some(from_record) = self.access_history.get(from) {
-            if let Some(to_record) = self.access_history.get(to) {
+            if let Some(_to_record) = self.access_history.get(to) {
                 let total_transitions = from_record.successors.len() as f64;
                 if total_transitions > 0.0 {
                     let to_transitions =

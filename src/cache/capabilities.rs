@@ -17,7 +17,21 @@ use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use zeroize::{Zeroize, ZeroizeOnDrop};
+
+/// Cache capabilities that can be granted
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum CacheCapability {
+    /// Read cache entries
+    Read,
+    /// Write cache entries
+    Write,
+    /// Delete cache entries
+    Delete,
+    /// List cache entries
+    List,
+    /// Administer cache (clear, configure, etc.)
+    Admin,
+}
 
 /// Capability token for fine-grained access control
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,6 +56,45 @@ pub struct CapabilityToken {
     pub signature: Vec<u8>,
     /// Public key of the token issuer
     pub issuer_public_key: Vec<u8>,
+}
+
+impl CapabilityToken {
+    /// Create a new capability token (simplified version)
+    pub fn new(subject: String, capabilities: Vec<CacheCapability>, validity_seconds: u64) -> Self {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let permissions = capabilities
+            .into_iter()
+            .map(|cap| match cap {
+                CacheCapability::Read => Permission::Read,
+                CacheCapability::Write => Permission::Write,
+                CacheCapability::Delete => Permission::Delete,
+                CacheCapability::List => Permission::List,
+                CacheCapability::Admin => Permission::ManageTokens,
+            })
+            .collect();
+
+        Self {
+            token_id: format!("token_{}", uuid::Uuid::new_v4()),
+            subject,
+            permissions,
+            key_patterns: vec!["*".to_string()],
+            expires_at: now + validity_seconds,
+            issued_at: now,
+            issuer: "system".to_string(),
+            metadata: TokenMetadata::default(),
+            signature: vec![],
+            issuer_public_key: vec![],
+        }
+    }
+
+    /// Get the token ID
+    pub fn id(&self) -> &str {
+        &self.token_id
+    }
 }
 
 /// Token metadata for additional context
@@ -98,7 +151,7 @@ pub enum Permission {
 }
 
 /// Capability authority for issuing and verifying tokens
-#[derive(ZeroizeOnDrop)]
+#[derive(Debug)]
 pub struct CapabilityAuthority {
     /// Ed25519 signing key for signing tokens
     signing_key: SigningKey,
@@ -110,6 +163,17 @@ pub struct CapabilityAuthority {
     issued_tokens: HashSet<String>,
     /// Revoked tokens (blacklist)
     revoked_tokens: HashSet<String>,
+}
+
+// Manual implementation of Drop for secure cleanup
+impl Drop for CapabilityAuthority {
+    fn drop(&mut self) {
+        // ed25519_dalek's SigningKey doesn't implement Zeroize
+        // The signing key will be cleared when dropped
+        // Clear sensitive data from collections
+        self.issued_tokens.clear();
+        self.revoked_tokens.clear();
+    }
 }
 
 impl CapabilityAuthority {
@@ -152,7 +216,7 @@ impl CapabilityAuthority {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|e| CacheError::Configuration {
-                message: format!("Invalid system time: {}", e),
+                message: format!("Invalid system time: {e}"),
                 recovery_hint: RecoveryHint::Manual {
                     instructions: "Check system clock".to_string(),
                 },
@@ -197,7 +261,7 @@ impl CapabilityAuthority {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|e| CacheError::Configuration {
-                message: format!("Invalid system time: {}", e),
+                message: format!("Invalid system time: {e}"),
                 recovery_hint: RecoveryHint::Manual {
                     instructions: "Check system clock".to_string(),
                 },
@@ -226,7 +290,7 @@ impl CapabilityAuthority {
             Ok(sig) => sig,
             Err(e) => {
                 return Err(CacheError::Configuration {
-                    message: format!("Invalid signature format: {}", e),
+                    message: format!("Invalid signature format: {e}"),
                     recovery_hint: RecoveryHint::ClearAndRetry,
                 });
             }
@@ -325,6 +389,7 @@ pub enum TokenVerificationResult {
 }
 
 /// Capability checker for authorizing cache operations
+#[derive(Debug)]
 pub struct CapabilityChecker {
     /// Authority for token verification
     authority: CapabilityAuthority,
@@ -339,6 +404,24 @@ impl CapabilityChecker {
             authority,
             rate_limits: std::collections::HashMap::new(),
         }
+    }
+
+    /// Issue a new capability token
+    pub fn issue_token(
+        &mut self,
+        subject: String,
+        permissions: HashSet<Permission>,
+        key_patterns: Vec<String>,
+        validity_duration: Duration,
+        metadata: Option<TokenMetadata>,
+    ) -> Result<CapabilityToken> {
+        self.authority.issue_token(
+            subject,
+            permissions,
+            key_patterns,
+            validity_duration,
+            metadata,
+        )
     }
 
     /// Check if a token has permission for a specific operation
@@ -405,13 +488,11 @@ impl CapabilityChecker {
             return true;
         }
 
-        if pattern.ends_with('*') {
-            let prefix = &pattern[..pattern.len() - 1];
+        if let Some(prefix) = pattern.strip_suffix('*') {
             return key.starts_with(prefix);
         }
 
-        if pattern.starts_with('*') {
-            let suffix = &pattern[1..];
+        if let Some(suffix) = pattern.strip_prefix('*') {
             return key.ends_with(suffix);
         }
 

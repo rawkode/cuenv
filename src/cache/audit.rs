@@ -248,6 +248,7 @@ impl Default for AuditConfig {
 }
 
 /// High-performance audit logger with tamper-evident logging
+#[derive(Debug)]
 pub struct AuditLogger {
     /// Logger configuration
     config: AuditConfig,
@@ -612,10 +613,11 @@ impl AuditLogger {
             previous_hash = entry.integrity_hash;
         }
 
+        let integrity_verified = corrupted_entries.is_empty();
         Ok(LogIntegrityReport {
             total_entries: entry_count,
             corrupted_entries,
-            integrity_verified: corrupted_entries.is_empty(),
+            integrity_verified,
         })
     }
 }

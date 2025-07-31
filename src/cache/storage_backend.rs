@@ -10,13 +10,12 @@
 
 use crate::cache::errors::{CacheError, RecoveryHint, Result, SerializationOp, StoreType};
 use crate::cache::traits::CacheMetadata;
-use bincode::{DefaultOptions, Options};
 use crc32c::crc32c;
 use parking_lot::{Mutex, RwLock};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
-use std::io::{self, BufReader, BufWriter, Read as IoRead, Seek, SeekFrom, Write as IoWrite};
+use std::io::{self, BufReader, BufWriter, Read as IoRead, Write as IoWrite};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -62,6 +61,7 @@ struct StorageHeader {
 
 impl StorageHeader {
     const FLAG_COMPRESSED: u16 = 1 << 0;
+    #[allow(dead_code)]
     const FLAG_ENCRYPTED: u16 = 1 << 1;
 
     fn new(uncompressed_size: u64, compressed_size: u64, data_crc: u32, compressed: bool) -> Self {
@@ -145,7 +145,7 @@ impl StorageHeader {
 
 /// Write-Ahead Log entry type
 #[derive(Debug, Clone, Serialize, Deserialize)]
-enum WalOperation {
+pub enum WalOperation {
     /// Write a new cache entry
     Write {
         key: String,
@@ -623,7 +623,7 @@ impl StorageBackend {
                 Ok(())
             }
             None => Err(CacheError::Configuration {
-                message: format!("Transaction {} not found", tx_id),
+                message: format!("Transaction {tx_id} not found"),
                 recovery_hint: RecoveryHint::Manual {
                     instructions: "Begin a transaction before adding operations".to_string(),
                 },
@@ -639,7 +639,7 @@ impl StorageBackend {
                 Some(ops) => ops,
                 None => {
                     return Err(CacheError::Configuration {
-                        message: format!("Transaction {} not found", tx_id),
+                        message: format!("Transaction {tx_id} not found"),
                         recovery_hint: RecoveryHint::Manual {
                             instructions: "Transaction may have already been committed".to_string(),
                         },
@@ -680,7 +680,7 @@ impl StorageBackend {
         &self,
         path: &Path,
         data: &[u8],
-        metadata: Option<&CacheMetadata>,
+        _metadata: Option<&CacheMetadata>,
     ) -> Result<()> {
         let _permit = match self.io_semaphore.acquire().await {
             Ok(p) => p,
@@ -893,7 +893,7 @@ impl StorageBackend {
     async fn execute_operation(&self, op: &WalOperation) -> Result<()> {
         match op {
             WalOperation::Write {
-                key,
+                key: _,
                 metadata_path,
                 data_path,
                 metadata,
@@ -916,7 +916,7 @@ impl StorageBackend {
                 }
             }
             WalOperation::Remove {
-                key,
+                key: _,
                 metadata_path,
                 data_path,
             } => {
@@ -928,7 +928,7 @@ impl StorageBackend {
                 // Clear is handled at a higher level
                 Ok(())
             }
-            WalOperation::Checkpoint { timestamp } => {
+            WalOperation::Checkpoint { timestamp: _ } => {
                 // Checkpoint is just a marker
                 Ok(())
             }
@@ -943,7 +943,7 @@ impl StorageBackend {
         self.wal.replay(move |op| {
             // We need to execute synchronously in the callback
             let rt = tokio::runtime::Handle::current();
-            let backend_dir = backend_clone.clone();
+            let _backend_dir = backend_clone.clone();
             let sem = Arc::clone(&io_sem);
 
             rt.block_on(async move {
@@ -954,7 +954,7 @@ impl StorageBackend {
 
                 match op {
                     WalOperation::Write {
-                        key,
+                        key: _,
                         metadata_path,
                         data_path,
                         metadata,
@@ -965,7 +965,7 @@ impl StorageBackend {
                         let _ = fs::write(data_path, data).await;
                     }
                     WalOperation::Remove {
-                        key,
+                        key: _,
                         metadata_path,
                         data_path,
                     } => {
@@ -975,7 +975,7 @@ impl StorageBackend {
                     WalOperation::Clear => {
                         // Clear operation would be handled at cache level
                     }
-                    WalOperation::Checkpoint { timestamp } => {
+                    WalOperation::Checkpoint { timestamp: _ } => {
                         // Nothing to do for checkpoint during recovery
                     }
                 }
@@ -1230,7 +1230,7 @@ mod tests {
         std::fs::remove_file(&data_path).ok();
 
         // Create new backend - should recover from WAL
-        let backend2 = StorageBackend::new(path.clone(), CompressionConfig::default()).await?;
+        let _backend2 = StorageBackend::new(path.clone(), CompressionConfig::default()).await?;
 
         // Data should be recovered
         assert!(data_path.exists(), "Data file should be recovered from WAL");

@@ -82,8 +82,16 @@ impl ActionCache {
         max_cache_size: u64,
         cache_dir: &Path,
     ) -> Result<Self> {
-        let signer = Arc::new(CacheSigner::new(cache_dir)?);
-        let key_generator = Arc::new(CacheKeyGenerator::new()?);
+        let signer = Arc::new(CacheSigner::new(cache_dir).map_err(|e| Error::FileSystem {
+            path: cache_dir.to_path_buf(),
+            operation: "create cache signer".to_string(),
+            source: std::io::Error::other(e.to_string()),
+        })?);
+        let key_generator = Arc::new(CacheKeyGenerator::new().map_err(|e| Error::FileSystem {
+            path: cache_dir.to_path_buf(),
+            operation: "create key generator".to_string(),
+            source: std::io::Error::other(e.to_string()),
+        })?);
         Ok(Self {
             result_cache: Arc::new(ConcurrentCache::new(max_cache_size)),
             cas,
@@ -153,13 +161,12 @@ impl ActionCache {
                             Ok(true) => return Some(signed_entry.data),
                             Ok(false) => {
                                 log::warn!(
-                                    "Cache entry signature verification failed for hash: {}",
-                                    hash
+                                    "Cache entry signature verification failed for hash: {hash}"
                                 );
                                 return None;
                             }
                             Err(e) => {
-                                log::error!("Error verifying cache entry signature: {}", e);
+                                log::error!("Error verifying cache entry signature: {e}");
                                 return None;
                             }
                         }
@@ -303,7 +310,7 @@ impl ActionCache {
         let signed_result = self
             .signer
             .sign(&result)
-            .map_err(|e| Error::configuration(format!("Failed to sign cache entry: {}", e)))?;
+            .map_err(|e| Error::configuration(format!("Failed to sign cache entry: {e}")))?;
 
         let signed_json = serde_json::to_string(&signed_result).map_err(|e| Error::Json {
             message: "Failed to serialize signed cache entry".to_string(),

@@ -51,10 +51,20 @@ pub struct SignedCacheEntry<T> {
 }
 
 /// Ed25519 keypair wrapper with secure memory handling
-#[derive(ZeroizeOnDrop)]
+#[derive(Debug)]
 struct SecureKeypair {
     signing_key: SigningKey,
     verifying_key: VerifyingKey,
+}
+
+// Manual implementation of Drop for secure cleanup
+impl Drop for SecureKeypair {
+    fn drop(&mut self) {
+        // ed25519_dalek's SigningKey doesn't implement Zeroize
+        // The signing key will be cleared when dropped
+        // In production, consider using a different signing library
+        // that supports explicit memory zeroing for enhanced security
+    }
 }
 
 impl SecureKeypair {
@@ -96,6 +106,7 @@ impl SecureKeypair {
 }
 
 /// Production-grade cache signer with Ed25519 cryptography
+#[derive(Debug)]
 pub struct CacheSigner {
     /// Ed25519 keypair for signing operations
     keypair: SecureKeypair,

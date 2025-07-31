@@ -226,7 +226,7 @@ impl<C: Cache + Clone + Send + Sync + 'static> CacheWarmer<C> {
         // Add related keys for already-selected candidates
         let selected_keys: HashSet<_> = candidates.iter().map(|(k, _)| k.clone()).collect();
 
-        for (key, _) in &selected_keys {
+        for key in &selected_keys {
             if let Some(related) = patterns.related_keys.get(key) {
                 for related_key in related {
                     if !candidates.iter().any(|(k, _)| k == related_key) {
