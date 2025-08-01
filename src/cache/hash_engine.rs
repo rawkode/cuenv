@@ -303,7 +303,7 @@ fn walk_directory_for_glob(
 
         // Get path from file descriptor
         let fd = dir_handle.as_raw_fd();
-        let fd_path = PathBuf::from(format!("/proc/self/fd/{}", fd));
+        let fd_path = PathBuf::from(format!("/proc/self/fd/{fd}"));
 
         if let Ok(canonical_dir) = fd_path.read_link() {
             if !canonical_dir.starts_with(&canonical_base) {
@@ -391,7 +391,7 @@ fn collect_files_recursive(dir: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
                 Ok(m) if m.is_file() => files.push(path),
                 _ => {
                     // File was removed or changed - skip it
-                    log::debug!("File disappeared or changed during collection: {:?}", path);
+                    log::debug!("File disappeared or changed during collection: {path:?}");
                 }
             }
         } else if metadata.is_dir() {

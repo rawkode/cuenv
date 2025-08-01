@@ -174,19 +174,14 @@ impl ContentAddressedStore {
         let computed_hash = self.hash_content(&content);
         if computed_hash != hash {
             // Log the corruption for debugging
-            log::error!(
-                "CAS integrity check failed: expected hash {}, got {}",
-                hash,
-                computed_hash
-            );
+            log::error!("CAS integrity check failed: expected hash {hash}, got {computed_hash}");
 
             // Remove corrupted entry from index
             self.index.remove(hash);
             self.persist_index().ok(); // Best effort to persist the removal
 
             return Err(Error::configuration(format!(
-                "CAS integrity verification failed: content hash mismatch for {}",
-                hash
+                "CAS integrity verification failed: content hash mismatch for {hash}"
             )));
         }
 
@@ -270,9 +265,7 @@ impl ContentAddressedStore {
         }
 
         log::info!(
-            "CAS garbage collection: removed {} objects, freed {} bytes",
-            removed_count,
-            removed_bytes
+            "CAS garbage collection: removed {removed_count} objects, freed {removed_bytes} bytes"
         );
 
         Ok((removed_count, removed_bytes))
@@ -305,8 +298,7 @@ impl ContentAddressedStore {
                     if zero_ref_count > 100 {
                         // Only log if there's significant garbage
                         log::debug!(
-                            "CAS background GC: found {} unreferenced objects",
-                            zero_ref_count
+                            "CAS background GC: found {zero_ref_count} unreferenced objects"
                         );
                     }
                 });

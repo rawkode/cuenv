@@ -2,12 +2,13 @@
 //!
 //! Provides background cache warming to preload frequently accessed entries.
 
+#![allow(dead_code)]
+
 use crate::cache::errors::{CacheError, RecoveryHint, Result};
 use crate::cache::traits::Cache;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use tokio::time::interval;
@@ -40,6 +41,7 @@ impl Default for WarmingConfig {
 }
 
 /// Cache warming engine
+#[allow(dead_code)]
 pub struct CacheWarmer<C: Cache> {
     /// Cache instance
     cache: C,
@@ -54,6 +56,7 @@ pub struct CacheWarmer<C: Cache> {
 }
 
 /// Access tracking for cache entries
+#[allow(dead_code)]
 struct AccessTracker {
     /// Access counts per key
     access_counts: HashMap<String, AccessInfo>,
@@ -244,7 +247,7 @@ impl<C: Cache + Clone + Send + Sync + 'static> CacheWarmer<C> {
         match self.cache.contains(key).await {
             Ok(_) => Ok(()),
             Err(e) => Err(CacheError::Configuration {
-                message: format!("Failed to warm cache entry: {}", e),
+                message: format!("Failed to warm cache entry: {e}"),
                 recovery_hint: RecoveryHint::Ignore,
             }),
         }
@@ -264,7 +267,7 @@ impl<C: Cache + Clone + Send + Sync + 'static> CacheWarmer<C> {
             patterns
                 .sequential_patterns
                 .entry(pattern_key)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(window[1].clone());
         }
 
@@ -280,7 +283,7 @@ impl<C: Cache + Clone + Send + Sync + 'static> CacheWarmer<C> {
             patterns
                 .temporal_patterns
                 .entry(current_hour)
-                .or_insert_with(HashSet::new)
+                .or_default()
                 .insert(key.clone());
         }
 
@@ -292,7 +295,7 @@ impl<C: Cache + Clone + Send + Sync + 'static> CacheWarmer<C> {
                         patterns
                             .related_keys
                             .entry(keys[i].clone())
-                            .or_insert_with(HashSet::new)
+                            .or_default()
                             .insert(keys[j].clone());
                     }
                 }

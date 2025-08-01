@@ -16,25 +16,25 @@ hooks: {
 		{
 			command: "bash"
 			args: ["-c", "echo '✨ Devenv loaded! Node version:' $NODE_VERSION"]
-		}
+		},
 	]
 }
 
 env: cuenv.#Env & {
 	PROJECT_TYPE: "devenv-test"
-	BUILD_ENV: "development"
+	BUILD_ENV:    "development"
 }
 
 tasks: {
 	"dev": {
 		description: "Start development with devenv environment"
-		command: "echo"
+		command:     "echo"
 		args: ["🚀 Development environment ready with $PROJECT_TYPE"]
 	}
-	
+
 	"versions": {
 		description: "Show tool versions from devenv"
-		command: "bash"
+		command:     "bash"
 		args: ["-c", "echo 'Node:' $NODE_VERSION; echo 'Build env:' $BUILD_ENV"]
 	}
 }

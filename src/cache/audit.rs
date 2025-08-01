@@ -395,7 +395,7 @@ impl AuditLogger {
     ) -> Result<()> {
         let event = AuditEvent::Authorization {
             token_id: token.token_id.clone(),
-            operation: format!("{:?}", operation),
+            operation: format!("{operation:?}"),
             target_key: operation.target_key().map(|s| s.to_string()),
             authorized,
             denial_reason,
@@ -474,7 +474,7 @@ impl AuditLogger {
     /// Write entry to log file
     async fn write_entry(&self, entry: &AuditLogEntry) -> Result<()> {
         let json_line = match serde_json::to_string(entry) {
-            Ok(json) => format!("{}\n", json),
+            Ok(json) => format!("{json}\n"),
             Err(e) => {
                 return Err(CacheError::Serialization {
                     key: "audit_log_entry".to_string(),
@@ -637,7 +637,6 @@ pub struct LogIntegrityReport {
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    use tokio::time::{sleep, Duration};
 
     #[tokio::test]
     async fn test_audit_logger_creation() {

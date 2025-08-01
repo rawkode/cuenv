@@ -141,7 +141,7 @@ The remote cache uses a custom protocol optimized for:
 - **Health checking**: With automatic failover
 - **Compression**: End-to-end compressed transfers
 
-See the [Remote Cache Server Guide](./remote-cache-server.md) for deployment details.
+See the [Remote Cache Server Guide](/guides/remote-cache-configuration/) for deployment details.
 
 ## Monitoring
 

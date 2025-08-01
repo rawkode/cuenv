@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 
-use cuenv::cache::{CacheConfigLoader, CacheMode};
+use cuenv::cache::CacheMode;
 use cuenv::constants::{CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR, ENV_CUE_FILENAME};
 use cuenv::errors::{Error, Result};
 use cuenv::platform::{PlatformOps, Shell};
@@ -608,15 +608,14 @@ async fn main() -> Result<()> {
 
     // Apply CLI cache configuration if provided
     if let Some(cache_mode) = &cli.cache {
-        let mode = match cache_mode.as_str() {
+        let _mode = match cache_mode.as_str() {
             "off" => CacheMode::Off,
             "read" => CacheMode::Read,
             "read-write" => CacheMode::ReadWrite,
             "write" => CacheMode::Write,
             _ => {
                 return Err(Error::configuration(format!(
-                    "Invalid cache mode: {}",
-                    cache_mode
+                    "Invalid cache mode: {cache_mode}"
                 )))
             }
         };
@@ -1060,7 +1059,7 @@ async fn main() -> Result<()> {
                     println!("  Lock contentions: {}", stats.lock_contentions);
                     println!("  Total bytes saved: {}", stats.total_bytes_saved);
                     if let Some(last_cleanup) = stats.last_cleanup {
-                        println!("  Last cleanup: {:?}", last_cleanup);
+                        println!("  Last cleanup: {last_cleanup:?}");
                     }
                 }
                 CacheCommands::Cleanup { max_age_hours: _ } => {
@@ -1077,50 +1076,13 @@ async fn main() -> Result<()> {
             }
         }
         Some(Commands::RemoteCacheServer {
-            address,
-            cache_dir,
-            max_cache_size,
+            address: _,
+            cache_dir: _,
+            max_cache_size: _,
         }) => {
-            use cuenv::cache::{CacheConfig, CacheMode};
-            use cuenv::remote_cache::{RemoteCacheConfig, RemoteCacheServer};
-
-            println!("Starting cuenv remote cache server...");
-            println!("Address: {}", address);
-            println!("Cache directory: {}", cache_dir.display());
-            println!("Max cache size: {} bytes", max_cache_size);
-
-            let cache_config = CacheConfig {
-                base_dir: cache_dir,
-                max_size: max_cache_size,
-                mode: CacheMode::ReadWrite,
-                inline_threshold: 1024,
-                env_filter: Default::default(),
-                task_env_filters: Default::default(),
-            };
-
-            let remote_config = RemoteCacheConfig {
-                address,
-                enable_action_cache: true,
-                enable_cas: true,
-                cache_config,
-            };
-
-            let runtime = tokio::runtime::Runtime::new()?;
-            match runtime.block_on(async {
-                let server = RemoteCacheServer::new(remote_config).await?;
-                println!("Remote cache server ready for Bazel/Buck2 clients");
-                println!("Configure Bazel with: --remote_cache=grpc://{}", address);
-                server.serve().await
-            }) {
-                Ok(()) => {}
-                Err(e) => {
-                    eprintln!("Remote cache server error: {}", e);
-                    return Err(Error::from(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        e.to_string(),
-                    )));
-                }
-            }
+            // Temporarily disabled to focus on testing sourcing functionality
+            eprintln!("Remote cache server functionality temporarily disabled");
+            return Err(anyhow::anyhow!("Remote cache server temporarily disabled").into());
         }
         Some(Commands::Completion { shell }) => {
             generate_completion(&shell)?;

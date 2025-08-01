@@ -7,7 +7,7 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, RwLock};
 
 use crate::access_restrictions::AccessRestrictions;
-use crate::cue_parser::{CommandConfig, CueParser, Hook, ParseOptions, TaskConfig};
+use crate::cue_parser::{CommandConfig, CueParser, ExecConfig, Hook, ParseOptions, TaskConfig};
 use crate::env_diff::EnvDiff;
 use crate::file_times::FileTimes;
 use crate::output_filter::OutputFilter;
@@ -789,7 +789,8 @@ impl EnvManager {
     /// Check if a hook should be sourced
     fn should_source_hook(&self, hook: &Hook) -> bool {
         match hook {
-            Hook::Exec(exec) => exec.source.unwrap_or(false),
+            Hook::Legacy(hook_config) => hook_config.source.unwrap_or(false),
+            Hook::Exec { exec, .. } => exec.source.unwrap_or(false),
             Hook::NixFlake { exec, .. } => exec.source.unwrap_or(false),
             Hook::Devenv { exec, .. } => exec.source.unwrap_or(false),
         }
@@ -798,11 +799,25 @@ impl EnvManager {
     /// Execute sourcing hooks to capture environment variables from new Hook enum
     async fn execute_sourcing_hook(&self, hook: &Hook) -> Result<HashMap<String, String>> {
         match hook {
-            Hook::Exec(exec) => self.execute_exec_sourcing_hook(exec).await,
-            Hook::NixFlake { exec, flake } => {
+            Hook::Legacy(hook_config) => {
+                // Convert HookConfig to ExecConfig for legacy support
+                let exec_config = ExecConfig {
+                    command: hook_config.command.clone(),
+                    args: Some(hook_config.args.clone()),
+                    dir: None,
+                    inputs: None,
+                    source: hook_config.source,
+                    constraints: hook_config.constraints.clone(),
+                };
+                self.execute_exec_sourcing_hook(&exec_config).await
+            }
+            Hook::Exec { exec, .. } => self.execute_exec_sourcing_hook(exec).await,
+            Hook::NixFlake { exec, flake, .. } => {
                 self.execute_nix_flake_sourcing_hook(exec, flake).await
             }
-            Hook::Devenv { exec, devenv } => self.execute_devenv_sourcing_hook(exec, devenv).await,
+            Hook::Devenv { exec, devenv, .. } => {
+                self.execute_devenv_sourcing_hook(exec, devenv).await
+            }
         }
     }
 
@@ -860,9 +875,21 @@ impl EnvManager {
     /// Execute a non-sourcing hook (for regular hook execution)
     async fn execute_non_sourcing_hook(&self, hook: &Hook) -> Result<()> {
         match hook {
-            Hook::Exec(exec) => self.execute_exec_hook(exec).await,
-            Hook::NixFlake { exec, flake } => self.execute_nix_flake_hook(exec, flake).await,
-            Hook::Devenv { exec, devenv } => self.execute_devenv_hook(exec, devenv).await,
+            Hook::Legacy(hook_config) => {
+                // Convert HookConfig to ExecConfig for legacy support
+                let exec_config = ExecConfig {
+                    command: hook_config.command.clone(),
+                    args: Some(hook_config.args.clone()),
+                    dir: None,
+                    inputs: None,
+                    source: hook_config.source,
+                    constraints: hook_config.constraints.clone(),
+                };
+                self.execute_exec_hook(&exec_config).await
+            }
+            Hook::Exec { exec, .. } => self.execute_exec_hook(exec).await,
+            Hook::NixFlake { exec, flake, .. } => self.execute_nix_flake_hook(exec, flake).await,
+            Hook::Devenv { exec, devenv, .. } => self.execute_devenv_hook(exec, devenv).await,
         }
     }
 

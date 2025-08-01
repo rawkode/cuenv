@@ -19,10 +19,10 @@ package cuenv
 	// Hook definitions for lifecycle events
 	hooks?: {
 		// Hook to run when entering the environment
-		onEnter?: #HookConfig
+		onEnter?: #Hook | [...#Hook]
 
 		// Hook to run when exiting the environment
-		onExit?: #HookConfig
+		onExit?: #Hook | [...#Hook]
 	}
 }
 
@@ -50,34 +50,63 @@ package cuenv
 // Usage: VAR_NAME: "value" @capability("aws")
 // This is handled as a CUE attribute, not a field
 
-// #HookConfig defines the configuration for a lifecycle hook
-#HookConfig: {
-	// Command to execute for the hook
+// #Exec defines the base execution primitive
+#Exec: {
+	// Command to execute
 	command: string
 
 	// Arguments to pass to the command
-	args: [...string]
+	args?: [...string]
 
-	// Optional URL that may be used by the hook
-	url?: string
+	// Working directory for execution (defaults to current directory)
+	dir?: string
+
+	// Input files/patterns for watching (future file watching implementation)
+	inputs?: [...string]
+
+	// Source the command output as shell exports (like `source script.sh`)
+	// When true, parses stdout for `export VAR=value` statements and adds them to the environment
+	source?: bool
 }
 
-// #Hook defines the supported hook types
-#Hook: "onEnter" | "onExit"
+// #Hook defines the supported hook types for lifecycle events
+#Hook: #Exec | #NixFlake | #Devenv
 
-// #OnEnterHook is a convenience type for onEnter hooks
-#OnEnterHook: #HookConfig
+// #NixFlake defines nix flake integration
+#NixFlake: #Exec & {
+	flake: {
+		// Flake directory (defaults to current directory)
+		dir?: string
 
-// #OnExitHook is a convenience type for onExit hooks
-#OnExitHook: #HookConfig
+		// Explicit flake reference (e.g., "github:owner/repo", "path:./other")
+		reference?: string
+
+		// DevShell name to use (defaults to "default")
+		shell?: string
+
+		// Allow impure evaluation
+		impure?: bool
+	}
+}
+
+// #Devenv defines devenv integration
+#Devenv: #Exec & {
+	devenv: {
+		// Devenv directory (defaults to current directory)
+		dir?: string
+
+		// Devenv profile name
+		profile?: string
+
+		// Additional devenv options
+		options?: [...string]
+	}
+}
 
 // #Task defines the structure for a task that can be executed by cuenv
-#Task: {
+#Task: #Exec & {
 	// Human-readable description of the task
 	description?: string
-
-	// Shell command to execute (mutually exclusive with script)
-	command?: string
 
 	// Embedded shell script to execute (mutually exclusive with command)
 	script?: string
@@ -85,14 +114,8 @@ package cuenv
 	// List of task names that must complete successfully before this task runs
 	dependencies?: [...string]
 
-	// Working directory for task execution (defaults to current directory)
-	workingDir?: string
-
 	// Shell to use for execution (e.g., "bash", "sh", "zsh")
 	shell?: string
-
-	// Input files/patterns (for future implementation)
-	inputs?: [...string]
 
 	// Output files/patterns (for future implementation)
 	outputs?: [...string]

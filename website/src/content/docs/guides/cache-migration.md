@@ -1,3 +1,8 @@
+---
+title: Cache System Migration Guide
+description: Migrate from legacy cache implementations to the new unified cache system
+---
+
 # Cache System Migration Guide
 
 This guide helps you migrate from the legacy cache implementations to the new unified cache system.

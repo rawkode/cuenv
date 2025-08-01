@@ -335,11 +335,10 @@ impl fmt::Display for CacheError {
                 ..
             } => write!(
                 f,
-                "Failed to {:?} cache entry '{}': {}",
-                operation, key, source
+                "Failed to {operation:?} cache entry '{key}': {source}"
             ),
             Self::Corruption { key, reason, .. } => {
-                write!(f, "Cache corruption detected for key '{}': {}", key, reason)
+                write!(f, "Cache corruption detected for key '{key}': {reason}")
             }
             Self::CapacityExceeded {
                 requested_bytes,
@@ -347,8 +346,7 @@ impl fmt::Display for CacheError {
                 ..
             } => write!(
                 f,
-                "Cache capacity exceeded: requested {} bytes, only {} bytes available",
-                requested_bytes, available_bytes
+                "Cache capacity exceeded: requested {requested_bytes} bytes, only {available_bytes} bytes available"
             ),
             Self::ConcurrencyConflict {
                 key,
@@ -357,15 +355,14 @@ impl fmt::Display for CacheError {
                 ..
             } => write!(
                 f,
-                "Concurrency conflict for key '{}' during {} (waited {:?})",
-                key, operation, duration
+                "Concurrency conflict for key '{key}' during {operation} (waited {duration:?})"
             ),
             Self::InvalidKey { key, reason, .. } => {
-                write!(f, "Invalid cache key '{}': {}", key, reason)
+                write!(f, "Invalid cache key '{key}': {reason}")
             }
             Self::StoreUnavailable {
                 store_type, reason, ..
-            } => write!(f, "Cache store {:?} unavailable: {}", store_type, reason),
+            } => write!(f, "Cache store {store_type:?} unavailable: {reason}"),
             Self::VersionMismatch {
                 key,
                 expected_version,
@@ -373,8 +370,7 @@ impl fmt::Display for CacheError {
                 ..
             } => write!(
                 f,
-                "Version mismatch for key '{}': expected v{}, found v{}",
-                key, expected_version, actual_version
+                "Version mismatch for key '{key}': expected v{expected_version}, found v{actual_version}"
             ),
             Self::PermissionDenied {
                 path, operation, ..
@@ -391,14 +387,13 @@ impl fmt::Display for CacheError {
                 ..
             } => write!(
                 f,
-                "Network error during {} with '{}': {}",
-                operation, endpoint, source
+                "Network error during {operation} with '{endpoint}': {source}"
             ),
             Self::Timeout {
                 operation,
                 duration,
                 ..
-            } => write!(f, "Timeout during {} after {:?}", operation, duration),
+            } => write!(f, "Timeout during {operation} after {duration:?}"),
             Self::DiskQuotaExceeded {
                 current,
                 requested,
@@ -406,8 +401,7 @@ impl fmt::Display for CacheError {
                 ..
             } => write!(
                 f,
-                "Disk quota exceeded: current {}, requested {}, limit {}",
-                current, requested, limit
+                "Disk quota exceeded: current {current}, requested {requested}, limit {limit}"
             ),
             Self::IntegrityFailure {
                 key,
@@ -416,15 +410,14 @@ impl fmt::Display for CacheError {
                 ..
             } => write!(
                 f,
-                "Integrity check failed for key '{}': expected hash {}, got {}",
-                key, expected_hash, actual_hash
+                "Integrity check failed for key '{key}': expected hash {expected_hash}, got {actual_hash}"
             ),
             Self::Configuration { message, .. } => {
-                write!(f, "Cache configuration error: {}", message)
+                write!(f, "Cache configuration error: {message}")
             }
             Self::Compression {
                 operation, source, ..
-            } => write!(f, "Compression error during {}: {}", operation, source),
+            } => write!(f, "Compression error during {operation}: {source}"),
             Self::SignatureVerification {
                 algorithm,
                 key_id,
@@ -432,8 +425,7 @@ impl fmt::Display for CacheError {
                 ..
             } => write!(
                 f,
-                "Signature verification failed for {} key {}: {}",
-                algorithm, key_id, reason
+                "Signature verification failed for {algorithm} key {key_id}: {reason}"
             ),
             Self::AccessDenied {
                 operation,
@@ -442,21 +434,19 @@ impl fmt::Display for CacheError {
                 ..
             } => write!(
                 f,
-                "Access denied for operation '{}': requires {} permission (token: {})",
-                operation, required_permission, token_id
+                "Access denied for operation '{operation}': requires {required_permission} permission (token: {token_id})"
             ),
             Self::InvalidToken {
                 token_id, reason, ..
-            } => write!(f, "Invalid token {}: {:?}", token_id, reason),
+            } => write!(f, "Invalid token {token_id}: {reason:?}"),
             Self::AuditLogCorruption {
                 log_file,
                 corruption_type,
                 ..
             } => write!(
                 f,
-                "Audit log corruption in '{}': {:?}",
-                log_file.display(),
-                corruption_type
+                "Audit log corruption in '{}': {corruption_type:?}",
+                log_file.display()
             ),
             Self::MerkleTreeCorruption {
                 root_hash,
@@ -465,9 +455,7 @@ impl fmt::Display for CacheError {
                 ..
             } => write!(
                 f,
-                "Merkle tree corruption: root hash {} != expected {}, {} corrupted entries",
-                root_hash,
-                expected_hash,
+                "Merkle tree corruption: root hash {root_hash} != expected {expected_hash}, {} corrupted entries",
                 corrupted_entries.len()
             ),
             Self::RateLimitExceeded {
@@ -477,8 +465,7 @@ impl fmt::Display for CacheError {
                 ..
             } => write!(
                 f,
-                "Rate limit exceeded for token {}: {} operations per {} seconds",
-                token_id, limit, window_seconds
+                "Rate limit exceeded for token {token_id}: {limit} operations per {window_seconds} seconds"
             ),
             Self::SecurityPolicyViolation {
                 policy_name,
@@ -487,8 +474,7 @@ impl fmt::Display for CacheError {
                 ..
             } => write!(
                 f,
-                "Security policy '{}' violation ({:?}): {}",
-                policy_name, severity, violation_details
+                "Security policy '{policy_name}' violation ({severity:?}): {violation_details}"
             ),
             Self::CryptographicError {
                 operation,
@@ -497,15 +483,14 @@ impl fmt::Display for CacheError {
                 ..
             } => write!(
                 f,
-                "Cryptographic error during {} with {}: {}",
-                operation, algorithm, details
+                "Cryptographic error during {operation} with {algorithm}: {details}"
             ),
             Self::CorruptionUnrecoverable { key, .. } => {
-                write!(f, "Corruption unrecoverable for key: {}", key)
+                write!(f, "Corruption unrecoverable for key: {key}")
             }
-            Self::RepairInProgress { key, .. } => write!(f, "Repair in progress for key: {}", key),
+            Self::RepairInProgress { key, .. } => write!(f, "Repair in progress for key: {key}"),
             Self::AllRepairStrategiesFailed { key, .. } => {
-                write!(f, "All repair strategies failed for key: {}", key)
+                write!(f, "All repair strategies failed for key: {key}")
             }
             Self::NotImplemented { .. } => write!(f, "Feature not implemented"),
         }

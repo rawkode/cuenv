@@ -70,9 +70,9 @@ mod cache_invariant_tests {
         let temp_dir = TempDir::new().unwrap();
 
         let config = UnifiedCacheConfig {
-            max_memory_bytes: 1024 * 1024, // 1MB limit
+            max_size_bytes: 1024 * 1024, // 1MB limit
             max_entries: 100,              // 100 entry limit
-            max_entry_size: 10 * 1024,     // 10KB entry limit
+            // max_entry_size not available in current API
             ..Default::default()
         };
 

@@ -1,3 +1,8 @@
+---
+title: Cache System Implementation Plan
+description: Comprehensive plan for rewriting cuenv's cache system to Google-scale production standards
+---
+
 # Cache System Rewrite Plan
 
 ## Overview

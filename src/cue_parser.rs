@@ -84,9 +84,17 @@ struct CueParseResult {
 #[derive(Debug, Deserialize)]
 struct HooksConfig {
     #[serde(rename = "onEnter")]
-    on_enter: Option<HookConfig>,
+    on_enter: Option<HookValue>,
     #[serde(rename = "onExit")]
-    on_exit: Option<HookConfig>,
+    on_exit: Option<HookValue>,
+}
+
+/// Hook value can be a single hook or array of hooks
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum HookValue {
+    Single(Hook),
+    Multiple(Vec<Hook>),
 }
 
 #[derive(Debug, Deserialize)]
@@ -238,11 +246,85 @@ pub enum HookConstraint {
     },
 }
 
+/// Base execution primitive
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecConfig {
+    pub command: String,
+    #[serde(default)]
+    pub args: Option<Vec<String>>,
+    #[serde(default)]
+    pub dir: Option<String>,
+    #[serde(default)]
+    pub inputs: Option<Vec<String>>,
+    #[serde(default)]
+    pub source: Option<bool>,
+    #[serde(default)]
+    pub constraints: Vec<HookConstraint>,
+}
+
+/// Nix flake configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NixFlakeConfig {
+    #[serde(default)]
+    pub dir: Option<String>,
+    #[serde(default)]
+    pub reference: Option<String>,
+    #[serde(default)]
+    pub shell: Option<String>,
+    #[serde(default)]
+    pub impure: Option<bool>,
+}
+
+/// Devenv configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DevenvConfig {
+    #[serde(default)]
+    pub dir: Option<String>,
+    #[serde(default)]
+    pub profile: Option<String>,
+    #[serde(default)]
+    pub options: Option<Vec<String>>,
+}
+
+/// Hook types supporting the layered architecture
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Hook {
+    /// Legacy format for backward compatibility
+    Legacy(HookConfig),
+    /// Basic command execution with type field
+    Exec {
+        #[serde(rename = "type")]
+        hook_type: String,
+        #[serde(flatten)]
+        exec: ExecConfig,
+    },
+    /// Nix flake integration
+    NixFlake {
+        #[serde(rename = "type")]
+        hook_type: String,
+        #[serde(flatten)]
+        exec: ExecConfig,
+        flake: NixFlakeConfig,
+    },
+    /// Devenv integration
+    Devenv {
+        #[serde(rename = "type")]
+        hook_type: String,
+        #[serde(flatten)]
+        exec: ExecConfig,
+        devenv: DevenvConfig,
+    },
+}
+
+/// Legacy hook config for backward compatibility
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HookConfig {
     pub command: String,
     pub args: Vec<String>,
     pub url: Option<String>,
+    #[serde(default)]
+    pub source: Option<bool>,
     #[serde(default)]
     pub constraints: Vec<HookConstraint>,
     #[serde(skip)]
@@ -274,7 +356,7 @@ pub struct ParseResult {
     pub variables: HashMap<String, String>,
     pub commands: HashMap<String, CommandConfig>,
     pub tasks: HashMap<String, TaskConfig>,
-    pub hooks: HashMap<String, HookConfig>,
+    pub hooks: HashMap<String, Vec<Hook>>,
 }
 
 // Input validation functions
@@ -524,17 +606,24 @@ fn build_filtered_variables(
 }
 
 // Hook processing functions
-fn extract_hooks(hooks_config: Option<HooksConfig>) -> HashMap<String, HookConfig> {
-    let mut hooks = HashMap::with_capacity(2); // At most 2 hooks (onEnter, onExit)
+fn extract_hooks(hooks_config: Option<HooksConfig>) -> HashMap<String, Vec<Hook>> {
+    let mut hooks = HashMap::with_capacity(2); // At most 2 hook types (onEnter, onExit)
 
     if let Some(config) = hooks_config {
-        if let Some(mut on_enter) = config.on_enter {
-            on_enter.hook_type = HookType::OnEnter;
-            hooks.insert("onEnter".to_string(), on_enter);
+        if let Some(on_enter) = config.on_enter {
+            let hook_list = match on_enter {
+                HookValue::Single(hook) => vec![hook],
+                HookValue::Multiple(hook_vec) => hook_vec,
+            };
+            hooks.insert("onEnter".to_string(), hook_list);
         }
-        if let Some(mut on_exit) = config.on_exit {
-            on_exit.hook_type = HookType::OnExit;
-            hooks.insert("onExit".to_string(), on_exit);
+
+        if let Some(on_exit) = config.on_exit {
+            let hook_list = match on_exit {
+                HookValue::Single(hook) => vec![hook],
+                HookValue::Multiple(hook_vec) => hook_vec,
+            };
+            hooks.insert("onExit".to_string(), hook_list);
         }
     }
 
@@ -1096,17 +1185,31 @@ mod tests {
 
         assert_eq!(result.hooks.len(), 2);
 
-        let on_enter = result.hooks.get("onEnter").unwrap();
-        assert_eq!(on_enter.command, "echo");
-        assert_eq!(on_enter.args, vec!["Entering environment"]);
-        assert_eq!(on_enter.hook_type, HookType::OnEnter);
-        assert!(on_enter.url.is_none());
+        let on_enter = &result.hooks.get("onEnter").unwrap()[0];
+        match on_enter {
+            Hook::Legacy(hook_config) => {
+                assert_eq!(hook_config.command, "echo");
+                assert_eq!(hook_config.args, vec!["Entering environment"]);
+            }
+            Hook::Exec { exec, .. } => {
+                assert_eq!(exec.command, "echo");
+                assert_eq!(exec.args.as_ref().unwrap(), &vec!["Entering environment"]);
+            }
+            _ => panic!("Expected Legacy or Exec hook"),
+        }
 
-        let on_exit = result.hooks.get("onExit").unwrap();
-        assert_eq!(on_exit.command, "cleanup.sh");
-        assert_eq!(on_exit.args, vec!["--verbose"]);
-        assert_eq!(on_exit.hook_type, HookType::OnExit);
-        assert!(on_exit.url.is_none());
+        let on_exit = &result.hooks.get("onExit").unwrap()[0];
+        match on_exit {
+            Hook::Legacy(hook_config) => {
+                assert_eq!(hook_config.command, "cleanup.sh");
+                assert_eq!(hook_config.args, vec!["--verbose"]);
+            }
+            Hook::Exec { exec, .. } => {
+                assert_eq!(exec.command, "cleanup.sh");
+                assert_eq!(exec.args.as_ref().unwrap(), &vec!["--verbose"]);
+            }
+            _ => panic!("Expected Legacy or Exec hook"),
+        }
     }
 
     #[test]
@@ -1133,10 +1236,23 @@ mod tests {
 
         assert_eq!(result.hooks.len(), 1);
 
-        let hook = result.hooks.get("onEnter").unwrap();
-        assert_eq!(hook.command, "notify");
-        assert_eq!(hook.args, vec!["webhook", "start"]);
-        assert_eq!(hook.url, Some("https://example.com/webhook".to_string()));
+        let hook = &result.hooks.get("onEnter").unwrap()[0];
+        match hook {
+            Hook::Legacy(hook_config) => {
+                assert_eq!(hook_config.command, "notify");
+                assert_eq!(hook_config.args, vec!["webhook", "start"]);
+                assert_eq!(
+                    hook_config.url,
+                    Some("https://example.com/webhook".to_string())
+                );
+            }
+            Hook::Exec { exec, .. } => {
+                assert_eq!(exec.command, "notify");
+                assert_eq!(exec.args.as_ref().unwrap(), &vec!["webhook", "start"]);
+                // TODO: URL support needs to be added to ExecConfig if needed
+            }
+            _ => panic!("Expected Legacy or Exec hook"),
+        }
     }
 
     #[test]
@@ -1200,13 +1316,33 @@ mod tests {
         let result =
             CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
 
-        let on_enter = result.hooks.get("onEnter").unwrap();
-        assert_eq!(on_enter.args.len(), 5);
-        assert_eq!(on_enter.args[0], "run");
-        assert_eq!(on_enter.args[4], "postgres:14");
+        let on_enter = &result.hooks.get("onEnter").unwrap()[0];
+        match on_enter {
+            Hook::Legacy(hook_config) => {
+                assert_eq!(hook_config.args.len(), 5);
+                assert_eq!(hook_config.args[0], "run");
+                assert_eq!(hook_config.args[4], "postgres:14");
+            }
+            Hook::Exec { exec, .. } => {
+                let args = exec.args.as_ref().unwrap();
+                assert_eq!(args.len(), 5);
+                assert_eq!(args[0], "run");
+                assert_eq!(args[4], "postgres:14");
+            }
+            _ => panic!("Expected Legacy or Exec hook"),
+        }
 
-        let on_exit = result.hooks.get("onExit").unwrap();
-        assert_eq!(on_exit.args.len(), 6);
+        let on_exit = &result.hooks.get("onExit").unwrap()[0];
+        match on_exit {
+            Hook::Legacy(hook_config) => {
+                assert_eq!(hook_config.args.len(), 6);
+            }
+            Hook::Exec { exec, .. } => {
+                let args = exec.args.as_ref().unwrap();
+                assert_eq!(args.len(), 6);
+            }
+            _ => panic!("Expected Legacy or Exec hook"),
+        }
     }
 
     #[test]
@@ -1238,10 +1374,16 @@ mod tests {
         let result =
             CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
         assert_eq!(result.hooks.len(), 1);
-        assert_eq!(
-            result.hooks.get("onEnter").unwrap().args[0],
-            "Development environment"
-        );
+        let hook = &result.hooks.get("onEnter").unwrap()[0];
+        match hook {
+            Hook::Legacy(hook_config) => {
+                assert_eq!(hook_config.args[0], "Development environment");
+            }
+            Hook::Exec { exec, .. } => {
+                assert_eq!(exec.args.as_ref().unwrap()[0], "Development environment");
+            }
+            _ => panic!("Expected Legacy or Exec hook"),
+        }
 
         // Test with production environment - hooks should remain the same
         let options = ParseOptions {
@@ -1251,10 +1393,16 @@ mod tests {
         let result =
             CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
         assert_eq!(result.hooks.len(), 1);
-        assert_eq!(
-            result.hooks.get("onEnter").unwrap().args[0],
-            "Development environment"
-        );
+        let hook = &result.hooks.get("onEnter").unwrap()[0];
+        match hook {
+            Hook::Legacy(hook_config) => {
+                assert_eq!(hook_config.args[0], "Development environment");
+            }
+            Hook::Exec { exec, .. } => {
+                assert_eq!(exec.args.as_ref().unwrap()[0], "Development environment");
+            }
+            _ => panic!("Expected Legacy or Exec hook"),
+        }
     }
 
     #[test]
@@ -1282,9 +1430,18 @@ mod tests {
         assert!(result.hooks.contains_key("onEnter"));
         assert!(!result.hooks.contains_key("onExit"));
 
-        let hook = result.hooks.get("onEnter").unwrap();
-        assert_eq!(hook.command, "start-server");
-        assert!(hook.args.is_empty());
+        let hook = &result.hooks.get("onEnter").unwrap()[0];
+        match hook {
+            Hook::Legacy(hook_config) => {
+                assert_eq!(hook_config.command, "start-server");
+                assert!(hook_config.args.is_empty());
+            }
+            Hook::Exec { exec, .. } => {
+                assert_eq!(exec.command, "start-server");
+                assert!(exec.args.as_ref().map_or(true, |args| args.is_empty()));
+            }
+            _ => panic!("Expected Legacy or Exec hook"),
+        }
     }
 
     #[test]
@@ -1312,9 +1469,18 @@ mod tests {
         assert!(!result.hooks.contains_key("onEnter"));
         assert!(result.hooks.contains_key("onExit"));
 
-        let hook = result.hooks.get("onExit").unwrap();
-        assert_eq!(hook.command, "stop-server");
-        assert_eq!(hook.args, vec!["--graceful"]);
+        let hook = &result.hooks.get("onExit").unwrap()[0];
+        match hook {
+            Hook::Legacy(hook_config) => {
+                assert_eq!(hook_config.command, "stop-server");
+                assert_eq!(hook_config.args, vec!["--graceful"]);
+            }
+            Hook::Exec { exec, .. } => {
+                assert_eq!(exec.command, "stop-server");
+                assert_eq!(exec.args.as_ref().unwrap(), &vec!["--graceful"]);
+            }
+            _ => panic!("Expected Legacy or Exec hook"),
+        }
     }
 
     #[test]
@@ -1371,45 +1537,104 @@ mod tests {
         assert_eq!(result.hooks.len(), 2);
 
         // Test onEnter hook constraints
-        let on_enter = result.hooks.get("onEnter").unwrap();
-        assert_eq!(on_enter.command, "devenv");
-        assert_eq!(on_enter.args, vec!["up"]);
-        assert_eq!(on_enter.constraints.len(), 2);
-
-        // Check first constraint - command exists
-        if let HookConstraint::CommandExists { command } = &on_enter.constraints[0] {
-            assert_eq!(command, "devenv");
-        } else {
-            panic!("Expected CommandExists constraint");
+        let on_enter = &result.hooks.get("onEnter").unwrap()[0];
+        match on_enter {
+            Hook::Legacy(hook_config) => {
+                assert_eq!(hook_config.command, "devenv");
+                assert_eq!(hook_config.args, vec!["up"]);
+                assert_eq!(hook_config.constraints.len(), 2);
+            }
+            Hook::Exec { exec, .. } => {
+                assert_eq!(exec.command, "devenv");
+                assert_eq!(exec.args.as_ref().unwrap(), &vec!["up"]);
+            }
+            _ => panic!("Expected Legacy or Exec hook"),
         }
 
-        // Check second constraint - shell command
-        if let HookConstraint::ShellCommand { command, args } = &on_enter.constraints[1] {
-            assert_eq!(command, "nix");
-            assert_eq!(args.as_ref().unwrap(), &vec!["--version"]);
-        } else {
-            panic!("Expected ShellCommand constraint");
+        // Check constraints (available in both Legacy and Exec formats)
+        match on_enter {
+            Hook::Legacy(hook_config) => {
+                // Check first constraint - command exists
+                if let HookConstraint::CommandExists { command } = &hook_config.constraints[0] {
+                    assert_eq!(command, "devenv");
+                } else {
+                    panic!("Expected CommandExists constraint");
+                }
+
+                // Check second constraint - shell command
+                if let HookConstraint::ShellCommand { command, args } = &hook_config.constraints[1]
+                {
+                    assert_eq!(command, "nix");
+                    assert_eq!(args.as_ref().unwrap(), &vec!["--version"]);
+                } else {
+                    panic!("Expected ShellCommand constraint");
+                }
+            }
+            Hook::Exec { exec, .. } => {
+                // Check constraints in new format
+                assert_eq!(exec.constraints.len(), 2);
+
+                if let HookConstraint::CommandExists { command } = &exec.constraints[0] {
+                    assert_eq!(command, "devenv");
+                } else {
+                    panic!("Expected CommandExists constraint");
+                }
+
+                if let HookConstraint::ShellCommand { command, args } = &exec.constraints[1] {
+                    assert_eq!(command, "nix");
+                    assert_eq!(args.as_ref().unwrap(), &vec!["--version"]);
+                } else {
+                    panic!("Expected ShellCommand constraint");
+                }
+            }
+            _ => panic!("Expected Legacy or Exec hook"),
         }
 
         // Test onExit hook constraints
-        let on_exit = result.hooks.get("onExit").unwrap();
-        assert_eq!(on_exit.command, "cleanup.sh");
-        assert!(on_exit.args.is_empty());
-        assert_eq!(on_exit.constraints.len(), 2);
+        let on_exit = &result.hooks.get("onExit").unwrap()[0];
+        match on_exit {
+            Hook::Legacy(hook_config) => {
+                assert_eq!(hook_config.command, "cleanup.sh");
+                assert!(hook_config.args.is_empty());
+                assert_eq!(hook_config.constraints.len(), 2);
 
-        // Check first constraint - shell command
-        if let HookConstraint::ShellCommand { command, args } = &on_exit.constraints[0] {
-            assert_eq!(command, "test");
-            assert_eq!(args.as_ref().unwrap(), &vec!["-f", "/tmp/cleanup_needed"]);
-        } else {
-            panic!("Expected ShellCommand constraint");
-        }
+                // Check first constraint - shell command
+                if let HookConstraint::ShellCommand { command, args } = &hook_config.constraints[0]
+                {
+                    assert_eq!(command, "test");
+                    assert_eq!(args.as_ref().unwrap(), &vec!["-f", "/tmp/cleanup_needed"]);
+                } else {
+                    panic!("Expected ShellCommand constraint");
+                }
 
-        // Check second constraint - command exists
-        if let HookConstraint::CommandExists { command } = &on_exit.constraints[1] {
-            assert_eq!(command, "cleanup");
-        } else {
-            panic!("Expected CommandExists constraint");
+                // Check second constraint - command exists
+                if let HookConstraint::CommandExists { command } = &hook_config.constraints[1] {
+                    assert_eq!(command, "cleanup");
+                } else {
+                    panic!("Expected CommandExists constraint");
+                }
+            }
+            Hook::Exec { exec, .. } => {
+                assert_eq!(exec.command, "cleanup.sh");
+                assert!(exec.args.as_ref().map_or(true, |args| args.is_empty()));
+                assert_eq!(exec.constraints.len(), 2);
+
+                // Check first constraint - shell command
+                if let HookConstraint::ShellCommand { command, args } = &exec.constraints[0] {
+                    assert_eq!(command, "test");
+                    assert_eq!(args.as_ref().unwrap(), &vec!["-f", "/tmp/cleanup_needed"]);
+                } else {
+                    panic!("Expected ShellCommand constraint");
+                }
+
+                // Check second constraint - command exists
+                if let HookConstraint::CommandExists { command } = &exec.constraints[1] {
+                    assert_eq!(command, "cleanup");
+                } else {
+                    panic!("Expected CommandExists constraint");
+                }
+            }
+            _ => panic!("Expected Legacy or Exec hook"),
         }
     }
 
@@ -1435,9 +1660,19 @@ mod tests {
             CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
 
         assert_eq!(result.hooks.len(), 1);
-        let hook = result.hooks.get("onEnter").unwrap();
-        assert_eq!(hook.command, "echo");
-        assert_eq!(hook.args, vec!["No constraints"]);
-        assert!(hook.constraints.is_empty());
+        let hook = &result.hooks.get("onEnter").unwrap()[0];
+        match hook {
+            Hook::Legacy(hook_config) => {
+                assert_eq!(hook_config.command, "echo");
+                assert_eq!(hook_config.args, vec!["No constraints"]);
+                assert!(hook_config.constraints.is_empty());
+            }
+            Hook::Exec { exec, .. } => {
+                assert_eq!(exec.command, "echo");
+                assert_eq!(exec.args.as_ref().unwrap(), &vec!["No constraints"]);
+                assert!(exec.constraints.is_empty());
+            }
+            _ => panic!("Expected Legacy or Exec hook"),
+        }
     }
 }

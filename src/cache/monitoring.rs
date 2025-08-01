@@ -8,8 +8,7 @@
 //! - Real-time dashboards
 
 use crate::cache::errors::{CacheError, RecoveryHint, Result};
-use crate::cache::performance::PerfStats;
-use crate::cache::traits::{CacheKey, CacheStatistics};
+use crate::cache::traits::CacheStatistics;
 use parking_lot::RwLock;
 use prometheus::{
     register_counter_vec, register_histogram_vec, register_int_gauge_vec, CounterVec, Encoder,
@@ -18,8 +17,8 @@ use prometheus::{
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
-use tracing::{debug, error, info, warn, Span};
+use std::time::{Duration, Instant};
+use tracing::{debug, info, Span};
 
 /// Cache monitoring system with comprehensive observability
 pub struct CacheMonitor {
@@ -65,6 +64,7 @@ struct ProfileData {
     operation_count: u64,
 }
 
+#[allow(dead_code)]
 struct ProfileSample {
     operation: String,
     duration: Duration,
@@ -107,6 +107,7 @@ struct HitRateStats {
 }
 
 /// Real-time statistics collector
+#[allow(dead_code)]
 struct RealTimeStats {
     /// Current operations in flight
     operations_in_flight: AtomicU64,
@@ -122,7 +123,7 @@ struct RealTimeStats {
 
 impl CacheMonitor {
     /// Create a new cache monitor with full observability stack
-    pub fn new(service_name: &str) -> Result<Self> {
+    pub fn new(_service_name: &str) -> Result<Self> {
         // Initialize Prometheus registry
         let registry = Registry::new();
 
@@ -131,7 +132,7 @@ impl CacheMonitor {
             Ok(m) => m,
             Err(e) => {
                 return Err(CacheError::Configuration {
-                    message: format!("Failed to initialize metrics: {}", e),
+                    message: format!("Failed to initialize metrics: {e}"),
                     recovery_hint: RecoveryHint::Manual {
                         instructions: "Check Prometheus metrics configuration".to_string(),
                     },
@@ -266,7 +267,7 @@ impl CacheMonitor {
     }
 
     /// Record a cache write
-    pub fn record_write(&self, key: &str, size_bytes: u64, duration: Duration) {
+    pub fn record_write(&self, _key: &str, _size_bytes: u64, duration: Duration) {
         self.inner
             .metrics
             .cache_operations
@@ -283,7 +284,7 @@ impl CacheMonitor {
     }
 
     /// Record a cache removal
-    pub fn record_removal(&self, key: &str, duration: Duration) {
+    pub fn record_removal(&self, _key: &str, duration: Duration) {
         self.inner
             .metrics
             .cache_operations
@@ -300,7 +301,7 @@ impl CacheMonitor {
     }
 
     /// Record a cache error
-    pub fn record_error(&self, operation: &str, error: &CacheError) {
+    pub fn record_error(&self, operation: &str, _error: &CacheError) {
         self.inner
             .metrics
             .cache_operations
@@ -421,6 +422,7 @@ impl CacheMonitor {
     }
 
     /// Size bucket for metrics
+    #[allow(dead_code)]
     fn size_bucket(size_bytes: u64) -> &'static str {
         match size_bytes {
             0..=1024 => "small",
@@ -674,7 +676,7 @@ impl PerformanceProfiler {
 
     fn record_operation(&self, operation: &str, duration: Duration, hit: bool) {
         let sample = ProfileSample {
-            operation: format!("{}_{}", operation, if hit { "hit" } else { "miss" }),
+            operation: format!("{operation}_{}", if hit { "hit" } else { "miss" }),
             duration,
             stack_trace: Self::capture_stack_trace(),
             timestamp: Instant::now(),
@@ -713,7 +715,7 @@ impl PerformanceProfiler {
         let profiles = self.profiles.read();
         let mut output = String::new();
 
-        for (operation, profile) in profiles.iter() {
+        for (_operation, profile) in profiles.iter() {
             for sample in &profile.samples {
                 // Format: stack;frames;here count
                 let stack = sample.stack_trace.join(";");
@@ -800,6 +802,7 @@ pub struct RealTimeStatsReport {
 
 impl CacheError {
     /// Get error type for metrics
+    #[allow(dead_code)]
     fn error_type(&self) -> &'static str {
         match self {
             CacheError::InvalidKey { .. } => "invalid_key",

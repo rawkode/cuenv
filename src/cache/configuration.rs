@@ -3,8 +3,7 @@ use super::{key_generator::CacheKeyFilterConfig, CacheMode};
 use crate::errors::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
+use std::path::PathBuf;
 
 /// Global cache configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -434,7 +433,7 @@ impl CacheConfigResolver {
     ) -> bool {
         // Global disabled overrides everything
         if !global_config.enabled {
-            log::debug!("Cache disabled globally for task '{}'", task_name);
+            log::debug!("Cache disabled globally for task '{task_name}'");
             return false;
         }
 
@@ -449,7 +448,7 @@ impl CacheConfigResolver {
             task_enabled
         } else {
             // Default to enabled for deterministic tasks
-            log::debug!("Task '{}' cache enabled (default)", task_name);
+            log::debug!("Task '{task_name}' cache enabled (default)");
             true
         }
     }
@@ -457,7 +456,7 @@ impl CacheConfigResolver {
     /// Get the effective cache mode for a task
     pub fn get_task_cache_mode(
         global_config: &GlobalCacheConfig,
-        task_config: Option<&TaskCacheConfig>,
+        _task_config: Option<&TaskCacheConfig>,
     ) -> CacheMode {
         // For now, use global mode. In the future, task-specific modes could be supported.
         global_config.mode
@@ -579,7 +578,7 @@ mod tests {
         std::fs::write(&config_file, config_content)?;
 
         // Temporarily override the config file path for testing
-        let original_config_path = CacheConfigLoader::get_config_file_path()?;
+        let _original_config_path = CacheConfigLoader::get_config_file_path()?;
 
         // This test would need to mock the config directory path
         // For now, we'll test the parsing logic directly

@@ -1,3 +1,8 @@
+---
+title: Cache Configuration Schema
+description: Complete configuration schema for cuenv's cache system including global settings and per-task overrides
+---
+
 # Cache Configuration Schema
 
 This document defines the complete configuration schema for the improved cuenv cache system, including global settings, per-task overrides, and environment variable support.
@@ -220,136 +225,6 @@ Configuration values are applied in the following order (highest priority first)
 4. **User Configuration** - `~/.config/cuenv/cache.json`
 5. **Default Values** - Built-in defaults
 
-### Example Configuration Resolution
-
-```bash
-# Environment variables
-export CUENV_CACHE=read
-export CUENV_CACHE_SIZE=5368709120  # 5GB
-
-# User config: ~/.config/cuenv/cache.json
-{
-  "enabled": true,
-  "default_mode": "read-write",
-  "cache_dir": "~/.cache/cuenv",
-  "max_size": 10737418240  # 10GB
-}
-
-# Project config: .cuenv/cache.json
-{
-  "enabled": true,
-  "max_size": 2147483648  # 2GB
-}
-
-# Task config: env.cue
-tasks: {
-  "build": {
-    cache: true,
-    cacheConfig: {
-      maxSize: 1073741824  # 1GB
-    }
-  }
-}
-```
-
-**Resulting Configuration for "build" task:**
-
-- `enabled`: `true` (from user config)
-- `mode`: `read` (from `CUENV_CACHE` environment variable)
-- `cache_dir`: `~/.cache/cuenv` (from user config)
-- `max_size`: `5368709120` (from `CUENV_CACHE_SIZE` environment variable)
-- `task_max_size`: `1073741824` (from task config)
-
-## Configuration Validation
-
-### Schema Validation Rules
-
-1. **Path Validation**
-
-   - `cache_dir` must be a valid absolute or relative path
-   - Path expansion supports `~` for home directory
-   - Path must be writable by the current user
-
-2. **Size Validation**
-
-   - `max_size` must be a positive integer
-   - Minimum size: 1048576 bytes (1MB)
-   - Maximum size: 1099511627776 bytes (1TB)
-
-3. **Environment Variable Patterns**
-
-   - `env_include` and `env_exclude` support glob patterns
-   - Patterns must be valid regular expressions
-   - Case-sensitive matching
-
-4. **Remote Cache Validation**
-   - `endpoint` must be a valid URL with grpc:// or grpcs:// scheme
-   - `timeout_seconds` must be between 1 and 300
-   - `max_concurrent` must be between 1 and 100
-
-### Validation Error Messages
-
-```json
-{
-	"errors": [
-		{
-			"field": "cache_dir",
-			"message": "Cache directory '/invalid/path' does not exist or is not writable",
-			"suggestion": "Create the directory or choose a different path"
-		},
-		{
-			"field": "max_size",
-			"message": "Cache size must be at least 1048576 bytes (1MB)",
-			"suggestion": "Set max_size to a value >= 1048576"
-		},
-		{
-			"field": "remote_cache.endpoint",
-			"message": "Invalid URL scheme 'http://', expected 'grpc://' or 'grpcs://'",
-			"suggestion": "Use grpc://cache.example.com:9092 format"
-		}
-	]
-}
-```
-
-## Configuration Migration
-
-### From Current Implementation
-
-The current implementation uses a simple boolean `cache` field in task configuration. The new system maintains backward compatibility:
-
-```cue
-// Old configuration (still supported)
-tasks: {
-  "build": {
-    cache: true
-  }
-}
-
-// Automatically migrated to equivalent new configuration
-tasks: {
-  "build": {
-    cache: true,
-    cacheConfig: {}  // Uses global defaults
-  }
-}
-```
-
-### Migration Commands
-
-```bash
-# Validate current configuration
-cuenv cache validate
-
-# Show current configuration with resolution
-cuenv cache config --show-resolution
-
-# Generate default configuration file
-cuenv cache init --config-file ~/.config/cuenv/cache.json
-
-# Migrate from old cache format
-cuenv cache migrate
-```
-
 ## Configuration Examples
 
 ### Development Environment
@@ -394,34 +269,6 @@ cuenv cache migrate
 		"max_concurrent": 5,
 		"upload_enabled": false,
 		"download_enabled": true
-	}
-}
-```
-
-### Production Build Environment
-
-```json
-{
-	"enabled": true,
-	"default_mode": "read-write",
-	"cache_dir": "/var/cache/cuenv",
-	"max_size": 53687091200,
-	"env_include": ["PATH", "HOME", "USER", "SHELL", "LANG", "CUENV_*"],
-	"env_exclude": ["RANDOM", "TEMP", "TMP", "TERM", "SSH_*"],
-	"eviction_policy": "lru",
-	"remote_cache": {
-		"endpoint": "grpcs://cache.company.com:9092",
-		"auth_token": "${PROD_CACHE_TOKEN}",
-		"timeout_seconds": 30,
-		"max_concurrent": 20,
-		"upload_enabled": true,
-		"download_enabled": true
-	},
-	"storage": {
-		"inline_threshold": 8192,
-		"compression_enabled": true,
-		"integrity_check_enabled": true,
-		"gc_interval_seconds": 600
 	}
 }
 ```

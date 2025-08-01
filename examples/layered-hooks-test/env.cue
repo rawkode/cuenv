@@ -16,26 +16,26 @@ hooks: {
 				dir: "."
 			}
 			source: true
-		}
+		},
 	]
-	
+
 	onExit: [
 		{
-			command: "echo" 
+			command: "echo"
 			args: ["👋 Goodbye from exit hook!"]
-		}
+		},
 	]
 }
 
 env: cuenv.#Env & {
 	PROJECT_NAME: "layered-hooks-test"
-	ENVIRONMENT: "development"
+	ENVIRONMENT:  "development"
 }
 
 tasks: {
 	"test": {
 		description: "Test that hooks and environment work"
-		command: "bash"
+		command:     "bash"
 		args: ["-c", "echo 'Project: $PROJECT_NAME'; echo 'Environment: $ENVIRONMENT'; env | grep -E '(PROJECT_NAME|ENVIRONMENT)' | head -5"]
 	}
 }

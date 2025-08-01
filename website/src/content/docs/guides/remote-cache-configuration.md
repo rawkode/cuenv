@@ -1,3 +1,8 @@
+---
+title: Remote Cache Configuration
+description: Configure and deploy cuenv's Bazel-compatible remote cache server for distributed builds
+---
+
 # Remote Cache Configuration Guide
 
 This guide explains how to configure and use cuenv's Bazel-compatible remote cache server and client.

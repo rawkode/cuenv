@@ -13,7 +13,7 @@
     {
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [ nodejs_20 python3 curl ];
-        
+
         shellHook = ''
           export FLAKE_SHELL_ACTIVE="true"
           export NODE_VERSION="$(node --version)"

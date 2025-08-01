@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::Zeroize;
 
 /// Length of Ed25519 private key in bytes
 const ED25519_SECRET_KEY_LENGTH: usize = 32;
@@ -262,7 +262,7 @@ impl CacheSigner {
         // Generate cryptographically secure nonce
         let mut nonce = [0u8; 32];
         getrandom::getrandom(&mut nonce).map_err(|e| CacheError::Configuration {
-            message: format!("Failed to generate secure nonce: {}", e),
+            message: format!("Failed to generate secure nonce: {e}"),
             recovery_hint: RecoveryHint::Manual {
                 instructions: "Check system entropy sources".to_string(),
             },
@@ -272,7 +272,7 @@ impl CacheSigner {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|e| CacheError::Configuration {
-                message: format!("Invalid system time: {}", e),
+                message: format!("Invalid system time: {e}"),
                 recovery_hint: RecoveryHint::Manual {
                     instructions: "Check system clock".to_string(),
                 },
@@ -322,7 +322,7 @@ impl CacheSigner {
         let current_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|e| CacheError::Configuration {
-                message: format!("Invalid system time: {}", e),
+                message: format!("Invalid system time: {e}"),
                 recovery_hint: RecoveryHint::Manual {
                     instructions: "Check system clock".to_string(),
                 },
@@ -372,7 +372,7 @@ impl CacheSigner {
             Ok(pk) => pk,
             Err(e) => {
                 return Err(CacheError::Configuration {
-                    message: format!("Invalid Ed25519 public key: {}", e),
+                    message: format!("Invalid Ed25519 public key: {e}"),
                     recovery_hint: RecoveryHint::ClearAndRetry,
                 });
             }
@@ -383,7 +383,7 @@ impl CacheSigner {
             Ok(sig) => sig,
             Err(e) => {
                 return Err(CacheError::Configuration {
-                    message: format!("Invalid Ed25519 signature: {}", e),
+                    message: format!("Invalid Ed25519 signature: {e}"),
                     recovery_hint: RecoveryHint::ClearAndRetry,
                 });
             }

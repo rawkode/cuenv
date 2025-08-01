@@ -7,9 +7,10 @@
 //! - Cache-line aware memory layouts
 //! - Prefetching and branch prediction hints
 
-use parking_lot::{Mutex, RwLock};
+#![allow(dead_code)]
+
+use parking_lot::Mutex;
 use std::alloc::{alloc, dealloc, Layout};
-use std::mem::{align_of, size_of};
 use std::ptr;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 

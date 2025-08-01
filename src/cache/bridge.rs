@@ -38,7 +38,7 @@ impl SyncCache {
             .enable_all()
             .build()
             .map_err(|e| CacheError::Configuration {
-                message: format!("Failed to create runtime: {}", e),
+                message: format!("Failed to create runtime: {e}"),
                 recovery_hint: RecoveryHint::Manual {
                     instructions: "Check system resources".to_string(),
                 },
@@ -81,7 +81,7 @@ impl SyncCache {
                     tokio::task::spawn_blocking(move || Handle::current().block_on(future))
                         .await
                         .map_err(|e| CacheError::Configuration {
-                            message: format!("Task panicked: {}", e),
+                            message: format!("Task panicked: {e}"),
                             recovery_hint: RecoveryHint::Manual {
                                 instructions: "Check for panics in cache operations".to_string(),
                             },
@@ -197,7 +197,7 @@ impl CacheBuilder {
                     .enable_all()
                     .build()
                     .map_err(|e| CacheError::Configuration {
-                        message: format!("Failed to create runtime: {}", e),
+                        message: format!("Failed to create runtime: {e}"),
                         recovery_hint: RecoveryHint::Manual {
                             instructions: "Check system resources".to_string(),
                         },
@@ -219,7 +219,7 @@ impl CacheBuilder {
                 .enable_all()
                 .build()
                 .map_err(|e| CacheError::Configuration {
-                    message: format!("Failed to create runtime: {}", e),
+                    message: format!("Failed to create runtime: {e}"),
                     recovery_hint: RecoveryHint::Manual {
                         instructions: "Check system resources".to_string(),
                     },

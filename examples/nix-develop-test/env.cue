@@ -13,8 +13,8 @@ hooks: {
 
 env: cuenv.#Env & {
 	// CUE-defined variables (take precedence over sourced ones)
-	APP_ENV:    "development"
-	PROJECT:    "nix-cuenv-integration"
+	APP_ENV: "development"
+	PROJECT: "nix-cuenv-integration"
 }
 
 tasks: {

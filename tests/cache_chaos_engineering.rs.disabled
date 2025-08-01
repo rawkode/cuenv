@@ -6,7 +6,7 @@
 
 #[cfg(test)]
 mod cache_chaos_tests {
-    use cuenv::cache::{Cache, CacheError, ProductionCache, UnifiedCache, UnifiedCacheConfig};
+    use cuenv::cache::{Cache, CacheError, ProductionCache, UnifiedCacheConfig};
     use rand::prelude::*;
     use std::collections::HashMap;
     use std::fs;
@@ -238,9 +238,9 @@ mod cache_chaos_tests {
                 0.05, // 5% corruption rate
             );
 
-            let config = UnifiedCacheConfig {
+            let config = UnifiedUnifiedCacheConfig {
                 max_entries: 100,
-                max_memory_bytes: 1024 * 1024, // 1MB
+                max_size_bytes: 1024 * 1024, // 1MB
                 ..Default::default()
             };
 
@@ -263,12 +263,12 @@ mod cache_chaos_tests {
                 let original_value = format!("chaos_value_{}_test_data", i).repeat(10);
 
                 // Try to store value
-                match cache.put(&key, original_value.as_bytes(), None).await {
+                match cache.put(&key, &original_value, None).await {
                     Ok(_) => {
                         // Try to retrieve and verify
-                        match cache.get::<Vec<u8>>(&key).await {
+                        match cache.get::<String>(&key).await {
                             Ok(Some(retrieved)) => {
-                                if retrieved == original_value.as_bytes() {
+                                if retrieved == original_value {
                                     successful_operations += 1;
                                 } else {
                                     data_corruption_detected += 1;
@@ -331,7 +331,7 @@ mod cache_chaos_tests {
             let memory_simulator = MemoryPressureSimulator::new(100); // 100MB pressure
 
             let config = UnifiedCacheConfig {
-                max_memory_bytes: 50 * 1024 * 1024, // 50MB cache limit
+                max_size_bytes: 50 * 1024 * 1024, // 50MB cache limit
                 max_entries: 1000,
                 ..Default::default()
             };
@@ -737,7 +737,7 @@ mod cache_chaos_tests {
 
             // Start with large cache
             let initial_config = UnifiedCacheConfig {
-                max_memory_bytes: 10 * 1024 * 1024, // 10MB
+                max_size_bytes: 10 * 1024 * 1024, // 10MB
                 max_entries: 1000,
                 ttl_secs: Some(Duration::from_secs(60)),
                 ..Default::default()
@@ -761,20 +761,20 @@ mod cache_chaos_tests {
             // with different configurations on the same directory
             let configs = vec![
                 UnifiedCacheConfig {
-                    max_memory_bytes: 1024 * 1024, // 1MB - drastic reduction
+                    max_size_bytes: 1024 * 1024, // 1MB - drastic reduction
                     max_entries: 100,
                     ttl_secs: Some(Duration::from_secs(5)), // Short TTL
                     ..Default::default()
                 },
                 UnifiedCacheConfig {
-                    max_memory_bytes: 50 * 1024 * 1024, // 50MB - increase
+                    max_size_bytes: 50 * 1024 * 1024, // 50MB - increase
                     max_entries: 5000,
                     ttl_secs: None, // No TTL
                     compression_enabled: true,
                     ..Default::default()
                 },
                 UnifiedCacheConfig {
-                    max_memory_bytes: 512 * 1024, // 512KB - very small
+                    max_size_bytes: 512 * 1024, // 512KB - very small
                     max_entries: 10,
                     ttl_secs: Some(Duration::from_millis(100)), // Very short TTL
                     ..Default::default()
@@ -785,7 +785,7 @@ mod cache_chaos_tests {
                 println!(
                     "Configuration change {}: max_memory={} bytes, max_entries={}",
                     i + 1,
-                    config.max_memory_bytes,
+                    config.max_size_bytes,
                     config.max_entries
                 );
 

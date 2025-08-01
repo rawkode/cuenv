@@ -286,9 +286,8 @@ impl CacheKeyGenerator {
 
     /// Compile a single pattern with error handling
     fn compile_pattern(pattern: &str) -> Result<Regex> {
-        Regex::new(pattern).map_err(|e| {
-            Error::configuration(format!("Invalid regex pattern '{}': {}", pattern, e))
-        })
+        Regex::new(pattern)
+            .map_err(|e| Error::configuration(format!("Invalid regex pattern '{pattern}': {e}")))
     }
 
     /// Filter environment variables based on configured patterns
@@ -478,7 +477,7 @@ impl CacheKeyGenerator {
         } else if pattern.contains('*') {
             // Simple glob pattern matching
             let regex_pattern = pattern.replace('*', ".*");
-            if let Ok(regex) = Regex::new(&format!("^{}$", regex_pattern)) {
+            if let Ok(regex) = Regex::new(&format!("^{regex_pattern}$")) {
                 regex.is_match(var_name)
             } else {
                 false

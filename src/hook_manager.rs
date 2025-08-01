@@ -444,6 +444,7 @@ mod tests {
             command: "echo".to_string(),
             args: vec!["test".to_string()],
             url: None,
+            source: None,
             constraints: Vec::new(),
             hook_type: crate::cue_parser::HookType::OnEnter,
         };
@@ -608,6 +609,7 @@ mod tests {
             command: "devenv".to_string(),
             args: vec!["up".to_string()],
             url: None,
+            source: None,
             constraints: vec![HookConstraint::CommandExists {
                 command: "devenv".to_string(),
             }],

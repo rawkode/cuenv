@@ -3,19 +3,18 @@
 //! This module provides a cache wrapper that adds monitoring capabilities
 //! to any cache implementation, tracking metrics, traces, and performance.
 
-use crate::cache::errors::{CacheError, Result};
-use crate::cache::monitoring::{CacheMonitor, TracedOperation};
+use crate::cache::errors::Result;
+use crate::cache::monitoring::CacheMonitor;
 use crate::cache::streaming::{CacheReader, CacheWriter, StreamingCache};
-use crate::cache::traits::{Cache, CacheConfig, CacheKey, CacheMetadata, CacheStatistics};
+use crate::cache::traits::{Cache, CacheMetadata, CacheStatistics};
 use async_trait::async_trait;
 use futures::io::{AsyncRead, AsyncWrite};
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
 /// Cache wrapper that adds comprehensive monitoring
 pub struct MonitoredCache<C: Cache> {
@@ -434,6 +433,7 @@ impl<C: Cache> MonitoredCacheBuilder<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cache::traits::CacheConfig;
     use crate::cache::unified::UnifiedCache;
     use tempfile::TempDir;
 

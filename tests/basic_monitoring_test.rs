@@ -1,6 +1,6 @@
 //! Basic monitoring functionality test
 
-use cuenv::cache::{CacheMonitor, HitRateReport, RealTimeStatsReport};
+use cuenv::cache::CacheMonitor;
 use std::time::Duration;
 
 #[test]
