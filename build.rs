@@ -85,21 +85,6 @@ fn main() {
             println!("cargo:rustc-link-lib=framework=CoreFoundation");
         }
     }
-<<<<<<< HEAD
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-
-    // Compile protobuf for remote cache server
-    tonic_build::configure()
-        .build_server(true)
-        .build_client(false)
-        .file_descriptor_set_path(out_dir.join("remote_execution_descriptor.bin"))
-        .compile(
-            &["src/remote_cache/remote_execution.proto"],
-            &["src/remote_cache"],
-        )
-        .expect("Failed to compile protobuf");
-=======
-
     // Compile protobuf for remote cache server (optional if protoc is available)
     if let Ok(_protoc_path) = env::var("PROTOC") {
         println!("cargo:rustc-cfg=feature=\"remote-cache\"");
@@ -127,5 +112,4 @@ fn main() {
         println!("cargo:warning=protoc not found - remote cache functionality will be disabled");
         println!("cargo:warning=Install protobuf-compiler or set PROTOC environment variable to enable remote cache");
     }
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 }

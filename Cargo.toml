@@ -132,18 +132,6 @@ harness = false
 [[bench]]
 name = "cache_regression_bench"
 harness = false
-<<<<<<< HEAD
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-
-[[bin]]
-name = "remote_cache_server"
-path = "src/remote_cache/bin/server.rs"
-
-[[bin]]
-name = "bazel_cache_server"
-path = "src/remote_cache/bin/bazel_server.rs"
-=======
-
 [[bin]]
 name = "remote_cache_server"
 path = "src/remote_cache/bin/server.rs"
@@ -152,4 +140,3 @@ required-features = ["remote-cache"]
 [[bin]]
 name = "bazel_cache_server"
 path = "src/remote_cache/bin/bazel_server.rs"
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
