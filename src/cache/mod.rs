@@ -41,32 +41,14 @@ pub mod merkle;
 pub mod secure_cache;
 
 // Reliability and production features (Phase 9)
-<<<<<<< HEAD
-// pub mod health_endpoint;
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-pub mod health_endpoint;
-=======
 // pub mod health_endpoint; // Disabled - missing ProductionHardening type
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 pub mod reliability;
 
 // Advanced features (Phase 10)
-<<<<<<< HEAD
-// pub mod analytics_dashboard;
-// pub mod multi_tenant;
-// pub mod platform_optimizations;
-// pub mod predictive_cache;
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-pub mod analytics_dashboard;
-pub mod multi_tenant;
-pub mod platform_optimizations;
-pub mod predictive_cache;
-=======
 // pub mod analytics_dashboard; // Disabled - requires axum dependency
 // pub mod multi_tenant; // Disabled - missing CacheCapability type
 pub mod platform_optimizations;
 pub mod predictive_cache;
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 
 // Legacy implementations (deprecated - will be removed)
 mod action_cache;

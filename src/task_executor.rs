@@ -23,6 +23,7 @@ struct TaskExecutionContext<'a> {
     working_dir: &'a Path,
     action_cache: &'a ActionCache,
     audit_mode: bool,
+    capture_output: bool,
 }
 
 /// Represents a task execution plan with resolved dependencies
@@ -164,63 +165,10 @@ impl TaskExecutor {
                 let working_dir = self.working_dir.clone();
                 let task_args = args.to_vec();
                 let failed_tasks = Arc::clone(&failed_tasks);
-<<<<<<< HEAD
-                let task_name = task_name.clone();
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-                let task_name = task_name.clone();
-                let cache_manager = Arc::clone(&self.cache_manager);
-                let action_cache = Arc::clone(&self.action_cache);
-
-                let cache_manager = Arc::clone(&self.cache_manager);
-=======
                 let task_name_owned = task_name.clone();
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
                 let action_cache = Arc::clone(&self.action_cache);
                 let env_manager_clone = self.env_manager.clone();
                 let cache_config = self.cache_config.clone();
-<<<<<<< HEAD
-                join_set.spawn(async move {
-                    let ctx = TaskExecutionContext {
-                        cache_config: &cache_config,
-                        working_dir: &working_dir,
-                        action_cache: &action_cache,
-                        audit_mode,
-                    };
-                    match Self::execute_single_task_with_cache(
-                        &ctx,
-                        &task_name,
-                        &task_config,
-                        &task_args,
-                    )
-                    .await
-                    {
-                        Ok(status) => {
-                            if status != 0 {
-                                if let Ok(mut guard) = failed_tasks.lock() {
-                                    guard.push((task_name, status));
-                                } else {
-                                    log::error!("Failed to acquire lock for failed tasks tracking");
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-                join_set.spawn(async move {
-                    match Self::execute_single_task_with_cache(
-                        &cache_config,
-                        &task_name,
-                        &task_config,
-                        &working_dir,
-                        &task_args,
-                        &cache_manager,
-                        &action_cache,
-                        audit_mode,
-                    )
-                    .await
-                    {
-                        Ok(status) => {
-                            if status != 0 {
-                                if let Ok(mut guard) = failed_tasks.lock() {
-                                    guard.push((task_name, status));
-                                } else {
-                                    log::error!("Failed to acquire lock for failed tasks tracking");
-=======
 
                 // Create task span
                 let task_span = task_span(&task_name_owned, task_config.working_dir.as_deref());
@@ -252,7 +200,6 @@ impl TaskExecutor {
                                             ),
                                         })
                                         .await;
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
                                 }
                             }
 
@@ -274,7 +221,10 @@ impl TaskExecutor {
                                     .await;
                             }
 
-                            if task_config.cache.unwrap_or(false) {
+                            if task_config.cache.as_ref().is_some_and(|c| match c {
+                                crate::cache::TaskCacheConfig::Simple(enabled) => *enabled,
+                                crate::cache::TaskCacheConfig::Advanced { enabled, .. } => *enabled,
+                            }) {
                                 event_bus
                                     .publish(crate::tui::events::TaskEvent::Progress {
                                         task_name: task_name_owned.clone(),
@@ -314,16 +264,18 @@ impl TaskExecutor {
                             }
                         }
 
-                        match Self::execute_single_task_with_cache(
-                            &cache_config,
-                            &task_name_owned,
-                            &task_config,
-                            &working_dir,
-                            &task_args,
-                            &self.cache_manager,
-                            &action_cache,
+                        let ctx = TaskExecutionContext {
+                            cache_config: &cache_config,
+                            working_dir: &working_dir,
+                            action_cache: &action_cache,
                             audit_mode,
                             capture_output,
+                        };
+                        match Self::execute_single_task_with_cache(
+                            &ctx,
+                            &task_name_owned,
+                            &task_config,
+                            &task_args,
                         )
                         .await
                         {
@@ -627,17 +579,6 @@ impl TaskExecutor {
         task_name: &str,
         task_config: &TaskConfig,
         args: &[String],
-<<<<<<< HEAD
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-        _cache_manager: &CacheManager,
-        action_cache: &ActionCache,
-        audit_mode: bool,
-=======
-        _cache_manager: &CacheManager,
-        action_cache: &ActionCache,
-        audit_mode: bool,
-        capture_output: bool,
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
     ) -> Result<i32> {
         // Check if caching is enabled for this task using the new configuration system
         let cache_enabled = CacheConfigResolver::should_cache_task(
@@ -649,8 +590,15 @@ impl TaskExecutor {
         if !cache_enabled {
             // Execute without caching
             println!("→ Executing task '{task_name}' (cache disabled)");
-            return Self::execute_single_task(task_config, ctx.working_dir, args, ctx.audit_mode)
-                .await;
+            return Self::execute_single_task(
+                task_name,
+                task_config,
+                ctx.working_dir,
+                args,
+                ctx.audit_mode,
+                ctx.capture_output,
+            )
+            .await;
         }
 
         // Generate action digest using ActionCache
@@ -664,29 +612,18 @@ impl TaskExecutor {
         let result = ctx
             .action_cache
             .execute_action(&digest, || async {
-<<<<<<< HEAD
-                println!("→ Executing task '{task_name}'");
-                let exit_code =
-                    Self::execute_single_task(task_config, ctx.working_dir, args, ctx.audit_mode)
-                        .await?;
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-                println!("→ Executing task '{task_name}'");
-                let exit_code =
-                    Self::execute_single_task(task_config, working_dir, args, audit_mode).await?;
-=======
                 cache_event(task_name, false, "task_result");
                 task_progress(task_name, Some(0), "Starting task execution");
 
                 let exit_code = Self::execute_single_task(
                     task_name,
                     task_config,
-                    working_dir,
+                    ctx.working_dir,
                     args,
-                    audit_mode,
-                    capture_output,
+                    ctx.audit_mode,
+                    ctx.capture_output,
                 )
                 .await?;
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 
                 // Create ActionResult for caching
                 Ok(crate::cache::ActionResult {
@@ -703,16 +640,12 @@ impl TaskExecutor {
         // Update cache manager statistics for backward compatibility
         if result.exit_code == 0 {
             task_progress(task_name, Some(100), "Task completed successfully");
-            if !capture_output {
-                println!("✓ Task '{task_name}' completed successfully");
-            }
+            println!("✓ Task '{task_name}' completed successfully");
         } else {
-            if !capture_output {
-                println!(
-                    "✗ Task '{task_name}' failed with exit code {}",
-                    result.exit_code
-                );
-            }
+            println!(
+                "✗ Task '{task_name}' failed with exit code {}",
+                result.exit_code
+            );
         }
 
         Ok(result.exit_code)
@@ -878,7 +811,7 @@ impl TaskExecutor {
 
                     if let Ok(rt) = rt {
                         let reader = BufReader::new(stdout);
-                        for line in reader.lines().flatten() {
+                        for line in reader.lines().map_while(|result| result.ok()) {
                             // Try to publish to event bus
                             if let Some(event_bus) = crate::tui::event_bus::EventBus::global() {
                                 let task_name = task_name_stdout.clone();
@@ -909,7 +842,7 @@ impl TaskExecutor {
 
                     if let Ok(rt) = rt {
                         let reader = BufReader::new(stderr);
-                        for line in reader.lines().flatten() {
+                        for line in reader.lines().map_while(|result| result.ok()) {
                             // Try to publish to event bus
                             if let Some(event_bus) = crate::tui::event_bus::EventBus::global() {
                                 let task_name = task_name_stderr.clone();

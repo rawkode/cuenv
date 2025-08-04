@@ -1,4 +1,4 @@
-use crate::cache::{CacheError, CacheResult};
+use crate::cache::CacheResult;
 use std::path::Path;
 use tracing::{debug, info, warn};
 

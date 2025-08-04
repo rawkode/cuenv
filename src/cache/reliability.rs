@@ -8,12 +8,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, SystemTime};
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 
 /// Automatic corruption recovery system
-pub struct CorruptionRecovery<C: Cache> {
+#[allow(dead_code)]
+pub struct CorruptionRecovery<C: Cache + Clone> {
     cache: Arc<MonitoredCache<C>>,
     repair_history: Arc<RwLock<HashMap<String, RepairRecord>>>,
     config: RecoveryConfig,
@@ -40,7 +41,7 @@ struct RepairRecord {
     error_details: Option<String>,
 }
 
-impl<C: Cache> CorruptionRecovery<C> {
+impl<C: Cache + Clone> CorruptionRecovery<C> {
     pub fn new(cache: Arc<MonitoredCache<C>>, config: RecoveryConfig) -> Self {
         Self {
             cache,
@@ -75,13 +76,15 @@ impl<C: Cache> CorruptionRecovery<C> {
         }
 
         // Check if we're within the repair window
-        if record.last_attempt.elapsed() < self.config.repair_window {
-            return Err(CacheError::RepairInProgress {
-                key: key.to_string(),
-                recovery_hint: RecoveryHint::Retry {
-                    after: self.config.repair_window - record.last_attempt.elapsed(),
-                },
-            });
+        if let Ok(elapsed) = record.last_attempt.elapsed() {
+            if elapsed < self.config.repair_window {
+                return Err(CacheError::RepairInProgress {
+                    key: key.to_string(),
+                    recovery_hint: RecoveryHint::Retry {
+                        after: self.config.repair_window - elapsed,
+                    },
+                });
+            }
         }
 
         record.attempts += 1;
@@ -161,7 +164,8 @@ impl<C: Cache> CorruptionRecovery<C> {
 }
 
 /// Self-tuning cache parameters
-pub struct SelfTuningCache<C: Cache> {
+#[allow(dead_code)]
+pub struct SelfTuningCache<C: Cache + Clone> {
     cache: Arc<MonitoredCache<C>>,
     metrics: Arc<CacheMonitor>,
     tuning_state: Arc<RwLock<TuningState>>,
@@ -201,7 +205,7 @@ pub struct PerformanceSnapshot {
     pub cpu_usage: f64,
 }
 
-impl<C: Cache> SelfTuningCache<C> {
+impl<C: Cache + Clone> SelfTuningCache<C> {
     pub fn new(
         cache: Arc<MonitoredCache<C>>,
         metrics: Arc<CacheMonitor>,
@@ -301,6 +305,7 @@ impl<C: Cache> SelfTuningCache<C> {
 }
 
 /// SLO/SLI monitoring and enforcement
+#[allow(dead_code)]
 pub struct SloMonitor {
     metrics: Arc<CacheMonitor>,
     slos: Vec<ServiceLevelObjective>,
@@ -704,7 +709,9 @@ impl<C: Cache + Clone> ProductionHardening<C> {
         tuning_config: TuningConfig,
         _slo_config: SloConfig,
     ) -> Self {
-        let metrics = Arc::new(CacheMonitor::new());
+        let metrics = Arc::new(
+            CacheMonitor::new("production-hardening").expect("Failed to create cache monitor"),
+        );
         let monitored_cache = Arc::new(
             MonitoredCache::new(cache, "production-hardening")
                 .expect("Failed to create monitored cache"),
@@ -728,14 +735,43 @@ impl<C: Cache + Clone> ProductionHardening<C> {
 
     /// Get current system health
     pub async fn health_check(&self) -> SystemHealthReport {
-        let status =
-            if (self.metrics.errors() as f64 / self.metrics.total_operations() as f64) > 0.05 {
-                HealthStatus::Unhealthy
-            } else if self.metrics.hit_rate() < 0.8 {
-                HealthStatus::Degraded
-            } else {
-                HealthStatus::Healthy
-            };
+        let stats = match self.cache.statistics().await {
+            Ok(s) => s,
+            Err(_) => {
+                return SystemHealthReport {
+                    status: HealthStatus::Unhealthy,
+                    components: HashMap::new(),
+                    metrics: HealthMetrics {
+                        cache_hit_rate: 0.0,
+                        avg_latency_ms: 0.0,
+                        error_rate: 1.0,
+                        memory_usage_bytes: 0,
+                        cpu_usage_percent: 0.0,
+                    },
+                    timestamp: std::time::SystemTime::now(),
+                }
+            }
+        };
+
+        let total_ops = stats.hits + stats.misses;
+        let error_rate = if total_ops > 0 {
+            stats.errors as f64 / total_ops as f64
+        } else {
+            0.0
+        };
+        let hit_rate = if total_ops > 0 {
+            stats.hits as f64 / total_ops as f64
+        } else {
+            0.0
+        };
+
+        let status = if error_rate > 0.05 {
+            HealthStatus::Unhealthy
+        } else if hit_rate < 0.8 {
+            HealthStatus::Degraded
+        } else {
+            HealthStatus::Healthy
+        };
 
         let mut components = HashMap::new();
 
@@ -763,10 +799,10 @@ impl<C: Cache + Clone> ProductionHardening<C> {
             status,
             components,
             metrics: HealthMetrics {
-                cache_hit_rate: self.metrics.hit_rate(),
-                avg_latency_ms: self.metrics.avg_hit_latency().as_millis() as f64,
-                error_rate: self.metrics.errors() as f64 / self.metrics.total_operations() as f64,
-                memory_usage_bytes: self.metrics.current_size(),
+                cache_hit_rate: hit_rate,
+                avg_latency_ms: 0.0, // Would need more detailed metrics integration
+                error_rate,
+                memory_usage_bytes: 0,  // Would need system metrics integration
                 cpu_usage_percent: 0.0, // Would need system metrics integration
             },
             timestamp: SystemTime::now(),

@@ -8,14 +8,7 @@
 //! - Real-time dashboards
 
 use crate::cache::errors::{CacheError, RecoveryHint, Result};
-<<<<<<< HEAD
-use crate::cache::traits::CacheStatistics;
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-use crate::cache::performance::PerfStats;
-use crate::cache::traits::{CacheKey, CacheStatistics};
-=======
 pub use crate::cache::traits::CacheStatistics;
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 use parking_lot::RwLock;
 use prometheus::{
     register_counter_vec, register_histogram_vec, register_int_gauge_vec, CounterVec, Encoder,

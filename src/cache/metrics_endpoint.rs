@@ -8,11 +8,11 @@ use crate::cache::traits::Cache;
 use std::sync::Arc;
 
 /// Metrics endpoint provider for cache observability data
-pub struct MetricsEndpoint<C: Cache> {
+pub struct MetricsEndpoint<C: Cache + Clone> {
     cache: Arc<MonitoredCache<C>>,
 }
 
-impl<C: Cache> MetricsEndpoint<C> {
+impl<C: Cache + Clone> MetricsEndpoint<C> {
     /// Create a new metrics endpoint
     pub fn new(cache: MonitoredCache<C>) -> Self {
         Self {
@@ -48,7 +48,7 @@ impl<C: Cache> MetricsEndpoint<C> {
     }
 }
 
-impl<C: Cache> Clone for MetricsEndpoint<C> {
+impl<C: Cache + Clone> Clone for MetricsEndpoint<C> {
     fn clone(&self) -> Self {
         Self {
             cache: Arc::clone(&self.cache),

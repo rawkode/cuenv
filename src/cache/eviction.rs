@@ -6,23 +6,10 @@
 #![allow(dead_code)]
 
 use crate::cache::errors::{CacheError, RecoveryHint, Result};
-<<<<<<< HEAD
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-use crate::cache::traits::{CacheKey, CacheMetadata};
-=======
-use crate::cache::traits::CacheMetadata;
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 use dashmap::DashMap;
 use parking_lot::{Mutex, RwLock};
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-<<<<<<< HEAD
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-use std::sync::Arc;
-use std::time::{Instant, SystemTime};
-=======
-use std::time::SystemTime;
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 
 /// Eviction policy trait
 pub trait EvictionPolicy: Send + Sync {

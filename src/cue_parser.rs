@@ -93,7 +93,7 @@ struct HooksConfig {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum HookValue {
-    Single(Hook),
+    Single(Box<Hook>),
     Multiple(Vec<Hook>),
 }
 
@@ -614,7 +614,7 @@ fn extract_hooks(hooks_config: Option<HooksConfig>) -> HashMap<String, Vec<Hook>
     if let Some(config) = hooks_config {
         if let Some(on_enter) = config.on_enter {
             let hook_list = match on_enter {
-                HookValue::Single(hook) => vec![hook],
+                HookValue::Single(hook) => vec![*hook],
                 HookValue::Multiple(hook_vec) => hook_vec,
             };
             hooks.insert("onEnter".to_string(), hook_list);
@@ -622,7 +622,7 @@ fn extract_hooks(hooks_config: Option<HooksConfig>) -> HashMap<String, Vec<Hook>
 
         if let Some(on_exit) = config.on_exit {
             let hook_list = match on_exit {
-                HookValue::Single(hook) => vec![hook],
+                HookValue::Single(hook) => vec![*hook],
                 HookValue::Multiple(hook_vec) => hook_vec,
             };
             hooks.insert("onExit".to_string(), hook_list);

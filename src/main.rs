@@ -616,7 +616,7 @@ async fn main() -> Result<()> {
     // Only initialize tracing if not using TUI
     if !use_tui {
         if let Err(e) = cuenv::tracing::init() {
-            eprintln!("Failed to initialize tracing: {}", e);
+            eprintln!("Failed to initialize tracing: {e}");
             std::process::exit(1);
         }
     }

@@ -350,7 +350,7 @@ fn supports_unicode() -> bool {
 fn supports_colors() -> bool {
     // Check if we're in a TTY and common color environment variables
     std::io::IsTerminal::is_terminal(&std::io::stderr())
-        && !std::env::var("NO_COLOR").is_ok()
+        && std::env::var("NO_COLOR").is_err()
         && std::env::var("TERM")
             .map(|term| term != "dumb")
             .unwrap_or(true)

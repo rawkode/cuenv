@@ -3,19 +3,12 @@
 //! This module provides specialized implementations for hot code paths
 //! to minimize latency and maximize throughput.
 
-<<<<<<< HEAD
-#![allow(dead_code)]
-
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-use crate::cache::errors::Result;
-use crate::cache::traits::{CacheKey, CacheMetadata};
-=======
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 use crate::cache::traits::CacheMetadata;
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::Instant;
+use std::time::{Duration, SystemTime};
 
 /// Fast path cache for small, frequently accessed values
 pub struct FastPathCache {
@@ -117,6 +110,7 @@ impl FastPathCache {
     }
 
     /// Clear all fast path entries
+    #[allow(dead_code)]
     pub fn clear(&self) {
         self.small_values.clear();
         if let Some(mut tracker) = self.lru_tracker.try_write() {
@@ -126,6 +120,7 @@ impl FastPathCache {
 }
 
 /// Specialized implementations for common value types
+#[allow(dead_code)]
 pub mod specialized {
     use super::*;
     use serde::Deserialize;
@@ -214,11 +209,13 @@ pub mod specialized {
 }
 
 /// Batch get operations for improved throughput
+#[allow(dead_code)]
 pub struct BatchGet<'a> {
     keys: Vec<&'a str>,
     results: Vec<Option<Vec<u8>>>,
 }
 
+#[allow(dead_code)]
 impl<'a> BatchGet<'a> {
     pub fn new(capacity: usize) -> Self {
         Self {
@@ -246,11 +243,13 @@ impl<'a> BatchGet<'a> {
 }
 
 /// Inline cache for extremely hot values
+#[allow(dead_code)]
 pub struct InlineCache<const N: usize> {
     entries: [(Option<String>, Option<Vec<u8>>); N],
     index: usize,
 }
 
+#[allow(dead_code)]
 impl<const N: usize> InlineCache<N> {
     pub const fn new() -> Self {
         const EMPTY: (Option<String>, Option<Vec<u8>>) = (None, None);
