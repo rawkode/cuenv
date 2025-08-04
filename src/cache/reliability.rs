@@ -1,12 +1,6 @@
 pub use crate::cache::audit::HealthStatus;
 use crate::cache::errors::RecoveryHint;
-<<<<<<< HEAD
-use crate::cache::metrics::CacheMetrics;
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-use crate::cache::metrics::CacheMetrics;
-=======
 use crate::cache::monitoring::CacheMonitor;
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 use crate::cache::traits::Cache;
 use crate::cache::{CacheError, CacheResult, MonitoredCache};
 use chrono::{DateTime, Utc};
@@ -20,15 +14,7 @@ use tracing::{error, info, warn};
 
 /// Automatic corruption recovery system
 pub struct CorruptionRecovery<C: Cache> {
-<<<<<<< HEAD
-    #[allow(dead_code)]
-    cache: Arc<C>,
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-pub struct CorruptionRecovery {
-    cache: Arc<MonitoredCache>,
-=======
     cache: Arc<MonitoredCache<C>>,
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
     repair_history: Arc<RwLock<HashMap<String, RepairRecord>>>,
     config: RecoveryConfig,
 }
@@ -48,21 +34,14 @@ pub struct RecoveryConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct RepairRecord {
     attempts: usize,
-    #[serde(with = "crate::cache::serde_helpers::time::instant_as_nanos")]
-    last_attempt: Instant,
+    // #[serde(with = "crate::cache::serde_helpers::time::instant_as_nanos")]
+    last_attempt: std::time::SystemTime,
     success: bool,
     error_details: Option<String>,
 }
 
 impl<C: Cache> CorruptionRecovery<C> {
-<<<<<<< HEAD
-    pub fn new(cache: Arc<C>, config: RecoveryConfig) -> Self {
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-impl CorruptionRecovery {
-    pub fn new(cache: Arc<MonitoredCache>, config: RecoveryConfig) -> Self {
-=======
     pub fn new(cache: Arc<MonitoredCache<C>>, config: RecoveryConfig) -> Self {
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
         Self {
             cache,
             repair_history: Arc::new(RwLock::new(HashMap::new())),
@@ -75,7 +54,7 @@ impl CorruptionRecovery {
         let mut history = self.repair_history.write().await;
         let record = history.entry(key.to_string()).or_insert(RepairRecord {
             attempts: 0,
-            last_attempt: Instant::now(),
+            last_attempt: std::time::SystemTime::now(),
             success: false,
             error_details: None,
         });
@@ -106,7 +85,7 @@ impl CorruptionRecovery {
         }
 
         record.attempts += 1;
-        record.last_attempt = Instant::now();
+        record.last_attempt = std::time::SystemTime::now();
 
         // Attempt repair strategies
         match self.execute_repair_strategies(key).await {
@@ -183,19 +162,8 @@ impl CorruptionRecovery {
 
 /// Self-tuning cache parameters
 pub struct SelfTuningCache<C: Cache> {
-<<<<<<< HEAD
-    #[allow(dead_code)]
-    cache: Arc<C>,
-    #[allow(dead_code)]
-    metrics: Arc<CacheMetrics>,
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-pub struct SelfTuningCache {
-    cache: Arc<MonitoredCache>,
-    metrics: Arc<CacheMetrics>,
-=======
     cache: Arc<MonitoredCache<C>>,
     metrics: Arc<CacheMonitor>,
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
     tuning_state: Arc<RwLock<TuningState>>,
     config: TuningConfig,
 }
@@ -220,60 +188,31 @@ pub struct TuningState {
     pub current_eviction_threshold: f64,
     pub compression_level: u32,
     pub shard_count: usize,
-    #[serde(with = "crate::cache::serde_helpers::time::instant_as_nanos")]
-    pub last_adjustment: Instant,
+    pub last_adjustment: std::time::SystemTime,
     pub performance_history: Vec<PerformanceSnapshot>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-<<<<<<< HEAD
 pub struct PerformanceSnapshot {
-    #[serde(with = "crate::cache::serde_helpers::time::instant_as_nanos")]
-    pub timestamp: Instant,
+    pub timestamp: DateTime<Utc>,
     pub hit_rate: f64,
     pub p99_latency: f64,
     pub memory_usage: usize,
     pub cpu_usage: f64,
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-struct PerformanceSnapshot {
-    timestamp: Instant,
-    hit_rate: f64,
-    p99_latency: f64,
-    memory_usage: usize,
-    cpu_usage: f64,
-=======
-struct PerformanceSnapshot {
-    timestamp: DateTime<Utc>,
-    hit_rate: f64,
-    p99_latency: f64,
-    memory_usage: usize,
-    cpu_usage: f64,
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 }
 
 impl<C: Cache> SelfTuningCache<C> {
-<<<<<<< HEAD
-    pub fn new(cache: Arc<C>, metrics: Arc<CacheMetrics>, config: TuningConfig) -> Self {
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-impl SelfTuningCache {
-    pub fn new(
-        cache: Arc<MonitoredCache>,
-        metrics: Arc<CacheMetrics>,
-        config: TuningConfig,
-    ) -> Self {
-=======
     pub fn new(
         cache: Arc<MonitoredCache<C>>,
         metrics: Arc<CacheMonitor>,
         config: TuningConfig,
     ) -> Self {
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
         let initial_state = TuningState {
             current_size: config.max_cache_size / 2,
             current_eviction_threshold: 0.9,
             compression_level: 3,
             shard_count: 256,
-            last_adjustment: Instant::now(),
+            last_adjustment: std::time::SystemTime::now(),
             performance_history: Vec::new(),
         };
 
@@ -335,7 +274,7 @@ impl SelfTuningCache {
             state.current_eviction_threshold = 0.95;
         }
 
-        state.last_adjustment = Instant::now();
+        state.last_adjustment = std::time::SystemTime::now();
         Ok(())
     }
 
@@ -363,14 +302,7 @@ impl SelfTuningCache {
 
 /// SLO/SLI monitoring and enforcement
 pub struct SloMonitor {
-<<<<<<< HEAD
-    #[allow(dead_code)]
-    metrics: Arc<CacheMetrics>,
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-    metrics: Arc<CacheMetrics>,
-=======
     metrics: Arc<CacheMonitor>,
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
     slos: Vec<ServiceLevelObjective>,
     alerts: Arc<RwLock<Vec<SloViolation>>>,
 }
@@ -395,14 +327,7 @@ pub enum SloMetricType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SloViolation {
     pub slo_name: String,
-<<<<<<< HEAD
-    #[serde(with = "crate::cache::serde_helpers::time::instant_as_nanos")]
-    pub timestamp: Instant,
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-    pub timestamp: Instant,
-=======
     pub timestamp: DateTime<Utc>,
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
     pub actual_value: f64,
     pub target_value: f64,
     pub severity: ViolationSeverity,
@@ -762,11 +687,11 @@ pub struct HealthMetrics {
 /// Production-grade wrapper for cache with monitoring and reliability features
 pub struct ProductionHardening<C: Cache + Clone> {
     cache: Arc<MonitoredCache<C>>,
-    metrics: Arc<CacheMetrics>,
+    metrics: Arc<CacheMonitor>,
     #[allow(dead_code)]
-    corruption_recovery: Arc<CorruptionRecovery<MonitoredCache<C>>>,
+    corruption_recovery: Arc<CorruptionRecovery<C>>,
     #[allow(dead_code)]
-    self_tuning: Arc<SelfTuningCache<MonitoredCache<C>>>,
+    self_tuning: Arc<SelfTuningCache<C>>,
     #[allow(dead_code)]
     slo_monitor: Arc<SloMonitor>,
 }
@@ -779,7 +704,7 @@ impl<C: Cache + Clone> ProductionHardening<C> {
         tuning_config: TuningConfig,
         _slo_config: SloConfig,
     ) -> Self {
-        let metrics = Arc::new(CacheMetrics::new());
+        let metrics = Arc::new(CacheMonitor::new());
         let monitored_cache = Arc::new(
             MonitoredCache::new(cache, "production-hardening")
                 .expect("Failed to create monitored cache"),
@@ -849,7 +774,7 @@ impl<C: Cache + Clone> ProductionHardening<C> {
     }
 
     /// Get metrics collector
-    pub fn metrics(&self) -> Arc<CacheMetrics> {
+    pub fn metrics(&self) -> Arc<CacheMonitor> {
         self.metrics.clone()
     }
 
