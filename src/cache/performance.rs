@@ -7,16 +7,10 @@
 //! - Cache-line aware memory layouts
 //! - Prefetching and branch prediction hints
 
-<<<<<<< HEAD
 #![allow(dead_code)]
 
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-use parking_lot::{Mutex, RwLock};
-=======
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 use parking_lot::Mutex;
 use std::alloc::{alloc, dealloc, Layout};
-use std::ptr;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 /// Cache line size for x86_64 processors (64 bytes)
@@ -216,8 +210,8 @@ pub fn prefetch_read<T>(ptr: *const T) {
 
     #[cfg(target_arch = "aarch64")]
     unsafe {
-        use std::arch::aarch64::__prefetch;
-        __prefetch(ptr as *const i8, 0, 3); // Read, L1 cache
+        use std::arch::aarch64::_prefetch;
+        _prefetch(ptr as *const i8, 0, 3); // Read, L1 cache
     }
 }
 
@@ -231,8 +225,8 @@ pub fn prefetch_write<T>(ptr: *const T) {
 
     #[cfg(target_arch = "aarch64")]
     unsafe {
-        use std::arch::aarch64::__prefetch;
-        __prefetch(ptr as *const i8, 1, 3); // Write, L1 cache
+        use std::arch::aarch64::_prefetch;
+        _prefetch(ptr as *const i8, 1, 3); // Write, L1 cache
     }
 }
 
@@ -244,12 +238,7 @@ pub fn unlikely() {
 }
 
 #[inline(always)]
-<<<<<<< HEAD
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-#[hot]
-=======
 // #[hot] - custom attribute not available
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 pub fn likely() {
     // This function is marked hot to hint that it's likely to be called
 }
@@ -288,11 +277,11 @@ pub unsafe fn aligned_copy(dst: *mut u8, src: *const u8, len: usize) {
 
         // Copy remainder
         if remainder > 0 {
-            ptr::copy_nonoverlapping(src.add(chunks * 32), dst.add(chunks * 32), remainder);
+            std::ptr::copy_nonoverlapping(src.add(chunks * 32), dst.add(chunks * 32), remainder);
         }
     } else {
         // Fallback to standard copy
-        ptr::copy_nonoverlapping(src, dst, len);
+        std::ptr::copy_nonoverlapping(src, dst, len);
     }
 }
 

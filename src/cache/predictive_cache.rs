@@ -1,5 +1,5 @@
 use crate::cache::traits::Cache;
-use crate::cache::{CacheError, CacheResult, MonitoredCache};
+use crate::cache::{CacheResult, MonitoredCache};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
@@ -9,7 +9,7 @@ use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
 /// ML-based predictive caching system
-pub struct PredictiveCache<C: Cache> {
+pub struct PredictiveCache<C: Cache + Clone> {
     cache: Arc<MonitoredCache<C>>,
     predictor: Arc<RwLock<AccessPredictor>>,
     config: PredictiveCacheConfig,
@@ -70,7 +70,7 @@ struct AccessRecord {
     successors: Vec<String>,
 }
 
-impl<C: Cache> PredictiveCache<C> {
+impl<C: Cache + Clone> PredictiveCache<C> {
     pub fn new(cache: Arc<MonitoredCache<C>>, config: PredictiveCacheConfig) -> Self {
         let predictor = Arc::new(RwLock::new(AccessPredictor::new(config.clone())));
 
@@ -162,20 +162,6 @@ impl AccessPredictor {
 
     fn record_access_at(&mut self, key: &str, timestamp: Instant) {
         let key_string = key.to_string();
-<<<<<<< HEAD
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-        // Update access record
-        let record = self
-            .access_history
-            .entry(key.to_string())
-            .or_insert(AccessRecord {
-                access_count: 0,
-                last_access: timestamp,
-                frequency: 0.0,
-                predecessors: Vec::new(),
-                successors: Vec::new(),
-            });
-=======
         let mut prev_key_for_predecessors = None;
 
         // Update access record
@@ -190,41 +176,10 @@ impl AccessPredictor {
                     predecessors: Vec::new(),
                     successors: Vec::new(),
                 });
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 
-<<<<<<< HEAD
-        // Update access record and collect data we need
-        let (prev_key_opt, _should_update_predecessors) = {
-            let record = self
-                .access_history
-                .entry(key_string.clone())
-                .or_insert(AccessRecord {
-                    access_count: 0,
-                    last_access: timestamp,
-                    frequency: 0.0,
-                    predecessors: Vec::new(),
-                    successors: Vec::new(),
-                });
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-        record.access_count += 1;
-        record.last_access = timestamp;
-=======
-            record.access_count += 1;
-            record.last_access = timestamp;
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-
-<<<<<<< HEAD
             record.access_count += 1;
             record.last_access = timestamp;
 
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-        // Calculate frequency
-        if record.access_count > 1 {
-            let duration = timestamp.duration_since(record.last_access).as_secs_f64() / 3600.0;
-            if duration > 0.0 {
-                record.frequency = record.access_count as f64 / duration;
-=======
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
             // Calculate frequency
             if record.access_count > 1 {
                 let duration = timestamp.duration_since(record.last_access).as_secs_f64() / 3600.0;
@@ -232,43 +187,17 @@ impl AccessPredictor {
                     record.frequency = record.access_count as f64 / duration;
                 }
             }
+        }
 
-<<<<<<< HEAD
-            // Update global sequence
-            self.global_sequence
-                .push_back((key_string.clone(), timestamp));
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-        // Update global sequence
-        self.global_sequence.push_back((key.to_string(), timestamp));
-=======
         // Update global sequence
         self.global_sequence
             .push_back((key_string.clone(), timestamp));
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 
-            // Maintain window size
-            while self.global_sequence.len() > self.config.max_patterns {
-                self.global_sequence.pop_front();
-            }
+        // Maintain window size
+        while self.global_sequence.len() > self.config.max_patterns {
+            self.global_sequence.pop_front();
+        }
 
-<<<<<<< HEAD
-            // Check for sequential patterns
-            let mut prev_key_opt = None;
-            let mut should_update = false;
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-        // Update sequential patterns
-        if self.global_sequence.len() >= 2 {
-            let seq_len = self.global_sequence.len();
-            if let Some((prev_key, _)) = self.global_sequence.get(seq_len - 2) {
-                // Record sequential pattern
-                let pattern = self
-                    .sequential_patterns
-                    .entry(prev_key.clone())
-                    .or_insert_with(Vec::new);
-                if !pattern.contains(&key.to_string()) {
-                    pattern.push(key.to_string());
-                }
-=======
         // Update sequential patterns
         if self.global_sequence.len() >= 2 {
             let seq_len = self.global_sequence.len();
@@ -279,105 +208,36 @@ impl AccessPredictor {
                 let pattern = self
                     .sequential_patterns
                     .entry(prev_key.clone())
-                    .or_insert_with(Vec::new);
+                    .or_default();
                 if !pattern.contains(&key_string) {
                     pattern.push(key_string.clone());
                 }
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 
-<<<<<<< HEAD
-            if self.global_sequence.len() >= 2 {
-                let seq_len = self.global_sequence.len();
-                if let Some((prev_key, _)) = self.global_sequence.get(seq_len - 2) {
-                    prev_key_opt = Some(prev_key.clone());
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
                 // Update dependency graph
-                let deps = self
-                    .dependency_graph
-                    .entry(key.to_string())
-                    .or_insert_with(Vec::new);
+                let deps = self.dependency_graph.entry(key_string.clone()).or_default();
                 if !deps.contains(prev_key) {
                     deps.push(prev_key.clone());
                 }
-=======
-                // Update dependency graph
-                let deps = self
-                    .dependency_graph
-                    .entry(key_string.clone())
-                    .or_insert_with(Vec::new);
-                if !deps.contains(prev_key) {
-                    deps.push(prev_key.clone());
-                }
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 
-<<<<<<< HEAD
-                    // Update predecessors for current record
-                    if !record.predecessors.contains(prev_key) {
-                        record.predecessors.push(prev_key.clone());
-                        should_update = true;
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-                // Update predecessors/successors
-                if let Some(prev_record) = self.access_history.get_mut(prev_key) {
-                    if !prev_record.successors.contains(&key.to_string()) {
-                        prev_record.successors.push(key.to_string());
-=======
                 // Update predecessors/successors
                 if let Some(prev_record) = self.access_history.get_mut(prev_key) {
                     if !prev_record.successors.contains(&key_string) {
                         prev_record.successors.push(key_string.clone());
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
                     }
                 }
             }
-<<<<<<< HEAD
-
-            (prev_key_opt, should_update)
-        };
-
-        // Now update other data structures without holding a borrow on access_history
-        if let Some(prev_key) = prev_key_opt {
-            // Record sequential pattern
-            let pattern = self
-                .sequential_patterns
-                .entry(prev_key.clone())
-                .or_insert_with(Vec::new);
-            if !pattern.contains(&key_string) {
-                pattern.push(key_string.clone());
-            }
-
-            // Update dependency graph
-            let deps = self
-                .dependency_graph
-                .entry(key_string.clone())
-                .or_insert_with(Vec::new);
-            if !deps.contains(&prev_key) {
-                deps.push(prev_key.clone());
-            }
-
-            // Update successors for previous record
-            if let Some(prev_record) = self.access_history.get_mut(&prev_key) {
-                if !prev_record.successors.contains(&key_string) {
-                    prev_record.successors.push(key_string.clone());
-                }
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-                record.predecessors.push(prev_key.clone());
-=======
         }
 
         // Update predecessors for current record
         if let Some(prev_key) = prev_key_for_predecessors {
             if let Some(record) = self.access_history.get_mut(&key_string) {
                 record.predecessors.push(prev_key);
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
             }
         }
 
         // Update temporal patterns (hour of day)
         let hour = (timestamp.elapsed().as_secs() / 3600) % 24;
-        let temporal = self
-            .temporal_patterns
-            .entry(hour as u32)
-            .or_insert_with(Vec::new);
+        let temporal = self.temporal_patterns.entry(hour as u32).or_default();
         if !temporal.contains(&key_string) {
             temporal.push(key_string);
         }
@@ -496,7 +356,7 @@ impl AccessPredictor {
                     let to = &pair[arrow_pos + 2..];
                     self.sequential_patterns
                         .entry(from.to_string())
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(to.to_string());
                 }
             }
@@ -546,10 +406,12 @@ pub struct PredictorStatistics {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cache::unified::UnifiedCache;
 
     #[tokio::test]
     async fn test_sequential_pattern_detection() {
-        let cache = Arc::new(MonitoredCache::new(Default::default(), Default::default()));
+        let base_cache = UnifiedCache::new();
+        let cache = Arc::new(MonitoredCache::new(base_cache, "test").unwrap());
         let predictor = PredictiveCache::new(cache, Default::default());
 
         // Simulate sequential access pattern

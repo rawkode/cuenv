@@ -3,6 +3,8 @@
 //! This module provides comprehensive metrics for cache operations including
 //! hit rates, latencies, storage efficiency, and access patterns.
 
+#![allow(dead_code)]
+
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};

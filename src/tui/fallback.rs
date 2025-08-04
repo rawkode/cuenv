@@ -54,7 +54,7 @@ impl FallbackRenderer {
         output.push_str("---------------\n");
 
         for root in &root_tasks {
-            self.render_task_tree(&mut output, root, &tasks, &plan.tasks, 0, "", true);
+            Self::render_task_tree(&mut output, root, &tasks, &plan.tasks, 0, "", true);
         }
 
         output.push_str("\n\nExecution Order:\n");
@@ -106,7 +106,6 @@ impl FallbackRenderer {
 
     #[allow(clippy::too_many_arguments)]
     fn render_task_tree(
-        #[allow(clippy::only_used_in_recursion)] &self,
         output: &mut String,
         task_name: &str,
         task_infos: &HashMap<String, crate::tui::events::TaskInfo>,
@@ -149,7 +148,7 @@ impl FallbackRenderer {
                 let num_deps = deps.len();
                 for (idx, dep) in deps.iter().enumerate() {
                     let is_last_dep = idx == num_deps - 1;
-                    self.render_task_tree(
+                    Self::render_task_tree(
                         output,
                         dep,
                         task_infos,

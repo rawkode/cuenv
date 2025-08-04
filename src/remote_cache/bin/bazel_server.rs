@@ -167,7 +167,7 @@ async fn main() -> Result<()> {
 
     // Start metrics server if enabled
     if args.enable_metrics {
-        let metrics_server = tokio::spawn(async move {
+        let _metrics_server = tokio::spawn(async move {
             info!("Starting metrics server on {}", args.metrics_address);
             // TODO: Implement metrics endpoint
         });
@@ -176,14 +176,28 @@ async fn main() -> Result<()> {
     // Handle shutdown gracefully
     let server_handle = tokio::spawn(async move { server.serve().await });
 
-    // Wait for Ctrl+C
-    match tokio::signal::ctrl_c().await {
-        Ok(()) => {
-            info!("Received shutdown signal, gracefully shutting down...");
+    // Wait for shutdown signal (Unix only for now)
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+        let mut sigterm = signal(SignalKind::terminate())?;
+        let mut sigint = signal(SignalKind::interrupt())?;
+
+        tokio::select! {
+            _ = sigterm.recv() => {
+                info!("Received SIGTERM, gracefully shutting down...");
+            }
+            _ = sigint.recv() => {
+                info!("Received SIGINT (Ctrl+C), gracefully shutting down...");
+            }
         }
-        Err(err) => {
-            eprintln!("Unable to listen for shutdown signal: {}", err);
-        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        // Simple blocking wait for non-Unix systems
+        info!("Server running, press Ctrl+C to stop");
+        std::thread::park();
     }
 
     // TODO: Implement graceful shutdown

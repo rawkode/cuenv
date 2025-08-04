@@ -33,18 +33,8 @@ pub mod hook_manager;
 pub mod memory;
 pub mod output_filter;
 pub mod platform;
-<<<<<<< HEAD
-pub mod rate_limit;
-// pub mod remote_cache;  // Temporarily disabled to focus on testing sourcing functionality
-pub mod resilience;
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-pub mod rate_limit;
-pub mod remote_cache;
-pub mod resilience;
-=======
 #[cfg(feature = "remote-cache")]
 pub mod remote_cache;
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 pub mod resource_limits;
 pub mod secrets;
 pub mod security;

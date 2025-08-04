@@ -187,27 +187,25 @@ impl BazelRemoteCacheServer {
         info!("Max batch size: {}", self.config.max_batch_size);
         info!("Max blob size: {} bytes", self.config.max_blob_size);
 
-        let mut builder = Server::builder();
-
         // Add reflection service for debugging
         let reflection_service = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(super::grpc_proto::proto::FILE_DESCRIPTOR_SET)
             .build()?;
 
-        builder = builder.add_service(reflection_service);
+        let mut server = Server::builder()
+            .add_service(reflection_service)
+            .add_service(CapabilitiesServer::new(capabilities_service));
 
-        // Add core services
+        // Add core services conditionally
         if self.config.enable_cas {
-            builder = builder.add_service(ContentAddressableStorageServer::new(cas_service));
+            server = server.add_service(ContentAddressableStorageServer::new(cas_service));
         }
 
         if self.config.enable_action_cache {
-            builder = builder.add_service(ActionCacheServer::new(action_cache_service));
+            server = server.add_service(ActionCacheServer::new(action_cache_service));
         }
 
-        builder = builder.add_service(CapabilitiesServer::new(capabilities_service));
-
-        builder.serve(self.config.address).await?;
+        server.serve(self.config.address).await?;
 
         Ok(())
     }
@@ -742,6 +740,7 @@ impl ActionCacheService for BazelActionCacheService {
 struct BazelCapabilitiesService {
     max_batch_size: usize,
     enable_action_cache: bool,
+    #[allow(dead_code)]
     enable_cas: bool,
 }
 

@@ -17,7 +17,10 @@ use std::time::{Duration, Instant};
 use tracing::{debug, info};
 
 /// Cache wrapper that adds comprehensive monitoring
-pub struct MonitoredCache<C: Cache> {
+pub struct MonitoredCache<C: Cache>
+where
+    C: Clone,
+{
     /// Underlying cache implementation
     cache: C,
     /// Monitoring system
@@ -26,7 +29,7 @@ pub struct MonitoredCache<C: Cache> {
     service_name: String,
 }
 
-impl<C: Cache> MonitoredCache<C> {
+impl<C: Cache + Clone> MonitoredCache<C> {
     /// Create a new monitored cache
     pub fn new(cache: C, service_name: impl Into<String>) -> Result<Self> {
         let service_name = service_name.into();
@@ -247,7 +250,7 @@ impl<C: Cache + Send + Sync + Clone> Cache for MonitoredCache<C> {
     }
 }
 
-impl<C: Cache + StreamingCache> StreamingCache for MonitoredCache<C> {
+impl<C: Cache + StreamingCache + Clone> StreamingCache for MonitoredCache<C> {
     fn get_reader<'a>(
         &'a self,
         key: &'a str,
@@ -377,7 +380,7 @@ impl<C: Cache + Clone> Clone for MonitoredCache<C> {
     }
 }
 
-impl<C: Cache> fmt::Debug for MonitoredCache<C> {
+impl<C: Cache + Clone> fmt::Debug for MonitoredCache<C> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MonitoredCache")
             .field("service_name", &self.service_name)
@@ -393,7 +396,7 @@ pub struct MonitoredCacheBuilder<C: Cache> {
     enable_profiling: bool,
 }
 
-impl<C: Cache> MonitoredCacheBuilder<C> {
+impl<C: Cache + Clone> MonitoredCacheBuilder<C> {
     /// Create a new builder
     pub fn new(cache: C) -> Self {
         Self {

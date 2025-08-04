@@ -61,7 +61,7 @@ impl Default for RemoteCacheClientConfig {
 }
 
 /// Circuit breaker state
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CircuitBreakerState {
     Closed,
     Open,
@@ -118,17 +118,14 @@ impl CircuitBreaker {
         self.consecutive_successes.fetch_add(1, Ordering::Relaxed);
 
         let state = *self.state.read();
-        match state {
-            CircuitBreakerState::HalfOpen => {
-                // Transition back to closed after successful requests in half-open state
-                if self.consecutive_successes.load(Ordering::Relaxed) >= 3 {
-                    *self.state.write() = CircuitBreakerState::Closed;
-                    self.failure_count.store(0, Ordering::Relaxed);
-                    self.consecutive_successes.store(0, Ordering::Relaxed);
-                    info!("Circuit breaker transitioned to CLOSED state");
-                }
+        if state == CircuitBreakerState::HalfOpen {
+            // Transition back to closed after successful requests in half-open state
+            if self.consecutive_successes.load(Ordering::Relaxed) >= 3 {
+                *self.state.write() = CircuitBreakerState::Closed;
+                self.failure_count.store(0, Ordering::Relaxed);
+                self.consecutive_successes.store(0, Ordering::Relaxed);
+                info!("Circuit breaker transitioned to CLOSED state");
             }
-            _ => {}
         }
     }
 
@@ -262,18 +259,28 @@ impl RemoteCacheClient {
         let mut all_missing = Vec::new();
 
         for chunk in digests.chunks(self.config.max_batch_size) {
-            let request = Request::new(FindMissingBlobsRequest {
-                instance_name: instance_name.to_string(),
-                blob_digests: chunk.to_vec(),
-            });
+            let instance = instance_name.to_string();
+            let blob_digests = chunk.to_vec();
+            let cas_client = self.cas_client.clone();
 
             match self
-                .with_retry(|| async { self.cas_client.find_missing_blobs(request.clone()).await })
+                .with_retry(move || {
+                    let instance = instance.clone();
+                    let blob_digests = blob_digests.clone();
+                    let mut cas_client = cas_client.clone();
+                    async move {
+                        let request = Request::new(FindMissingBlobsRequest {
+                            instance_name: instance,
+                            blob_digests,
+                        });
+                        cas_client.find_missing_blobs(request).await
+                    }
+                })
                 .await
             {
                 Ok(response) => {
                     self.circuit_breaker.record_success();
-                    all_missing.extend(response.into_inner().missing_blob_digests);
+                    all_missing.extend(response.missing_blob_digests);
                 }
                 Err(e) => {
                     self.circuit_breaker.record_failure();
@@ -306,7 +313,7 @@ impl RemoteCacheClient {
 
         // Split into batches
         for chunk in blobs.chunks(self.config.max_batch_size) {
-            let requests = chunk
+            let requests: Vec<_> = chunk
                 .iter()
                 .map(|(digest, data)| {
                     super::grpc_proto::proto::batch_update_blobs_request::Request {
@@ -316,20 +323,29 @@ impl RemoteCacheClient {
                 })
                 .collect();
 
-            let request = Request::new(BatchUpdateBlobsRequest {
-                instance_name: instance_name.to_string(),
-                requests,
-            });
+            let instance = instance_name.to_string();
+            let cas_client = self.cas_client.clone();
 
             match self
-                .with_retry(|| async { self.cas_client.batch_update_blobs(request.clone()).await })
+                .with_retry(move || {
+                    let instance = instance.clone();
+                    let requests = requests.clone();
+                    let mut cas_client = cas_client.clone();
+                    async move {
+                        let request = Request::new(BatchUpdateBlobsRequest {
+                            instance_name: instance,
+                            requests,
+                        });
+                        cas_client.batch_update_blobs(request).await
+                    }
+                })
                 .await
             {
                 Ok(response) => {
                     self.circuit_breaker.record_success();
-                    for resp in response.into_inner().responses {
+                    for resp in response.responses {
                         if let Some(digest) = resp.digest {
-                            let success = resp.status.map_or(false, |s| s.code == 0);
+                            let success = resp.status.is_some_and(|s| s.code == 0);
                             results.push((digest, success));
                         }
                     }
@@ -366,20 +382,30 @@ impl RemoteCacheClient {
 
         // Split into batches
         for chunk in digests.chunks(self.config.max_batch_size) {
-            let request = Request::new(BatchReadBlobsRequest {
-                instance_name: instance_name.to_string(),
-                digests: chunk.to_vec(),
-            });
+            let instance = instance_name.to_string();
+            let digests_chunk = chunk.to_vec();
+            let cas_client = self.cas_client.clone();
 
             match self
-                .with_retry(|| async { self.cas_client.batch_read_blobs(request.clone()).await })
+                .with_retry(move || {
+                    let instance = instance.clone();
+                    let digests_chunk = digests_chunk.clone();
+                    let mut cas_client = cas_client.clone();
+                    async move {
+                        let request = Request::new(BatchReadBlobsRequest {
+                            instance_name: instance,
+                            digests: digests_chunk,
+                        });
+                        cas_client.batch_read_blobs(request).await
+                    }
+                })
                 .await
             {
                 Ok(response) => {
                     self.circuit_breaker.record_success();
-                    for resp in response.into_inner().responses {
+                    for resp in response.responses {
                         if let Some(digest) = resp.digest {
-                            let data = if resp.status.as_ref().map_or(false, |s| s.code == 0) {
+                            let data = if resp.status.as_ref().is_some_and(|s| s.code == 0) {
                                 Some(resp.data)
                             } else {
                                 None
@@ -414,22 +440,27 @@ impl RemoteCacheClient {
             return Ok(None); // Fail open for reads
         }
 
-        let request = Request::new(GetActionResultRequest {
-            instance_name: instance_name.to_string(),
-            action_digest: Some(action_digest),
-        });
+        let instance = instance_name.to_string();
+        let action_cache_client = self.action_cache_client.clone();
 
         match self
-            .with_retry(|| async {
-                self.action_cache_client
-                    .get_action_result(request.clone())
-                    .await
+            .with_retry(move || {
+                let instance = instance.clone();
+                let action_digest = action_digest.clone();
+                let mut action_cache_client = action_cache_client.clone();
+                async move {
+                    let request = Request::new(GetActionResultRequest {
+                        instance_name: instance,
+                        action_digest: Some(action_digest),
+                    });
+                    action_cache_client.get_action_result(request).await
+                }
             })
             .await
         {
             Ok(response) => {
                 self.circuit_breaker.record_success();
-                Ok(Some(response.into_inner()))
+                Ok(Some(response))
             }
             Err(status) => {
                 if matches!(status.code(), tonic::Code::NotFound) {
@@ -458,17 +489,23 @@ impl RemoteCacheClient {
             return Ok(());
         }
 
-        let request = Request::new(UpdateActionResultRequest {
-            instance_name: instance_name.to_string(),
-            action_digest: Some(action_digest),
-            action_result: Some(action_result),
-        });
+        let instance = instance_name.to_string();
+        let action_cache_client = self.action_cache_client.clone();
 
         match self
-            .with_retry(|| async {
-                self.action_cache_client
-                    .update_action_result(request.clone())
-                    .await
+            .with_retry(move || {
+                let instance = instance.clone();
+                let action_digest = action_digest.clone();
+                let action_result = action_result.clone();
+                let mut action_cache_client = action_cache_client.clone();
+                async move {
+                    let request = Request::new(UpdateActionResultRequest {
+                        instance_name: instance,
+                        action_digest: Some(action_digest),
+                        action_result: Some(action_result),
+                    });
+                    action_cache_client.update_action_result(request).await
+                }
             })
             .await
         {
@@ -495,7 +532,7 @@ impl RemoteCacheClient {
 
         for attempt in 0..=self.config.max_retries {
             match f().await {
-                Ok(response) => return Ok(response),
+                Ok(response) => return Ok(response.into_inner()),
                 Err(e) => {
                     last_error = Some(e);
 

@@ -10,12 +10,6 @@
 
 use crate::cache::errors::{CacheError, RecoveryHint, Result, SerializationOp, StoreType};
 use crate::cache::traits::CacheMetadata;
-<<<<<<< HEAD
-||||||| parent of 51c29a8 (feat: add TUI for interactive task execution with fallback output)
-use bincode::{DefaultOptions, Options};
-=======
-use bincode::Options;
->>>>>>> 51c29a8 (feat: add TUI for interactive task execution with fallback output)
 use crc32c::crc32c;
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
