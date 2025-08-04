@@ -13,12 +13,10 @@ use cuenv::cache::{
         AuthorizationResult, CacheOperation, CapabilityAuthority, CapabilityChecker,
         CapabilityToken, Permission,
     },
-    errors::{CacheError, TokenInvalidReason},
     merkle::{CacheEntryMetadata, MerkleTree},
     secure_cache::{SecureCache, SecureCacheConfig},
     signing::{CacheSigner, SignedCacheEntry},
-    traits::Cache,
-    unified::UnifiedCache,
+    Cache, CacheError, UnifiedCache, UnifiedCacheConfig,
 };
 use proptest::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -91,7 +89,6 @@ async fn test_capability_access_control() {
 
     // Create tokens with different permissions
     let read_only_token = checker
-        .authority
         .issue_token(
             "read-user".to_string(),
             [Permission::Read].into_iter().collect(),
@@ -102,7 +99,6 @@ async fn test_capability_access_control() {
         .unwrap();
 
     let write_token = checker
-        .authority
         .issue_token(
             "write-user".to_string(),
             [Permission::Read, Permission::Write].into_iter().collect(),
@@ -113,7 +109,6 @@ async fn test_capability_access_control() {
         .unwrap();
 
     let admin_token = checker
-        .authority
         .issue_token(
             "admin-user".to_string(),
             [
@@ -395,7 +390,9 @@ async fn test_secure_cache_end_to_end() {
     let cache_dir = temp_dir.path().to_path_buf();
 
     // Create underlying cache
-    let inner_cache = UnifiedCache::new(cache_dir.join("cache")).await.unwrap();
+    let inner_cache = UnifiedCache::new(cache_dir.join("cache"), UnifiedCacheConfig::default())
+        .await
+        .unwrap();
 
     // Create secure cache with all security features
     let secure_cache = SecureCache::builder(inner_cache)
@@ -504,14 +501,15 @@ proptest! {
             // Sign and verify
             let signed = signer.sign(&test_data).unwrap();
             prop_assert!(signer.verify(&signed).unwrap());
-            prop_assert_eq!(signed.data, test_data);
+            prop_assert_eq!(signed.data.clone(), test_data.clone());
 
             // Tamper with data and verify detection
-            if !test_data.name.is_empty() {
+            if !signed.data.name.is_empty() {
                 let mut tampered = signed.clone();
                 tampered.data.name.push('X');
                 prop_assert!(!signer.verify(&tampered).unwrap());
             }
+            Ok(())
         });
     }
 
@@ -553,10 +551,11 @@ proptest! {
             for key in keys.iter() {
                 if let Some(proof) = tree.generate_proof(key).unwrap() {
                     prop_assert!(tree.verify_proof(&proof).unwrap());
-                    prop_assert_eq!(proof.cache_key, *key);
+                    prop_assert_eq!(proof.cache_key, key.clone());
                 }
             }
-        });
+            Ok(())
+        })?;
     }
 
     #[test]
@@ -567,12 +566,24 @@ proptest! {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let authority = CapabilityAuthority::new("prop-test".to_string());
-            let checker = CapabilityChecker::new(authority);
+            let mut checker = CapabilityChecker::new(authority);
 
             // Test pattern matching
             for pattern in patterns.iter() {
+                // Create a token with this pattern
+                let token = checker.issue_token(
+                    "test-user".to_string(),
+                    [Permission::Read].into_iter().collect(),
+                    vec![pattern.clone()],
+                    Duration::from_secs(3600),
+                    None,
+                ).unwrap();
                 for key in keys.iter() {
-                    let matches = checker.matches_pattern(key, pattern);
+                    // Test if key would match pattern by checking authorization
+                    let matches = match checker.check_permission(&token, &CacheOperation::Read { key: key.clone() }) {
+                        Ok(_) => true,
+                        Err(_) => false,
+                    };
 
                     // Basic pattern matching properties
                     if pattern == "*" {
@@ -589,7 +600,8 @@ proptest! {
                     }
                 }
             }
-        });
+            Ok(())
+        })?;
     }
 }
 
@@ -599,7 +611,9 @@ async fn test_concurrent_security_operations() {
     let temp_dir = TempDir::new().unwrap();
     let cache_dir = temp_dir.path().to_path_buf();
 
-    let inner_cache = UnifiedCache::new(cache_dir.join("cache")).await.unwrap();
+    let inner_cache = UnifiedCache::new(cache_dir.join("cache"), UnifiedCacheConfig::default())
+        .await
+        .unwrap();
     let secure_cache = std::sync::Arc::new(
         SecureCache::builder(inner_cache)
             .cache_directory(&cache_dir)
@@ -649,7 +663,9 @@ async fn test_security_performance() {
     let temp_dir = TempDir::new().unwrap();
     let cache_dir = temp_dir.path().to_path_buf();
 
-    let inner_cache = UnifiedCache::new(cache_dir.join("cache")).await.unwrap();
+    let inner_cache = UnifiedCache::new(cache_dir.join("cache"), UnifiedCacheConfig::default())
+        .await
+        .unwrap();
     let secure_cache = SecureCache::builder(inner_cache)
         .cache_directory(&cache_dir)
         .build()

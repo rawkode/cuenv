@@ -1,8 +1,6 @@
 //! Integration tests for cache monitoring and observability
 
-use cuenv::cache::{
-    Cache, CacheConfig, CacheError, MonitoredCache, MonitoredCacheBuilder, ProductionCache,
-};
+use cuenv::cache::{Cache, CacheError, MonitoredCacheBuilder, ProductionCache, UnifiedCacheConfig};
 use std::sync::Arc;
 use std::time::Duration;
 use tempfile::TempDir;
@@ -11,9 +9,10 @@ use tokio::time::sleep;
 #[tokio::test]
 async fn test_monitoring_basic_operations() -> Result<(), CacheError> {
     let temp_dir = TempDir::new().unwrap();
-    let base_cache = ProductionCache::new(temp_dir.path().to_path_buf(), CacheConfig::default())
-        .await
-        .unwrap();
+    let base_cache =
+        ProductionCache::new(temp_dir.path().to_path_buf(), UnifiedCacheConfig::default())
+            .await
+            .unwrap();
 
     let monitored = MonitoredCacheBuilder::new(base_cache)
         .with_service_name("test-monitoring")
@@ -48,9 +47,10 @@ async fn test_monitoring_basic_operations() -> Result<(), CacheError> {
 #[tokio::test]
 async fn test_hit_rate_analysis() -> Result<(), CacheError> {
     let temp_dir = TempDir::new().unwrap();
-    let base_cache = ProductionCache::new(temp_dir.path().to_path_buf(), CacheConfig::default())
-        .await
-        .unwrap();
+    let base_cache =
+        ProductionCache::new(temp_dir.path().to_path_buf(), UnifiedCacheConfig::default())
+            .await
+            .unwrap();
 
     let monitored = MonitoredCacheBuilder::new(base_cache)
         .with_service_name("test-hit-rate")
@@ -101,9 +101,10 @@ async fn test_hit_rate_analysis() -> Result<(), CacheError> {
 #[tokio::test]
 async fn test_performance_profiling() -> Result<(), CacheError> {
     let temp_dir = TempDir::new().unwrap();
-    let base_cache = ProductionCache::new(temp_dir.path().to_path_buf(), CacheConfig::default())
-        .await
-        .unwrap();
+    let base_cache =
+        ProductionCache::new(temp_dir.path().to_path_buf(), UnifiedCacheConfig::default())
+            .await
+            .unwrap();
 
     let monitored = MonitoredCacheBuilder::new(base_cache)
         .with_service_name("test-profiling")
@@ -129,9 +130,10 @@ async fn test_performance_profiling() -> Result<(), CacheError> {
 #[tokio::test]
 async fn test_concurrent_monitoring() -> Result<(), CacheError> {
     let temp_dir = TempDir::new().unwrap();
-    let base_cache = ProductionCache::new(temp_dir.path().to_path_buf(), CacheConfig::default())
-        .await
-        .unwrap();
+    let base_cache =
+        ProductionCache::new(temp_dir.path().to_path_buf(), UnifiedCacheConfig::default())
+            .await
+            .unwrap();
 
     let monitored = Arc::new(
         MonitoredCacheBuilder::new(base_cache)
@@ -171,9 +173,10 @@ async fn test_concurrent_monitoring() -> Result<(), CacheError> {
 #[tokio::test]
 async fn test_error_tracking() -> Result<(), CacheError> {
     let temp_dir = TempDir::new().unwrap();
-    let base_cache = ProductionCache::new(temp_dir.path().to_path_buf(), CacheConfig::default())
-        .await
-        .unwrap();
+    let base_cache =
+        ProductionCache::new(temp_dir.path().to_path_buf(), UnifiedCacheConfig::default())
+            .await
+            .unwrap();
 
     let monitored = MonitoredCacheBuilder::new(base_cache)
         .with_service_name("test-errors")
@@ -195,9 +198,10 @@ async fn test_error_tracking() -> Result<(), CacheError> {
 #[tokio::test]
 async fn test_ttl_monitoring() -> Result<(), CacheError> {
     let temp_dir = TempDir::new().unwrap();
-    let base_cache = ProductionCache::new(temp_dir.path().to_path_buf(), CacheConfig::default())
-        .await
-        .unwrap();
+    let base_cache =
+        ProductionCache::new(temp_dir.path().to_path_buf(), UnifiedCacheConfig::default())
+            .await
+            .unwrap();
 
     let monitored = MonitoredCacheBuilder::new(base_cache)
         .with_service_name("test-ttl")

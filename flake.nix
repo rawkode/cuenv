@@ -191,8 +191,7 @@
             CGO_ENABLED = "1";
             GO = "${pkgs.go_1_24}/bin/go";
 
-            # Disable tests due to compilation errors in test files
-            doCheck = false;
+            doCheck = true;
 
             meta = with pkgs.lib; {
               description = "A direnv alternative that uses CUE files for environment configuration";
@@ -236,11 +235,11 @@
               export GOPATH="$HOME/go"
               export GOCACHE="$HOME/go-cache"
               export CGO_ENABLED=1
-              
+
               # Set static linking flags for CGO
               export CGO_CFLAGS="-static"
               export CGO_LDFLAGS="-static"
-              
+
               # Copy vendored dependencies
               cp -r ${goVendor}/vendor libcue-bridge/
               chmod -R u+w libcue-bridge
@@ -295,7 +294,7 @@
                 touch $out
               '';
 
-              doCheck = false;
+              doCheck = true;
             });
 
             # Run tests with nextest
@@ -313,31 +312,26 @@
                 touch $out
               '';
 
-              doCheck = false;
+              doCheck = true;
             });
 
-            # Note: Examples test is commented out because it requires network access
-            # to fetch CUE modules which isn't available in the Nix sandbox.
-            # The examples can still be tested manually with:
-            # nix develop -c ./scripts/test-examples.sh
-            #
-            # examples = cuenv.overrideAttrs (oldAttrs: {
-            #   pname = "cuenv-examples";
-            #   nativeBuildInputs = oldAttrs.nativeBuildInputs ++ [ pkgs.cue ];
-            #   buildPhase = ''
-            #     runHook preBuild
-            #     # Test all examples (skip CUE dependency fetching in sandbox)
-            #     export CUENV_SKIP_CUE_FETCH=1
-            #     bash ./scripts/test-examples.sh
-            #     runHook postBuild
-            #   '';
-            #
-            #   installPhase = ''
-            #     touch $out
-            #   '';
-            #
-            #   doCheck = false;
-            # });
+            examples = cuenv.overrideAttrs (oldAttrs: {
+              pname = "cuenv-examples";
+              nativeBuildInputs = oldAttrs.nativeBuildInputs ++ [ pkgs.cue ];
+              buildPhase = ''
+                runHook preBuild
+                # Test all examples (skip CUE dependency fetching in sandbox)
+                export CUENV_SKIP_CUE_FETCH=1
+                bash ./scripts/test-examples.sh
+                runHook postBuild
+              '';
+
+              installPhase = ''
+                touch $out
+              '';
+
+              doCheck = false;
+            });
           };
 
           # Make formatter available
@@ -385,7 +379,7 @@
         }
       )) // {
       # Home Manager module (using standard flake schema to avoid warnings)
-      homeManagerModules.default = { config, lib, pkgs, ... }:
+      homeManagerModule = { config, lib, pkgs, ... }:
         with lib;
         let
           cfg = config.programs.cuenv;
@@ -434,7 +428,7 @@
               defaultText = literalExpression "config.programs.nushell.enable";
               description = ''
                 Whether to enable Nushell integration.
-                
+
                 Note: Nushell support is experimental and may require manual configuration.
               '';
             };

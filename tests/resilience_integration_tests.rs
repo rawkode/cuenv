@@ -5,8 +5,11 @@
 mod tests {
     use cuenv::command_executor::CommandExecutorFactory;
     use cuenv::errors::Error;
-    use cuenv::resilience::*;
     use cuenv::secrets::{CommandResolver, SecretResolver};
+    use cuenv::utils::resilience::circuit::{
+        retry, CircuitBreaker, CircuitBreakerConfig, CircuitState, RetryConfig, RetryOn,
+    };
+    use cuenv::utils::resilience::suggest_recovery;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::time::Duration;

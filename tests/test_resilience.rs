@@ -5,7 +5,10 @@
 #[cfg(test)]
 mod tests {
     use cuenv::errors::Error;
-    use cuenv::resilience::*;
+    use cuenv::utils::resilience::circuit::{
+        retry, CircuitBreaker, CircuitBreakerConfig, CircuitState, RetryConfig,
+    };
+    use cuenv::utils::resilience::suggest_recovery;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::time::Duration;

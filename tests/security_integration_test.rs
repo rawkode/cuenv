@@ -2,10 +2,10 @@
 use cuenv::audit::{init_audit_logger, AuditConfig, AuditLevel};
 use cuenv::command_executor::{CommandExecutor, SystemCommandExecutor};
 use cuenv::hook_manager::HookManager;
-use cuenv::rate_limit::{RateLimitConfig, RateLimitManager};
 use cuenv::secrets::{CommandResolver, SecretManager};
 use cuenv::security::SecurityValidator;
 use cuenv::types::{CommandArguments, EnvironmentVariables};
+use cuenv::utils::network::rate_limit::{RateLimitConfig, RateLimitManager};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
@@ -76,6 +76,7 @@ async fn test_rate_limiting_hooks() {
         command: "echo".to_string(),
         args: vec!["test".to_string()],
         url: None,
+        source: None,
         constraints: vec![],
         hook_type: cuenv::cue_parser::HookType::OnEnter,
     };

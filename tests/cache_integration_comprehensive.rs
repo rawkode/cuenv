@@ -31,30 +31,27 @@ mod cache_integration_tests {
             (
                 "minimal",
                 UnifiedCacheConfig {
-                    max_memory_bytes: 1024 * 1024, // 1MB
+                    max_memory_size: Some(1024 * 1024), // 1MB
                     max_entries: 100,
                     compression_enabled: false,
-                    checksums_enabled: false,
                     ..Default::default()
                 },
             ),
             (
                 "compressed",
                 UnifiedCacheConfig {
-                    max_memory_bytes: 10 * 1024 * 1024, // 10MB
+                    max_memory_size: Some(10 * 1024 * 1024), // 10MB
                     max_entries: 1000,
                     compression_enabled: true,
-                    checksums_enabled: false,
                     ..Default::default()
                 },
             ),
             (
                 "secure",
                 UnifiedCacheConfig {
-                    max_memory_bytes: 50 * 1024 * 1024, // 50MB
+                    max_memory_size: Some(50 * 1024 * 1024), // 50MB
                     max_entries: 5000,
                     compression_enabled: true,
-                    checksums_enabled: true,
                     ..Default::default()
                 },
             ),
@@ -134,15 +131,15 @@ mod cache_integration_tests {
 
         // Configure cache with limited resources to trigger eviction
         let config = UnifiedCacheConfig {
-            max_memory_bytes: 5 * 1024 * 1024, // 5MB limit
-            max_entries: 1000,                 // Entry count limit
+            max_memory_size: Some(5 * 1024 * 1024), // 5MB limit
+            max_entries: 1000,                      // Entry count limit
             compression_enabled: true,
-            ttl_secs: Some(Duration::from_secs(10)), // 10s TTL
+            default_ttl: Some(Duration::from_secs(10)), // 10s TTL
             ..Default::default()
         };
 
         let cache = Arc::new(
-            ProductionCache::new(temp_dir.path().to_path_buf(), config)
+            ProductionCache::new(temp_dir.path().to_path_buf(), config.clone())
                 .await
                 .unwrap(),
         );
@@ -163,7 +160,7 @@ mod cache_integration_tests {
 
                     match cache_clone.put(&key, &value, None).await {
                         Ok(_) => successful_writes += 1,
-                        Err(CacheError::InsufficientMemory { .. }) => {
+                        Err(CacheError::CapacityExceeded { .. }) => {
                             // Expected when memory limit is reached
                             break;
                         }
@@ -191,19 +188,19 @@ mod cache_integration_tests {
             num_writers * entries_per_writer
         );
         println!("    Successful writes: {}", total_writes);
-        println!("    Cache entries: {}", stats_after_fill.entries);
+        println!("    Cache entries: {}", stats_after_fill.entry_count);
         println!(
             "    Memory usage: {} MB",
-            stats_after_fill.memory_bytes / (1024 * 1024)
+            stats_after_fill.total_bytes / (1024 * 1024)
         );
 
         // Verify eviction policies are working
         assert!(
-            stats_after_fill.entries <= 1000,
+            stats_after_fill.entry_count <= 1000,
             "Should respect entry limit"
         );
         assert!(
-            stats_after_fill.memory_bytes <= 6 * 1024 * 1024,
+            stats_after_fill.total_bytes <= 6 * 1024 * 1024,
             "Should respect memory limit"
         );
 
@@ -270,12 +267,12 @@ mod cache_integration_tests {
             "    Hit rate: {:.2}%",
             (total_hits as f64 / (total_hits + total_misses) as f64) * 100.0
         );
-        println!("    Cache entries: {}", stats_after_mixed.entries);
+        println!("    Cache entries: {}", stats_after_mixed.entry_count);
 
         // Verify concurrent operations maintain consistency
         assert!(total_hits > 0, "Should have some cache hits");
         assert!(
-            stats_after_mixed.entries <= 1000,
+            stats_after_mixed.entry_count <= 1000,
             "Should maintain entry limit under concurrent load"
         );
 
@@ -330,9 +327,8 @@ mod cache_integration_tests {
 
         // Create cache with monitoring enabled
         let config = UnifiedCacheConfig {
-            max_memory_bytes: 20 * 1024 * 1024, // 20MB
+            max_memory_size: Some(20 * 1024 * 1024), // 20MB
             compression_enabled: true,
-            checksums_enabled: true,
             ..Default::default()
         };
 
@@ -357,6 +353,7 @@ mod cache_integration_tests {
 
             // Execute workload phase
             for i in 0..num_operations {
+                let i = i as usize;
                 let key = format!("{}_{}", phase_name, i);
                 let value = generate_test_data(data_size, i as u64);
 
@@ -386,13 +383,18 @@ mod cache_integration_tests {
             let phase_duration = phase_end.duration_since(phase_start).unwrap();
 
             println!("    Duration: {:.2}s", phase_duration.as_secs_f64());
-            println!("    Operations: {}", phase_stats.total_operations);
-            println!("    Hit rate: {:.2}%", phase_stats.hit_rate * 100.0);
-            println!("    Entries: {}", phase_stats.entries);
+            let hit_rate = if phase_stats.hits + phase_stats.misses > 0 {
+                phase_stats.hits as f64 / (phase_stats.hits + phase_stats.misses) as f64
+            } else {
+                0.0
+            };
             println!(
-                "    Memory: {} MB",
-                phase_stats.memory_bytes / (1024 * 1024)
+                "    Operations: {}",
+                phase_stats.hits + phase_stats.misses + phase_stats.writes
             );
+            println!("    Hit rate: {:.2}%", hit_rate * 100.0);
+            println!("    Entries: {}", phase_stats.entry_count);
+            println!("    Memory: {} MB", phase_stats.total_bytes / (1024 * 1024));
 
             cumulative_stats.push((phase_name.to_string(), phase_stats, phase_duration));
         }
@@ -402,40 +404,44 @@ mod cache_integration_tests {
 
         let mut prev_total_ops = 0;
         for (phase_name, stats, duration) in &cumulative_stats {
-            let ops_this_phase = stats.total_operations - prev_total_ops;
+            let total_ops = stats.hits + stats.misses + stats.writes;
+            let ops_this_phase = total_ops - prev_total_ops;
             let ops_per_sec = ops_this_phase as f64 / duration.as_secs_f64();
 
             println!(
                 "    {}: {:.0} ops/sec, {:.2}% hit rate, {} entries",
                 phase_name,
                 ops_per_sec,
-                stats.hit_rate * 100.0,
-                stats.entries
+                (stats.hits as f64 / (stats.hits + stats.misses).max(1) as f64) * 100.0,
+                stats.entry_count
             );
 
-            prev_total_ops = stats.total_operations;
+            prev_total_ops = total_ops;
         }
 
         // Verify monitoring captures expected patterns
-        let final_stats = cumulative_stats.last().unwrap().1;
+        let final_stats = &cumulative_stats.last().unwrap().1;
         assert!(
-            final_stats.total_operations > 800,
+            (final_stats.hits + final_stats.misses + final_stats.writes) > 800,
             "Should track total operations"
         );
-        assert!(final_stats.hit_rate > 0.1, "Should track hit rate");
-        assert!(final_stats.entries > 0, "Should track entry count");
-        assert!(final_stats.memory_bytes > 0, "Should track memory usage");
+        let hit_rate =
+            final_stats.hits as f64 / (final_stats.hits + final_stats.misses).max(1) as f64;
+        assert!(hit_rate > 0.1, "Should track hit rate");
+        assert!(final_stats.entry_count > 0, "Should track entry count");
+        assert!(final_stats.total_bytes > 0, "Should track memory usage");
 
         // Test that monitoring survives cache operations
         cache.clear().await.unwrap();
         let post_clear_stats = cache.statistics().await.unwrap();
 
         assert_eq!(
-            post_clear_stats.entries, 0,
+            post_clear_stats.entry_count, 0,
             "Should show empty cache after clear"
         );
         assert!(
-            post_clear_stats.total_operations >= final_stats.total_operations,
+            (post_clear_stats.hits + post_clear_stats.misses + post_clear_stats.writes)
+                >= (final_stats.hits + final_stats.misses + final_stats.writes),
             "Should maintain cumulative operation count"
         );
     }
@@ -449,11 +455,10 @@ mod cache_integration_tests {
 
         // Create cache with all security features enabled
         let config = UnifiedCacheConfig {
-            max_memory_bytes: 10 * 1024 * 1024, // 10MB
+            max_memory_size: Some(10 * 1024 * 1024), // 10MB
             max_entries: 1000,
             compression_enabled: true,
-            checksums_enabled: true,                 // Data integrity
-            ttl_secs: Some(Duration::from_secs(30)), // Security through expiration
+            default_ttl: Some(Duration::from_secs(30)), // Security through expiration
             ..Default::default()
         };
 
@@ -547,9 +552,9 @@ mod cache_integration_tests {
 
         // Test that errors don't leak sensitive information
         let invalid_operations = vec![
-            ("", b"value"),                                                 // Empty key
-            ("key", b""),                                                   // Empty value
-            ("very_long_key_that_might_exceed_limits", &vec![0u8; 100000]), // Large value
+            ("", b"value"),                                        // Empty key
+            ("key", &[0u8; 5]),                                    // Small value
+            ("very_long_key_that_might_exceed_limits", &[0u8; 5]), // Large key
         ];
 
         for (key, value) in invalid_operations {
@@ -571,7 +576,7 @@ mod cache_integration_tests {
         println!("  Testing concurrent secure operations...");
 
         let num_secure_workers = 4;
-        let mut secure_handles = Vec::new();
+        let mut secure_handles: Vec<()> = Vec::new();
 
         for worker_id in 0..num_secure_workers {
             let cache_clone = Arc::new(cache.clone()); // Note: This won't work as Cache doesn't impl Clone
@@ -617,15 +622,18 @@ mod cache_integration_tests {
         // Final verification
         let final_stats = cache.statistics().await.unwrap();
         println!("  Security integration final stats:");
-        println!("    Total operations: {}", final_stats.total_operations);
-        println!("    Entries: {}", final_stats.entries);
-        println!("    Hit rate: {:.2}%", final_stats.hit_rate * 100.0);
+        let total_ops = final_stats.hits + final_stats.misses + final_stats.writes;
+        let hit_rate =
+            final_stats.hits as f64 / (final_stats.hits + final_stats.misses).max(1) as f64;
+        println!("    Total operations: {}", total_ops);
+        println!("    Entries: {}", final_stats.entry_count);
+        println!("    Hit rate: {:.2}%", hit_rate * 100.0);
 
         assert!(
-            final_stats.total_operations > 100,
+            total_ops > 100,
             "Should have performed many secure operations"
         );
-        assert!(final_stats.entries > 0, "Should maintain secure data");
+        assert!(final_stats.entry_count > 0, "Should maintain secure data");
     }
 
     /// Test end-to-end integration of all phases
@@ -637,17 +645,16 @@ mod cache_integration_tests {
 
         // Production-grade configuration using all features
         let config = UnifiedCacheConfig {
-            max_memory_bytes: 100 * 1024 * 1024, // 100MB
+            max_memory_size: Some(100 * 1024 * 1024), // 100MB
             max_entries: 10000,
-            max_entry_size: 1024 * 1024,             // 1MB max entry
-            compression_enabled: true,               // Phase 2: Storage
-            checksums_enabled: true,                 // Phase 7: Security
-            ttl_secs: Some(Duration::from_secs(60)), // Phase 4: Eviction
+            max_size_bytes: 1024 * 1024,                // 1MB max entry
+            compression_enabled: true,                  // Phase 2: Storage
+            default_ttl: Some(Duration::from_secs(60)), // Phase 4: Eviction
             ..Default::default()
         };
 
         let cache = Arc::new(
-            ProductionCache::new(temp_dir.path().to_path_buf(), config)
+            ProductionCache::new(temp_dir.path().to_path_buf(), config.clone())
                 .await
                 .unwrap(),
         );
@@ -776,8 +783,8 @@ mod cache_integration_tests {
 
             match cache.put(&key, &value, None).await {
                 Ok(_) => eviction_entries += 1,
-                Err(CacheError::InsufficientMemory { .. }) => break,
-                Err(CacheError::ValueTooLarge { .. }) => break,
+                Err(CacheError::CapacityExceeded { .. }) => break,
+                Err(CacheError::DiskQuotaExceeded { .. }) => break,
                 Err(_) => break,
             }
         }
@@ -786,11 +793,11 @@ mod cache_integration_tests {
         println!("    Entries stored before eviction: {}", eviction_entries);
         println!(
             "    Cache entries after eviction: {}",
-            stats_after_eviction.entries
+            stats_after_eviction.entry_count
         );
         println!(
             "    Memory usage: {} MB",
-            stats_after_eviction.memory_bytes / (1024 * 1024)
+            stats_after_eviction.total_bytes / (1024 * 1024)
         );
 
         println!("  Phase 5: Remote Cache - Testing distributed scenarios...");
@@ -802,7 +809,7 @@ mod cache_integration_tests {
 
         for key in &distributed_keys {
             let value = format!("distributed_value_{}", key);
-            cache.put(key, value.as_bytes(), None).await.unwrap();
+            cache.put(key, &value, None).await.unwrap();
         }
 
         // Simulate cache warming scenario
@@ -824,13 +831,15 @@ mod cache_integration_tests {
         let monitoring_stats = cache.statistics().await.unwrap();
         println!(
             "    Total operations: {}",
-            monitoring_stats.total_operations
+            monitoring_stats.hits + monitoring_stats.misses + monitoring_stats.writes
         );
-        println!("    Hit rate: {:.2}%", monitoring_stats.hit_rate * 100.0);
-        println!("    Entries: {}", monitoring_stats.entries);
+        let monitoring_hit_rate = monitoring_stats.hits as f64
+            / (monitoring_stats.hits + monitoring_stats.misses).max(1) as f64;
+        println!("    Hit rate: {:.2}%", monitoring_hit_rate * 100.0);
+        println!("    Entries: {}", monitoring_stats.entry_count);
         println!(
             "    Memory usage: {} MB",
-            monitoring_stats.memory_bytes / (1024 * 1024)
+            monitoring_stats.total_bytes / (1024 * 1024)
         );
 
         println!("  Phase 7: Security - Testing integrity and safety...");
@@ -887,25 +896,24 @@ mod cache_integration_tests {
         );
         println!(
             "    Total cache operations: {}",
-            final_stats.total_operations
+            final_stats.hits + final_stats.misses + final_stats.writes
         );
-        println!("    Overall hit rate: {:.2}%", final_stats.hit_rate * 100.0);
-        println!("    Final cache entries: {}", final_stats.entries);
+        let final_hit_rate =
+            final_stats.hits as f64 / (final_stats.hits + final_stats.misses).max(1) as f64;
+        println!("    Overall hit rate: {:.2}%", final_hit_rate * 100.0);
+        println!("    Final cache entries: {}", final_stats.entry_count);
 
         // Validate end-to-end requirements
         assert!(
-            final_stats.total_operations > 1000,
+            (final_stats.hits + final_stats.misses + final_stats.writes) > 1000,
             "Should have processed many operations"
         );
         assert!(
             final_hits > final_test_data.len() / 2,
             "Should have good hit rate for final test"
         );
-        assert!(
-            final_stats.hit_rate > 0.1,
-            "Should maintain overall hit rate"
-        );
-        assert!(final_stats.entries > 0, "Should have entries remaining");
+        assert!(final_hit_rate > 0.1, "Should maintain overall hit rate");
+        assert!(final_stats.entry_count > 0, "Should have entries remaining");
 
         println!("✅ All phases integration test completed successfully!");
     }

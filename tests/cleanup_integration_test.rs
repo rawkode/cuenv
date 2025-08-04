@@ -1,7 +1,7 @@
 #![allow(unused)]
 //! Integration tests for cleanup and error recovery
 
-use cuenv::cleanup::{ProcessGuard, TempDirGuard, TempFileGuard};
+use cuenv::cleanup::handler::{ProcessGuard, TempDirGuard, TempFileGuard};
 use std::fs::{self, File};
 use std::io::Write;
 use std::process::Command;

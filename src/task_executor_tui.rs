@@ -113,7 +113,12 @@ impl TaskExecutorTui for TaskExecutor {
             // This ensures the user can inspect the results before the program exits
             let _ = tui_handle.await;
 
-            task_result
+            // In TUI mode, we don't want to propagate task errors to the terminal
+            // The user has already seen the failure in the TUI
+            match task_result {
+                Ok(exit_code) => Ok(exit_code),
+                Err(_) => Ok(1), // Return non-zero exit code but don't print error
+            }
         } else {
             // Non-TTY fallback (ASCII outline + Chrome Trace JSON)
             let fallback = FallbackRenderer::new(
