@@ -8,11 +8,8 @@
 use criterion::{
     black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput,
 };
-use cuenv::cache::{
-    Cache, CacheError, ProductionCache, SyncCache, UnifiedCache, UnifiedCacheConfig,
-};
+use cuenv::cache::{Cache, ProductionCache, SyncCache, UnifiedCache, UnifiedCacheConfig};
 use rand::prelude::*;
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tempfile::TempDir;
@@ -47,13 +44,12 @@ fn bench_cache_throughput(c: &mut Criterion) {
 
         // Production cache write throughput
         group.bench_with_input(BenchmarkId::new("production_write", size), size, |b, _| {
-            b.to_async(&rt).iter_batched(
+            b.iter_batched(
                 || {
                     let temp_dir = TempDir::new().unwrap();
                     let config = UnifiedCacheConfig {
-                        max_memory_bytes: 100 * 1024 * 1024, // 100MB
-                        compression_enabled: false,          // Disable for pure throughput
-                        checksums_enabled: false,
+                        max_memory_size: Some(100 * 1024 * 1024), // 100MB
+                        compression_enabled: false,               // Disable for pure throughput
                         ..Default::default()
                     };
                     rt.block_on(async {
@@ -62,16 +58,18 @@ fn bench_cache_throughput(c: &mut Criterion) {
                             .unwrap()
                     })
                 },
-                |cache| async {
-                    let key = format!(
-                        "throughput_key_{}",
-                        SystemTime::now()
-                            .duration_since(SystemTime::UNIX_EPOCH)
-                            .unwrap()
-                            .as_nanos()
-                    );
-                    cache.put(&key, &data, None).await.unwrap();
-                    black_box(key);
+                |cache| {
+                    rt.block_on(async {
+                        let key = format!(
+                            "throughput_key_{}",
+                            SystemTime::now()
+                                .duration_since(SystemTime::UNIX_EPOCH)
+                                .unwrap()
+                                .as_nanos()
+                        );
+                        cache.put(&key, &data, None).await.unwrap();
+                        black_box(key);
+                    })
                 },
                 BatchSize::SmallInput,
             );
@@ -82,13 +80,12 @@ fn bench_cache_throughput(c: &mut Criterion) {
             BenchmarkId::new("production_read_hot", size),
             size,
             |b, _| {
-                b.to_async(&rt).iter_batched(
+                b.iter_batched(
                     || {
                         let temp_dir = TempDir::new().unwrap();
                         let config = UnifiedCacheConfig {
-                            max_memory_bytes: 100 * 1024 * 1024,
+                            max_memory_size: Some(100 * 1024 * 1024),
                             compression_enabled: false,
-                            checksums_enabled: false,
                             ..Default::default()
                         };
                         rt.block_on(async {
@@ -105,10 +102,12 @@ fn bench_cache_throughput(c: &mut Criterion) {
                             (cache, keys)
                         })
                     },
-                    |(cache, keys)| async {
-                        let key = &keys[fastrand::usize(..keys.len())];
-                        let result: Option<Vec<u8>> = cache.get(key).await.unwrap();
-                        black_box(result);
+                    |(cache, keys)| {
+                        rt.block_on(async {
+                            let key = &keys[fastrand::usize(..keys.len())];
+                            let result: Option<Vec<u8>> = cache.get(key).await.unwrap();
+                            black_box(result);
+                        })
                     },
                     BatchSize::SmallInput,
                 );
@@ -120,13 +119,12 @@ fn bench_cache_throughput(c: &mut Criterion) {
             BenchmarkId::new("production_read_cold", size),
             size,
             |b, _| {
-                b.to_async(&rt).iter_batched(
+                b.iter_batched(
                     || {
                         let temp_dir = TempDir::new().unwrap();
                         let config = UnifiedCacheConfig {
-                            max_memory_bytes: 1024, // Very small memory cache to force disk reads
+                            max_memory_size: Some(1024), // Very small memory cache to force disk reads
                             compression_enabled: false,
-                            checksums_enabled: false,
                             ..Default::default()
                         };
                         rt.block_on(async {
@@ -146,10 +144,12 @@ fn bench_cache_throughput(c: &mut Criterion) {
                             (cache, keys)
                         })
                     },
-                    |(cache, keys)| async {
-                        let key = &keys[fastrand::usize(..keys.len())];
-                        let result: Option<Vec<u8>> = cache.get(key).await.unwrap();
-                        black_box(result);
+                    |(cache, keys)| {
+                        rt.block_on(async {
+                            let key = &keys[fastrand::usize(..keys.len())];
+                            let result: Option<Vec<u8>> = cache.get(key).await.unwrap();
+                            black_box(result);
+                        })
                     },
                     BatchSize::SmallInput,
                 );
@@ -178,14 +178,13 @@ fn bench_cache_concurrency(c: &mut Criterion) {
             BenchmarkId::new("mixed_workload", num_tasks),
             num_tasks,
             |b, &num_tasks| {
-                b.to_async(&rt).iter_batched(
+                b.iter_batched(
                     || {
                         let temp_dir = TempDir::new().unwrap();
                         let config = UnifiedCacheConfig {
-                            max_memory_bytes: 50 * 1024 * 1024, // 50MB
+                            max_memory_size: Some(50 * 1024 * 1024), // 50MB
                             max_entries: 10000,
                             compression_enabled: true, // Test with compression
-                            checksums_enabled: true,   // Test with checksums
                             ..Default::default()
                         };
                         rt.block_on(async {
@@ -246,7 +245,7 @@ fn bench_cache_concurrency(c: &mut Criterion) {
             BenchmarkId::new("write_heavy", num_tasks),
             num_tasks,
             |b, &num_tasks| {
-                b.to_async(&rt).iter_batched(
+                b.iter_batched(
                     || {
                         let temp_dir = TempDir::new().unwrap();
                         rt.block_on(async {
@@ -290,7 +289,7 @@ fn bench_cache_concurrency(c: &mut Criterion) {
             BenchmarkId::new("read_heavy", num_tasks),
             num_tasks,
             |b, &num_tasks| {
-                b.to_async(&rt).iter_batched(
+                b.iter_batched(
                     || {
                         let temp_dir = TempDir::new().unwrap();
                         rt.block_on(async {
@@ -355,22 +354,22 @@ fn bench_cache_eviction(c: &mut Criterion) {
     // Test different eviction scenarios
     for scenario in ["lru_pressure", "size_pressure", "count_pressure"].iter() {
         group.bench_function(*scenario, |b| {
-            b.to_async(&rt).iter_batched(
+            b.iter_batched(
                 || {
                     let temp_dir = TempDir::new().unwrap();
                     let config = match *scenario {
                         "lru_pressure" => UnifiedCacheConfig {
-                            max_memory_bytes: 1024 * 1024, // 1MB - will cause eviction
+                            max_memory_size: Some(1024 * 1024), // 1MB - will cause eviction
                             max_entries: 10000,
                             ..Default::default()
                         },
                         "size_pressure" => UnifiedCacheConfig {
-                            max_memory_bytes: 100 * 1024 * 1024, // 100MB
-                            max_entry_size: 1024,                // 1KB max entry size
+                            max_memory_size: Some(100 * 1024 * 1024), // 100MB
+                            max_size_bytes: 1024,                     // 1KB max entry size
                             ..Default::default()
                         },
                         "count_pressure" => UnifiedCacheConfig {
-                            max_memory_bytes: 100 * 1024 * 1024,
+                            max_memory_size: Some(100 * 1024 * 1024),
                             max_entries: 100, // Only 100 entries allowed
                             ..Default::default()
                         },
@@ -434,7 +433,7 @@ fn bench_cache_metadata(c: &mut Criterion) {
             BenchmarkId::new("metadata_scan", num_entries),
             num_entries,
             |b, &num_entries| {
-                b.to_async(&rt).iter_batched(
+                b.iter_batched(
                     || {
                         let temp_dir = TempDir::new().unwrap();
                         rt.block_on(async {
@@ -535,7 +534,7 @@ fn bench_cache_compression(c: &mut Criterion) {
             BenchmarkId::new(format!("{}_compressed", data_type), data.len()),
             &data,
             |b, data| {
-                b.to_async(&rt).iter_batched(
+                b.iter_batched(
                     || {
                         let temp_dir = TempDir::new().unwrap();
                         let config = UnifiedCacheConfig {
@@ -570,7 +569,7 @@ fn bench_cache_compression(c: &mut Criterion) {
             BenchmarkId::new(format!("{}_uncompressed", data_type), data.len()),
             &data,
             |b, data| {
-                b.to_async(&rt).iter_batched(
+                b.iter_batched(
                     || {
                         let temp_dir = TempDir::new().unwrap();
                         let config = UnifiedCacheConfig {
@@ -616,7 +615,7 @@ fn bench_cache_ttl(c: &mut Criterion) {
             BenchmarkId::new("ttl_expiration", ttl_secs),
             ttl_secs,
             |b, &ttl_secs| {
-                b.to_async(&rt).iter_batched(
+                b.iter_batched(
                     || {
                         let temp_dir = TempDir::new().unwrap();
                         let config = UnifiedCacheConfig {
@@ -692,7 +691,14 @@ fn bench_sync_vs_async(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let temp_dir = TempDir::new().unwrap();
-                SyncCache::new(temp_dir.path().to_path_buf(), Default::default()).unwrap()
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                let unified_cache = rt
+                    .block_on(UnifiedCache::new(
+                        temp_dir.path().to_path_buf(),
+                        Default::default(),
+                    ))
+                    .unwrap();
+                SyncCache::new(unified_cache).unwrap()
             },
             |cache| {
                 for i in 0..100 {

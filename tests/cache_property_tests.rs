@@ -49,35 +49,22 @@ mod cache_property_tests {
     /// Generate cache configurations
     fn arb_cache_config() -> impl Strategy<Value = UnifiedCacheConfig> {
         (
-            1024_u64..1024 * 1024 * 1024, // max_memory_bytes: 1KB to 1GB
-            512_u64..64 * 1024,           // max_entry_size: 512B to 64KB
-            1_usize..1000,                // max_entries
+            1024_u64..1024 * 1024 * 1024, // max_size_bytes: 1KB to 1GB
+            0_u64..10000,                 // max_entries
             0_u64..3600,                  // ttl_secs: 0 to 1 hour
             any::<bool>(),                // compression_enabled
-            any::<bool>(),                // checksums_enabled
         )
             .prop_map(
-                |(
-                    max_memory_bytes,
-                    max_entry_size,
+                |(max_size_bytes, max_entries, ttl_secs, compression_enabled)| UnifiedCacheConfig {
+                    max_size_bytes,
                     max_entries,
-                    ttl_secs,
+                    default_ttl: if ttl_secs == 0 {
+                        None
+                    } else {
+                        Some(Duration::from_secs(ttl_secs))
+                    },
                     compression_enabled,
-                    checksums_enabled,
-                )| {
-                    UnifiedCacheConfig {
-                        max_memory_bytes,
-                        max_entry_size,
-                        max_entries,
-                        ttl_secs: if ttl_secs == 0 {
-                            None
-                        } else {
-                            Some(Duration::from_secs(ttl_secs))
-                        },
-                        compression_enabled,
-                        checksums_enabled,
-                        ..Default::default()
-                    }
+                    ..Default::default()
                 },
             )
     }
@@ -102,7 +89,7 @@ mod cache_property_tests {
                 // Put value
                 match cache.put(&key, &value, None).await {
                     Ok(_) => {},
-                    Err(CacheError::ValueTooLarge { .. }) => return Ok(()), // Expected for large values
+                    Err(CacheError::CapacityExceeded { .. }) => return Ok(()), // Expected for large values
                     Err(e) => prop_assert!(false, "Unexpected error putting value: {}", e),
                 }
 
@@ -118,6 +105,7 @@ mod cache_property_tests {
                         // This is acceptable behavior under memory pressure
                     }
                 }
+                Ok(())
             });
         }
 
@@ -155,7 +143,7 @@ mod cache_property_tests {
                         Ok(_) => {
                             stored_pairs.push((key, value));
                         }
-                        Err(CacheError::ValueTooLarge { .. }) => {
+                        Err(CacheError::CapacityExceeded { .. }) => {
                             // Skip values that are too large
                             continue;
                         }
@@ -173,6 +161,7 @@ mod cache_property_tests {
                             "Key '{}' should return its stored value", key);
                     }
                 }
+                Ok(())
             });
         }
 
@@ -194,7 +183,7 @@ mod cache_property_tests {
                 let put_time = SystemTime::now();
                 match cache.put(&key, &value, None).await {
                     Ok(_) => {},
-                    Err(CacheError::ValueTooLarge { .. }) => return Ok(()),
+                    Err(CacheError::CapacityExceeded { .. }) => return Ok(()),
                     Err(e) => prop_assert!(false, "Put failed: {}", e),
                 }
 
@@ -206,11 +195,12 @@ mod cache_property_tests {
                         "Metadata size should be at least value size");
 
                     // Timestamps should be reasonable
-                    prop_assert!(metadata.created_at >= put_time.duration_since(SystemTime::UNIX_EPOCH).unwrap(),
+                    prop_assert!(metadata.created_at >= put_time,
                         "Created timestamp should be after put operation");
                     prop_assert!(metadata.last_accessed >= metadata.created_at,
                         "Last accessed should be >= created time");
                 }
+                Ok(())
             });
         }
 
@@ -224,7 +214,7 @@ mod cache_property_tests {
             rt.block_on(async {
                 let temp_dir = TempDir::new().unwrap();
                 let config = UnifiedCacheConfig {
-                    ttl_secs: Some(Duration::from_millis(ttl_ms)),
+                    default_ttl: Some(Duration::from_millis(ttl_ms)),
                     ..Default::default()
                 };
 
@@ -244,6 +234,7 @@ mod cache_property_tests {
                 // Should be expired now
                 let expired: Option<Vec<u8>> = cache.get(&key).await.unwrap();
                 prop_assert!(expired.is_none(), "Value should be expired after TTL");
+                Ok(())
             });
         }
 
@@ -271,7 +262,7 @@ mod cache_property_tests {
 
                 // Create cache with limited memory (10KB)
                 let config = UnifiedCacheConfig {
-                    max_memory_bytes: 10 * 1024,
+                    max_size_bytes: 10 * 1024,
                     max_entries: 5, // Also limit by count
                     ..Default::default()
                 };
@@ -287,7 +278,7 @@ mod cache_property_tests {
                         Ok(_) => {
                             stored_keys.push(key);
                         }
-                        Err(CacheError::ValueTooLarge { .. }) => {
+                        Err(CacheError::CapacityExceeded { .. }) => {
                             // Expected when value exceeds cache limits
                             continue;
                         }
@@ -312,6 +303,7 @@ mod cache_property_tests {
                     "Cache should not exceed max_entries limit (found {} entries)",
                     found_count
                 );
+                Ok(())
             });
         }
 
@@ -352,7 +344,7 @@ mod cache_property_tests {
                                 // Put operation
                                 match cache_clone.put(key, value, None).await {
                                     Ok(_) => operations_completed += 1,
-                                    Err(CacheError::ValueTooLarge { .. }) => {
+                                    Err(CacheError::CapacityExceeded { .. }) => {
                                         // Expected for large values
                                     }
                                     Err(_) => {
@@ -401,6 +393,7 @@ mod cache_property_tests {
                 }
 
                 prop_assert!(total_operations > 0, "Some operations should have completed");
+                Ok(())
             });
         }
 
@@ -436,7 +429,7 @@ mod cache_property_tests {
                         Ok(_) => {
                             stored_keys.push(key);
                         }
-                        Err(CacheError::ValueTooLarge { .. }) => {
+                        Err(CacheError::CapacityExceeded { .. }) => {
                             // Skip values that are too large
                             continue;
                         }
@@ -471,6 +464,7 @@ mod cache_property_tests {
 
                 prop_assert_eq!(post_clear_found, 0, "No entries should remain after clear");
                 prop_assert!(pre_clear_found > 0, "Should have had entries before clear");
+                Ok(())
             });
         }
 
@@ -510,8 +504,10 @@ mod cache_property_tests {
                     let current_stats = cache.statistics().await.unwrap();
 
                     // Statistics should only increase (monotonic)
+                    let current_total_ops = current_stats.hits + current_stats.misses + current_stats.writes;
+                    let previous_total_ops = previous_stats.hits + previous_stats.misses + previous_stats.writes;
                     prop_assert!(
-                        current_stats.total_operations >= previous_stats.total_operations,
+                        current_total_ops >= previous_total_ops,
                         "Total operations should be monotonic"
                     );
                     prop_assert!(
@@ -525,6 +521,7 @@ mod cache_property_tests {
 
                     previous_stats = current_stats;
                 }
+                Ok(())
             });
         }
 
@@ -558,8 +555,7 @@ mod cache_property_tests {
                     // Verify we get proper error types, not panics
                     match put_result {
                         Ok(_) | Err(CacheError::InvalidKey { .. })
-                        | Err(CacheError::ValueTooLarge { .. })
-                        | Err(CacheError::StorageError { .. }) => {
+                        | Err(CacheError::CapacityExceeded { .. }) => {
                             // These are all acceptable outcomes
                         }
                         Err(e) => {
@@ -576,7 +572,8 @@ mod cache_property_tests {
                 // Cache should still be usable after error conditions
                 let test_result = cache.put("recovery_test", b"test", None).await;
                 prop_assert!(test_result.is_ok(), "Cache should recover from error conditions");
-            });
+                Ok(())
+            })?;
         }
     }
 
@@ -588,7 +585,12 @@ mod cache_property_tests {
             value in arb_cache_value().prop_filter("Limit size", |v| v.len() < 10000),
         ) {
             let temp_dir = TempDir::new().unwrap();
-            let cache = match SyncCache::new(temp_dir.path().to_path_buf(), Default::default()) {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let unified_cache = match rt.block_on(UnifiedCache::new(temp_dir.path().to_path_buf(), Default::default())) {
+                Ok(cache) => cache,
+                Err(_) => return Ok(()), // Skip if setup fails
+            };
+            let cache = match SyncCache::new(unified_cache) {
                 Ok(cache) => cache,
                 Err(_) => return Ok(()), // Skip if setup fails
             };
@@ -601,7 +603,7 @@ mod cache_property_tests {
                         prop_assert_eq!(actual, value, "Sync cache roundtrip should be consistent");
                     }
                 }
-                Err(CacheError::ValueTooLarge { .. }) => {
+                Err(CacheError::CapacityExceeded { .. }) => {
                     // Expected for large values
                 }
                 Err(e) => {

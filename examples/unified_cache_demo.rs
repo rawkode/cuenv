@@ -21,14 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cache_dir = std::env::temp_dir().join("cuenv_cache_demo");
 
     // Build an async cache with custom configuration
-    let config = UnifiedCacheConfig {
-        max_size_bytes: 100 * 1024 * 1024,           // 100MB
-        default_ttl: Some(Duration::from_secs(300)), // 5 minutes
-        cleanup_interval: Duration::from_secs(60),   // 1 minute
-        max_entries: 1000,
-        compression_threshold: Some(1024), // Compress values > 1KB
-        encryption_enabled: false,
-    };
+    let config = UnifiedCacheConfig::default();
 
     let cache = CacheBuilder::new(&cache_dir)
         .with_config(config)

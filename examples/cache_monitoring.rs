@@ -7,8 +7,7 @@
 //! - Access various monitoring endpoints
 
 use cuenv::cache::{
-    Cache, CacheConfig as UnifiedCacheConfig, CacheError, MetricsEndpoint, MonitoredCacheBuilder,
-    ProductionCache,
+    Cache, MetricsEndpoint, MonitoredCacheBuilder, ProductionCache, UnifiedCacheConfig,
 };
 use std::time::Duration;
 use tokio::time::sleep;
@@ -28,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = UnifiedCacheConfig {
         max_size_bytes: 100 * 1024 * 1024, // 100MB
         max_entries: 10000,
-        ttl: Some(Duration::from_secs(3600)),
+        default_ttl: Some(Duration::from_secs(3600)),
         cleanup_interval: Duration::from_secs(60),
         ..Default::default()
     };

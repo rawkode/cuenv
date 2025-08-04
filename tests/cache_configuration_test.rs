@@ -1,10 +1,8 @@
 //! Tests for cache configuration system
 use cuenv::cache::{
-    CacheConfigBuilder, CacheConfigLoader, CacheConfigResolver, CacheConfiguration,
-    GlobalCacheConfig, TaskCacheConfig,
+    CacheConfigBuilder, CacheConfigLoader, CacheConfigResolver, GlobalCacheConfig, TaskCacheConfig,
 };
 use cuenv::cue_parser::TaskConfig;
-use std::collections::HashMap;
 use tempfile::TempDir;
 
 #[test]

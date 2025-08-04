@@ -26,11 +26,10 @@ mod cache_production_tests {
 
         // Production-like configuration
         let config = UnifiedCacheConfig {
-            max_memory_bytes: 100 * 1024 * 1024, // 100MB
+            max_memory_size: Some(100 * 1024 * 1024), // 100MB
             max_entries: 50000,
-            ttl_secs: Some(Duration::from_secs(3600)), // 1 hour TTL
+            default_ttl: Some(Duration::from_secs(3600)), // 1 hour TTL
             compression_enabled: true,
-            checksums_enabled: true,
             ..Default::default()
         };
 
@@ -66,7 +65,7 @@ mod cache_production_tests {
 
             let handle = tokio::spawn(async move {
                 let mut rng = StdRng::seed_from_u64(worker_id as u64);
-                let mut worker_stats = WorkerStats::new();
+                let mut worker_stats = WorkerStats::default();
 
                 while start_time.elapsed() < simulation_duration {
                     let operation_type = rng.gen_range(0..100);
@@ -183,8 +182,8 @@ mod cache_production_tests {
         );
         println!("  Hit rate: {:.2}%", final_stats.hit_rate() * 100.0);
         println!("  Error rate: {:.4}%", final_stats.error_rate() * 100.0);
-        println!("  Cache entries: {}", cache_stats.entries);
-        println!("  Cache memory usage: {} bytes", cache_stats.memory_bytes);
+        println!("  Cache entries: {}", cache_stats.entry_count);
+        println!("  Cache memory usage: {} bytes", cache_stats.total_bytes);
 
         // Validate production requirements
         assert!(
@@ -473,7 +472,7 @@ mod cache_production_tests {
         let temp_dir = TempDir::new().unwrap();
 
         let config = UnifiedCacheConfig {
-            max_memory_bytes: 200 * 1024 * 1024, // 200MB
+            max_memory_size: Some(200 * 1024 * 1024), // 200MB
             max_entries: 100000,
             compression_enabled: true,
             ..Default::default()
@@ -559,8 +558,8 @@ mod cache_production_tests {
                     }
                 }
 
-                stats_clone.fetch_add(operations, Ordering::Relaxed);
-                errors_clone.fetch_add(errors, Ordering::Relaxed);
+                stats_clone.fetch_add(operations as u64, Ordering::Relaxed);
+                errors_clone.fetch_add(errors as u64, Ordering::Relaxed);
 
                 (operations, errors)
             });
@@ -569,6 +568,7 @@ mod cache_production_tests {
         }
 
         // Monitor progress
+        let global_stats_monitor = Arc::clone(&global_stats);
         let monitor_handle = tokio::spawn(async move {
             let mut last_ops = 0;
             let mut last_time = Instant::now();
@@ -576,7 +576,7 @@ mod cache_production_tests {
             while start_time.elapsed() < load_duration {
                 tokio::time::sleep(Duration::from_secs(5)).await;
 
-                let current_ops = global_stats.load(Ordering::Relaxed);
+                let current_ops = global_stats_monitor.load(Ordering::Relaxed);
                 let now = Instant::now();
                 let ops_delta = current_ops - last_ops;
                 let time_delta = now.duration_since(last_time).as_secs_f64();
@@ -616,12 +616,17 @@ mod cache_production_tests {
             "  Error rate: {:.4}%",
             (total_errors as f64 / total_operations as f64) * 100.0
         );
-        println!("  Cache entries: {}", cache_stats.entries);
+        println!("  Cache entries: {}", cache_stats.entry_count);
         println!(
             "  Memory usage: {} MB",
-            cache_stats.memory_bytes / (1024 * 1024)
+            cache_stats.total_bytes / (1024 * 1024)
         );
-        println!("  Cache hit rate: {:.2}%", cache_stats.hit_rate * 100.0);
+        let hit_rate = if cache_stats.hits + cache_stats.misses > 0 {
+            cache_stats.hits as f64 / (cache_stats.hits + cache_stats.misses) as f64
+        } else {
+            0.0
+        };
+        println!("  Cache hit rate: {:.2}%", hit_rate * 100.0);
 
         // Validate high load requirements
         assert!(
@@ -637,7 +642,7 @@ mod cache_production_tests {
             "Should have <0.1% error rate"
         );
         assert!(
-            cache_stats.hit_rate > 0.1,
+            hit_rate > 0.1,
             "Should maintain reasonable hit rate under load"
         );
 
@@ -664,7 +669,7 @@ mod cache_production_tests {
 
         // Start with generous limits and gradually reduce
         let config = UnifiedCacheConfig {
-            max_memory_bytes: 50 * 1024 * 1024, // 50MB
+            max_memory_size: Some(50 * 1024 * 1024), // 50MB
             max_entries: 50000,
             compression_enabled: false, // Disable to get predictable memory usage
             ..Default::default()
@@ -695,12 +700,12 @@ mod cache_production_tests {
                     if i > 0 && i % 100 == 0 {
                         let stats = cache.statistics().await.unwrap();
 
-                        if !eviction_started && stats.entries < stored_keys.len() as u64 {
+                        if !eviction_started && stats.entry_count < stored_keys.len() as u64 {
                             eviction_started = true;
                             eviction_start_point = i;
                             println!(
                                 "  Eviction started at entry {}, cache has {} entries",
-                                i, stats.entries
+                                i, stats.entry_count
                             );
                         }
 
@@ -708,13 +713,13 @@ mod cache_production_tests {
                             println!(
                                 "  Stored {} entries, cache has {} entries, using {} MB",
                                 i,
-                                stats.entries,
-                                stats.memory_bytes / (1024 * 1024)
+                                stats.entry_count,
+                                stats.total_bytes / (1024 * 1024)
                             );
                         }
                     }
                 }
-                Err(CacheError::InsufficientMemory { .. }) => {
+                Err(CacheError::CapacityExceeded { .. }) => {
                     println!("  Hit memory limit at entry {}", i);
                     break;
                 }
@@ -726,12 +731,17 @@ mod cache_production_tests {
 
         let final_stats = cache.statistics().await.unwrap();
         println!("Final cache state:");
-        println!("  Entries: {}", final_stats.entries);
+        println!("  Entries: {}", final_stats.entry_count);
         println!(
             "  Memory usage: {} MB",
-            final_stats.memory_bytes / (1024 * 1024)
+            final_stats.total_bytes / (1024 * 1024)
         );
-        println!("  Hit rate: {:.2}%", final_stats.hit_rate * 100.0);
+        let final_hit_rate = if final_stats.hits + final_stats.misses > 0 {
+            final_stats.hits as f64 / (final_stats.hits + final_stats.misses) as f64
+        } else {
+            0.0
+        };
+        println!("  Hit rate: {:.2}%", final_hit_rate * 100.0);
 
         // Test access patterns after memory exhaustion
         let mut recent_hits = 0;
@@ -780,7 +790,7 @@ mod cache_production_tests {
             "Should allow substantial data before eviction"
         );
         assert!(
-            final_stats.memory_bytes <= 60 * 1024 * 1024,
+            final_stats.total_bytes <= 60 * 1024 * 1024,
             "Should respect memory limits"
         );
         assert!(recent_hits > old_hits, "Should prefer recent entries");

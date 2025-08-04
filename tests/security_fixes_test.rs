@@ -49,12 +49,12 @@ async fn test_cache_signing_prevents_poisoning() {
 
     // Attempt to tamper with signature
     let mut tampered_sig = signed.clone();
-    tampered_sig.signature = "deadbeef".to_string();
+    tampered_sig.signature = b"deadbeef".to_vec();
     assert!(!signer.verify(&tampered_sig).unwrap());
 
     // Attempt to tamper with nonce (replay attack)
     let mut tampered_nonce = signed.clone();
-    tampered_nonce.nonce = "0000000000000000".to_string();
+    tampered_nonce.nonce = [0u8; 32];
     assert!(!signer.verify(&tampered_nonce).unwrap());
 }
 
@@ -230,7 +230,7 @@ fn test_constant_time_comparison() {
 
     // Test with completely different signature (should be constant time)
     let mut tampered = signed.clone();
-    tampered.signature = "a".repeat(64); // Different length and content
+    tampered.signature = b"a".repeat(64); // Different length and content
 
     let start = std::time::Instant::now();
     let result1 = signer.verify(&tampered).unwrap();
@@ -238,11 +238,11 @@ fn test_constant_time_comparison() {
 
     // Test with signature that differs only in last character
     let mut tampered2 = signed.clone();
-    let mut sig_chars: Vec<char> = tampered2.signature.chars().collect();
-    if let Some(last_char) = sig_chars.last_mut() {
-        *last_char = if *last_char == 'a' { 'b' } else { 'a' };
+    let mut sig_bytes = tampered2.signature.clone();
+    if let Some(last_byte) = sig_bytes.last_mut() {
+        *last_byte = if *last_byte == b'a' { b'b' } else { b'a' };
     }
-    tampered2.signature = sig_chars.into_iter().collect();
+    tampered2.signature = sig_bytes;
 
     let start = std::time::Instant::now();
     let result2 = signer.verify(&tampered2).unwrap();

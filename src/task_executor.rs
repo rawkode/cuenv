@@ -589,7 +589,7 @@ impl TaskExecutor {
 
         if !cache_enabled {
             // Execute without caching
-            println!("→ Executing task '{task_name}' (cache disabled)");
+            task_progress(task_name, None, "Executing task (cache disabled)");
             return Self::execute_single_task(
                 task_name,
                 task_config,
@@ -640,11 +640,12 @@ impl TaskExecutor {
         // Update cache manager statistics for backward compatibility
         if result.exit_code == 0 {
             task_progress(task_name, Some(100), "Task completed successfully");
-            println!("✓ Task '{task_name}' completed successfully");
+            tracing::info!(task_name = %task_name, "Task completed successfully");
         } else {
-            println!(
-                "✗ Task '{task_name}' failed with exit code {}",
-                result.exit_code
+            tracing::error!(
+                task_name = %task_name,
+                exit_code = %result.exit_code,
+                "Task failed with exit code"
             );
         }
 
@@ -754,7 +755,7 @@ impl TaskExecutor {
                     match apply_default_limits() {
                         Ok(()) => Ok(()),
                         Err(e) => {
-                            eprintln!("Warning: Failed to apply resource limits: {e}");
+                            tracing::warn!("Failed to apply resource limits: {}", e);
                             Ok(()) // Continue anyway
                         }
                     }
@@ -770,7 +771,7 @@ impl TaskExecutor {
 
             if audit_mode {
                 restrictions.enable_audit_mode();
-                println!("🔍 Running task in audit mode...");
+                task_progress(task_name, None, "Running task in audit mode...");
 
                 let (exit_code, audit_report) = restrictions.run_with_audit(&mut cmd)?;
                 audit_report.print_summary();
