@@ -290,6 +290,10 @@ pub struct DevenvConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Hook {
+    /// Simple nix flake format (just flake field)
+    SimpleNixFlake { flake: NixFlakeConfig },
+    /// Simple devenv format (just devenv field)
+    SimpleDevenv { devenv: DevenvConfig },
     /// Legacy format for backward compatibility
     Legacy(HookConfig),
     /// Basic command execution with type field
@@ -299,7 +303,7 @@ pub enum Hook {
         #[serde(flatten)]
         exec: ExecConfig,
     },
-    /// Nix flake integration
+    /// Nix flake integration with explicit type
     NixFlake {
         #[serde(rename = "type")]
         hook_type: String,
@@ -307,7 +311,7 @@ pub enum Hook {
         exec: ExecConfig,
         flake: NixFlakeConfig,
     },
-    /// Devenv integration
+    /// Devenv integration with explicit type
     Devenv {
         #[serde(rename = "type")]
         hook_type: String,
@@ -505,6 +509,10 @@ impl CueParser {
             check_for_error_response(&json_value, dir)?;
 
             // Deserialize and build final result
+            eprintln!(
+                "DEBUG: Raw JSON from CUE: {}",
+                serde_json::to_string_pretty(&json_value).unwrap_or_default()
+            );
             let cue_result = deserialize_cue_result(json_value)?;
             Self::build_parse_result(cue_result, options)?
         };
@@ -611,8 +619,11 @@ fn build_filtered_variables(
 fn extract_hooks(hooks_config: Option<HooksConfig>) -> HashMap<String, Vec<Hook>> {
     let mut hooks = HashMap::with_capacity(2); // At most 2 hook types (onEnter, onExit)
 
+    eprintln!("DEBUG extract_hooks: hooks_config = {:?}", hooks_config);
+
     if let Some(config) = hooks_config {
         if let Some(on_enter) = config.on_enter {
+            eprintln!("DEBUG: Found onEnter hooks");
             let hook_list = match on_enter {
                 HookValue::Single(hook) => vec![*hook],
                 HookValue::Multiple(hook_vec) => hook_vec,
@@ -621,6 +632,7 @@ fn extract_hooks(hooks_config: Option<HooksConfig>) -> HashMap<String, Vec<Hook>
         }
 
         if let Some(on_exit) = config.on_exit {
+            eprintln!("DEBUG: Found onExit hooks");
             let hook_list = match on_exit {
                 HookValue::Single(hook) => vec![*hook],
                 HookValue::Multiple(hook_vec) => hook_vec,

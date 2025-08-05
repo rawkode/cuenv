@@ -1,6 +1,6 @@
 //! Integration tests for cache configuration system with real CUE files
 use cuenv::cache::{CacheConfigLoader, CacheConfigResolver};
-use cuenv::cue_parser::{CueParser, ParseOptions};
+use cuenv::config::{CueParser, ParseOptions};
 use cuenv::task_executor::TaskExecutor;
 use std::fs;
 use tempfile::TempDir;
@@ -281,7 +281,7 @@ tasks: {
     fs::write(&env_file, cue_content).unwrap();
 
     // Create environment manager
-    let mut env_manager = cuenv::env_manager::EnvManager::new();
+    let mut env_manager = cuenv::env::EnvManager::new();
     env_manager.load_env(temp_dir.path()).await.unwrap();
 
     // Create task executor

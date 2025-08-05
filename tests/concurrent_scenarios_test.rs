@@ -3,8 +3,8 @@
 mod concurrent_scenarios {
     use cuenv::async_runtime::{run_async, AsyncRuntime};
     use cuenv::cache::{CacheConfig, CacheEngine, CacheManager, CacheMode, CachedTaskResult};
-    use cuenv::cue_parser::TaskConfig;
-    use cuenv::env_manager::EnvManager;
+    use cuenv::config::TaskConfig;
+    use cuenv::env::EnvManager;
     use cuenv::errors::Result;
     use cuenv::state::StateManager;
     use cuenv::sync_env::SyncEnv;
@@ -183,7 +183,7 @@ mod concurrent_scenarios {
                         // Create environment name
                         let env_name = format!("env_op_{}", i);
 
-                        let diff = cuenv::env_diff::EnvDiff::new(HashMap::new(), HashMap::new());
+                        let diff = cuenv::env::EnvDiff::new(HashMap::new(), HashMap::new());
                         let watches = cuenv::file_times::FileTimes::new();
 
                         // Try to load state

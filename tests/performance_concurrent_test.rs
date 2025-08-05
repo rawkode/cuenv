@@ -7,8 +7,8 @@
 #[cfg(test)]
 mod performance_concurrent_tests {
     use cuenv::cache::CacheManager;
-    use cuenv::cue_parser::TaskConfig;
-    use cuenv::env_manager::EnvManager;
+    use cuenv::config::TaskConfig;
+    use cuenv::env::EnvManager;
     use cuenv::task_executor::TaskExecutor;
     use std::collections::HashMap;
     use std::fs;

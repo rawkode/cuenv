@@ -2,7 +2,7 @@
 use cuenv::cache::{
     CacheConfigBuilder, CacheConfigLoader, CacheConfigResolver, GlobalCacheConfig, TaskCacheConfig,
 };
-use cuenv::cue_parser::TaskConfig;
+use cuenv::config::TaskConfig;
 use tempfile::TempDir;
 
 #[test]
@@ -384,7 +384,7 @@ fn test_cache_config_migration() {
         security: None,
         cache: None,
         cache_key: None,
-        cache_env: Some(cuenv::cue_parser::CacheEnvConfig {
+        cache_env: Some(cuenv::config::CacheEnvConfig {
             include: Some(vec!["BUILD_*".to_string()]),
             exclude: Some(vec!["*_SECRET".to_string()]),
             use_smart_defaults: Some(true),

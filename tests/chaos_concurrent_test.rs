@@ -7,8 +7,8 @@
 #[cfg(test)]
 mod chaos_concurrent_tests {
     use cuenv::cache::CacheManager;
-    use cuenv::cue_parser::TaskConfig;
-    use cuenv::env_manager::EnvManager;
+    use cuenv::config::TaskConfig;
+    use cuenv::env::EnvManager;
     use cuenv::errors::{Error, Result};
     use cuenv::state::StateManager;
     use cuenv::sync_env::SyncEnv;
@@ -212,8 +212,7 @@ mod chaos_concurrent_tests {
                         let temp_dir = TempDir::new().unwrap();
 
                         runtime.block_on(async {
-                            let diff =
-                                cuenv::env_diff::EnvDiff::new(HashMap::new(), HashMap::new());
+                            let diff = cuenv::env::EnvDiff::new(HashMap::new(), HashMap::new());
                             let watches = cuenv::file_times::FileTimes::new();
 
                             // Load state

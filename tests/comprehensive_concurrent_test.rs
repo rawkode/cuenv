@@ -7,13 +7,13 @@
 #[cfg(test)]
 mod comprehensive_concurrent_tests {
     use cuenv::cache::CacheManager;
-    use cuenv::cue_parser::TaskConfig;
-    use cuenv::env_manager::EnvManager;
+    use cuenv::config::TaskConfig;
+    use cuenv::env::EnvManager;
     use cuenv::errors::Result;
-    use cuenv::resource_limits::ResourceLimits;
     use cuenv::state::StateManager;
     use cuenv::sync_env::SyncEnv;
     use cuenv::task_executor::TaskExecutor;
+    use cuenv::utils::ResourceLimits;
     use std::collections::HashMap;
     use std::fs;
     use std::path::PathBuf;
@@ -352,7 +352,7 @@ tasks: {
             fs::write(env_dir.join("state.json"), "{}").unwrap();
 
             // Set up initial state
-            let diff = cuenv::env_diff::EnvDiff::new(HashMap::new(), HashMap::new());
+            let diff = cuenv::env::EnvDiff::new(HashMap::new(), HashMap::new());
             let watches = cuenv::file_times::FileTimes::new();
 
             // Load state

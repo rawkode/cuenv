@@ -1,8 +1,8 @@
 #![allow(unused)]
 //! Integration tests for concurrent cache operations
 use cuenv::cache::{CacheConfig, CacheManager, CacheMode};
-use cuenv::cue_parser::TaskConfig;
-use cuenv::env_manager::EnvManager;
+use cuenv::config::TaskConfig;
+use cuenv::env::EnvManager;
 use cuenv::task_executor::TaskExecutor;
 use std::fs;
 use std::path::PathBuf;

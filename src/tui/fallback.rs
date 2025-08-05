@@ -84,10 +84,7 @@ impl FallbackRenderer {
         output
     }
 
-    fn find_root_tasks(
-        &self,
-        tasks: &HashMap<String, crate::cue_parser::TaskConfig>,
-    ) -> Vec<String> {
+    fn find_root_tasks(&self, tasks: &HashMap<String, crate::config::TaskConfig>) -> Vec<String> {
         let mut roots = Vec::new();
         let all_deps: std::collections::HashSet<String> = tasks
             .values()
@@ -109,7 +106,7 @@ impl FallbackRenderer {
         output: &mut String,
         task_name: &str,
         task_infos: &HashMap<String, crate::tui::events::TaskInfo>,
-        task_configs: &HashMap<String, crate::cue_parser::TaskConfig>,
+        task_configs: &HashMap<String, crate::config::TaskConfig>,
         depth: usize,
         prefix: &str,
         is_last: bool,

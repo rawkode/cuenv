@@ -23,7 +23,7 @@ pub struct CacheConfig {
 impl Default for CacheConfig {
     fn default() -> Self {
         // Use XDG cache directory which respects XDG_CACHE_HOME
-        use crate::xdg::XdgPaths;
+        use crate::utils::xdg::XdgPaths;
         Self {
             base_dir: XdgPaths::cache_dir(),
             max_size: 10 * 1024 * 1024 * 1024, // 10GB

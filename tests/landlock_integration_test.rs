@@ -2,7 +2,7 @@
 #[cfg(all(test, target_os = "linux"))]
 mod landlock_tests {
     use cuenv::access_restrictions::AccessRestrictions;
-    use cuenv::cue_parser::SecurityConfig;
+    use cuenv::config::SecurityConfig;
     use std::fs;
     use std::path::PathBuf;
     use std::process::Command;

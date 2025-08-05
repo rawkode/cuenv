@@ -237,7 +237,7 @@ impl AccessRestrictions {
     }
 
     /// Create AccessRestrictions from a SecurityConfig
-    pub fn from_security_config(security: &crate::cue_parser::SecurityConfig) -> Self {
+    pub fn from_security_config(security: &crate::config::SecurityConfig) -> Self {
         use std::path::PathBuf;
 
         Self {
@@ -265,8 +265,8 @@ impl AccessRestrictions {
 
     /// Create AccessRestrictions from a SecurityConfig with optional task context for inference
     pub fn from_security_config_with_task(
-        security: &crate::cue_parser::SecurityConfig,
-        task_config: &crate::cue_parser::TaskConfig,
+        security: &crate::config::SecurityConfig,
+        task_config: &crate::config::TaskConfig,
     ) -> Self {
         use std::path::PathBuf;
 

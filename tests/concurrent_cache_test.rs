@@ -2,7 +2,7 @@
 #[cfg(test)]
 mod concurrent_cache_tests {
     use cuenv::cache::CacheManager;
-    use cuenv::cue_parser::TaskConfig;
+    use cuenv::config::TaskConfig;
     use std::fs::{self, OpenOptions};
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::{Arc, Barrier};

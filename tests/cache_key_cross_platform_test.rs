@@ -5,7 +5,7 @@
 //! environment variables appropriately.
 
 use cuenv::cache::CacheKeyGenerator;
-use cuenv::cue_parser::{CacheEnvConfig, TaskConfig};
+use cuenv::config::{CacheEnvConfig, TaskConfig};
 use std::collections::HashMap;
 use std::path::PathBuf;
 

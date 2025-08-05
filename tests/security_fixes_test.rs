@@ -8,7 +8,7 @@
 use cuenv::cache::signing::CacheSigner;
 use cuenv::cache::CacheManager;
 use cuenv::cache::{ActionCache, ActionResult, ContentAddressedStore, HashEngine};
-use cuenv::cue_parser::TaskConfig;
+use cuenv::config::TaskConfig;
 use cuenv::sync_env::InstanceLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

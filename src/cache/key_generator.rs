@@ -3,7 +3,7 @@
 //! This module provides intelligent cache key generation that only includes
 //! relevant environment variables, similar to Bazel's approach for high cache hit rates.
 
-use crate::cue_parser::CacheEnvConfig;
+use crate::config::CacheEnvConfig;
 use crate::errors::{Error, Result};
 use regex::Regex;
 use serde::{Deserialize, Serialize};

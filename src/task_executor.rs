@@ -1,9 +1,9 @@
 use crate::cache::{
     ActionCache, CacheConfigLoader, CacheConfigResolver, CacheConfiguration, CacheManager,
 };
+use crate::config::TaskConfig;
 use crate::core::errors::{Error, Result};
-use crate::cue_parser::TaskConfig;
-use crate::env_manager::EnvManager;
+use crate::env::manager::EnvManager;
 use crate::security::SecurityValidator;
 use crate::tracing::{
     self, cache_event, level_span, pipeline_span, task_completed, task_progress, task_span,
@@ -751,7 +751,7 @@ impl TaskExecutor {
             // Apply resource limits before spawning
             unsafe {
                 cmd.pre_exec(|| {
-                    use crate::resource_limits::apply_default_limits;
+                    use crate::utils::limits::apply_default_limits;
                     match apply_default_limits() {
                         Ok(()) => Ok(()),
                         Err(e) => {

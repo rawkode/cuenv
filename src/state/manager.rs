@@ -1,7 +1,6 @@
 use crate::audit::audit_logger;
-use crate::env_diff::EnvDiff;
+use crate::env::diff::EnvDiff;
 use crate::file_times::FileTimes;
-use crate::gzenv;
 use crate::utils::sync::env::SyncEnv;
 use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
@@ -181,7 +180,8 @@ impl StateManager {
         value: &T,
         context: &str,
     ) -> Result<()> {
-        let encoded = gzenv::encode(value).with_context(|| context.to_string())?;
+        let encoded =
+            crate::utils::compression::encode(value).with_context(|| context.to_string())?;
         transaction.set_var(key, encoded);
         Ok(())
     }
@@ -193,7 +193,8 @@ impl StateManager {
     ) -> Result<Option<T>> {
         match SyncEnv::var(key)? {
             Some(encoded) => {
-                let decoded = gzenv::decode(&encoded).with_context(|| context.to_string())?;
+                let decoded = crate::utils::compression::decode(&encoded)
+                    .with_context(|| context.to_string())?;
                 Ok(Some(decoded))
             }
             None => Ok(None),

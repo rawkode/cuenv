@@ -1,7 +1,7 @@
 #![allow(unused)]
 #[cfg(test)]
 mod state_race_condition_tests {
-    use cuenv::env_diff::EnvDiff;
+    use cuenv::env::EnvDiff;
     use cuenv::file_times::FileTimes;
     use cuenv::state::StateManager;
     use cuenv::sync_env::SyncEnv;
