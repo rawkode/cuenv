@@ -1,6 +1,6 @@
 [env]
 # Limit test threads to avoid resource exhaustion in constrained environments
-RUST_TEST_THREADS = "2"
+RUST_TEST_THREADS = "1"
 
 [build]
 # Limit build parallelism if needed
