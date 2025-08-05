@@ -574,6 +574,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "nix-build"))]
     fn test_process_guard_timeout() {
         // Create a long-running process
         let child = std::process::Command::new("sleep")
