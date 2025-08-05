@@ -325,10 +325,21 @@
             nextest = cuenv.overrideAttrs (oldAttrs: {
               pname = "cuenv-nextest";
               nativeBuildInputs = oldAttrs.nativeBuildInputs ++ [ pkgs.cargo-nextest ];
+              
+              # Override the restricted checkPhase to run ALL tests
+              checkPhase = ''
+                runHook preCheck
+                # Set reasonable thread limits for CI environment
+                export RUST_TEST_THREADS=4
+                export GOMAXPROCS=4
+                # Run ALL tests with nextest - no skipping
+                cargo nextest run --profile ci --no-fail-fast
+                runHook postCheck
+              '';
+              
               buildPhase = ''
                 runHook preBuild
-                # Run nextest with CI profile for more thorough testing
-                cargo nextest run --profile ci --no-fail-fast
+                echo "Running comprehensive test suite with nextest..."
                 runHook postBuild
               '';
 
