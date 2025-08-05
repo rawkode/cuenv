@@ -39,7 +39,7 @@ impl ComplexData {
             id,
             name: format!("complex_item_{}", id),
             nested: NestedData {
-                value: id as f64 * 3.14,
+                value: id as f64 * std::f64::consts::PI,
                 flag: id % 2 == 0,
                 items: (0..=(id % 10)).map(|i| i as u8).collect(),
             },
@@ -395,10 +395,9 @@ async fn test_concurrent_operations_heavy() {
                 let key = format!("concurrent_{}_{}", task_id, i);
                 let data = ComplexData::new(task_id * 1000 + i);
 
-                match cache_clone.put(&key, &data, None).await {
-                    Ok(()) => operations += 1,
-                    Err(_) => {} // Expected under high concurrency/memory pressure
-                }
+                if let Ok(()) = cache_clone.put(&key, &data, None).await {
+                    operations += 1;
+                } // Errors expected under high concurrency/memory pressure
             }
             operations
         });
@@ -424,10 +423,9 @@ async fn test_concurrent_operations_heavy() {
             let mut reads = 0;
             for i in 0..ops_per_task {
                 let key = format!("concurrent_{}_{}", task_id, i);
-                match cache_clone.get::<ComplexData>(&key).await {
-                    Ok(Some(_)) => reads += 1,
-                    _ => {} // Miss or error
-                }
+                if let Ok(Some(_)) = cache_clone.get::<ComplexData>(&key).await {
+                    reads += 1;
+                } // Miss or error
             }
             reads
         });

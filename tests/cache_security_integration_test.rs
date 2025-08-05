@@ -579,10 +579,7 @@ proptest! {
                 ).unwrap();
                 for key in keys.iter() {
                     // Test if key would match pattern by checking authorization
-                    let matches = match checker.check_permission(&token, &CacheOperation::Read { key: key.clone() }) {
-                        Ok(_) => true,
-                        Err(_) => false,
-                    };
+                    let matches = checker.check_permission(&token, &CacheOperation::Read { key: key.clone() }).is_ok();
 
                     // Basic pattern matching properties
                     if pattern == "*" {

@@ -1462,7 +1462,7 @@ mod tests {
             }
             Hook::Exec { exec, .. } => {
                 assert_eq!(exec.command, "start-server");
-                assert!(exec.args.as_ref().map_or(true, |args| args.is_empty()));
+                assert!(exec.args.as_ref().is_none_or(|args| args.is_empty()));
             }
             _ => panic!("Expected Legacy or Exec hook"),
         }
@@ -1642,7 +1642,7 @@ mod tests {
             }
             Hook::Exec { exec, .. } => {
                 assert_eq!(exec.command, "cleanup.sh");
-                assert!(exec.args.as_ref().map_or(true, |args| args.is_empty()));
+                assert!(exec.args.as_ref().is_none_or(|args| args.is_empty()));
                 assert_eq!(exec.constraints.len(), 2);
 
                 // Check first constraint - shell command

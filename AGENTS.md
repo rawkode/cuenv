@@ -102,7 +102,7 @@ cargo run -- reload          # Reload environment
    - Creates binaries for:
      - x86_64-unknown-linux-musl
      - aarch64-apple-darwin
-     - x86_64-linux-static (via Nix, includes both cuenv and remote_cache_server)
+     - x86_64-linux-portable (via Nix with bundled libraries)
 
 ## Important Patterns
 
@@ -129,7 +129,7 @@ The static build (`cuenv-static`) is only available on Linux because:
 
 - It requires `glibc.static` or `musl` for static linking
 - Uses `CARGO_BUILD_TARGET = "x86_64-unknown-linux-musl"`
-- Includes both `cuenv` and `remote_cache_server` binaries
+- Creates a portable binary with bundled libraries
 
 ## Testing Approach
 

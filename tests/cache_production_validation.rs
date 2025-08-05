@@ -502,7 +502,7 @@ mod cache_production_tests {
             let barrier_clone = Arc::clone(&barrier);
             let stats_clone = Arc::clone(&global_stats);
             let errors_clone = Arc::clone(&global_errors);
-            let load_duration = load_duration.clone();
+            let load_duration = load_duration;
 
             let handle = tokio::spawn(async move {
                 barrier_clone.wait();
@@ -748,27 +748,21 @@ mod cache_production_tests {
         let mut old_hits = 0;
 
         // Test recent entries (should mostly be present)
-        for i in (stored_keys.len().saturating_sub(1000))..stored_keys.len() {
-            if i < stored_keys.len() {
-                if cache
-                    .get::<Vec<u8>>(&stored_keys[i])
-                    .await
-                    .unwrap()
-                    .is_some()
-                {
-                    recent_hits += 1;
-                }
+        for key in stored_keys
+            .iter()
+            .skip(stored_keys.len().saturating_sub(1000))
+        {
+            if cache.get::<Vec<u8>>(key).await.unwrap().is_some() {
+                recent_hits += 1;
             }
         }
 
         // Test old entries (should mostly be evicted)
-        for i in 0..std::cmp::min(1000, stored_keys.len()) {
-            if cache
-                .get::<Vec<u8>>(&stored_keys[i])
-                .await
-                .unwrap()
-                .is_some()
-            {
+        for key in stored_keys
+            .iter()
+            .take(std::cmp::min(1000, stored_keys.len()))
+        {
+            if cache.get::<Vec<u8>>(key).await.unwrap().is_some() {
                 old_hits += 1;
             }
         }

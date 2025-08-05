@@ -135,21 +135,6 @@ enum Commands {
         #[command(subcommand)]
         command: CacheCommands,
     },
-    /// Start remote cache server for Bazel/Buck2
-    #[cfg(feature = "remote-cache")]
-    RemoteCacheServer {
-        /// Address to listen on
-        #[arg(short, long, default_value = "127.0.0.1:50051")]
-        address: std::net::SocketAddr,
-
-        /// Cache directory
-        #[arg(short, long, default_value = "/var/cache/cuenv")]
-        cache_dir: PathBuf,
-
-        /// Maximum cache size in bytes
-        #[arg(long, default_value = "10737418240")]
-        max_cache_size: u64,
-    },
     /// Generate shell completion scripts
     Completion {
         /// Shell to generate completion for
@@ -1113,16 +1098,6 @@ async fn main() -> Result<()> {
                     }
                 }
             }
-        }
-        #[cfg(feature = "remote-cache")]
-        Some(Commands::RemoteCacheServer {
-            address: _,
-            cache_dir: _,
-            max_cache_size: _,
-        }) => {
-            // Temporarily disabled to focus on testing sourcing functionality
-            eprintln!("Remote cache server functionality temporarily disabled");
-            return Err(anyhow::anyhow!("Remote cache server temporarily disabled").into());
         }
         Some(Commands::Completion { shell }) => {
             generate_completion(&shell)?;

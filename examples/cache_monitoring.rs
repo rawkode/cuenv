@@ -82,7 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Pattern 2: Hot keys (frequent access to same keys)
         info!("Pattern 2: Hot keys");
-        let hot_keys = vec!["hot:popular", "hot:trending", "hot:featured"];
+        let hot_keys = ["hot:popular", "hot:trending", "hot:featured"];
         for _ in 0..200 {
             let key = hot_keys[fastrand::usize(0..hot_keys.len())];
 

@@ -107,8 +107,8 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  build-nix-static:
-    name: Build Static Binary with Nix
+  build-nix-portable:
+    name: Build Portable Binary with Nix
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -127,35 +127,32 @@ jobs:
             experimental-features = nix-command flakes
       - name: Setup Nix cache
         uses: DeterminateSystems/magic-nix-cache-action@main
-      - name: Build static binary
+      - name: Build portable binary
         run: |
-          nix build .#cuenv-static -L
+          nix build .#cuenv-portable -L
 
-          # Create artifacts directory
+          # The portable build creates a tarball in dist/
           mkdir -p artifacts
-          cp result/bin/cuenv artifacts/cuenv-static
-          cp result/bin/remote_cache_server artifacts/remote_cache_server-static
+          cp result/dist/cuenv-portable-linux-x86_64.tar.gz artifacts/
 
-          # Verify static linking
-          echo "Verifying static linking..."
-          ldd artifacts/cuenv-static || echo "Binary is statically linked (expected)"
-          ldd artifacts/remote_cache_server-static || echo "Binary is statically linked (expected)"
+          # Extract and verify the portable binary
+          cd artifacts
+          tar -xzf cuenv-portable-linux-x86_64.tar.gz
 
-          # Show binary info
+          echo "Verifying portable binary..."
+          echo "Library dependencies:"
+          ldd cuenv-portable/bin/cuenv || true
+
           echo ""
           echo "Binary info:"
-          file artifacts/cuenv-static
-          echo "Binary size: $(ls -lh artifacts/cuenv-static | awk '{print $5}')"
-          echo ""
-          file artifacts/remote_cache_server-static
-          echo "Binary size: $(ls -lh artifacts/remote_cache_server-static | awk '{print $5}')"
-      - name: Package
-        run: |
-          cd artifacts
+          file cuenv-portable/bin/cuenv
+          echo "Binary size: $(ls -lh cuenv-portable/bin/cuenv | awk '{print $5}')"
+
+          # Repackage with version in filename
           VERSION="${{ steps.get_version.outputs.VERSION }}"
-          tar czf cuenv-${VERSION}-x86_64-linux-static.tar.gz cuenv-static remote_cache_server-static
-          echo "ASSET_PATH=artifacts/cuenv-${VERSION}-x86_64-linux-static.tar.gz" >> $GITHUB_ENV
-          echo "ASSET_NAME=cuenv-${VERSION}-x86_64-linux-static.tar.gz" >> $GITHUB_ENV
+          mv cuenv-portable-linux-x86_64.tar.gz cuenv-${VERSION}-x86_64-linux-portable.tar.gz
+          echo "ASSET_PATH=artifacts/cuenv-${VERSION}-x86_64-linux-portable.tar.gz" >> $GITHUB_ENV
+          echo "ASSET_NAME=cuenv-${VERSION}-x86_64-linux-portable.tar.gz" >> $GITHUB_ENV
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:

@@ -214,8 +214,10 @@ async fn test_phase2_atomic_transactions() -> CacheResult<()> {
 #[tokio::test]
 async fn test_phase2_performance_metrics() -> CacheResult<()> {
     let temp_dir = TempDir::new().unwrap();
-    let mut config = CacheConfig::default();
-    config.compression_enabled = true;
+    let config = CacheConfig {
+        compression_enabled: true,
+        ..Default::default()
+    };
 
     let cache = UnifiedCacheV2::new(temp_dir.path().to_path_buf(), config).await?;
 
