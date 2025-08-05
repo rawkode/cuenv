@@ -38,14 +38,18 @@ jobs:
           nix build .#cuenv-static
           # Test that the static binary is actually static
           file result/bin/cuenv | grep -q "statically linked" || (echo "Binary is not statically linked!" && exit 1)
-      - name: nix-flake-check
-        run: nix flake check --print-build-logs
+      - name: nix-flake-checks
+        run: |
+          # Run formatting, clippy and unit tests (sandbox-compatible)
+          # Note: only formatting and build checks run for all attributes
+          nix flake check --print-build-logs -L
+      - name: cuenv-test-all
+        run: |
+          # Run ALL tests (unit + integration) with network access
+          nix develop --command cargo nextest run --profile ci --no-fail-fast
       - name: cuenv-test-examples
         run: |
-          # Build cuenv first
-          nix build .#cuenv
-
-          # Copy built binary to expected location
+          # Use the built binary from nix build
           mkdir -p target/debug
           cp result/bin/cuenv target/debug/
 
@@ -54,15 +58,8 @@ jobs:
           nix-shell -p cue --run "cue mod get github.com/rawkode/cuenv@0"
           cd ..
 
-          # Run the test script
+          # Run the example tests
           ./scripts/test-examples.sh
-      - name: cuenv-test-integrations
-        run: |
-          nix develop --command cargo nextest run --test test_examples
-      - name: cuenv-test-all-lib
-        run: |
-          # Run ALL lib tests including the ones skipped in Nix sandbox
-          nix develop --command cargo nextest run --lib --no-fail-fast
   coverage:
     runs-on: ubuntu-latest
     needs: test
