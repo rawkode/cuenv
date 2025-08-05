@@ -200,7 +200,7 @@
               export RUST_TEST_THREADS=1
               # Also limit Go's parallelism
               export GOMAXPROCS=1
-              # Skip memory-intensive and thread-spawning tests in constrained Nix build environment
+              # Skip tests that fail in Nix sandbox environment
               cargo test --release --lib -- \
                 --skip test_monitored_cache_operations \
                 --skip test_profiling \
