@@ -59,6 +59,10 @@ jobs:
       - name: cuenv-test-integrations
         run: |
           nix develop --command cargo nextest run --test test_examples
+      - name: cuenv-test-all-lib
+        run: |
+          # Run ALL lib tests including the ones skipped in Nix sandbox
+          nix develop --command cargo nextest run --lib --no-fail-fast
   coverage:
     runs-on: ubuntu-latest
     needs: test
