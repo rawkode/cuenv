@@ -21,7 +21,8 @@
       "WebFetch(domain:nexte.st)",
       "Bash(RUST_BACKTRACE=1 nix develop -c cargo nextest run test_task_execution --no-capture)",
       "Bash(touch:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(sed:*)"
     ],
     "deny": []
   },
@@ -36,5 +37,6 @@
         ]
       }
     ]
-  }
+  },
+  "$schema": "https://json.schemastore.org/claude-code-settings.json"
 }

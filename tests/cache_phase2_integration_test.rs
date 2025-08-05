@@ -2,20 +2,21 @@
 //!
 //! Tests compression, WAL recovery, corruption detection, and performance
 
-use cuenv::cache::{Cache, CacheResult, UnifiedCacheConfig as CacheConfig, UnifiedCacheV2};
+use cuenv::cache::{Cache, CacheResult, ProductionCache, UnifiedCacheConfig as CacheConfig};
 use std::time::Duration;
 use tempfile::TempDir;
-use tokio;
 
 #[tokio::test]
 async fn test_phase2_compression_effectiveness() -> CacheResult<()> {
     let temp_dir = TempDir::new().unwrap();
-    let mut config = CacheConfig::default();
-    config.compression_enabled = true;
-    config.compression_level = Some(3);
-    config.compression_min_size = Some(100);
+    let config = CacheConfig {
+        compression_enabled: true,
+        compression_level: Some(3),
+        compression_min_size: Some(100),
+        ..Default::default()
+    };
 
-    let cache = UnifiedCacheV2::new(temp_dir.path().to_path_buf(), config).await?;
+    let cache = ProductionCache::new(temp_dir.path().to_path_buf(), config).await?;
 
     // Test 1: Small data (should not be compressed)
     let small_data = "Small data".to_string();
@@ -55,7 +56,7 @@ async fn test_phase2_wal_crash_recovery() -> CacheResult<()> {
 
     // Step 1: Create cache and write data
     {
-        let cache = UnifiedCacheV2::new(path.clone(), CacheConfig::default()).await?;
+        let cache = ProductionCache::new(path.clone(), CacheConfig::default()).await?;
 
         // Write multiple entries
         for i in 0..10 {
@@ -81,7 +82,7 @@ async fn test_phase2_wal_crash_recovery() -> CacheResult<()> {
                                 for shard4 in shard4_entries.flatten() {
                                     let file_path = shard4.path();
                                     if file_path.is_file()
-                                        && file_path.extension().map_or(false, |ext| ext == "meta")
+                                        && file_path.extension().is_some_and(|ext| ext == "meta")
                                     {
                                         // Corrupt by truncating
                                         std::fs::write(&file_path, b"corrupted").ok();
@@ -100,7 +101,7 @@ async fn test_phase2_wal_crash_recovery() -> CacheResult<()> {
     }
 
     // Step 3: Create new cache instance - should handle corruption gracefully
-    let cache2 = UnifiedCacheV2::new(path, CacheConfig::default()).await?;
+    let cache2 = ProductionCache::new(path, CacheConfig::default()).await?;
 
     // The cache should initialize successfully despite corrupted files
     // Try to write and read new data
@@ -132,7 +133,7 @@ async fn test_phase2_wal_crash_recovery() -> CacheResult<()> {
 #[tokio::test]
 async fn test_phase2_corruption_detection() -> CacheResult<()> {
     let temp_dir = TempDir::new().unwrap();
-    let cache = UnifiedCacheV2::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
+    let cache = ProductionCache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
 
     // Write test data
     let test_data = vec![0u8; 1000];
@@ -142,7 +143,7 @@ async fn test_phase2_corruption_detection() -> CacheResult<()> {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(b"corrupt_test");
-    hasher.update(&3u32.to_le_bytes()); // version 3
+    hasher.update(3u32.to_le_bytes()); // version 3
     let hash = format!("{:x}", hasher.finalize());
 
     let data_path = temp_dir
@@ -180,7 +181,7 @@ async fn test_phase2_corruption_detection() -> CacheResult<()> {
 #[tokio::test]
 async fn test_phase2_atomic_transactions() -> CacheResult<()> {
     let temp_dir = TempDir::new().unwrap();
-    let cache = UnifiedCacheV2::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
+    let cache = ProductionCache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
 
     // Perform multiple operations atomically
     let mut handles = vec![];
@@ -219,7 +220,7 @@ async fn test_phase2_performance_metrics() -> CacheResult<()> {
         ..Default::default()
     };
 
-    let cache = UnifiedCacheV2::new(temp_dir.path().to_path_buf(), config).await?;
+    let cache = ProductionCache::new(temp_dir.path().to_path_buf(), config).await?;
 
     // Generate test data of various sizes
     let small_data = vec![0u8; 100];
@@ -265,7 +266,7 @@ async fn test_phase2_performance_metrics() -> CacheResult<()> {
 #[tokio::test]
 async fn test_phase2_concurrent_access() -> CacheResult<()> {
     let temp_dir = TempDir::new().unwrap();
-    let cache = UnifiedCacheV2::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
+    let cache = ProductionCache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
 
     // Spawn multiple readers and writers
     let mut handles = vec![];
@@ -313,7 +314,7 @@ async fn test_phase2_concurrent_access() -> CacheResult<()> {
 #[tokio::test]
 async fn test_phase2_expiration_with_compression() -> CacheResult<()> {
     let temp_dir = TempDir::new().unwrap();
-    let cache = UnifiedCacheV2::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
+    let cache = ProductionCache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
 
     // Insert data with short TTL
     let data = vec!["test".to_string(); 1000];

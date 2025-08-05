@@ -48,7 +48,7 @@ mod landlock_tests {
 
         let restrictions = AccessRestrictions::from_security_config(&security_config);
         let mut cmd = Command::new("curl");
-        cmd.args(&["-I", "--max-time", "2", "https://www.google.com"]);
+        cmd.args(["-I", "--max-time", "2", "https://www.google.com"]);
 
         restrictions.apply_to_command(&mut cmd).unwrap();
         let output = cmd.output().expect("Failed to execute command");
@@ -72,7 +72,7 @@ mod landlock_tests {
 
         let restrictions = AccessRestrictions::from_security_config(&security_config);
         let mut cmd = Command::new("curl");
-        cmd.args(&["-I", "--max-time", "5", "https://www.google.com"]);
+        cmd.args(["-I", "--max-time", "5", "https://www.google.com"]);
 
         restrictions.apply_to_command(&mut cmd).unwrap();
         let output = cmd.output().expect("Failed to execute command");

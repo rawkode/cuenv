@@ -406,14 +406,14 @@ pub struct PredictorStatistics {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cache::cache_impl::Cache;
     use crate::cache::traits::CacheConfig;
-    use crate::cache::unified::UnifiedCache;
     use tempfile;
 
     #[tokio::test]
     async fn test_sequential_pattern_detection() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let base_cache = UnifiedCache::new(temp_dir.path().to_path_buf(), CacheConfig::default())
+        let base_cache = Cache::new(temp_dir.path().to_path_buf(), CacheConfig::default())
             .await
             .unwrap();
         let cache = Arc::new(MonitoredCache::new(base_cache, "test").unwrap());

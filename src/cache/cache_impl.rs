@@ -13,7 +13,9 @@ use crate::cache::eviction::{create_eviction_policy, EvictionPolicy};
 use crate::cache::fast_path::FastPathCache;
 use crate::cache::memory_manager::{MemoryManager, MemoryThresholds};
 use crate::cache::streaming::{CacheReader, CacheWriter, StreamingCache};
-use crate::cache::traits::{Cache, CacheConfig, CacheKey, CacheMetadata, CacheStatistics};
+use crate::cache::traits::{
+    Cache as CacheTrait, CacheConfig, CacheKey, CacheMetadata, CacheStatistics,
+};
 use async_trait::async_trait;
 use dashmap::DashMap;
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -35,7 +37,7 @@ use tokio::task::JoinHandle;
 
 /// Production-ready unified cache implementation
 #[derive(Clone)]
-pub struct UnifiedCache {
+pub struct Cache {
     inner: Arc<CacheInner>,
 }
 
@@ -82,7 +84,7 @@ struct CacheStats {
     stats_since: SystemTime,
 }
 
-impl UnifiedCache {
+impl Cache {
     /// Create a new unified cache with production-ready features
     pub async fn new(base_dir: PathBuf, config: CacheConfig) -> Result<Self> {
         // Create cache directories
@@ -416,7 +418,7 @@ impl UnifiedCache {
 }
 
 #[async_trait]
-impl Cache for UnifiedCache {
+impl CacheTrait for Cache {
     async fn get<T>(&self, key: &str) -> Result<Option<T>>
     where
         T: DeserializeOwned + Send + 'static,
@@ -1141,9 +1143,9 @@ impl Cache for UnifiedCache {
     }
 }
 
-impl fmt::Debug for UnifiedCache {
+impl fmt::Debug for Cache {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("UnifiedCache")
+        f.debug_struct("Cache")
             .field("base_dir", &self.inner.base_dir)
             .field("version", &self.inner.version)
             .field("entry_count", &self.inner.memory_cache.len())
@@ -1160,7 +1162,7 @@ impl Drop for CacheInner {
     }
 }
 
-impl StreamingCache for UnifiedCache {
+impl StreamingCache for Cache {
     fn get_reader<'a>(
         &'a self,
         key: &'a str,
@@ -1456,8 +1458,7 @@ mod tests {
     #[tokio::test]
     async fn test_basic_operations() -> Result<()> {
         let temp_dir = TempDir::new().unwrap();
-        let cache =
-            UnifiedCache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
+        let cache = Cache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
 
         // Test put and get
         match cache.put("key1", &"value1", None).await {
@@ -1503,8 +1504,7 @@ mod tests {
     #[tokio::test]
     async fn test_expiration() -> Result<()> {
         let temp_dir = TempDir::new().unwrap();
-        let cache =
-            UnifiedCache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
+        let cache = Cache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
 
         // Put with short TTL
         match cache
@@ -1538,8 +1538,7 @@ mod tests {
     #[tokio::test]
     async fn test_statistics() -> Result<()> {
         let temp_dir = TempDir::new().unwrap();
-        let cache =
-            UnifiedCache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
+        let cache = Cache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
 
         match cache.put("key1", &"value1", None).await {
             Ok(()) => {}
@@ -1577,8 +1576,7 @@ mod tests {
     #[tokio::test]
     async fn test_zero_copy_mmap() -> Result<()> {
         let temp_dir = TempDir::new().unwrap();
-        let cache =
-            UnifiedCache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
+        let cache = Cache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
 
         // Write a large value
         let large_data = vec![0u8; 1024 * 1024]; // 1MB
@@ -1616,7 +1614,7 @@ mod tests {
 
             rt.block_on(async {
                 let temp_dir = TempDir::new().unwrap();
-                let cache = UnifiedCache::new(
+                let cache = Cache::new(
                     temp_dir.path().to_path_buf(),
                     CacheConfig::default()
                 ).await.unwrap();

@@ -54,7 +54,7 @@ mod chaos_concurrent_tests {
                 Err(Error::file_system(
                     PathBuf::from("chaos"),
                     operation,
-                    std::io::Error::new(ErrorKind::Other, "Chaos injection"),
+                    std::io::Error::other("Chaos injection"),
                 ))
             } else {
                 Ok(())
@@ -238,7 +238,7 @@ mod chaos_concurrent_tests {
                                     }
 
                                     // Normal unload
-                                    if let Ok(_) = StateManager::unload().await {
+                                    if StateManager::unload().await.is_ok() {
                                         recoveries.fetch_add(1, Ordering::SeqCst);
                                     }
                                 }
@@ -332,7 +332,7 @@ mod chaos_concurrent_tests {
 
                 tasks_cue_content.push_str("    }\n");
             }
-            tasks_cue_content.push_str("}");
+            tasks_cue_content.push('}');
 
             // Write the CUE file
             let env_file = temp_dir.path().join("env.cue");

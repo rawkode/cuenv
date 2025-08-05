@@ -138,16 +138,15 @@ impl From<crate::cache::monitoring::RealTimeStatsReport> for StatsJson {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cache::cache_impl::Cache;
     use crate::cache::monitored_cache::MonitoredCacheBuilder;
-    use crate::cache::traits::CacheConfig;
-    use crate::cache::unified::UnifiedCache;
+    use crate::cache::traits::{Cache as CacheTrait, CacheConfig};
     use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_metrics_endpoint() -> Result<(), Box<dyn std::error::Error>> {
         let temp_dir = TempDir::new().unwrap();
-        let base_cache =
-            UnifiedCache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
+        let base_cache = Cache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
 
         let monitored = MonitoredCacheBuilder::new(base_cache)
             .with_service_name("test-endpoint")

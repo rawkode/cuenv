@@ -18,7 +18,7 @@ fn test_cache_monitor_creation() {
 
     // Test hit rate
     let hit_rate = monitor.hit_rate();
-    assert!(hit_rate >= 0.0 && hit_rate <= 1.0);
+    assert!((0.0..=1.0).contains(&hit_rate));
 
     // Test hit rate report
     let report = monitor.hit_rate_report();

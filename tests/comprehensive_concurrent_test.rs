@@ -132,7 +132,6 @@ mod comprehensive_concurrent_tests {
             .map(|writer_id| {
                 let barrier = Arc::clone(&barrier);
                 let src_dir = src_dir.clone();
-                let start_time = start_time.clone();
 
                 thread::spawn(move || {
                     barrier.wait();
@@ -161,7 +160,6 @@ mod comprehensive_concurrent_tests {
                 let cache_manager = Arc::clone(&cache_manager);
                 let inconsistencies = Arc::clone(&inconsistencies);
                 let working_dir = temp_dir.path().to_path_buf();
-                let start_time = start_time.clone();
 
                 thread::spawn(move || {
                     barrier.wait();
@@ -482,13 +480,12 @@ tasks: {
             thread::sleep(Duration::from_millis(10));
 
             // This might need to wait for thread 1
-            let result = cache_manager2.generate_cache_key(
+            cache_manager2.generate_cache_key(
                 "timeout_test",
                 &task_config,
                 &HashMap::new(),
                 &temp_dir2,
-            );
-            result
+            )
         });
 
         let result1 = handle1.join().unwrap();

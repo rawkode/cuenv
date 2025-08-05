@@ -46,7 +46,7 @@ mod landlock_audit_tests {
         restrictions.enable_audit_mode();
 
         let mut cmd = Command::new("ping");
-        cmd.args(&["-c", "1", "-W", "1", "127.0.0.1"]);
+        cmd.args(["-c", "1", "-W", "1", "127.0.0.1"]);
 
         match restrictions.run_with_audit(&mut cmd) {
             Ok((_, report)) => {

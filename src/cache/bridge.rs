@@ -3,9 +3,9 @@
 //! This module provides production-grade bridging between async and sync contexts
 //! using tokio::task::spawn_blocking and proper runtime management.
 
+use crate::cache::cache_impl::Cache;
 use crate::cache::errors::{CacheError, RecoveryHint, Result};
-use crate::cache::traits::{Cache, CacheMetadata, CacheStatistics};
-use crate::cache::unified::UnifiedCache;
+use crate::cache::traits::{Cache as CacheTrait, CacheMetadata, CacheStatistics};
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt;
 use std::sync::Arc;
@@ -14,11 +14,11 @@ use tokio::runtime::{Handle, Runtime};
 
 /// Sync wrapper for the async cache
 ///
-/// This provides a synchronous interface to the async UnifiedCache
+/// This provides a synchronous interface to the async Cache
 /// for use in non-async contexts.
 pub struct SyncCache {
     /// The underlying async cache
-    cache: Arc<UnifiedCache>,
+    cache: Arc<Cache>,
     /// Runtime handle for executing async operations
     runtime: RuntimeHandle,
 }
@@ -33,7 +33,7 @@ enum RuntimeHandle {
 
 impl SyncCache {
     /// Create a new sync cache with its own runtime
-    pub fn new(cache: UnifiedCache) -> Result<Self> {
+    pub fn new(cache: Cache) -> Result<Self> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -53,7 +53,7 @@ impl SyncCache {
     /// Create a sync cache using the current async runtime
     ///
     /// This should be called from within an async context.
-    pub fn from_async(cache: UnifiedCache) -> Result<Self> {
+    pub fn from_async(cache: Cache) -> Result<Self> {
         let handle = Handle::try_current().map_err(|_| CacheError::Configuration {
             message: "No async runtime found".to_string(),
             recovery_hint: RecoveryHint::Manual {
@@ -96,7 +96,7 @@ impl SyncCache {
     where
         T: DeserializeOwned + Send + 'static,
     {
-        let cache = Arc::clone(&self.cache);
+        let cache: Arc<Cache> = Arc::clone(&self.cache);
         let key = key.to_string();
 
         self.block_on(async move { cache.get(&key).await })
@@ -107,7 +107,7 @@ impl SyncCache {
     where
         T: Serialize + Send + Sync + Clone + 'static,
     {
-        let cache = Arc::clone(&self.cache);
+        let cache: Arc<Cache> = Arc::clone(&self.cache);
         let key = key.to_string();
         let value = value.clone();
 
@@ -116,7 +116,7 @@ impl SyncCache {
 
     /// Remove a value from the cache
     pub fn remove(&self, key: &str) -> Result<bool> {
-        let cache = Arc::clone(&self.cache);
+        let cache: Arc<Cache> = Arc::clone(&self.cache);
         let key = key.to_string();
 
         self.block_on(async move { cache.remove(&key).await })
@@ -124,7 +124,7 @@ impl SyncCache {
 
     /// Check if a key exists in the cache
     pub fn contains(&self, key: &str) -> Result<bool> {
-        let cache = Arc::clone(&self.cache);
+        let cache: Arc<Cache> = Arc::clone(&self.cache);
         let key = key.to_string();
 
         self.block_on(async move { cache.contains(&key).await })
@@ -132,7 +132,7 @@ impl SyncCache {
 
     /// Get metadata about a cached entry
     pub fn metadata(&self, key: &str) -> Result<Option<CacheMetadata>> {
-        let cache = Arc::clone(&self.cache);
+        let cache: Arc<Cache> = Arc::clone(&self.cache);
         let key = key.to_string();
 
         self.block_on(async move { cache.metadata(&key).await })
@@ -140,14 +140,14 @@ impl SyncCache {
 
     /// Clear all entries from the cache
     pub fn clear(&self) -> Result<()> {
-        let cache = Arc::clone(&self.cache);
+        let cache: Arc<Cache> = Arc::clone(&self.cache);
 
         self.block_on(async move { cache.clear().await })
     }
 
     /// Get cache statistics
     pub fn statistics(&self) -> Result<CacheStatistics> {
-        let cache = Arc::clone(&self.cache);
+        let cache: Arc<Cache> = Arc::clone(&self.cache);
 
         self.block_on(async move { cache.statistics().await })
     }
@@ -183,8 +183,8 @@ impl CacheBuilder {
     }
 
     /// Build an async cache
-    pub async fn build_async(self) -> Result<UnifiedCache> {
-        UnifiedCache::new(self.base_dir, self.config).await
+    pub async fn build_async(self) -> Result<Cache> {
+        Cache::new(self.base_dir, self.config).await
     }
 
     /// Build a sync cache
@@ -203,7 +203,7 @@ impl CacheBuilder {
                         },
                     })?;
 
-                let cache = runtime.block_on(UnifiedCache::new(self.base_dir, self.config))?;
+                let cache = runtime.block_on(Cache::new(self.base_dir, self.config))?;
                 SyncCache::new(cache)
             })
             .join()
@@ -225,7 +225,7 @@ impl CacheBuilder {
                     },
                 })?;
 
-            let cache = runtime.block_on(UnifiedCache::new(self.base_dir, self.config))?;
+            let cache = runtime.block_on(Cache::new(self.base_dir, self.config))?;
             SyncCache::new(cache)
         }
     }
@@ -233,8 +233,8 @@ impl CacheBuilder {
     /// Build a cache automatically based on the current context
     ///
     /// Returns the concrete cache type for maximum flexibility.
-    pub async fn build_auto(self) -> Result<UnifiedCache> {
-        UnifiedCache::new(self.base_dir, self.config).await
+    pub async fn build_auto(self) -> Result<Cache> {
+        Cache::new(self.base_dir, self.config).await
     }
 }
 
