@@ -11,7 +11,7 @@ env: {
 	RUST_TEST_THREADS: "4"
 	GOMAXPROCS:        "4"
 
-	// Build configuration  
+	// Build configuration
 	CGO_ENABLED: "1"
 }
 
@@ -250,7 +250,7 @@ tasks: {
 			echo ""
 			echo "This task replaces 'nix flake check' and includes:"
 			echo "  - Code formatting validation"
-			echo "  - Clippy lints" 
+			echo "  - Clippy lints"
 			echo "  - Build verification"
 			echo "  - Unit and integration tests"
 			echo "  - Example testing"
@@ -398,13 +398,13 @@ tasks: {
 		script: """
 			echo "Updating Rust dependencies..."
 			cargo update
-			
+
 			echo "Updating Go dependencies in libcue-bridge..."
 			cd libcue-bridge
 			go get -u ./...
 			go mod tidy
 			cd ..
-			
+
 			echo "Dependencies updated!"
 			echo "Run 'cuenv task test' to verify everything still works."
 			"""
@@ -424,6 +424,77 @@ tasks: {
 			echo "Binary sizes:"
 			ls -lh target/release/cuenv 2>/dev/null || echo "Release binary not found - run 'cuenv task build' first"
 			ls -lh target/debug/cuenv 2>/dev/null || echo "Debug binary not found - run 'cuenv task build:debug' first"
+			"""
+	}
+
+	// === Nix Helper Tasks ===
+
+	"nix:vendor:update": {
+		description: "Recalculates and updates the Cargo vendor hash in flake.nix"
+		cache:       false
+		inputs: ["Cargo.lock"] // Depends on Cargo.lock, but also modifies flake.nix
+		script: """
+			#!/bin/bash
+			# This script safely updates the cargoVendor hash in flake.nix by forcing
+			# Nix to re-calculate it. This is the standard, most reliable method.
+			set -euo pipefail
+
+			FLAKE_FILE="flake.nix"
+			DUMMY_HASH="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+
+			# Preserve the original file content to restore on any script failure.
+			ORIGINAL_CONTENT=$(cat "$FLAKE_FILE")
+
+			# Cleanup function to restore the flake file if the script exits unexpectedly.
+			cleanup() {
+				if [ -n "${ORIGINAL_CONTENT-}" ]; then
+					echo "$ORIGINAL_CONTENT" > "$FLAKE_FILE"
+					echo "Restored original flake.nix due to an error."
+				fi
+			}
+			trap cleanup EXIT
+
+			echo "Calculating new vendor hash by probing Nix..."
+
+			# Find the cargo vendor hash line to be replaced.
+			HASH_LINE=$(grep 'name = "cuenv-cargo-vendor";' -A 1 "$FLAKE_FILE" | grep 'hash =')
+			if [ -z "$HASH_LINE" ]; then
+				echo "Error: Could not find the cargoVendor hash line in $FLAKE_FILE."
+				exit 1 # trap will restore the file
+			fi
+
+			# Replace the real hash with a dummy value to force Nix to report the correct one.
+			TEMP_CONTENT=$(echo "$ORIGINAL_CONTENT" | sed "s|$HASH_LINE|                hash = \"$DUMMY_HASH\";|")
+			echo "$TEMP_CONTENT" > "$FLAKE_FILE"
+
+			# Run Nix to get the correct hash. This is expected to fail with a mismatch error.
+			NIX_OUTPUT=$(nix flake check --quiet 2>&1) || true
+
+			# Check if we got the expected hash mismatch error.
+			if echo "$NIX_OUTPUT" | grep -q "hash mismatch"; then
+				CORRECT_HASH=$(echo "$NIX_OUTPUT" | grep "got:" | awk '{print $2}')
+
+				if [ -n "$CORRECT_HASH" ]; then
+					echo "New hash found: $CORRECT_HASH"
+					# Create the final version of flake.nix with the correct hash.
+					FINAL_CONTENT=$(echo "$ORIGINAL_CONTENT" | sed "s|$HASH_LINE|                hash = \"$CORRECT_HASH\";|")
+					echo "$FINAL_CONTENT" > "$FLAKE_FILE"
+
+					# Disable the exit trap because we have succeeded.
+					trap - EXIT
+					echo "✅ flake.nix has been updated successfully."
+					echo "   Please review and commit the changes."
+				else
+					echo "Error: Hash mismatch detected, but could not extract the new hash." >&2
+					echo "$NIX_OUTPUT" >&2
+					exit 1 # trap will restore the file
+				fi
+			else
+				echo "Error: Expected a hash mismatch, but a different error occurred." >&2
+				echo "It's possible the hash was already correct, or another Nix error happened." >&2
+				echo "$NIX_OUTPUT" >&2
+				exit 1 # trap will restore the file
+			fi
 			"""
 	}
 }

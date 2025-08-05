@@ -47,10 +47,14 @@ jobs:
           mkdir -p target/debug
           cp result/bin/cuenv target/debug/
 
-          # Fetch CUE dependencies with network access
-          cd examples
-          nix-shell -p cue --run "cue mod get github.com/rawkode/cuenv@0"
-          cd ..
+          # To ensure we test the local CUE schema, not a remote one,
+          # we manually populate the CUE module cache. This avoids
+          # running `cue mod get`.
+          # CUE's cache path is cue/cue.mod/pkg/
+          export CUE_CACHE_DIR="examples/cue.mod/pkg"
+          export SCHEMA_PATH="$CUE_CACHE_DIR/github.com/rawkode/cuenv@v0"
+          mkdir -p "$SCHEMA_PATH"
+          cp -r cue/* "$SCHEMA_PATH/"
 
           # Run the example tests
           ./scripts/test-examples.sh
