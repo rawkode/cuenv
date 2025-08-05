@@ -634,6 +634,8 @@ fn extract_hooks(hooks_config: Option<HooksConfig>) -> HashMap<String, Vec<Hook>
 
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
+    
     // Tests for pure functions
     #[test]
     fn test_validate_package_name() {
@@ -749,6 +751,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_only_env_package_allowed() {
         // Test that non-env packages are rejected
         let content = r#"
@@ -779,6 +782,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_simple_env() {
         let content = r#"
         package env
@@ -803,6 +807,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_with_comments() {
         let content = r#"
         package env
@@ -828,6 +833,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_cue_features() {
         let content = r#"
         package env
@@ -852,6 +858,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_package_requirement() {
         let content = r#"{
             env: {
@@ -864,6 +871,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_with_environments() {
         let content = r#"
         package env
@@ -926,6 +934,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_with_capabilities() {
         let content = r#"
         package env
@@ -968,6 +977,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_with_commands() {
         let content = r#"
         package env
@@ -1018,6 +1028,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_with_env_and_capabilities() {
         let content = r#"
         package env
@@ -1061,6 +1072,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_empty_cue_file() {
         let content = r#"
         package env
@@ -1073,6 +1085,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_structured_secrets() {
         // Test with simpler CUE syntax that the parser can handle
         let content = r#"
@@ -1116,6 +1129,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_with_nested_objects() {
         let content = r#"
         package env
@@ -1134,6 +1148,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_value_types() {
         let content = r#"
         package env
@@ -1161,6 +1176,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_with_hooks() {
         let content = r#"
         package env
@@ -1215,6 +1231,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_hooks_with_url() {
         let content = r#"
         package env
@@ -1258,6 +1275,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_empty_hooks() {
         let content = r#"
         package env
@@ -1277,6 +1295,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_no_hooks() {
         let content = r#"
         package env
@@ -1294,6 +1313,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_hooks_with_complex_args() {
         let content = r#"
         package env
@@ -1348,6 +1368,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_hooks_with_environments() {
         let content = r#"
         package env
@@ -1408,6 +1429,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_hooks_only_on_enter() {
         let content = r#"
         package env
@@ -1447,6 +1469,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_hooks_only_on_exit() {
         let content = r#"
         package env
@@ -1486,6 +1509,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_hooks_with_constraints() {
         let content = r#"
         package env
@@ -1641,6 +1665,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_parse_hooks_with_no_constraints() {
         let content = r#"
         package env

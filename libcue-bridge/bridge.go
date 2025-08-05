@@ -81,14 +81,34 @@ func cue_free_string(s *C.char) {
 
 //export cue_eval_package
 func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
+	// Add recover to catch any panics
+	var result *C.char
+	defer func() {
+		if r := recover(); r != nil {
+			errMsg := map[string]string{"error": fmt.Sprintf("Internal error: %v", r)}
+			errBytes, _ := json.Marshal(errMsg)
+			// Note: In a real panic scenario, this might not work, but it's worth trying
+			result = C.CString(string(errBytes))
+		}
+	}()
+
 	goDir := C.GoString(dirPath)
 	goPkg := C.GoString(packageName)
+
+	// Validate inputs
+	if goDir == "" {
+		errMsg := map[string]string{"error": "Directory path cannot be empty"}
+		errBytes, _ := json.Marshal(errMsg)
+		result = C.CString(string(errBytes))
+		return result
+	}
 
 	// Only allow loading the "env" package
 	if goPkg != "env" {
 		errMsg := map[string]string{"error": fmt.Sprintf("Only 'env' package is supported, got '%s'. Please ensure your .cue files use 'package env'", goPkg)}
 		errBytes, _ := json.Marshal(errMsg)
-		return C.CString(string(errBytes))
+		result = C.CString(string(errBytes))
+		return result
 	}
 
 	// Create a registry for module resolution
@@ -98,7 +118,8 @@ func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
 	if err != nil {
 		errMsg := map[string]string{"error": "Failed to create registry: " + err.Error()}
 		errBytes, _ := json.Marshal(errMsg)
-		return C.CString(string(errBytes))
+		result = C.CString(string(errBytes))
+		return result
 	}
 
 	// Load the CUE package from the directory
@@ -111,11 +132,13 @@ func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
 	}
 
 	// Load all .cue files in the directory
-	instances := load.Instances(nil, cfg)
+	// Pass empty args array instead of nil to avoid potential issues
+	instances := load.Instances([]string{}, cfg)
 	if len(instances) == 0 {
 		errMsg := map[string]string{"error": "No CUE instances found in directory"}
 		errBytes, _ := json.Marshal(errMsg)
-		return C.CString(string(errBytes))
+		result = C.CString(string(errBytes))
+		return result
 	}
 
 	// Check for load errors
@@ -123,7 +146,8 @@ func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
 	if inst.Err != nil {
 		errMsg := map[string]string{"error": inst.Err.Error()}
 		errBytes, _ := json.Marshal(errMsg)
-		return C.CString(string(errBytes))
+		result = C.CString(string(errBytes))
+		return result
 	}
 
 	// Build the instance
@@ -133,21 +157,24 @@ func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
 	if v.Err() != nil {
 		errMsg := map[string]string{"error": v.Err().Error()}
 		errBytes, _ := json.Marshal(errMsg)
-		return C.CString(string(errBytes))
+		result = C.CString(string(errBytes))
+		return result
 	}
 
 	// Use the same extraction logic as cue_parse_string
-	result := extractCueData(v)
+	data := extractCueData(v)
 
 	// Convert to JSON
-	jsonBytes, err := json.Marshal(result)
+	jsonBytes, err := json.Marshal(data)
 	if err != nil {
 		errMsg := map[string]string{"error": err.Error()}
 		errBytes, _ := json.Marshal(errMsg)
-		return C.CString(string(errBytes))
+		result = C.CString(string(errBytes))
+		return result
 	}
 
-	return C.CString(string(jsonBytes))
+	result = C.CString(string(jsonBytes))
+	return result
 }
 
 // extractCueData extracts the structured data from a CUE value
