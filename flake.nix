@@ -315,23 +315,7 @@
               doCheck = true;
             });
 
-            examples = cuenv.overrideAttrs (oldAttrs: {
-              pname = "cuenv-examples";
-              nativeBuildInputs = oldAttrs.nativeBuildInputs ++ [ pkgs.cue ];
-              buildPhase = ''
-                runHook preBuild
-                # Test all examples (skip CUE dependency fetching in sandbox)
-                export CUENV_SKIP_CUE_FETCH=1
-                bash ./scripts/test-examples.sh
-                runHook postBuild
-              '';
-
-              installPhase = ''
-                touch $out
-              '';
-
-              doCheck = false;
-            });
+            # Examples check removed - now runs in CI with network access
           };
 
           # Make formatter available

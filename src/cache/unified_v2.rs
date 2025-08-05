@@ -875,10 +875,7 @@ mod tests {
         let cache2 = UnifiedCacheV2::new(path, CacheConfig::default()).await?;
 
         // Data should be accessible (either recovered or re-read)
-        let value: Option<String> = match cache2.get("wal_test").await {
-            Ok(v) => v,
-            Err(_) => None,
-        };
+        let value: Option<String> = cache2.get("wal_test").await.unwrap_or_default();
 
         // The data might not be recovered if metadata was also removed,
         // but the cache should not crash

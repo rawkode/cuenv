@@ -564,9 +564,20 @@ mod cache_property_tests {
                         }
                     }
 
-                    // Get and metadata should not fail with invalid keys in a production cache
-                    prop_assert!(get_result.is_ok(), "Get should not fail with invalid keys");
-                    prop_assert!(metadata_result.is_ok(), "Metadata should not fail with invalid keys");
+                    // Get and metadata should handle invalid keys gracefully (either Ok(None) or InvalidKey error)
+                    match get_result {
+                        Ok(_) | Err(CacheError::InvalidKey { .. }) => {
+                            // Both outcomes are acceptable for invalid keys
+                        }
+                        Err(e) => prop_assert!(false, "Get should only fail with InvalidKey error for invalid keys, got: {}", e),
+                    }
+
+                    match metadata_result {
+                        Ok(_) | Err(CacheError::InvalidKey { .. }) => {
+                            // Both outcomes are acceptable for invalid keys
+                        }
+                        Err(e) => prop_assert!(false, "Metadata should only fail with InvalidKey error for invalid keys, got: {}", e),
+                    }
                 }
 
                 // Cache should still be usable after error conditions

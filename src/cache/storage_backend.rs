@@ -553,6 +553,7 @@ impl Default for CompressionConfig {
 /// Storage backend for the cache system
 pub struct StorageBackend {
     /// Base directory for storage
+    #[allow(dead_code)]
     base_dir: PathBuf,
     /// Write-ahead log
     wal: Arc<WriteAheadLog>,
@@ -698,11 +699,24 @@ impl StorageBackend {
         // Decide whether to compress
         let should_compress = self.compression.enabled && data.len() >= self.compression.min_size;
 
+        tracing::debug!(
+            "Write decision - path: {:?}, data_len: {}, min_size: {}, should_compress: {}",
+            path,
+            data.len(),
+            self.compression.min_size,
+            should_compress
+        );
+
         // Compress if needed
         let (compressed_data, compressed_size, uncompressed_size) = if should_compress {
             match zstd_encode(data, self.compression.level) {
                 Ok(compressed) => {
                     let compressed_len = compressed.len();
+                    tracing::debug!(
+                        "Compressed data - original: {}, compressed: {}",
+                        data.len(),
+                        compressed_len
+                    );
                     (compressed, compressed_len as u64, data.len() as u64)
                 }
                 Err(e) => {
@@ -830,17 +844,9 @@ impl StorageBackend {
             }
         };
 
-        // Deserialize header
-        let header_size = std::mem::size_of::<StorageHeader>();
-        if file_data.len() < header_size {
-            return Err(CacheError::Corruption {
-                key: path.to_string_lossy().to_string(),
-                reason: "File too small to contain header".to_string(),
-                recovery_hint: RecoveryHint::ClearAndRetry,
-            });
-        }
-
-        let header: StorageHeader = match bincode::deserialize(&file_data[..header_size]) {
+        // Deserialize header - bincode uses variable length encoding
+        // So we need to deserialize from the beginning and let bincode determine the size
+        let header: StorageHeader = match bincode::deserialize(&file_data) {
             Ok(h) => h,
             Err(e) => {
                 return Err(CacheError::Serialization {
@@ -858,11 +864,38 @@ impl StorageBackend {
             Err(e) => return Err(e),
         }
 
+        // Calculate header size by serializing it again
+        let header_bytes = match bincode::serialize(&header) {
+            Ok(b) => b,
+            Err(e) => {
+                return Err(CacheError::Serialization {
+                    key: path.to_string_lossy().to_string(),
+                    operation: SerializationOp::Encode,
+                    source: Box::new(e),
+                    recovery_hint: RecoveryHint::ClearAndRetry,
+                });
+            }
+        };
+        let header_size = header_bytes.len();
+
         // Extract data portion
+        if file_data.len() < header_size {
+            return Err(CacheError::Corruption {
+                key: path.to_string_lossy().to_string(),
+                reason: "File too small after header".to_string(),
+                recovery_hint: RecoveryHint::ClearAndRetry,
+            });
+        }
         let data = &file_data[header_size..];
 
         // Verify data CRC
         let actual_crc = crc32c(data);
+
+        tracing::debug!(
+            "Read validation - path: {:?}, is_compressed: {}, data_len: {}, expected_crc: {:08x}, actual_crc: {:08x}",
+            path, header.is_compressed(), data.len(), header.data_crc, actual_crc
+        );
+
         if actual_crc != header.data_crc {
             return Err(CacheError::Corruption {
                 key: path.to_string_lossy().to_string(),
@@ -937,51 +970,59 @@ impl StorageBackend {
 
     /// Recover from WAL on startup
     async fn recover(&self) -> Result<()> {
-        let backend_clone = self.base_dir.clone();
-        let io_sem = Arc::clone(&self.io_semaphore);
+        // Collect operations first to avoid sync/async mixing
+        let mut operations = Vec::new();
 
-        self.wal.replay(move |op| {
-            // We need to execute synchronously in the callback
-            let rt = tokio::runtime::Handle::current();
-            let _backend_dir = backend_clone.clone();
-            let sem = Arc::clone(&io_sem);
+        self.wal.replay(|op| {
+            operations.push(op.clone());
+            Ok(())
+        })?;
 
-            rt.block_on(async move {
-                let _permit = match sem.acquire().await {
-                    Ok(p) => p,
-                    Err(_) => return Ok(()),
-                };
+        // Process operations asynchronously
+        for op in operations {
+            let _permit =
+                self.io_semaphore
+                    .acquire()
+                    .await
+                    .map_err(|_| CacheError::ConcurrencyConflict {
+                        key: "wal_recovery".to_string(),
+                        operation: "acquire_semaphore",
+                        duration: Duration::from_secs(0),
+                        recovery_hint: RecoveryHint::Retry {
+                            after: Duration::from_millis(100),
+                        },
+                    })?;
 
-                match op {
-                    WalOperation::Write {
-                        key: _,
-                        metadata_path,
-                        data_path,
-                        metadata,
-                        data,
-                    } => {
-                        // Just write the files directly during recovery
-                        let _ = fs::write(metadata_path, metadata).await;
-                        let _ = fs::write(data_path, data).await;
-                    }
-                    WalOperation::Remove {
-                        key: _,
-                        metadata_path,
-                        data_path,
-                    } => {
-                        let _ = fs::remove_file(metadata_path).await;
-                        let _ = fs::remove_file(data_path).await;
-                    }
-                    WalOperation::Clear => {
-                        // Clear operation would be handled at cache level
-                    }
-                    WalOperation::Checkpoint { timestamp: _ } => {
-                        // Nothing to do for checkpoint during recovery
-                    }
+            match op {
+                WalOperation::Write {
+                    key: _,
+                    metadata_path,
+                    data_path,
+                    metadata,
+                    data,
+                } => {
+                    // Just write the files directly during recovery
+                    let _ = fs::write(&metadata_path, &metadata).await;
+                    let _ = fs::write(&data_path, &data).await;
                 }
-                Ok(())
-            })
-        })
+                WalOperation::Remove {
+                    key: _,
+                    metadata_path,
+                    data_path,
+                } => {
+                    let _ = fs::remove_file(&metadata_path).await;
+                    let _ = fs::remove_file(&data_path).await;
+                }
+                WalOperation::Clear => {
+                    // Clear operation would be handled at cache level
+                }
+                WalOperation::Checkpoint { timestamp: _ } => {
+                    // Nothing to do for checkpoint during recovery
+                }
+            }
+        }
+
+        Ok(())
     }
 
     /// Write data to cache with WAL support
@@ -1177,8 +1218,11 @@ mod tests {
 
         // Corrupt the file
         let mut file_data = std::fs::read(&test_path).unwrap();
+        // Deserialize header to find data start
+        let header: StorageHeader = bincode::deserialize(&file_data).unwrap();
+        let header_bytes = bincode::serialize(&header).unwrap();
+        let data_start = header_bytes.len();
         // Flip some bits in the data portion
-        let data_start = std::mem::size_of::<StorageHeader>();
         if file_data.len() > data_start + 10 {
             file_data[data_start + 5] ^= 0xFF;
         }

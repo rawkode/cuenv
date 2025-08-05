@@ -283,11 +283,19 @@ mod tests {
         let async_cache = CacheBuilder::new(temp_dir.path()).build_async().await?;
         let sync_cache = SyncCache::from_async(async_cache)?;
 
-        // Test that sync operations work from async context
-        sync_cache.put("key1", &42, None)?;
-        let value: Option<i32> = sync_cache.get("key1")?;
-        assert_eq!(value, Some(42));
+        // Test that sync operations work from a blocking context spawned from async
+        let result = tokio::task::spawn_blocking(move || -> Result<()> {
+            // Test that sync operations work
+            sync_cache.put("key1", &42, None)?;
+            let value: Option<i32> = sync_cache.get("key1")?;
+            assert_eq!(value, Some(42));
+            Ok(())
+        })
+        .await;
 
-        Ok(())
+        match result {
+            Ok(inner_result) => inner_result,
+            Err(join_error) => panic!("Task panicked: {}", join_error),
+        }
     }
 }

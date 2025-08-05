@@ -10,17 +10,15 @@
 use cuenv::cache::{
     audit::{AuditConfig, AuditContext},
     capabilities::{
-        AuthorizationResult, CacheOperation, CapabilityAuthority, CapabilityChecker,
-        CapabilityToken, Permission,
+        AuthorizationResult, CacheOperation, CapabilityAuthority, CapabilityChecker, Permission,
     },
     merkle::{CacheEntryMetadata, MerkleTree},
     secure_cache::{SecureCache, SecureCacheConfig},
-    signing::{CacheSigner, SignedCacheEntry},
-    Cache, CacheError, UnifiedCache, UnifiedCacheConfig,
+    signing::CacheSigner,
+    Cache, UnifiedCache, UnifiedCacheConfig,
 };
 use proptest::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use std::time::Duration;
 use tempfile::TempDir;
 use tokio::time::sleep;
@@ -84,7 +82,7 @@ async fn test_ed25519_signature_security() {
 /// Test capability-based access control
 #[tokio::test]
 async fn test_capability_access_control() {
-    let mut authority = CapabilityAuthority::new("test-authority".to_string());
+    let authority = CapabilityAuthority::new("test-authority".to_string());
     let mut checker = CapabilityChecker::new(authority);
 
     // Create tokens with different permissions
@@ -450,12 +448,13 @@ async fn test_security_error_handling() {
             "expired-user".to_string(),
             [Permission::Read].into_iter().collect(),
             vec!["*".to_string()],
-            Duration::from_millis(1), // Immediate expiration
+            Duration::from_millis(50), // Short but reliable expiration
             None,
         )
         .unwrap();
 
-    sleep(Duration::from_millis(10)).await;
+    // Wait for token to definitely expire
+    sleep(Duration::from_millis(100)).await;
 
     let mut checker = CapabilityChecker::new(authority);
     let operation = CacheOperation::Read {
@@ -482,8 +481,8 @@ async fn test_security_error_handling() {
     assert!(!signer.verify(&signed).unwrap());
 }
 
-/// Property-based test for signature security
 proptest! {
+    /// Property-based test for signature security
     #[test]
     fn test_signature_property_based(
         id in 0u64..1000000,
@@ -491,7 +490,7 @@ proptest! {
         data_size in 0usize..10000
     ) {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
+        let _ = rt.block_on(async {
             let temp_dir = TempDir::new().unwrap();
             let signer = CacheSigner::new(temp_dir.path()).unwrap();
 
