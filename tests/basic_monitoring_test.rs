@@ -75,6 +75,27 @@ fn test_prometheus_metrics_format() {
     monitor.record_miss("key2", "get", Duration::from_millis(3));
     monitor.record_write("key3", 1024, Duration::from_millis(10));
 
+    // Need to record stats to populate cache_stats gauges
+    use cuenv::cache::UnifiedCacheStatistics;
+    use std::time::SystemTime;
+    let stats = UnifiedCacheStatistics {
+        hits: 1,
+        misses: 1,
+        writes: 1,
+        removals: 0,
+        errors: 0,
+        entry_count: 1,
+        total_bytes: 1024,
+        max_bytes: 0,
+        expired_cleanups: 0,
+        stats_since: SystemTime::now(),
+        compression_enabled: false,
+        compression_ratio: 0.0,
+        wal_recoveries: 0,
+        checksum_failures: 0,
+    };
+    monitor.update_statistics(&stats, 512, 512);
+
     let metrics = monitor.metrics_text();
 
     // Check for expected Prometheus format
@@ -84,8 +105,8 @@ fn test_prometheus_metrics_format() {
     assert!(metrics.contains("cuenv_cache_operation_duration_seconds"));
     assert!(metrics.contains("cuenv_cache_stats"));
 
-    // Check that we have actual metric values
-    assert!(metrics.contains("get=\"hit\""));
-    assert!(metrics.contains("get=\"miss\""));
-    assert!(metrics.contains("write=\"success\""));
+    // Check that we have actual metric values with correct label syntax
+    assert!(metrics.contains("operation=\"get\"") && metrics.contains("result=\"hit\""));
+    assert!(metrics.contains("operation=\"get\"") && metrics.contains("result=\"miss\""));
+    assert!(metrics.contains("operation=\"write\"") && metrics.contains("result=\"success\""));
 }
