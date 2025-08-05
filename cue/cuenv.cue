@@ -39,7 +39,7 @@ package cuenv
 #Resolver: {
 	command: string
 	args: [...string]
-        ...
+	...
 }
 
 // #Capability defines a capability with its associated commands
@@ -69,8 +69,8 @@ package cuenv
 	// When true, parses stdout for `export VAR=value` statements and adds them to the environment
 	source?: bool
 
-        // To be extended
-        ...
+	// To be extended
+	...
 }
 
 // #Hook defines the supported hook types for lifecycle events

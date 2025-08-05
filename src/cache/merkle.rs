@@ -664,8 +664,9 @@ mod tests {
                 h[0] = i as u8;
                 h
             };
-            tree.insert_entry(key, hash, create_test_metadata(1024))
-                .unwrap();
+            let mut metadata = create_test_metadata(1024);
+            metadata.content_hash = hash; // Make sure metadata matches the content hash
+            tree.insert_entry(key, hash, metadata).unwrap();
         }
 
         let report = tree.verify_integrity().unwrap();

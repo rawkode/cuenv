@@ -193,6 +193,7 @@ mod cache_chaos_tests {
     }
 
     /// Network partition simulator
+    #[derive(Clone)]
     struct NetworkPartitionSimulator {
         partition_active: Arc<AtomicBool>,
         packet_loss_rate: Arc<Mutex<f64>>,
@@ -238,7 +239,7 @@ mod cache_chaos_tests {
                 0.05, // 5% corruption rate
             );
 
-            let config = UnifiedUnifiedCacheConfig {
+            let config = UnifiedCacheConfig {
                 max_entries: 100,
                 max_size_bytes: 1024 * 1024, // 1MB
                 ..Default::default()
@@ -379,7 +380,7 @@ mod cache_chaos_tests {
                                         }
                                     }
                                 }
-                                Err(CacheError::InsufficientMemory { .. }) => {
+                                Err(CacheError::CapacityExceeded { .. }) => {
                                     oom_count.fetch_add(1, Ordering::Relaxed);
                                 }
                                 Err(_) => {
@@ -496,7 +497,7 @@ mod cache_chaos_tests {
                             // Alternate between puts and gets
                             if operation_id % 2 == 0 {
                                 *client_metrics.get_mut("puts").unwrap() += 1;
-                                match cache.put(&key, value.as_bytes(), None).await {
+                                match cache.put(&key, &value, None).await {
                                     Ok(_) => {
                                         *client_metrics.get_mut("successes").unwrap() += 1;
                                     }
@@ -506,7 +507,7 @@ mod cache_chaos_tests {
                                 }
                             } else {
                                 *client_metrics.get_mut("gets").unwrap() += 1;
-                                match cache.get::<Vec<u8>>(&key).await {
+                                match cache.get::<String>(&key).await {
                                     Ok(_) => {
                                         *client_metrics.get_mut("successes").unwrap() += 1;
                                     }
@@ -621,11 +622,14 @@ mod cache_chaos_tests {
             for i in 0..100 {
                 let key = format!("normal_{}", i);
                 let value = format!("value_{}", i);
-                cache.put(&key, value.as_bytes(), None).await.unwrap();
+                cache.put(&key, &value, None).await.unwrap();
             }
 
             let stats1 = cache.statistics().await.unwrap();
-            println!("  Normal stats: {} operations", stats1.total_operations);
+            println!(
+                "  Normal stats: {} operations",
+                stats1.hits + stats1.misses + stats1.writes + stats1.removals + stats1.errors
+            );
 
             // Stage 2: Introduce filesystem corruption
             println!("Stage 2: Filesystem corruption");
@@ -640,10 +644,10 @@ mod cache_chaos_tests {
                 let key = format!("corrupt_{}", i);
                 let value = format!("value_{}", i);
 
-                match cache.put(&key, value.as_bytes(), None).await {
+                match cache.put(&key, &value, None).await {
                     Ok(_) => {
                         // Try to read back
-                        if cache.get::<Vec<u8>>(&key).await.unwrap_or(None).is_some() {
+                        if cache.get::<String>(&key).await.unwrap_or(None).is_some() {
                             corruption_survived += 1;
                         }
                     }
@@ -688,9 +692,9 @@ mod cache_chaos_tests {
                 let key = format!("recovery_{}", i);
                 let value = format!("recovered_{}", i);
 
-                match cache.put(&key, value.as_bytes(), None).await {
+                match cache.put(&key, &value, None).await {
                     Ok(_) => {
-                        if cache.get::<Vec<u8>>(&key).await.unwrap_or(None).is_some() {
+                        if cache.get::<String>(&key).await.unwrap_or(None).is_some() {
                             recovery_operations += 1;
                         }
                     }
@@ -705,7 +709,11 @@ mod cache_chaos_tests {
             let final_stats = cache.statistics().await.unwrap();
             println!(
                 "Final stats: {} total operations",
-                final_stats.total_operations
+                final_stats.hits
+                    + final_stats.misses
+                    + final_stats.writes
+                    + final_stats.removals
+                    + final_stats.errors
             );
 
             // Verify graceful degradation
@@ -721,10 +729,14 @@ mod cache_chaos_tests {
                 recovery_operations > pressure_survived,
                 "Should recover after chaos ends"
             );
-            assert!(
-                final_stats.total_operations > stats1.total_operations,
-                "Stats should accumulate"
-            );
+            let final_total = final_stats.hits
+                + final_stats.misses
+                + final_stats.writes
+                + final_stats.removals
+                + final_stats.errors;
+            let stats1_total =
+                stats1.hits + stats1.misses + stats1.writes + stats1.removals + stats1.errors;
+            assert!(final_total > stats1_total, "Stats should accumulate");
         });
     }
 
@@ -739,7 +751,7 @@ mod cache_chaos_tests {
             let initial_config = UnifiedCacheConfig {
                 max_size_bytes: 10 * 1024 * 1024, // 10MB
                 max_entries: 1000,
-                ttl_secs: Some(Duration::from_secs(60)),
+                default_ttl: Some(Duration::from_secs(60)),
                 ..Default::default()
             };
 
@@ -755,7 +767,7 @@ mod cache_chaos_tests {
             }
 
             let initial_stats = cache.statistics().await.unwrap();
-            println!("Initial cache entries: {}", initial_stats.entries);
+            println!("Initial cache entries: {}", initial_stats.entry_count);
 
             // Simulate configuration changes by creating new cache instances
             // with different configurations on the same directory
@@ -763,20 +775,20 @@ mod cache_chaos_tests {
                 UnifiedCacheConfig {
                     max_size_bytes: 1024 * 1024, // 1MB - drastic reduction
                     max_entries: 100,
-                    ttl_secs: Some(Duration::from_secs(5)), // Short TTL
+                    default_ttl: Some(Duration::from_secs(5)), // Short TTL
                     ..Default::default()
                 },
                 UnifiedCacheConfig {
                     max_size_bytes: 50 * 1024 * 1024, // 50MB - increase
                     max_entries: 5000,
-                    ttl_secs: None, // No TTL
+                    default_ttl: None, // No TTL
                     compression_enabled: true,
                     ..Default::default()
                 },
                 UnifiedCacheConfig {
                     max_size_bytes: 512 * 1024, // 512KB - very small
                     max_entries: 10,
-                    ttl_secs: Some(Duration::from_millis(100)), // Very short TTL
+                    default_ttl: Some(Duration::from_millis(100)), // Very short TTL
                     ..Default::default()
                 },
             ];
@@ -821,15 +833,16 @@ mod cache_chaos_tests {
                 let stats = new_cache.statistics().await.unwrap();
                 println!(
                     "  Operations succeeded: {}, Current entries: {}",
-                    operations_succeeded, stats.entries
+                    operations_succeeded, stats.entry_count
                 );
 
                 // Wait a bit for TTL effects
-                if config.ttl_secs.is_some() {
-                    tokio::time::sleep(config.ttl_secs.unwrap() + Duration::from_millis(100)).await;
+                if config.default_ttl.is_some() {
+                    tokio::time::sleep(config.default_ttl.unwrap() + Duration::from_millis(100))
+                        .await;
 
                     let post_ttl_stats = new_cache.statistics().await.unwrap();
-                    println!("  Post-TTL entries: {}", post_ttl_stats.entries);
+                    println!("  Post-TTL entries: {}", post_ttl_stats.entry_count);
                 }
             }
 
@@ -846,7 +859,7 @@ mod cache_chaos_tests {
             );
 
             let final_stats = final_cache.statistics().await.unwrap();
-            println!("Final cache state: {} entries", final_stats.entries);
+            println!("Final cache state: {} entries", final_stats.entry_count);
         });
     }
 }

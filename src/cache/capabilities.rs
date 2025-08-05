@@ -44,9 +44,9 @@ pub struct CapabilityToken {
     pub permissions: HashSet<Permission>,
     /// Key patterns this token has access to (glob patterns)
     pub key_patterns: Vec<String>,
-    /// Token expiration timestamp (Unix seconds)
+    /// Token expiration timestamp (Unix milliseconds)
     pub expires_at: u64,
-    /// Token issuance timestamp
+    /// Token issuance timestamp (Unix milliseconds)
     pub issued_at: u64,
     /// Issuer identifier
     pub issuer: String,
@@ -650,13 +650,13 @@ mod tests {
                 "test-user".to_string(),
                 [Permission::Read].into_iter().collect(),
                 vec!["*".to_string()],
-                Duration::from_millis(1), // Very short expiration
+                Duration::from_secs(1), // Use seconds for reliable expiration
                 None,
             )
             .unwrap();
 
         // Wait for expiration
-        thread::sleep(Duration::from_millis(2));
+        thread::sleep(Duration::from_secs(2));
 
         let result = authority.verify_token(&token).unwrap();
         assert_eq!(result, TokenVerificationResult::Expired);

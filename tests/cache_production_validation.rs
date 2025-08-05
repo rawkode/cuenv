@@ -231,7 +231,7 @@ mod cache_production_tests {
                 let value = format!("startup_value_{}", i).repeat(10);
 
                 // Store in cache
-                cache.put(&key, value.as_bytes(), None).await.unwrap();
+                cache.put(&key, &value, None).await.unwrap();
                 cold_loads += 1;
             }
         }
@@ -277,7 +277,7 @@ mod cache_production_tests {
                 // New data
                 let key = format!("mixed_key_{}", i);
                 let value = format!("mixed_value_{}", i);
-                cache.put(&key, value.as_bytes(), None).await.unwrap();
+                cache.put(&key, &value, None).await.unwrap();
                 mixed_writes += 1;
             } else {
                 // Read existing data (mix of startup keys and new keys)
@@ -334,7 +334,7 @@ mod cache_production_tests {
             .collect::<Vec<_>>();
         for key in &critical_keys {
             let value = format!("critical_value_{}", key);
-            cache.put(key, value.as_bytes(), None).await.unwrap();
+            cache.put(key, &value, None).await.unwrap();
         }
 
         let failure_simulation = Arc::new(AtomicBool::new(false));
@@ -373,7 +373,7 @@ mod cache_production_tests {
                         for i in 0..10 {
                             let key = format!("recovery_key_{}", i);
                             let value = format!("recovery_value_{}", i);
-                            let _ = cache_clone.put(&key, value.as_bytes(), None).await;
+                            let _ = cache_clone.put(&key, &value, None).await;
                         }
                     }
                     "memory_pressure" => {

@@ -42,7 +42,20 @@ jobs:
         run: nix flake check --print-build-logs
       - name: cuenv-test-examples
         run: |
-          nix develop --command ./scripts/test-examples.sh
+          # Build cuenv first
+          nix build .#cuenv
+
+          # Copy built binary to expected location
+          mkdir -p target/debug
+          cp result/bin/cuenv target/debug/
+
+          # Fetch CUE dependencies with network access
+          cd examples
+          nix-shell -p cue --run "cue mod get github.com/rawkode/cuenv@0"
+          cd ..
+
+          # Run the test script
+          ./scripts/test-examples.sh
       - name: cuenv-test-integrations
         run: |
           nix develop --command cargo nextest run --test test_examples

@@ -149,6 +149,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 // Example of using cache in production code
+#[allow(dead_code)]
 async fn cached_task_execution(
     cache: &cuenv::cache::UnifiedCache,
     task_name: &str,

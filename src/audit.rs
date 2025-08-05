@@ -488,7 +488,7 @@ mod tests {
         let logger = AuditLogger::new(config).unwrap();
 
         // Info level should not be logged
-        assert!(logger.should_log(AuditLevel::Info) == false);
+        assert!(!logger.should_log(AuditLevel::Info));
 
         // Warning and Critical should be logged
         assert!(logger.should_log(AuditLevel::Warning));
