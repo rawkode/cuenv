@@ -341,15 +341,8 @@ impl<T: Cache + Send + Sync> Cache for SecureCache<T> {
         let start_time = SystemTime::now();
 
         // Get from underlying cache
-        let result = if self.config.require_signatures {
-            // When signatures are required, we need to store and retrieve signed raw bytes
-            // This is a limitation - signature verification requires serialization
-            // For now, we'll just get the value directly without signature verification
-            // TODO: Implement a separate signed storage layer that works with raw bytes
-            self.inner.get(key).await?
-        } else {
-            self.inner.get(key).await?
-        };
+        // TODO: This needs to handle a signed wrapper type when require_signatures is true
+        let result = self.inner.get(key).await?;
 
         let duration_ms = start_time.elapsed().unwrap().as_millis() as u64;
         let hit = result.is_some();
@@ -380,14 +373,8 @@ impl<T: Cache + Send + Sync> Cache for SecureCache<T> {
         let start_time = SystemTime::now();
 
         // Store with signature if required
-        if self.config.require_signatures {
-            // Signature verification requires additional trait bounds (Clone, Deserialize)
-            // that aren't available on the generic V type parameter
-            // TODO: Implement a separate signed storage layer that works with raw bytes
-            self.inner.put(key, value, ttl).await?;
-        } else {
-            self.inner.put(key, value, ttl).await?;
-        }
+        // TODO: This should wrap the value in a signed envelope when require_signatures is true
+        self.inner.put(key, value, ttl).await?;
 
         let duration_ms = start_time.elapsed().unwrap().as_millis() as u64;
 

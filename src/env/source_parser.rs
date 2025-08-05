@@ -18,7 +18,7 @@ pub fn evaluate_shell_environment(shell_script: &str) -> Result<HashMap<String, 
 
     // By replacing the initial assignments to `nix_saved_...` variables with
     // assignments to an empty string, we effectively disable the environment
-    // restoration that happens at the end of the script. This is more robust
+    // restoration that happens at theend of the script. This is more robust
     // than trying to regex-match the restoration command itself.
     let modified_script = shell_script
         .replace(

@@ -17,10 +17,7 @@ pub async fn execute_nix_flake_hook(
     cache: &EnvCache,
     force_reload: bool,
 ) -> Result<HashMap<String, String>> {
-    eprintln!(
-        "DEBUG: execute_nix_flake_hook called with flake: {:?}",
-        flake
-    );
+    debug!("execute_nix_flake_hook called with flake: {:?}", flake);
     // Check cache first unless forced to reload
     if !force_reload {
         if let Ok(cached_env) = cache.load() {
@@ -36,17 +33,17 @@ pub async fn execute_nix_flake_hook(
         }
     }
 
-    eprintln!("DEBUG: Building nix development environment...");
+    debug!("Building nix development environment...");
     info!("Building nix development environment...");
 
     // Build nix command
     let nix_cmd = build_nix_develop_command(flake)?;
 
     // Execute and capture output
-    eprintln!("DEBUG: About to execute nix command");
+    debug!("About to execute nix command");
     let output = execute_command(nix_cmd)?;
-    eprintln!(
-        "DEBUG: Nix command executed, got {} bytes of output",
+    debug!(
+        "Nix command executed, got {} bytes of output",
         output.len()
     );
 
@@ -77,7 +74,7 @@ pub async fn execute_nix_flake_hook(
         .context("Failed to save environment to cache")?;
 
     info!("Nix environment loaded with {} variables", env.len());
-    eprintln!("DEBUG: Nix PATH = {:?}", env.get("PATH"));
+    debug!("Nix PATH = {:?}", env.get("PATH"));
     Ok(env)
 }
 
