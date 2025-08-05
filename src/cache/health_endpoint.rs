@@ -762,8 +762,8 @@ impl RateLimiter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cache::cache_impl::Cache;
     use crate::cache::traits::CacheConfig;
-    use crate::cache::unified_production::UnifiedCache;
     use tempfile::TempDir;
     use tokio::time::{sleep, Duration};
 
@@ -785,7 +785,7 @@ mod tests {
     async fn test_health_endpoint_creation() {
         let temp_dir = TempDir::new().unwrap();
         let cache = Arc::new(
-            UnifiedCache::new(temp_dir.path().to_path_buf(), CacheConfig::default())
+            Cache::new(temp_dir.path().to_path_buf(), CacheConfig::default())
                 .await
                 .unwrap(),
         );

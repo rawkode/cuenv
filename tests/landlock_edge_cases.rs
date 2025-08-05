@@ -80,7 +80,7 @@ mod landlock_edge_cases {
         restrictions.add_allowed_host("0"); // Port 0 is invalid
 
         let mut cmd = Command::new("curl");
-        cmd.args(&["-I", "--max-time", "1", "http://example.com"]);
+        cmd.args(["-I", "--max-time", "1", "http://example.com"]);
 
         restrictions.apply_to_command(&mut cmd).unwrap();
         let output = cmd.output().expect("Failed to execute command");
@@ -96,7 +96,7 @@ mod landlock_edge_cases {
         restrictions.add_allowed_host("65535"); // Maximum port number
 
         let mut cmd = Command::new("nc");
-        cmd.args(&["-zv", "127.0.0.1", "65535"]);
+        cmd.args(["-zv", "127.0.0.1", "65535"]);
 
         restrictions.apply_to_command(&mut cmd).unwrap();
         let output = cmd.output().expect("Failed to execute command");
@@ -132,7 +132,8 @@ mod landlock_edge_cases {
         let is_supported = AccessRestrictions::is_landlock_supported();
 
         // Just verify it returns a boolean without crashing
-        assert!(is_supported || !is_supported);
+        // This test simply ensures the function doesn't panic
+        let _ = is_supported;
     }
 
     #[test]
@@ -146,7 +147,7 @@ mod landlock_edge_cases {
 
         // Try to download a file to /tmp
         let mut cmd = Command::new("curl");
-        cmd.args(&["-o", "/tmp/test-download", "https://example.com"]);
+        cmd.args(["-o", "/tmp/test-download", "https://example.com"]);
 
         restrictions.apply_to_command(&mut cmd).unwrap();
         let output = cmd.output().expect("Failed to execute command");

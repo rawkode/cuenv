@@ -8,7 +8,7 @@
 use criterion::{
     black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput,
 };
-use cuenv::cache::{Cache, ProductionCache, SyncCache, UnifiedCache, UnifiedCacheConfig};
+use cuenv::cache::{Cache, ProductionCache, SyncCache, UnifiedCacheConfig};
 use rand::prelude::*;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
@@ -178,6 +178,7 @@ fn bench_cache_concurrency(c: &mut Criterion) {
             BenchmarkId::new("mixed_workload", num_tasks),
             num_tasks,
             |b, &num_tasks| {
+                let data_for_closure = data.clone();
                 b.iter_batched(
                     || {
                         let temp_dir = TempDir::new().unwrap();
@@ -201,10 +202,10 @@ fn bench_cache_concurrency(c: &mut Criterion) {
                                 cache.put(key, &value, None).await.unwrap();
                             }
 
-                            (cache, base_keys)
+                            (cache, base_keys, data_for_closure.clone())
                         })
                     },
-                    |(cache, base_keys)| async move {
+                    |(cache, base_keys, data)| async move {
                         let mut handles = Vec::new();
 
                         for task_id in 0..num_tasks {
@@ -245,6 +246,7 @@ fn bench_cache_concurrency(c: &mut Criterion) {
             BenchmarkId::new("write_heavy", num_tasks),
             num_tasks,
             |b, &num_tasks| {
+                let data_for_closure = data.clone();
                 b.iter_batched(
                     || {
                         let temp_dir = TempDir::new().unwrap();
@@ -259,24 +261,27 @@ fn bench_cache_concurrency(c: &mut Criterion) {
                             )
                         })
                     },
-                    |cache| async move {
-                        let mut handles = Vec::new();
+                    |cache| {
+                        let data = data_for_closure.clone();
+                        async move {
+                            let mut handles = Vec::new();
 
-                        for task_id in 0..num_tasks {
-                            let cache_clone = Arc::clone(&cache);
-                            let task_data = data.clone();
+                            for task_id in 0..num_tasks {
+                                let cache_clone = Arc::clone(&cache);
+                                let task_data = data.clone();
 
-                            let handle = tokio::spawn(async move {
-                                for i in 0..100 {
-                                    let key = format!("write_heavy_{}_{}", task_id, i);
-                                    let _ = cache_clone.put(&key, &task_data, None).await;
-                                }
-                            });
-                            handles.push(handle);
-                        }
+                                let handle = tokio::spawn(async move {
+                                    for i in 0..100 {
+                                        let key = format!("write_heavy_{}_{}", task_id, i);
+                                        let _ = cache_clone.put(&key, &task_data, None).await;
+                                    }
+                                });
+                                handles.push(handle);
+                            }
 
-                        for handle in handles {
-                            handle.await.unwrap();
+                            for handle in handles {
+                                handle.await.unwrap();
+                            }
                         }
                     },
                     BatchSize::SmallInput,
@@ -382,7 +387,7 @@ fn bench_cache_eviction(c: &mut Criterion) {
                             .unwrap()
                     })
                 },
-                |cache| async {
+                |cache| async move {
                     match *scenario {
                         "lru_pressure" => {
                             // Fill cache beyond memory limit
@@ -454,7 +459,7 @@ fn bench_cache_metadata(c: &mut Criterion) {
                             (cache, keys)
                         })
                     },
-                    |(cache, keys)| async {
+                    |(cache, keys)| async move {
                         let mut total_size = 0u64;
 
                         for key in keys {
@@ -492,7 +497,7 @@ fn bench_cache_metadata(c: &mut Criterion) {
                     cache
                 })
             },
-            |cache| async {
+            |cache| async move {
                 let stats = cache.statistics().await.unwrap();
                 black_box(stats);
             },
@@ -547,7 +552,7 @@ fn bench_cache_compression(c: &mut Criterion) {
                                 .unwrap()
                         })
                     },
-                    |cache| async {
+                    |cache| async move {
                         let key = format!(
                             "compression_test_{}",
                             SystemTime::now()
@@ -582,7 +587,7 @@ fn bench_cache_compression(c: &mut Criterion) {
                                 .unwrap()
                         })
                     },
-                    |cache| async {
+                    |cache| async move {
                         let key = format!(
                             "no_compression_test_{}",
                             SystemTime::now()
@@ -619,7 +624,7 @@ fn bench_cache_ttl(c: &mut Criterion) {
                     || {
                         let temp_dir = TempDir::new().unwrap();
                         let config = UnifiedCacheConfig {
-                            ttl_secs: Some(Duration::from_secs(ttl_secs)),
+                            default_ttl: Some(Duration::from_secs(ttl_secs)),
                             ..Default::default()
                         };
                         rt.block_on(async {
@@ -628,7 +633,7 @@ fn bench_cache_ttl(c: &mut Criterion) {
                                 .unwrap()
                         })
                     },
-                    |cache| async {
+                    |cache| async move {
                         let data = generate_test_data(1024, 666);
 
                         // Store entries with TTL
@@ -666,6 +671,7 @@ fn bench_sync_vs_async(c: &mut Criterion) {
 
     // Async cache
     group.bench_function("async_cache", |b| {
+        let data = data.clone();
         b.to_async(&rt).iter_batched(
             || {
                 let temp_dir = TempDir::new().unwrap();
@@ -675,11 +681,14 @@ fn bench_sync_vs_async(c: &mut Criterion) {
                         .unwrap()
                 })
             },
-            |cache| async {
-                for i in 0..100 {
-                    let key = format!("async_key_{}", i);
-                    cache.put(&key, &data, None).await.unwrap();
-                    let _: Option<Vec<u8>> = cache.get(&key).await.unwrap();
+            |cache| {
+                let data = data.clone();
+                async move {
+                    for i in 0..100 {
+                        let key = format!("async_key_{}", i);
+                        cache.put(&key, &data, None).await.unwrap();
+                        let _: Option<Vec<u8>> = cache.get(&key).await.unwrap();
+                    }
                 }
             },
             BatchSize::SmallInput,
@@ -688,12 +697,13 @@ fn bench_sync_vs_async(c: &mut Criterion) {
 
     // Sync cache
     group.bench_function("sync_cache", |b| {
+        let data = data.clone();
         b.iter_batched(
             || {
                 let temp_dir = TempDir::new().unwrap();
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 let unified_cache = rt
-                    .block_on(UnifiedCache::new(
+                    .block_on(ProductionCache::new(
                         temp_dir.path().to_path_buf(),
                         Default::default(),
                     ))
@@ -731,17 +741,18 @@ fn bench_cache_error_handling(c: &mut Criterion) {
                         .unwrap()
                 })
             },
-            |cache| async {
+            |cache| async move {
+                let long_key = "x".repeat(10000);
                 let invalid_keys = vec![
-                    "",                // Empty key
-                    "x".repeat(10000), // Very long key
-                    "invalid\0key",    // Key with null bytes
+                    "",             // Empty key
+                    &long_key,      // Very long key
+                    "invalid\0key", // Key with null bytes
                 ];
 
                 for key in invalid_keys {
-                    let _ = cache.get::<Vec<u8>>(&key).await;
-                    let _ = cache.put(&key, b"test", None).await;
-                    let _ = cache.metadata(&key).await;
+                    let _ = cache.get::<Vec<u8>>(key).await;
+                    let _ = cache.put(key, b"test", None).await;
+                    let _ = cache.metadata(key).await;
                 }
             },
             BatchSize::SmallInput,
@@ -754,7 +765,7 @@ fn bench_cache_error_handling(c: &mut Criterion) {
             || {
                 let temp_dir = TempDir::new().unwrap();
                 let config = UnifiedCacheConfig {
-                    max_entry_size: 1024, // 1KB limit
+                    max_size_bytes: 1024, // 1KB limit
                     ..Default::default()
                 };
                 rt.block_on(async {
@@ -763,7 +774,7 @@ fn bench_cache_error_handling(c: &mut Criterion) {
                         .unwrap()
                 })
             },
-            |cache| async {
+            |cache| async move {
                 // Try to store values that exceed the limit
                 for i in 0..50 {
                     let key = format!("oversized_key_{}", i);
@@ -778,15 +789,16 @@ fn bench_cache_error_handling(c: &mut Criterion) {
     group.finish();
 }
 
+// Skip problematic benchmarks for now to get build working
 criterion_group!(
     benches,
+    bench_cache_metadata,
+    bench_sync_vs_async,
     bench_cache_throughput,
     bench_cache_concurrency,
     bench_cache_eviction,
-    bench_cache_metadata,
     bench_cache_compression,
     bench_cache_ttl,
-    bench_sync_vs_async,
     bench_cache_error_handling
 );
 criterion_main!(benches);

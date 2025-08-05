@@ -15,7 +15,7 @@ use cuenv::cache::{
     merkle::{CacheEntryMetadata, MerkleTree},
     secure_cache::{SecureCache, SecureCacheConfig},
     signing::CacheSigner,
-    Cache, UnifiedCache, UnifiedCacheConfig,
+    Cache, ProductionCache, UnifiedCacheConfig,
 };
 use proptest::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -388,7 +388,7 @@ async fn test_secure_cache_end_to_end() {
     let cache_dir = temp_dir.path().to_path_buf();
 
     // Create underlying cache
-    let inner_cache = UnifiedCache::new(cache_dir.join("cache"), UnifiedCacheConfig::default())
+    let inner_cache = ProductionCache::new(cache_dir.join("cache"), UnifiedCacheConfig::default())
         .await
         .unwrap();
 
@@ -607,7 +607,7 @@ async fn test_concurrent_security_operations() {
     let temp_dir = TempDir::new().unwrap();
     let cache_dir = temp_dir.path().to_path_buf();
 
-    let inner_cache = UnifiedCache::new(cache_dir.join("cache"), UnifiedCacheConfig::default())
+    let inner_cache = ProductionCache::new(cache_dir.join("cache"), UnifiedCacheConfig::default())
         .await
         .unwrap();
     let secure_cache = std::sync::Arc::new(
@@ -659,7 +659,7 @@ async fn test_security_performance() {
     let temp_dir = TempDir::new().unwrap();
     let cache_dir = temp_dir.path().to_path_buf();
 
-    let inner_cache = UnifiedCache::new(cache_dir.join("cache"), UnifiedCacheConfig::default())
+    let inner_cache = ProductionCache::new(cache_dir.join("cache"), UnifiedCacheConfig::default())
         .await
         .unwrap();
     let secure_cache = SecureCache::builder(inner_cache)

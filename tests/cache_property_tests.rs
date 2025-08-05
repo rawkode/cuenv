@@ -7,8 +7,7 @@
 #[cfg(test)]
 mod cache_property_tests {
     use cuenv::cache::{
-        Cache, CacheError, CacheKey, CacheMetadata, ProductionCache, SyncCache, UnifiedCache,
-        UnifiedCacheConfig,
+        Cache, CacheError, CacheKey, CacheMetadata, ProductionCache, SyncCache, UnifiedCacheConfig,
     };
     use proptest::prelude::*;
     use std::collections::HashMap;
@@ -597,7 +596,7 @@ mod cache_property_tests {
         ) {
             let temp_dir = TempDir::new().unwrap();
             let rt = tokio::runtime::Runtime::new().unwrap();
-            let unified_cache = match rt.block_on(UnifiedCache::new(temp_dir.path().to_path_buf(), Default::default())) {
+            let unified_cache = match rt.block_on(ProductionCache::new(temp_dir.path().to_path_buf(), Default::default())) {
                 Ok(cache) => cache,
                 Err(_) => return Ok(()), // Skip if setup fails
             };

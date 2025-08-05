@@ -314,8 +314,9 @@ mod concurrent_cache_tests {
                                 .unwrap();
 
                                 // Save to cache
-                                if let Err(_) =
-                                    cache.save_result(&cache_key, &task_config, &working_dir, 0)
+                                if cache
+                                    .save_result(&cache_key, &task_config, &working_dir, 0)
+                                    .is_err()
                                 {
                                     errors.fetch_add(1, Ordering::SeqCst);
                                 }

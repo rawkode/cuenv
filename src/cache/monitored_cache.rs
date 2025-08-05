@@ -436,15 +436,14 @@ impl<C: Cache + Clone> MonitoredCacheBuilder<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cache::traits::CacheConfig;
-    use crate::cache::unified::UnifiedCache;
+    use crate::cache::cache_impl::Cache;
+    use crate::cache::traits::{Cache as CacheTrait, CacheConfig};
     use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_monitored_cache_operations() -> Result<()> {
         let temp_dir = TempDir::new().unwrap();
-        let base_cache =
-            UnifiedCache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
+        let base_cache = Cache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
 
         let monitored = MonitoredCacheBuilder::new(base_cache)
             .with_service_name("test-cache")
@@ -473,8 +472,7 @@ mod tests {
     #[tokio::test]
     async fn test_profiling() -> Result<()> {
         let temp_dir = TempDir::new().unwrap();
-        let base_cache =
-            UnifiedCache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
+        let base_cache = Cache::new(temp_dir.path().to_path_buf(), CacheConfig::default()).await?;
 
         let monitored = MonitoredCacheBuilder::new(base_cache)
             .with_profiling()

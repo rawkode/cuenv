@@ -457,7 +457,7 @@ async fn test_statistics_accuracy() {
     if final_total_ops > 0 {
         let hit_rate = final_stats.hits as f64 / final_total_ops as f64;
         assert!(
-            hit_rate >= 0.0 && hit_rate <= 1.0,
+            (0.0..=1.0).contains(&hit_rate),
             "Hit rate should be between 0 and 1"
         );
     }

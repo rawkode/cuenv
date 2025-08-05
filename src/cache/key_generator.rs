@@ -679,10 +679,12 @@ mod tests {
 
     // TODO: Fix this test - task-specific configuration logic needs review
     #[test]
+    #[ignore = "Task-specific configuration logic needs review"]
     fn test_task_specific_configs() {
         // This test is temporarily disabled due to issues with task-specific config logic
         // The core functionality works, but the test needs to be rewritten
-        assert!(true);
+        // When implemented, this should test task-specific configuration
+        todo!("Implement task-specific configuration test");
     }
 
     #[test]

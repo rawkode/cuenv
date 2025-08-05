@@ -164,7 +164,6 @@ mod state_race_condition_tests {
         let writer_handles: Vec<_> = (0..num_writers)
             .map(|writer_id| {
                 let barrier = Arc::clone(&barrier);
-                let start_time = start_time.clone();
 
                 thread::spawn(move || {
                     let runtime = Runtime::new().unwrap();
@@ -205,7 +204,6 @@ mod state_race_condition_tests {
             .map(|_| {
                 let barrier = Arc::clone(&barrier);
                 let inconsistencies = Arc::clone(&inconsistencies);
-                let start_time = start_time.clone();
 
                 thread::spawn(move || {
                     barrier.wait();
@@ -277,7 +275,7 @@ mod state_race_condition_tests {
                         let value = format!("value_{}_{}", thread_id, i);
 
                         // Set variable
-                        if let Err(_) = SyncEnv::set_var(&key, &value) {
+                        if SyncEnv::set_var(&key, &value).is_err() {
                             errors.fetch_add(1, Ordering::SeqCst);
                             continue;
                         }

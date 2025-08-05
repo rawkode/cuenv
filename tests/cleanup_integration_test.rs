@@ -65,7 +65,7 @@ fn test_process_cleanup_on_drop() {
         #[cfg(unix)]
         {
             let check = Command::new("kill")
-                .args(&["-0", &pid.to_string()])
+                .args(["-0", &pid.to_string()])
                 .status()
                 .unwrap();
             assert!(check.success());
@@ -78,7 +78,7 @@ fn test_process_cleanup_on_drop() {
     #[cfg(unix)]
     {
         let check = Command::new("kill")
-            .args(&["-0", &pid.to_string()])
+            .args(["-0", &pid.to_string()])
             .status()
             .unwrap();
         assert!(!check.success()); // Process should be gone
@@ -154,7 +154,7 @@ fn test_multiple_process_cleanup() {
     {
         for pid in &pids {
             let check = Command::new("kill")
-                .args(&["-0", &pid.to_string()])
+                .args(["-0", &pid.to_string()])
                 .status()
                 .unwrap();
             assert!(check.success());
@@ -172,7 +172,7 @@ fn test_multiple_process_cleanup() {
     {
         for pid in &pids {
             let check = Command::new("kill")
-                .args(&["-0", &pid.to_string()])
+                .args(["-0", &pid.to_string()])
                 .status()
                 .unwrap();
             assert!(!check.success());
@@ -243,7 +243,7 @@ fn test_process_group_cleanup() {
 
         // Verify process group exists
         let check = Command::new("kill")
-            .args(&["-0", &format!("-{}", pgid)])
+            .args(["-0", &format!("-{}", pgid)])
             .status()
             .unwrap();
         assert!(check.success());
@@ -253,7 +253,7 @@ fn test_process_group_cleanup() {
     std::thread::sleep(Duration::from_secs(1)); // Give more time for cleanup
 
     let check = Command::new("kill")
-        .args(&["-0", &format!("-{}", pgid)])
+        .args(["-0", &format!("-{}", pgid)])
         .status()
         .unwrap();
     assert!(!check.success()); // Process group should be gone

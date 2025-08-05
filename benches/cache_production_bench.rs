@@ -3,7 +3,7 @@
 //! Run with: cargo bench --bench cache_production_bench
 
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
-use cuenv::cache::{Cache, ProductionCache, UnifiedCache, UnifiedCacheConfig};
+use cuenv::cache::{Cache, ProductionCache, UnifiedCacheConfig};
 use std::sync::Arc;
 use std::time::Duration;
 use tempfile::TempDir;
@@ -17,34 +17,9 @@ fn bench_writes(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(10));
 
     for size in [1, 10, 100, 1000, 10000].iter() {
-        let data = vec![0u8; *size];
-
         // Benchmark original cache
         group.bench_with_input(BenchmarkId::new("original", size), size, |b, _| {
-            b.to_async(&rt).iter_batched(
-                || {
-                    let temp_dir = TempDir::new().unwrap();
-                    rt.block_on(async {
-                        UnifiedCache::new(
-                            temp_dir.path().to_path_buf(),
-                            UnifiedCacheConfig::default(),
-                        )
-                        .await
-                        .unwrap()
-                    })
-                },
-                |cache| async move {
-                    for i in 0..100 {
-                        let key = format!("key_{}", i);
-                        cache.put(&key, &data, None).await.unwrap();
-                    }
-                },
-                BatchSize::SmallInput,
-            );
-        });
-
-        // Benchmark production cache
-        group.bench_with_input(BenchmarkId::new("production", size), size, |b, _| {
+            let data = vec![0u8; *size];
             b.to_async(&rt).iter_batched(
                 || {
                     let temp_dir = TempDir::new().unwrap();
@@ -57,10 +32,41 @@ fn bench_writes(c: &mut Criterion) {
                         .unwrap()
                     })
                 },
-                |cache| async move {
-                    for i in 0..100 {
-                        let key = format!("key_{}", i);
-                        cache.put(&key, &data, None).await.unwrap();
+                |cache| {
+                    let data = data.clone();
+                    async move {
+                        for i in 0..100 {
+                            let key = format!("key_{}", i);
+                            cache.put(&key, &data, None).await.unwrap();
+                        }
+                    }
+                },
+                BatchSize::SmallInput,
+            );
+        });
+
+        // Benchmark production cache
+        group.bench_with_input(BenchmarkId::new("production", size), size, |b, _| {
+            let data = vec![0u8; *size];
+            b.to_async(&rt).iter_batched(
+                || {
+                    let temp_dir = TempDir::new().unwrap();
+                    rt.block_on(async {
+                        ProductionCache::new(
+                            temp_dir.path().to_path_buf(),
+                            UnifiedCacheConfig::default(),
+                        )
+                        .await
+                        .unwrap()
+                    })
+                },
+                |cache| {
+                    let data = data.clone();
+                    async move {
+                        for i in 0..100 {
+                            let key = format!("key_{}", i);
+                            cache.put(&key, &data, None).await.unwrap();
+                        }
                     }
                 },
                 BatchSize::SmallInput,
@@ -79,20 +85,19 @@ fn bench_reads(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(10));
 
     for size in [1, 10, 100, 1000, 10000].iter() {
-        let data = vec![0u8; *size];
-
         // Benchmark original cache (hot reads)
         group.bench_with_input(BenchmarkId::new("original_hot", size), size, |b, _| {
-            b.to_async(&rt).iter_batched(
+            let data = vec![0u8; *size];
+            let rt_ref = &rt;
+            b.to_async(rt_ref).iter_batched(
                 || {
                     let temp_dir = TempDir::new().unwrap();
-                    let cache = rt.block_on(async {
-                        let cache = UnifiedCache::new(
-                            temp_dir.path().to_path_buf(),
-                            UnifiedCacheConfig::default(),
-                        )
-                        .await
-                        .unwrap();
+                    let temp_path = temp_dir.path().to_path_buf();
+                    let data = data.clone();
+                    let cache = rt_ref.block_on(async move {
+                        let cache = ProductionCache::new(temp_path, UnifiedCacheConfig::default())
+                            .await
+                            .unwrap();
 
                         // Pre-populate cache
                         for i in 0..100 {
@@ -116,16 +121,17 @@ fn bench_reads(c: &mut Criterion) {
 
         // Benchmark production cache (hot reads)
         group.bench_with_input(BenchmarkId::new("production_hot", size), size, |b, _| {
-            b.to_async(&rt).iter_batched(
+            let data = vec![0u8; *size];
+            let rt_ref = &rt;
+            b.to_async(rt_ref).iter_batched(
                 || {
                     let temp_dir = TempDir::new().unwrap();
-                    let cache = rt.block_on(async {
-                        let cache = ProductionCache::new(
-                            temp_dir.path().to_path_buf(),
-                            UnifiedCacheConfig::default(),
-                        )
-                        .await
-                        .unwrap();
+                    let temp_path = temp_dir.path().to_path_buf();
+                    let data = data.clone();
+                    let cache = rt_ref.block_on(async move {
+                        let cache = ProductionCache::new(temp_path, UnifiedCacheConfig::default())
+                            .await
+                            .unwrap();
 
                         // Pre-populate cache
                         for i in 0..100 {
@@ -148,40 +154,46 @@ fn bench_reads(c: &mut Criterion) {
         });
 
         // Benchmark production cache (cold reads with mmap)
-        group.bench_with_input(BenchmarkId::new("production_cold", size), size, |b, _| {
-            b.to_async(&rt).iter_batched(
-                || {
-                    let temp_dir = TempDir::new().unwrap();
-                    let cache = rt.block_on(async {
-                        let cache = ProductionCache::new(
-                            temp_dir.path().to_path_buf(),
-                            UnifiedCacheConfig::default(),
-                        )
-                        .await
-                        .unwrap();
+        group.bench_with_input(
+            BenchmarkId::new("production_cold", size),
+            size,
+            |b, size| {
+                let data = vec![0u8; *size];
+                let rt_ref = &rt;
+                b.to_async(rt_ref).iter_batched(
+                    move || {
+                        let temp_dir = TempDir::new().unwrap();
+                        let temp_path = temp_dir.path().to_path_buf();
+                        let data = data.clone();
+                        let cache = rt_ref.block_on(async move {
+                            let cache =
+                                ProductionCache::new(temp_path, UnifiedCacheConfig::default())
+                                    .await
+                                    .unwrap();
 
-                        // Pre-populate cache
+                            // Pre-populate cache
+                            for i in 0..100 {
+                                let key = format!("key_{}", i);
+                                cache.put(&key, &data, None).await.unwrap();
+                            }
+
+                            // Clear memory cache to force disk reads
+                            cache.clear().await.unwrap();
+
+                            cache
+                        });
+                        (temp_dir, cache)
+                    },
+                    |(_temp_dir, cache)| async move {
                         for i in 0..100 {
                             let key = format!("key_{}", i);
-                            cache.put(&key, &data, None).await.unwrap();
+                            let _: Option<Vec<u8>> = cache.get(&key).await.unwrap();
                         }
-
-                        // Clear memory cache to force disk reads
-                        cache.clear().await.unwrap();
-
-                        cache
-                    });
-                    (temp_dir, cache)
-                },
-                |(_temp_dir, cache)| async move {
-                    for i in 0..100 {
-                        let key = format!("key_{}", i);
-                        let _: Option<Vec<u8>> = cache.get(&key).await.unwrap();
-                    }
-                },
-                BatchSize::SmallInput,
-            );
-        });
+                    },
+                    BatchSize::SmallInput,
+                );
+            },
+        );
     }
 
     group.finish();
@@ -206,7 +218,7 @@ fn bench_concurrent(c: &mut Criterion) {
                         let temp_dir = TempDir::new().unwrap();
                         let cache = rt.block_on(async {
                             Arc::new(
-                                UnifiedCache::new(
+                                ProductionCache::new(
                                     temp_dir.path().to_path_buf(),
                                     UnifiedCacheConfig::default(),
                                 )
@@ -220,7 +232,7 @@ fn bench_concurrent(c: &mut Criterion) {
                         let mut handles = Vec::new();
 
                         for task_id in 0..num_tasks {
-                            let cache_clone = Arc::clone(&cache);
+                            let cache_clone: Arc<ProductionCache> = Arc::clone(&cache);
                             let handle = tokio::spawn(async move {
                                 for i in 0..100 {
                                     let key = format!("task_{}_key_{}", task_id, i);
@@ -266,7 +278,7 @@ fn bench_concurrent(c: &mut Criterion) {
                         let mut handles = Vec::new();
 
                         for task_id in 0..num_tasks {
-                            let cache_clone = Arc::clone(&cache);
+                            let cache_clone: Arc<ProductionCache> = Arc::clone(&cache);
                             let handle = tokio::spawn(async move {
                                 for i in 0..100 {
                                     let key = format!("task_{}_key_{}", task_id, i);

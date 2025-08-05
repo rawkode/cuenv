@@ -161,7 +161,6 @@ mod performance_concurrent_tests {
                 let operations = Arc::clone(&operations);
                 let errors = Arc::clone(&errors);
                 let working_dir = temp_dir.path().to_path_buf();
-                let start_time = start_time.clone();
 
                 thread::spawn(move || {
                     barrier.wait();
@@ -287,9 +286,9 @@ mod performance_concurrent_tests {
                     thread::spawn(move || {
                         barrier.wait();
 
-                        for (_iteration, &file_index) in pattern.iter().enumerate() {
+                        for &file_index in pattern.iter() {
                             let task_config = TaskConfig {
-                                description: Some(format!("Pattern test")),
+                                description: Some("Pattern test".to_string()),
                                 command: Some("echo test".to_string()),
                                 script: None,
                                 dependencies: None,

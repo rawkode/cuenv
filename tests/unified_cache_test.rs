@@ -55,7 +55,7 @@ async fn test_basic_cache_operations() {
     cache.put(key, &value, None).await.unwrap();
     let metadata = cache.metadata(key).await.unwrap().unwrap();
     assert!(metadata.size_bytes > 100); // At least 100 bytes
-    assert!(metadata.content_hash.len() > 0);
+    assert!(!metadata.content_hash.is_empty());
 }
 
 #[tokio::test]

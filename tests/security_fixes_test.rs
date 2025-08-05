@@ -253,11 +253,7 @@ fn test_constant_time_comparison() {
     assert!(!result2);
 
     // Times should be similar (within reasonable bounds for constant-time comparison)
-    let time_diff = if time1 > time2 {
-        time1 - time2
-    } else {
-        time2 - time1
-    };
+    let time_diff = time1.abs_diff(time2);
     assert!(
         time_diff < std::time::Duration::from_millis(10),
         "Timing difference too large, may indicate timing attack vulnerability"

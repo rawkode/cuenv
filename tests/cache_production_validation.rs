@@ -6,9 +6,7 @@
 
 #[cfg(test)]
 mod cache_production_tests {
-    use cuenv::cache::{
-        Cache, CacheError, ProductionCache, SyncCache, UnifiedCache, UnifiedCacheConfig,
-    };
+    use cuenv::cache::{Cache, CacheError, ProductionCache, SyncCache, UnifiedCacheConfig};
     use rand::prelude::*;
     use std::collections::{HashMap, HashSet};
     use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
@@ -166,8 +164,8 @@ mod cache_production_tests {
             handle.await.unwrap();
         }
 
-        let final_stats = stats.lock().unwrap();
         let cache_stats = cache.statistics().await.unwrap();
+        let final_stats = stats.lock().unwrap();
 
         println!("Web application simulation results:");
         println!("  Duration: {:.2}s", start_time.elapsed().as_secs_f64());
@@ -357,7 +355,6 @@ mod cache_production_tests {
             let cache_clone = Arc::clone(&cache);
             let failure_clone = Arc::clone(&failure_simulation);
             let recovery_clone = Arc::clone(&recovery_time);
-            let failure_duration = failure_duration.clone();
 
             // Simulate the failure scenario
             let failure_handle = tokio::spawn(async move {
@@ -502,7 +499,6 @@ mod cache_production_tests {
             let barrier_clone = Arc::clone(&barrier);
             let stats_clone = Arc::clone(&global_stats);
             let errors_clone = Arc::clone(&global_errors);
-            let load_duration = load_duration;
 
             let handle = tokio::spawn(async move {
                 barrier_clone.wait();

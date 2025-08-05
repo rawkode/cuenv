@@ -66,11 +66,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(_) => println!("Unexpected success"),
         Err(e) => {
             println!("Error: {}", e);
-            match e.recovery_hint() {
-                RecoveryHint::Manual { instructions } => {
-                    println!("Recovery: {}", instructions);
-                }
-                _ => {}
+            if let RecoveryHint::Manual { instructions } = e.recovery_hint() {
+                println!("Recovery: {}", instructions);
             }
         }
     }
@@ -151,7 +148,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 // Example of using cache in production code
 #[allow(dead_code)]
 async fn cached_task_execution(
-    cache: &cuenv::cache::UnifiedCache,
+    cache: &cuenv::cache::ProductionCache,
     task_name: &str,
 ) -> Result<TaskResult, CacheError> {
     let cache_key = format!("task:{}:{}", task_name, chrono::Utc::now().timestamp());

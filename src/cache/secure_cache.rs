@@ -514,15 +514,15 @@ impl<T: Cache> SecureCache<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cache::traits::CacheConfig;
-    use crate::cache::unified::UnifiedCache;
+    use crate::cache::cache_impl::Cache;
+    use crate::cache::traits::{Cache as CacheTrait, CacheConfig};
     use tempfile::TempDir;
 
-    async fn create_test_secure_cache() -> SecureCache<UnifiedCache> {
+    async fn create_test_secure_cache() -> SecureCache<Cache> {
         let temp_dir = TempDir::new().unwrap();
         let cache_dir = temp_dir.path().to_path_buf();
 
-        let inner_cache = UnifiedCache::new(cache_dir.join("cache"), CacheConfig::default())
+        let inner_cache = Cache::new(cache_dir.join("cache"), CacheConfig::default())
             .await
             .unwrap();
 

@@ -8,7 +8,7 @@
 mod cache_integration_tests {
     use cuenv::cache::{
         Cache, CacheError, CacheMetadata, CompressionConfig, ProductionCache, StorageBackend,
-        SyncCache, UnifiedCache, UnifiedCacheConfig,
+        SyncCache, UnifiedCacheConfig,
     };
     use rand::prelude::*;
     use std::collections::HashMap;

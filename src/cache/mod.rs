@@ -5,6 +5,7 @@
 
 // Core modules
 mod bridge;
+mod cache_impl;
 mod cache_warming;
 mod errors;
 mod eviction;
@@ -19,9 +20,6 @@ mod serde_helpers;
 mod storage_backend;
 mod streaming;
 mod traits;
-mod unified;
-mod unified_production;
-mod unified_v2;
 
 // Legacy modules (to be migrated)
 mod config;
@@ -58,6 +56,7 @@ mod content_addressed_store;
 
 // Public exports - new unified API
 pub use bridge::{CacheBuilder, SyncCache};
+pub use cache_impl::Cache as ProductionCache;
 pub use errors::{CacheError, RecoveryHint, Result as CacheResult};
 pub use metrics_endpoint::MetricsEndpoint;
 pub use monitored_cache::{MonitoredCache, MonitoredCacheBuilder};
@@ -68,9 +67,6 @@ pub use traits::{
     Cache, CacheConfig as UnifiedCacheConfig, CacheEntry, CacheKey, CacheMetadata,
     CacheStatistics as UnifiedCacheStatistics,
 };
-pub use unified::UnifiedCache;
-pub use unified_production::UnifiedCache as ProductionCache;
-pub use unified_v2::UnifiedCacheV2;
 
 // Legacy exports (deprecated - maintained for compatibility)
 pub use config::CacheConfig;

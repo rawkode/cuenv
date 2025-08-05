@@ -1,7 +1,5 @@
 #![allow(unused)]
 //! Tests for resilience module
-
-#![allow(unused)]
 #[cfg(test)]
 mod tests {
     use cuenv::errors::Error;
