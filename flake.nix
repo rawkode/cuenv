@@ -192,6 +192,17 @@
             GO = "${pkgs.go_1_24}/bin/go";
 
             doCheck = true;
+            
+            # Limit test parallelism to avoid pthread resource exhaustion
+            checkPhase = ''
+              runHook preCheck
+              # Set lower test thread count to avoid resource limits in Nix sandbox
+              export RUST_TEST_THREADS=2
+              # Also limit Go's parallelism
+              export GOMAXPROCS=2
+              cargo test --release --lib --bins --tests
+              runHook postCheck
+            '';
 
             meta = with pkgs.lib; {
               description = "A direnv alternative that uses CUE files for environment configuration";

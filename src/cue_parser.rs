@@ -635,7 +635,7 @@ fn extract_hooks(hooks_config: Option<HooksConfig>) -> HashMap<String, Vec<Hook>
 #[cfg(test)]
 mod tests {
     use serial_test::serial;
-    
+
     // Tests for pure functions
     #[test]
     fn test_validate_package_name() {
