@@ -505,7 +505,7 @@ mod tests {
     use crate::cache::traits::{Cache as CacheTrait, CacheConfig};
     use tempfile::TempDir;
 
-    async fn create_test_secure_cache() -> SecureCache<Cache> {
+    async fn create_test_secure_cache() -> (SecureCache<Cache>, TempDir) {
         let temp_dir = TempDir::new().unwrap();
         let cache_dir = temp_dir.path().to_path_buf();
 
@@ -513,16 +513,18 @@ mod tests {
             .await
             .unwrap();
 
-        SecureCache::builder(inner_cache)
+        let cache = SecureCache::builder(inner_cache)
             .cache_directory(&cache_dir)
             .build()
             .await
-            .unwrap()
+            .unwrap();
+
+        (cache, temp_dir)
     }
 
     #[tokio::test]
     async fn test_secure_cache_operations() {
-        let cache = create_test_secure_cache().await;
+        let (cache, _temp_dir) = create_test_secure_cache().await;
 
         // Test put and get
         cache.put("test_key", &"test_value", None).await.unwrap();
@@ -539,7 +541,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_integrity_verification() {
-        let cache = create_test_secure_cache().await;
+        let (cache, _temp_dir) = create_test_secure_cache().await;
 
         // Add some entries
         for i in 0..5 {
@@ -556,7 +558,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_merkle_proof_generation() {
-        let cache = create_test_secure_cache().await;
+        let (cache, _temp_dir) = create_test_secure_cache().await;
 
         // Add an entry
         cache.put("test_key", &"test_value", None).await.unwrap();

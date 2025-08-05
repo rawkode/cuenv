@@ -5,3 +5,5 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc eade6581156d1c681c2c745fe8cd4abb20825bcb421a00df827bcb1964081124 # shrinks to keys = ["a"], sizes = [1]
+cc 69c05271f9aceab1586f972abf38e8901b28de8339d92140c011b70c4a204444 # shrinks to keys = ["l", "a", "a", "a", "a"], sizes = [1]
+cc 4931b8641ec99da8472ba3ad4438f86fdf4505bf1028c7c89705ed828948559a # shrinks to keys = ["ra", "a", "b", "c", "d", "e", "f", "g", "h"], sizes = [1, 1, 1, 1, 1, 1, 1, 1, 1]

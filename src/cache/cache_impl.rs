@@ -644,8 +644,7 @@ impl CacheTrait for Cache {
                 .fast_path
                 .put_small(key.to_string(), data.clone(), metadata.clone())
             {
-                self.inner.stats.writes.fetch_add(1, Ordering::Relaxed);
-                // Continue to also store in regular cache for persistence
+                // Fast path successful, continue to also store in regular cache for persistence
             }
         }
 
@@ -916,6 +915,11 @@ impl CacheTrait for Cache {
             removed = true;
         }
 
+        // Remove from fast-path cache
+        if self.inner.fast_path.remove_small(key) {
+            removed = true;
+        }
+
         // Remove from disk (both metadata and data)
         let metadata_path = Self::metadata_path(&self.inner, key);
         let data_path = Self::object_path(&self.inner, key);
@@ -1056,6 +1060,8 @@ impl CacheTrait for Cache {
     async fn clear(&self) -> Result<()> {
         // Clear memory cache
         self.inner.memory_cache.clear();
+        // Clear fast path cache
+        self.inner.fast_path.clear();
         self.inner.stats.total_bytes.store(0, Ordering::Relaxed);
 
         // Clear disk cache

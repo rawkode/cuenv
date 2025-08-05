@@ -42,10 +42,7 @@ pub async fn execute_nix_flake_hook(
     // Execute and capture output
     debug!("About to execute nix command");
     let output = execute_command(nix_cmd)?;
-    debug!(
-        "Nix command executed, got {} bytes of output",
-        output.len()
-    );
+    debug!("Nix command executed, got {} bytes of output", output.len());
 
     // Save raw RC output to cache
     cache
