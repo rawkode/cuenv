@@ -22,36 +22,12 @@ fn main() {
         cmd.arg("-mod=vendor");
     }
 
-    // Check if we're building for musl
-    let target = env::var("TARGET").unwrap_or_default();
     let output_path = out_dir.join("libcue_bridge.a");
     let output_str = output_path
         .to_str()
         .expect("Failed to convert output path to string");
 
-    if target.contains("musl") {
-        // Set musl-specific environment variables
-        // Use CC from environment if set, otherwise default to musl-gcc
-        if let Ok(cc) = env::var("CC") {
-            cmd.env("CC", cc);
-        } else {
-            cmd.env("CC", "musl-gcc");
-        }
-        cmd.env("CGO_ENABLED", "1");
-
-        cmd.args([
-            "-buildmode=c-archive",
-            "-tags",
-            "netgo,osusergo,static_build",
-            "-ldflags",
-            "-extldflags '-static'",
-            "-o",
-            output_str,
-            "bridge.go",
-        ]);
-    } else {
-        cmd.args(["-buildmode=c-archive", "-o", output_str, "bridge.go"]);
-    }
+    cmd.args(["-buildmode=c-archive", "-o", output_str, "bridge.go"]);
 
     let status = cmd
         .status()

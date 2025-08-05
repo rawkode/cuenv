@@ -67,7 +67,7 @@ runs:
         # Map OS names
         case "$OS" in
           linux)
-            OS="unknown-linux-musl"
+            OS="unknown-linux-gnu"
             ;;
           darwin)
             OS="apple-darwin"

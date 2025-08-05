@@ -15,8 +15,8 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-            suffix: x86_64-unknown-linux-musl
+            target: x86_64-unknown-linux-gnu
+            suffix: x86_64-unknown-linux-gnu
           - os: macos-latest
             target: aarch64-apple-darwin
             suffix: aarch64-apple-darwin
@@ -50,7 +50,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y musl-tools musl-dev build-essential protobuf-compiler
+          sudo apt-get install -y build-essential protobuf-compiler
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -58,12 +58,7 @@ jobs:
       - name: Build binary
         run: |
           # Set up environment based on target
-          if [[ "${{ matrix.target }}" == *"musl"* ]]; then
-            export CC=musl-gcc
-            export CXX=musl-g++
-            export RUSTFLAGS="-C target-feature=+crt-static"
-            export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
-          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+          if [[ "${{ runner.os }}" == "macOS" ]]; then
             export RUSTFLAGS="-C link-arg=-framework -C link-arg=Security -C link-arg=-framework -C link-arg=CoreFoundation"
           fi
           export CGO_ENABLED=1
@@ -92,67 +87,6 @@ jobs:
           tar czf cuenv-${VERSION}-${{ matrix.suffix }}.tar.gz cuenv
           echo "ASSET_PATH=artifacts/cuenv-${VERSION}-${{ matrix.suffix }}.tar.gz" >> $GITHUB_ENV
           echo "ASSET_NAME=cuenv-${VERSION}-${{ matrix.suffix }}.tar.gz" >> $GITHUB_ENV
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.ASSET_NAME }}
-          path: ${{ env.ASSET_PATH }}
-      - name: Create Release
-        if: github.event_name == 'push' && github.ref_type == 'tag'
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ${{ env.ASSET_PATH }}
-          generate_release_notes: true
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  build-nix-portable:
-    name: Build Portable Binary with Nix
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Get version from Cargo.toml
-        id: get_version
-        run: |
-          VERSION=$(grep '^version = ' Cargo.toml | head -1 | cut -d'"' -f2)
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "Building version: $VERSION"
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
-        with:
-          logger: pretty
-          extra-conf: |
-            experimental-features = nix-command flakes
-      - name: Setup Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@main
-      - name: Build portable binary
-        run: |
-          nix build .#cuenv-portable -L
-
-          # The portable build creates a tarball in dist/
-          mkdir -p artifacts
-          cp result/dist/cuenv-portable-linux-x86_64.tar.gz artifacts/
-
-          # Extract and verify the portable binary
-          cd artifacts
-          tar -xzf cuenv-portable-linux-x86_64.tar.gz
-
-          echo "Verifying portable binary..."
-          echo "Library dependencies:"
-          ldd cuenv-portable/bin/cuenv || true
-
-          echo ""
-          echo "Binary info:"
-          file cuenv-portable/bin/cuenv
-          echo "Binary size: $(ls -lh cuenv-portable/bin/cuenv | awk '{print $5}')"
-
-          # Repackage with version in filename
-          VERSION="${{ steps.get_version.outputs.VERSION }}"
-          mv cuenv-portable-linux-x86_64.tar.gz cuenv-${VERSION}-x86_64-linux-portable.tar.gz
-          echo "ASSET_PATH=artifacts/cuenv-${VERSION}-x86_64-linux-portable.tar.gz" >> $GITHUB_ENV
-          echo "ASSET_NAME=cuenv-${VERSION}-x86_64-linux-portable.tar.gz" >> $GITHUB_ENV
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
