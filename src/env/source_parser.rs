@@ -246,9 +246,7 @@ pub fn filter_environment(env: HashMap<String, String>) -> HashMap<String, Strin
             !key.starts_with("__NIX_") &&
             // Skip shell internals
             !key.starts_with("BASH_FUNC_") &&
-            !key.starts_with("COMP_WORDBREAKS") &&
-            // Keep everything else
-            true
+            !key.starts_with("COMP_WORDBREAKS")
         })
         .collect()
 }
