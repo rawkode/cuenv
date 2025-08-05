@@ -202,79 +202,11 @@
             };
           };
 
-          # Portable build with bundled libraries for cross-distro compatibility
-          cuenv-portable = pkgs.stdenv.mkDerivation {
-            pname = "cuenv-portable";
-            version = version;
-
-            nativeBuildInputs = [ pkgs.autoPatchelfHook pkgs.patchelf ];
-
-            buildInputs = [
-              pkgs.stdenv.cc.cc.lib # libstdc++, libgcc_s
-              pkgs.glibc # libc, libm
-            ];
-
-            dontBuild = true;
-            dontUnpack = true;
-            dontFixup = true;
-
-            installPhase = ''
-              mkdir -p $out/bin $out/lib
-              
-              # Copy the binary
-              cp ${cuenv}/bin/cuenv $out/bin/cuenv
-              chmod +w $out/bin/cuenv
-              
-              # Bundle required libraries
-              cp ${pkgs.glibc}/lib/libc.so.6 $out/lib/
-              cp ${pkgs.glibc}/lib/libm.so.6 $out/lib/
-              cp ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 $out/lib/
-              cp ${pkgs.stdenv.cc.cc.lib}/lib/libgcc_s.so.1 $out/lib/
-              
-              # Copy the loader to lib64 as well (some systems look there)
-              mkdir -p $out/lib64
-              cp ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 $out/lib64/
-              
-              # Make the libraries executable (required for the loader)
-              chmod +x $out/lib/* $out/lib64/*
-              
-              # Patch the binary to use bundled libs
-              patchelf --set-interpreter $out/lib/ld-linux-x86-64.so.2 \
-                       --set-rpath $out/lib \
-                       $out/bin/cuenv
-                       
-              # Create a wrapper script for convenience
-              cat > $out/cuenv-portable <<'EOF'
-              #!/bin/sh
-              SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-              exec "$SCRIPT_DIR/bin/cuenv" "$@"
-              EOF
-              chmod +x $out/cuenv-portable
-              
-              # Create a tarball for distribution
-              mkdir -p $out/dist
-              tar -czf $out/dist/cuenv-portable-linux-x86_64.tar.gz \
-                -C $out bin lib lib64 cuenv-portable \
-                --transform 's,^,cuenv-portable/,'
-            '';
-
-            meta = with pkgs.lib; {
-              description = "A direnv alternative that uses CUE files for environment configuration (portable binary with bundled libs)";
-              homepage = "https://github.com/rawkode/cuenv";
-              license = licenses.mit;
-              maintainers = [ ];
-              platforms = [ "x86_64-linux" ];
-            };
-          };
-
         in
         {
           packages = {
             default = cuenv;
             cuenv = cuenv;
-          } // pkgs.lib.optionalAttrs (system == "x86_64-linux") {
-            # Portable build only available on Linux x86_64
-            cuenv-portable = cuenv-portable;
           };
 
           # Comprehensive checks for nix flake check

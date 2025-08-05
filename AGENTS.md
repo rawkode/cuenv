@@ -35,10 +35,9 @@ This applies to:
    - Handles protobuf compilation
    - Automatically runs during `cargo build`
 
-3. **Static Binary Support**
+3. **Binary Support**
    - Regular build: Dynamic linking
-   - Static build: Available via `nix build .#cuenv-static` (Linux only)
-   - Uses musl libc for full static linking
+   - Standard platform-specific builds via Cargo
 
 ## Development Commands
 
@@ -52,7 +51,6 @@ nix develop
 cargo build                    # Debug build
 cargo build --release          # Release build
 nix build .#cuenv             # Nix build (all platforms)
-nix build .#cuenv-static      # Static build (Linux only)
 
 # Testing
 cargo test                     # Run all tests
@@ -100,9 +98,8 @@ cargo run -- reload          # Reload environment
 4. **GitHub Release**
    - Automatically triggered by tag push
    - Creates binaries for:
-     - x86_64-unknown-linux-musl
+     - x86_64-unknown-linux-gnu
      - aarch64-apple-darwin
-     - x86_64-linux-portable (via Nix with bundled libraries)
 
 ## Important Patterns
 
@@ -119,17 +116,9 @@ cargo run -- reload          # Reload environment
 
 ### Platform Differences
 
-- Linux: Full static builds available via Nix
-- macOS: Dynamic linking only (no glibc.static)
+- Linux: Standard glibc builds
+- macOS: Dynamic linking with system frameworks
 - Windows: Basic support through platform abstraction layer
-
-### Static Builds
-
-The static build (`cuenv-static`) is only available on Linux because:
-
-- It requires `glibc.static` or `musl` for static linking
-- Uses `CARGO_BUILD_TARGET = "x86_64-unknown-linux-musl"`
-- Creates a portable binary with bundled libraries
 
 ## Testing Approach
 
