@@ -33,8 +33,6 @@ pub mod hook_manager;
 pub mod memory;
 pub mod output_filter;
 pub mod platform;
-#[cfg(feature = "remote-cache")]
-pub mod remote_cache;
 pub mod resource_limits;
 pub mod secrets;
 pub mod security;

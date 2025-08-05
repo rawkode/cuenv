@@ -1,171 +1,124 @@
 ---
-title: Remote Cache Server
-description: Use cuenv as a remote cache backend for Bazel/Buck2 builds
+title: Remote Cache Integration with Bazel
+description: Using external cache servers with cuenv builds
 ---
 
-cuenv provides a remote cache server that implements the Bazel/Buck2 Remote Execution API, allowing you to use cuenv's sophisticated caching infrastructure as a backend for your Bazel or Buck2 builds.
+cuenv supports integration with standard Bazel remote cache servers, allowing you to leverage existing caching infrastructure for your builds.
 
 ## Overview
 
-The remote cache server exposes cuenv's existing cache infrastructure via the standard Remote Execution API protocol:
+While cuenv has its own sophisticated local caching system, you can also integrate with external remote cache servers that implement the Bazel Remote Execution API protocol. This enables:
 
-```
-┌─────────────────┐     ┌──────────────────┐
-│ Bazel/Buck2     │────▶│ cuenv Remote     │
-│ Build System    │     │ Cache Server     │
-└─────────────────┘     └──────────────────┘
-                               │
-                               ▼
-                    ┌──────────────────────┐
-                    │   cuenv Cache Layer  │
-                    ├──────────────────────┤
-                    │ • ContentAddressedStore
-                    │ • ActionCache        │
-                    │ • ConcurrentCache    │
-                    └──────────────────────┘
-```
+- Shared caching across teams
+- Distributed build caching
+- Integration with existing CI/CD pipelines
 
-## Quick Start
+## Recommended Cache Servers
 
-1. **Start the remote cache server:**
+For remote caching needs, we recommend using established Bazel cache solutions:
 
-   ```bash
-   cuenv remote-cache-server --address 0.0.0.0:50051
-   ```
+### 1. **Bazel Remote Cache** (bazel-remote)
 
-2. **Configure Bazel to use cuenv's cache:**
-
-   ```bash
-   bazel build //... --remote_cache=grpc://localhost:50051
-   ```
-
-3. **Or configure Buck2:**
-   ```bash
-   buck2 build //... --remote-cache grpc://localhost:50051
-   ```
-
-## Server Options
+The reference implementation from the Bazel team:
 
 ```bash
-cuenv remote-cache-server \
-  --address 0.0.0.0:50051 \          # Listen address
-  --cache-dir /var/cache/cuenv \     # Cache storage directory
-  --max-cache-size 10737418240       # 10GB cache limit
+docker run -v /path/to/cache:/data \
+  -p 9090:8080 -p 9092:9092 \
+  buchgr/bazel-remote-cache
 ```
 
-## Using with Bazel
+### 2. **BuildBuddy**
 
-Add to your `.bazelrc`:
+Enterprise-grade build acceleration platform:
 
 ```bash
-# Use cuenv as remote cache
-build --remote_cache=grpc://cache.example.com:50051
-build --remote_instance_name=my-project
-build --remote_timeout=3600
-
-# Enable compression
-build --remote_cache_compression
-
-# Upload local results to share with team
-build --remote_upload_local_results=true
+# Self-hosted
+docker run -p 1985:1985 -p 8080:8080 \
+  gcr.io/flame-public/buildbuddy-app-onprem
 ```
 
-## Using with Buck2
+### 3. **Buildbarn**
 
-Configure in `.buckconfig`:
+Highly scalable remote execution and caching:
 
-```ini
-[build]
-remote_cache = grpc://cache.example.com:50051
-remote_instance_name = my-project
+```bash
+# See https://github.com/buildbarn/bb-deployments
 ```
 
-## Features
+## Configuring cuenv with Remote Cache
 
-- **Content-Addressed Storage**: Efficient deduplication using SHA256 hashes
-- **Action Cache**: Cache build action results for incremental builds
-- **Compression**: Automatic compression for network efficiency
-- **Concurrent Access**: Lock-free design for high-performance parallel builds
-- **Platform Support**: Works on Linux, macOS, and Windows
+To use a remote cache with cuenv builds:
 
-## Deployment
+1. **Set up your cache server** (see recommendations above)
 
-### Docker
+2. **Configure your build tools** to use the remote cache:
 
-```dockerfile
-FROM rust:1.79-slim
-WORKDIR /app
-COPY . .
-RUN cargo build --release --bin remote_cache_server
-EXPOSE 50051
-CMD ["./target/release/remote_cache_server", "--address", "0.0.0.0:50051"]
+   For Bazel:
+
+   ```bash
+   # .bazelrc
+   build --remote_cache=grpc://your-cache-server:9092
+   build --remote_instance_name=your-project
+   ```
+
+   For Buck2:
+
+   ```ini
+   # .buckconfig
+   [build]
+   remote_cache = grpc://your-cache-server:9092
+   ```
+
+3. **Use cuenv for environment management** while your build tool handles caching:
+
+   ```bash
+   # cuenv manages the environment
+   cuenv load
+
+   # Build tool uses remote cache
+   bazel build //... --remote_cache=grpc://cache:9092
+   ```
+
+## Best Practices
+
+1. **Local + Remote**: Combine cuenv's local caching with remote caching for best performance
+2. **Network Proximity**: Place cache servers close to your build infrastructure
+3. **Security**: Use TLS and authentication for production cache servers
+4. **Monitoring**: Track cache hit rates and performance metrics
+
+## Why External Cache Servers?
+
+We recommend using dedicated cache server solutions because:
+
+1. **Specialization**: Purpose-built for high-performance distributed caching
+2. **Ecosystem**: Rich tooling and integrations already exist
+3. **Maintenance**: Active development and community support
+4. **Features**: Advanced capabilities like remote execution, metrics, and UI
+
+## Integration Example
+
+Here's a complete example using cuenv with Bazel and a remote cache:
+
+```cue
+// env.cue
+package main
+
+env: {
+    default: {
+        BUILD_CACHE: "grpc://cache.example.com:9092"
+        BAZEL_REMOTE_CACHE: "\(BUILD_CACHE)"
+    }
+}
 ```
 
-### Kubernetes
+```bash
+# Load environment with cuenv
+cuenv load
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: cuenv-cache
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: cuenv-cache
-  template:
-    metadata:
-      labels:
-        app: cuenv-cache
-    spec:
-      containers:
-        - name: cache-server
-          image: cuenv/remote-cache:latest
-          ports:
-            - containerPort: 50051
-          env:
-            - name: CACHE_DIR
-              value: /data/cache
-          volumeMounts:
-            - name: cache-storage
-              mountPath: /data/cache
-      volumes:
-        - name: cache-storage
-          persistentVolumeClaim:
-            claimName: cuenv-cache-pvc
+# Build with remote cache (URL from environment)
+bazel build //... \
+  --remote_cache=$BAZEL_REMOTE_CACHE \
+  --remote_upload_local_results=true
 ```
 
-## Monitoring
-
-The server exposes metrics at `/metrics`:
-
-- `cache_hits_total` - Number of cache hits
-- `cache_misses_total` - Number of cache misses
-- `cache_size_bytes` - Current cache size
-- `cache_evictions_total` - Number of evicted entries
-
-## Security
-
-- TLS support via `--tls-cert` and `--tls-key` flags
-- Authentication via `--auth-token` flag
-- Rate limiting to prevent abuse
-
-## Comparison with Other Cache Servers
-
-| Feature         | cuenv  | BuildBuddy | Buildbarn | bazel-remote |
-| --------------- | ------ | ---------- | --------- | ------------ |
-| Protocol        | RE API | RE API     | RE API    | RE API       |
-| Language        | Rust   | Go         | Go        | Go           |
-| CAS             | ✓      | ✓          | ✓         | ✓            |
-| Action Cache    | ✓      | ✓          | ✓         | ✓            |
-| Inline Storage  | ✓      | ✗          | ✗         | ✗            |
-| Lock-free       | ✓      | ✗          | ✗         | ✗            |
-| Platform-native | ✓      | ✗          | ✗         | ✗            |
-
-## Why Use cuenv's Remote Cache?
-
-1. **Performance**: Written in Rust with lock-free concurrent access
-2. **Efficiency**: Inline storage optimization for small objects
-3. **Integration**: Seamlessly integrates with cuenv's build features
-4. **Flexibility**: Works with any RE API-compatible build system
-5. **Production-Ready**: Battle-tested caching infrastructure
+This approach gives you the best of both worlds: cuenv's powerful environment management with industry-standard remote caching solutions.

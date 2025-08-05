@@ -202,64 +202,68 @@
             };
           };
 
-          # Static musl build for Linux
-          cuenv-static = pkgs.rustPlatform.buildRustPackage {
-            pname = "cuenv-static";
+          # Portable build with bundled libraries for cross-distro compatibility
+          cuenv-portable = pkgs.stdenv.mkDerivation {
+            pname = "cuenv-portable";
             version = version;
 
-            src = ./.;
+            nativeBuildInputs = [ pkgs.autoPatchelfHook pkgs.patchelf ];
 
-            cargoLock = {
-              lockFile = ./Cargo.lock;
-            };
-
-            # Build-time tools
-            nativeBuildInputs = with pkgs; [
-              go_1_24
-              protobuf
-              pkg-config
-              # Use musl toolchain for static builds
-              (if stdenv.hostPlatform.isMusl then musl else glibc.static)
+            buildInputs = [
+              pkgs.stdenv.cc.cc.lib # libstdc++, libgcc_s
+              pkgs.glibc # libc, libm
             ];
 
-            buildInputs =
-              if pkgs.stdenv.hostPlatform.isMusl then [
-                pkgs.musl
-              ] else [
-                pkgs.glibc
-                pkgs.glibc.static
-              ];
+            dontBuild = true;
+            dontUnpack = true;
+            dontFixup = true;
 
-            # Set up build environment
-            preBuild = ''
-              export HOME=$(mktemp -d)
-              export GOPATH="$HOME/go"
-              export GOCACHE="$HOME/go-cache"
-              export CGO_ENABLED=1
-
-              # Set static linking flags for CGO
-              export CGO_CFLAGS="-static"
-              export CGO_LDFLAGS="-static"
-
-              # Copy vendored dependencies
-              cp -r ${goVendor}/vendor libcue-bridge/
-              chmod -R u+w libcue-bridge
+            installPhase = ''
+              mkdir -p $out/bin $out/lib
+              
+              # Copy the binary
+              cp ${cuenv}/bin/cuenv $out/bin/cuenv
+              chmod +w $out/bin/cuenv
+              
+              # Bundle required libraries
+              cp ${pkgs.glibc}/lib/libc.so.6 $out/lib/
+              cp ${pkgs.glibc}/lib/libm.so.6 $out/lib/
+              cp ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 $out/lib/
+              cp ${pkgs.stdenv.cc.cc.lib}/lib/libgcc_s.so.1 $out/lib/
+              
+              # Copy the loader to lib64 as well (some systems look there)
+              mkdir -p $out/lib64
+              cp ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 $out/lib64/
+              
+              # Make the libraries executable (required for the loader)
+              chmod +x $out/lib/* $out/lib64/*
+              
+              # Patch the binary to use bundled libs
+              patchelf --set-interpreter $out/lib/ld-linux-x86-64.so.2 \
+                       --set-rpath $out/lib \
+                       $out/bin/cuenv
+                       
+              # Create a wrapper script for convenience
+              cat > $out/cuenv-portable <<'EOF'
+              #!/bin/sh
+              SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+              exec "$SCRIPT_DIR/bin/cuenv" "$@"
+              EOF
+              chmod +x $out/cuenv-portable
+              
+              # Create a tarball for distribution
+              mkdir -p $out/dist
+              tar -czf $out/dist/cuenv-portable-linux-x86_64.tar.gz \
+                -C $out bin lib lib64 cuenv-portable \
+                --transform 's,^,cuenv-portable/,'
             '';
 
-            # Force static linking and disable PIE
-            RUSTFLAGS = "-C target-feature=+crt-static -C link-args=-no-pie";
-
-            # Set the musl target explicitly
-            CARGO_BUILD_TARGET = "x86_64-unknown-linux-musl";
-
-            # Disable tests for static build
-            doCheck = false;
-
             meta = with pkgs.lib; {
-              description = "A direnv alternative that uses CUE files for environment configuration (static binary)";
+              description = "A direnv alternative that uses CUE files for environment configuration (portable binary with bundled libs)";
               homepage = "https://github.com/rawkode/cuenv";
               license = licenses.mit;
               maintainers = [ ];
+              platforms = [ "x86_64-linux" ];
             };
           };
 
@@ -269,8 +273,8 @@
             default = cuenv;
             cuenv = cuenv;
           } // pkgs.lib.optionalAttrs (system == "x86_64-linux") {
-            # Static builds only available on Linux
-            cuenv-static = cuenv-static;
+            # Portable build only available on Linux x86_64
+            cuenv-portable = cuenv-portable;
           };
 
           # Comprehensive checks for nix flake check
@@ -282,36 +286,59 @@
             build = cuenv;
 
             # Clippy check
-            clippy = pkgs.stdenv.mkDerivation {
-              pname = "cuenv-clippy-check";
-              version = version;
-              src = ./.;
+            clippy =
+              let
+                # Vendor cargo dependencies
+                cargoVendor = pkgs.rustPlatform.fetchCargoVendor {
+                  src = ./.;
+                  name = "cuenv-cargo-vendor";
+                  hash = "sha256-pW3zFLriHJINs3AvPVJFCaoDetiVrCZoiWC4XlZxYeo=";
+                };
+              in
+              pkgs.stdenv.mkDerivation {
+                pname = "cuenv-clippy-check";
+                version = version;
+                src = ./.;
 
-              nativeBuildInputs = nativeBuildInputs ++ [ pkgs.cargo-clippy ];
-              buildInputs = buildInputs;
+                nativeBuildInputs = nativeBuildInputs;
+                buildInputs = buildInputs;
 
-              # Copy vendored Go dependencies
-              preBuild = ''
-                export HOME=$(mktemp -d)
-                export GOPATH="$HOME/go"
-                export GOCACHE="$HOME/go-cache"
-                export CGO_ENABLED=1
-                
-                cp -r ${goVendor}/vendor libcue-bridge/
-                chmod -R u+w libcue-bridge
-              '';
+                # Copy vendored dependencies
+                preBuild = ''
+                  export HOME=$(mktemp -d)
+                  export GOPATH="$HOME/go"
+                  export GOCACHE="$HOME/go-cache"
+                  export CGO_ENABLED=1
+                  
+                  # Copy Go vendor
+                  cp -r ${goVendor}/vendor libcue-bridge/
+                  chmod -R u+w libcue-bridge
+                  
+                  # Setup cargo vendor
+                  mkdir -p .cargo
+                  cat > .cargo/config.toml <<EOF
+                  [source.crates-io]
+                  replace-with = "vendored-sources"
+                  
+                  [source.vendored-sources]
+                  directory = "vendor"
+                  EOF
+                  
+                  cp -r ${cargoVendor} vendor
+                  chmod -R u+w vendor
+                '';
 
-              buildPhase = ''
-                runHook preBuild
-                cargo clippy --all-targets --all-features -- -D warnings \
-                  -A clippy::duplicate_mod \
-                  -A clippy::uninlined_format_args \
-                  -A clippy::too_many_arguments
-                runHook postBuild
-              '';
+                buildPhase = ''
+                  runHook preBuild
+                  cargo clippy --all-targets --all-features -- -D warnings \
+                    -A clippy::duplicate_mod \
+                    -A clippy::uninlined_format_args \
+                    -A clippy::too_many_arguments
+                  runHook postBuild
+                '';
 
-              installPhase = "touch $out";
-            };
+                installPhase = "touch $out";
+              };
 
             # Unit tests (sandbox-compatible)
             unit-tests = pkgs.stdenv.mkDerivation {
@@ -398,10 +425,6 @@
                 echo "  cargo watch    - Watch for changes and rebuild" >&2
                 echo "  treefmt        - Format all code" >&2
                 echo "  nix flake check - Check code formatting" >&2
-                echo "" >&2
-                echo "Remote cache server:" >&2
-                echo "  cargo run --bin remote_cache_server - Start the cache server" >&2
-                echo "" >&2
               fi
 
               # Set up environment for building

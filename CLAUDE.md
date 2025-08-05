@@ -40,7 +40,6 @@ nix develop -c nix flake check                # Check code formatting
 
 # Running
 nix develop -c cargo run -- <args>            # Run cuenv with arguments
-nix develop -c cargo run --bin remote_cache_server  # Start remote cache server
 
 # Documentation
 nix develop -c cargo doc --open               # Generate and open API docs

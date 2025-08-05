@@ -208,10 +208,11 @@ pub fn prefetch_read<T>(ptr: *const T) {
         _mm_prefetch(ptr as *const i8, 0); // _MM_HINT_T0
     }
 
+    // ARM64 prefetch is unstable in Rust 1.88.0
+    // TODO: Re-enable when stabilized
     #[cfg(target_arch = "aarch64")]
-    unsafe {
-        use std::arch::aarch64::_prefetch;
-        _prefetch(ptr as *const i8, 0, 3); // Read, L1 cache
+    {
+        // No-op for now
     }
 }
 
@@ -223,10 +224,11 @@ pub fn prefetch_write<T>(ptr: *const T) {
         _mm_prefetch(ptr as *const i8, 1); // _MM_HINT_T1
     }
 
+    // ARM64 prefetch is unstable in Rust 1.88.0
+    // TODO: Re-enable when stabilized
     #[cfg(target_arch = "aarch64")]
-    unsafe {
-        use std::arch::aarch64::_prefetch;
-        _prefetch(ptr as *const i8, 1, 3); // Write, L1 cache
+    {
+        // No-op for now
     }
 }
 

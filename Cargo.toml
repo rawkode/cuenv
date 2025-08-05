@@ -14,7 +14,6 @@ categories = ["command-line-utilities", "development-tools", "config"]
 
 [features]
 default = []
-remote-cache = []
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
@@ -70,13 +69,6 @@ whoami = "1.5"
 dashmap = "6.1"
 parking_lot = "0.12"
 crossbeam = "0.8"
-# Remote cache server dependencies
-tonic = { version = "0.11", features = ["tls"] }
-prost = "0.12"
-prost-types = "0.12"
-hyper = { version = "0.14", features = ["full"] }
-tower = "0.4"
-tonic-reflection = "0.11"
 hex = "0.4"
 bytes = "1.5"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
@@ -108,7 +100,6 @@ landlock = "0.4"
 
 [build-dependencies]
 cc = "1.0"
-tonic-build = "0.11"
 
 [dev-dependencies]
 proptest = "1.4"
@@ -134,11 +125,3 @@ harness = false
 [[bench]]
 name = "cache_regression_bench"
 harness = false
-[[bin]]
-name = "remote_cache_server"
-path = "src/remote_cache/bin/server.rs"
-required-features = ["remote-cache"]
-
-[[bin]]
-name = "bazel_cache_server"
-path = "src/remote_cache/bin/bazel_server.rs"

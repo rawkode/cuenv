@@ -198,6 +198,13 @@ pub struct TestResponse {
 }
 
 #[cfg(test)]
+impl Default for TestCommandExecutor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
 impl TestCommandExecutor {
     pub fn new() -> Self {
         Self {

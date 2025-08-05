@@ -401,7 +401,10 @@ async fn test_different_data_types() {
     cache.put("bool_key", &true, None).await.unwrap();
     cache.put("i32_key", &42i32, None).await.unwrap();
     cache.put("u64_key", &12345u64, None).await.unwrap();
-    cache.put("f64_key", &3.14159f64, None).await.unwrap();
+    cache
+        .put("f64_key", &std::f64::consts::PI, None)
+        .await
+        .unwrap();
     cache
         .put("vec_key", &vec![1, 2, 3, 4, 5], None)
         .await
@@ -418,7 +421,7 @@ async fn test_different_data_types() {
     assert_eq!(u64_val, Some(12345));
 
     let f64_val: Option<f64> = cache.get("f64_key").await.unwrap();
-    assert_eq!(f64_val, Some(3.14159));
+    assert_eq!(f64_val, Some(std::f64::consts::PI));
 
     let vec_val: Option<Vec<i32>> = cache.get("vec_key").await.unwrap();
     assert_eq!(vec_val, Some(vec![1, 2, 3, 4, 5]));

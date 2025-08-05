@@ -200,7 +200,7 @@ mod cache_invariant_tests {
                 0.0
             };
             assert!(
-                hit_rate >= 0.0 && hit_rate <= 1.0,
+                (0.0..=1.0).contains(&hit_rate),
                 "Hit rate should be between 0 and 1: {} at iteration {}",
                 hit_rate,
                 i
@@ -652,7 +652,7 @@ mod cache_invariant_tests {
                 .metadata(key)
                 .await
                 .unwrap()
-                .expect(&format!("Metadata should exist for key {}", key));
+                .unwrap_or_else(|| panic!("Metadata should exist for key {}", key));
 
             // Verify metadata consistency
             assert!(
