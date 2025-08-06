@@ -33,7 +33,7 @@ mod deadlock_tests {
         // Add timeout to detect if this hangs
         let put_result = tokio::time::timeout(
             Duration::from_secs(5),
-            cache.put(&recovery_key, &recovery_value, None),
+            cache.put(recovery_key, &recovery_value, None),
         )
         .await;
 
@@ -47,7 +47,7 @@ mod deadlock_tests {
 
         // Try to get the value back
         let get_result =
-            tokio::time::timeout(Duration::from_secs(5), cache.get::<Vec<u8>>(&recovery_key)).await;
+            tokio::time::timeout(Duration::from_secs(5), cache.get::<Vec<u8>>(recovery_key)).await;
 
         match get_result {
             Ok(Ok(Some(retrieved))) => {
