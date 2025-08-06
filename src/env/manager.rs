@@ -183,20 +183,12 @@ impl EnvManager {
 
         // Process onEnter hooks that provide environment (nix flake, devenv, source hooks)
         let cache = crate::env::EnvCache::new(dir).ok();
-        eprintln!("DEBUG: Found {} hook types", parse_result.hooks.len());
         for (hook_type, hooks) in &parse_result.hooks {
-            eprintln!(
-                "DEBUG: Processing hook type: {} with {} hooks",
-                hook_type,
-                hooks.len()
-            );
             if hook_type == "onEnter" {
                 for hook in hooks {
-                    eprintln!("DEBUG: Processing hook: {:?}", hook);
                     match hook {
                         crate::config::Hook::SimpleNixFlake { flake }
                         | crate::config::Hook::NixFlake { flake, .. } => {
-                            eprintln!("DEBUG: Found nix flake hook!");
                             if let Some(ref cache) = cache {
                                 match crate::hooks::execute_nix_flake_hook(flake, cache, false)
                                     .await

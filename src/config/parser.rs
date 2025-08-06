@@ -509,10 +509,6 @@ impl CueParser {
             check_for_error_response(&json_value, dir)?;
 
             // Deserialize and build final result
-            eprintln!(
-                "DEBUG: Raw JSON from CUE: {}",
-                serde_json::to_string_pretty(&json_value).unwrap_or_default()
-            );
             let cue_result = deserialize_cue_result(json_value)?;
             Self::build_parse_result(cue_result, options)?
         };
@@ -619,11 +615,8 @@ fn build_filtered_variables(
 fn extract_hooks(hooks_config: Option<HooksConfig>) -> HashMap<String, Vec<Hook>> {
     let mut hooks = HashMap::with_capacity(2); // At most 2 hook types (onEnter, onExit)
 
-    eprintln!("DEBUG extract_hooks: hooks_config = {:?}", hooks_config);
-
     if let Some(config) = hooks_config {
         if let Some(on_enter) = config.on_enter {
-            eprintln!("DEBUG: Found onEnter hooks");
             let hook_list = match on_enter {
                 HookValue::Single(hook) => vec![*hook],
                 HookValue::Multiple(hook_vec) => hook_vec,
@@ -632,7 +625,6 @@ fn extract_hooks(hooks_config: Option<HooksConfig>) -> HashMap<String, Vec<Hook>
         }
 
         if let Some(on_exit) = config.on_exit {
-            eprintln!("DEBUG: Found onExit hooks");
             let hook_list = match on_exit {
                 HookValue::Single(hook) => vec![*hook],
                 HookValue::Multiple(hook_vec) => hook_vec,

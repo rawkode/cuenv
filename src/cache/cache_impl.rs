@@ -276,7 +276,7 @@ impl Cache {
                     let data_path = Self::object_path_from_hash(inner, file_stem);
                     if !data_path.exists() {
                         // Orphaned metadata file - clean it up
-                        if let Ok(_) = fs::remove_file(&path).await {
+                        if fs::remove_file(&path).await.is_ok() {
                             cleanup_count += 1;
                             tracing::debug!(
                                 "Cleaned up orphaned metadata file: {}",
@@ -509,8 +509,7 @@ impl CacheTrait for Cache {
                     self.inner.stats.hits.fetch_add(1, Ordering::Relaxed);
                     match Self::deserialize::<T>(&data) {
                         Ok(value) => return Ok(Some(value)),
-                        Err(e) => {
-                            eprintln!("Fast path cache entry deserialization failed for key '{}', treating as cache miss: {}", key, e);
+                        Err(_e) => {
                             // Remove from fast path cache and continue to regular cache path
                             self.inner.fast_path.remove_small(key);
                             self.inner.stats.errors.fetch_add(1, Ordering::Relaxed);
@@ -522,8 +521,7 @@ impl CacheTrait for Cache {
                 self.inner.stats.hits.fetch_add(1, Ordering::Relaxed);
                 match Self::deserialize::<T>(&data) {
                     Ok(value) => return Ok(Some(value)),
-                    Err(e) => {
-                        eprintln!("Fast path cache entry deserialization failed for key '{}', treating as cache miss: {}", key, e);
+                    Err(_e) => {
                         // Remove from fast path cache and continue to regular cache path
                         self.inner.fast_path.remove_small(key);
                         self.inner.stats.errors.fetch_add(1, Ordering::Relaxed);
@@ -560,9 +558,8 @@ impl CacheTrait for Cache {
 
             match Self::deserialize::<T>(data) {
                 Ok(value) => return Ok(Some(value)),
-                Err(e) => {
+                Err(_e) => {
                     // Memory cache entry is corrupted, remove it and treat as cache miss
-                    eprintln!("Memory cache entry deserialization failed for key '{}', removing from memory cache: {}", key, e);
                     self.inner.memory_cache.remove(key);
                     self.inner.stats.errors.fetch_add(1, Ordering::Relaxed);
                     return Ok(None);
@@ -622,7 +619,7 @@ impl CacheTrait for Cache {
 
         let metadata: CacheMetadata = match Self::deserialize(&metadata_bytes) {
             Ok(m) => m,
-            Err(e) => {
+            Err(_e) => {
                 // Release semaphore permit before cleanup to prevent deadlock
                 drop(permit);
 
@@ -631,10 +628,6 @@ impl CacheTrait for Cache {
                 let _ = fs::remove_file(&data_path).await;
                 self.inner.stats.errors.fetch_add(1, Ordering::Relaxed);
                 // Treat as cache miss for better error recovery
-                eprintln!(
-                    "Corrupted metadata for key '{}', treating as cache miss: {}",
-                    key, e
-                );
                 return Ok(None);
             }
         };
@@ -725,13 +718,9 @@ impl CacheTrait for Cache {
 
         match Self::deserialize::<T>(data_slice) {
             Ok(value) => Ok(Some(value)),
-            Err(e) => {
+            Err(_e) => {
                 // For better error recovery, treat any deserialization error as a cache miss
                 // This is more aggressive than needed but ensures cache remains functional
-                eprintln!(
-                    "Cache entry deserialization failed for key '{}', treating as cache miss: {}",
-                    key, e
-                );
 
                 // IMPORTANT: We cannot safely do cleanup here while holding memory_cache and other locks
                 // This can cause deadlocks. Instead, just remove from memory cache and return None.

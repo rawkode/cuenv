@@ -218,8 +218,8 @@ impl TestCommandExecutor {
             Ok(mut responses) => {
                 responses.insert(key, response);
             }
-            Err(e) => {
-                eprintln!("Failed to lock test responses: {}", e);
+            Err(_) => {
+                // Failed to lock test responses - ignore in test mode
             }
         }
     }
