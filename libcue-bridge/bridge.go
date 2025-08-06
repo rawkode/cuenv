@@ -454,11 +454,18 @@ func extractCueData(v cue.Value) map[string]interface{} {
 				taskConfig["security"] = security
 			}
 
-			// Extract cache
+			// Extract cache - can be either a boolean or an object
 			if cacheField := iter.Value().LookupPath(cue.ParsePath("cache")); cacheField.Exists() {
-				var cache bool
-				if err := cacheField.Decode(&cache); err == nil {
-					taskConfig["cache"] = cache
+				// Try to decode as boolean first (simple case)
+				var cacheBool bool
+				if err := cacheField.Decode(&cacheBool); err == nil {
+					taskConfig["cache"] = cacheBool
+				} else {
+					// Try to decode as an object (advanced case)
+					var cacheObj map[string]interface{}
+					if err := cacheField.Decode(&cacheObj); err == nil {
+						taskConfig["cache"] = cacheObj
+					}
 				}
 			}
 

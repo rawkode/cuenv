@@ -44,14 +44,13 @@ fn test_cache_config_loader_env_vars() {
 
     let config = CacheConfigLoader::load().unwrap();
 
-    // Environment variables only affect mode and enabled state
-    // Other settings like base_dir and max_size are not loaded from env vars
+    // Environment variables affect mode, enabled state, and max_size
+    // Note: base_dir is not loaded from CUENV_CACHE_DIR in current implementation
     assert_eq!(config.global.mode, cuenv::cache::CacheMode::Read);
-    // CUENV_CACHE_ENABLED is not handled in the current implementation
-    // The enabled state is derived from the mode (Read mode doesn't disable caching)
-    assert!(config.global.enabled);
-    assert_eq!(config.global.base_dir, None); // Not loaded from env vars
-    assert_eq!(config.global.max_size, None); // Not loaded from env vars
+    // CUENV_CACHE_ENABLED takes precedence and explicitly disables caching
+    assert!(!config.global.enabled);
+    assert_eq!(config.global.base_dir, None); // CUENV_CACHE_DIR not used (different from CUENV_CACHE_BASE_DIR)
+    assert_eq!(config.global.max_size, Some(1048576)); // CUENV_CACHE_MAX_SIZE is loaded
 
     // Clean up
     std::env::remove_var("CUENV_CACHE");

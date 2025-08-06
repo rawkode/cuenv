@@ -18,6 +18,7 @@ pub struct CacheKeyFilterConfig {
     /// Patterns to exclude (denylist)
     pub exclude: Vec<String>,
     /// Whether to use smart defaults for common build tools
+    #[serde(rename = "useSmartDefaults")]
     pub use_smart_defaults: bool,
 }
 
@@ -134,7 +135,7 @@ impl CacheKeyGenerator {
             "PAGER",
         ];
 
-        // Default denylist - exclude these always
+        // Default denylist - exclude these always for cross-platform consistency
         let denylist = vec![
             // Shell/session variables
             "PS1",
@@ -149,7 +150,7 @@ impl CacheKeyGenerator {
             "SHLVL",
             "_",
             "SHELL_SESSION_ID",
-            // Terminal/display
+            // Terminal/display (platform-specific)
             "DISPLAY",
             "WAYLAND_DISPLAY",
             "XDG_*",
@@ -191,12 +192,13 @@ impl CacheKeyGenerator {
             "EUID",
             "GID",
             "EGID",
-            // Other session-specific
+            // Platform-specific session variables
             "HOSTNAME",
             "LOGNAME",
             "USERDOMAIN",
             "COMPUTERNAME",
-            // Development environment specific
+            "USERNAME", // Windows-specific
+            // Development environment specific (terminal-dependent)
             "VTE_VERSION",
             "WT_SESSION",
             "TERM_PROGRAM",
@@ -205,12 +207,15 @@ impl CacheKeyGenerator {
             // macOS specific
             "__CF_USER_TEXT_ENCODING",
             "COMMAND_MODE",
+            "SECURITYSESSIONID",
             // Linux specific
             "XDG_RUNTIME_DIR",
             "XDG_DATA_DIRS",
             "XDG_CONFIG_DIRS",
             // Windows specific (WSL/Cygwin)
             "WSL*",
+            "WSL_DISTRO_NAME",
+            "WSL_INTEROP",
             "CYGWIN*",
             "MSYS*",
         ];
@@ -286,8 +291,21 @@ impl CacheKeyGenerator {
 
     /// Compile a single pattern with error handling
     fn compile_pattern(pattern: &str) -> Result<Regex> {
-        Regex::new(pattern)
-            .map_err(|e| Error::configuration(format!("Invalid regex pattern '{pattern}': {e}")))
+        // Convert glob-style patterns to regex
+        let regex_pattern = if pattern.contains('*') || pattern.contains('?') {
+            // Convert glob pattern to regex
+            let escaped = regex::escape(pattern);
+            // Replace escaped glob characters with regex equivalents
+            let regex_pattern = escaped.replace(r"\*", ".*").replace(r"\?", ".");
+            // Anchor the pattern to match the entire string
+            format!("^{}$", regex_pattern)
+        } else {
+            // Exact match for patterns without wildcards
+            format!("^{}$", regex::escape(pattern))
+        };
+
+        Regex::new(&regex_pattern)
+            .map_err(|e| Error::configuration(format!("Invalid pattern '{pattern}': {e}")))
     }
 
     /// Filter environment variables based on configured patterns
@@ -536,13 +554,61 @@ impl CacheKeyGenerator {
         Ok(format!("{:x}", hasher.finalize()))
     }
 
-    /// Normalize working directory path for consistent cache keys
+    /// Normalize working directory path for consistent cache keys across platforms
     fn normalize_working_dir(&self, path: &Path) -> String {
-        // Use canonical path if possible, otherwise use as-is
-        if let Ok(canonical) = path.canonicalize() {
-            canonical.to_string_lossy().to_string()
+        // Normalize path separators to forward slashes for consistency
+        let path_str = path.to_string_lossy();
+        let mut normalized = path_str.replace('\\', "/");
+
+        // Remove trailing slashes and dots for consistency
+        while normalized.ends_with('/') || normalized.ends_with("/.") {
+            if normalized.ends_with("/.") {
+                normalized.truncate(normalized.len() - 2);
+            } else if normalized.ends_with('/') {
+                normalized.truncate(normalized.len() - 1);
+            }
+        }
+
+        // Handle path components like `/tmp/../project` by resolving them
+        // This is a simplified path resolution that doesn't access the filesystem
+        let mut components = Vec::new();
+        for component in normalized.split('/') {
+            match component {
+                "" | "." => continue, // Skip empty and current directory references
+                ".." => {
+                    if !components.is_empty() && components.last() != Some(&"..") {
+                        components.pop(); // Go up one directory
+                    } else if !normalized.starts_with('/') {
+                        // For relative paths, keep the ".."
+                        components.push(component);
+                    }
+                    // For absolute paths, ".." at root is ignored
+                }
+                _ => components.push(component),
+            }
+        }
+
+        let resolved = if normalized.starts_with('/') {
+            format!("/{}", components.join("/"))
         } else {
-            path.to_string_lossy().to_string()
+            components.join("/")
+        };
+
+        // Handle empty path case
+        if resolved.is_empty() || resolved == "/" {
+            return "/".to_string();
+        }
+
+        // Convert relative paths to absolute-style paths for consistency
+        if !resolved.starts_with('/') && !resolved.contains(':') {
+            format!("/{}", resolved)
+        } else if cfg!(windows) && resolved.len() > 1 && resolved.chars().nth(1) == Some(':') {
+            // Convert Windows drive letters to forward-slash format (C: -> /c)
+            let drive_letter = resolved.chars().next().unwrap().to_lowercase();
+            let rest = &resolved[2..];
+            format!("/{}{}", drive_letter, rest)
+        } else {
+            resolved
         }
     }
 

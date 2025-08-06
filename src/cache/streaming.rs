@@ -193,9 +193,14 @@ impl CacheReader {
 
     /// Verify the integrity of the data read
     pub fn verify_integrity(&self) -> bool {
-        let hasher = self.hasher.read();
-        let computed_hash = format!("{:x}", hasher.clone().finalize());
-        computed_hash == self.metadata.content_hash
+        // Clone the hasher state to avoid consuming the original
+        let hasher_guard = self.hasher.read();
+        let hasher_clone = hasher_guard.clone();
+        drop(hasher_guard); // Release the lock early
+
+        let computed_hash = format!("{:x}", hasher_clone.finalize());
+        let expected_hash = &self.metadata.content_hash;
+        computed_hash == *expected_hash
     }
 }
 
@@ -487,11 +492,10 @@ impl AsyncWrite for CacheWriter {
     ) -> Poll<io::Result<usize>> {
         let this = self.project();
 
-        // Update hash with written data
-        this.hasher.update(buf);
-
         match this.file.poll_write(cx, buf) {
             Poll::Ready(Ok(n)) => {
+                // Update hash only with bytes actually written
+                this.hasher.update(&buf[..n]);
                 *this.bytes_written += n as u64;
                 Poll::Ready(Ok(n))
             }

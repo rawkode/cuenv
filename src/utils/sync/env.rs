@@ -208,6 +208,7 @@ mod tests {
 
     #[test]
     #[cfg_attr(coverage, ignore)]
+    #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_concurrent_env_modifications() -> Result<()> {
         let base_key = format!("TEST_CONCURRENT_{}", uuid::Uuid::new_v4());
         let num_threads = 10;

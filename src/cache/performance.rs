@@ -26,6 +26,17 @@ const CACHE_LINE_SIZE: usize = 128;
 const CACHE_LINE_SIZE: usize = 64;
 
 /// Align a type to cache line boundaries to prevent false sharing
+#[cfg(target_arch = "x86_64")]
+#[repr(align(64))]
+pub struct CacheLineAligned<T>(pub T);
+
+/// Align a type to cache line boundaries to prevent false sharing
+#[cfg(target_arch = "aarch64")]
+#[repr(align(128))]
+pub struct CacheLineAligned<T>(pub T);
+
+/// Align a type to cache line boundaries to prevent false sharing
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 #[repr(align(64))]
 pub struct CacheLineAligned<T>(pub T);
 

@@ -31,6 +31,7 @@ mod state_race_condition_tests {
 
     /// Test concurrent state loading and unloading
     #[test]
+    #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_concurrent_state_transitions() {
         cleanup_state();
 
@@ -149,6 +150,7 @@ mod state_race_condition_tests {
 
     /// Test state consistency under rapid changes
     #[test]
+    #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_state_consistency() {
         cleanup_state();
 
@@ -254,6 +256,7 @@ mod state_race_condition_tests {
 
     /// Test environment variable synchronization
     #[test]
+    #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_env_var_sync_race_conditions() {
         cleanup_state();
 
@@ -315,6 +318,7 @@ mod state_race_condition_tests {
 
     /// Test state prefix handling under concurrent access
     #[test]
+    #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_concurrent_prefix_changes() {
         cleanup_state();
 

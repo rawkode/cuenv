@@ -1244,7 +1244,14 @@ fn parse_shell_exports(output: &str) -> HashMap<String, String> {
             let value = export_line[eq_pos + 1..].trim();
 
             // Skip invalid variable names
-            if key.is_empty() || !key.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            // Variable names must start with a letter or underscore, followed by alphanumeric or underscore
+            if key.is_empty()
+                || !key
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_alphabetic() || c == '_')
+                || !key.chars().all(|c| c.is_alphanumeric() || c == '_')
+            {
                 continue;
             }
 

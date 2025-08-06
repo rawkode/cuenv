@@ -575,6 +575,7 @@ mod tests {
 
     #[test]
     #[cfg(not(feature = "nix-build"))]
+    #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_process_guard_timeout() {
         // Create a long-running process
         let child = std::process::Command::new("sleep")

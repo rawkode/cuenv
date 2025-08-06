@@ -10,10 +10,7 @@
 use crate::cache::errors::{CacheError, RecoveryHint, Result};
 pub use crate::cache::traits::CacheStatistics;
 use parking_lot::RwLock;
-use prometheus::{
-    register_counter_vec, register_histogram_vec, register_int_gauge_vec, CounterVec, Encoder,
-    HistogramVec, IntGaugeVec, Registry, TextEncoder,
-};
+use prometheus::{CounterVec, Encoder, HistogramVec, IntGaugeVec, Registry, TextEncoder};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -42,6 +39,14 @@ struct MonitorInner {
 struct MetricsCollector {
     /// Cache operation counter
     cache_operations: CounterVec,
+    /// Cache hits counter
+    hits_counter: CounterVec,
+    /// Cache misses counter
+    misses_counter: CounterVec,
+    /// Cache writes counter
+    writes_counter: CounterVec,
+    /// Cache errors counter
+    errors_counter: CounterVec,
     /// Operation duration histogram
     operation_duration: HistogramVec,
     /// Cache size gauges
@@ -183,26 +188,65 @@ impl CacheMonitor {
     fn init_metrics(
         registry: &Registry,
     ) -> std::result::Result<MetricsCollector, Box<dyn std::error::Error>> {
-        let cache_operations = register_counter_vec!(
-            "cuenv_cache_operations_total",
-            "Total number of cache operations",
-            &["operation", "result"]
+        use prometheus::{CounterVec, HistogramVec, IntGaugeVec, Opts};
+
+        // Create specific metrics that tests expect
+        let cache_operations = CounterVec::new(
+            Opts::new(
+                "cuenv_cache_operations_total",
+                "Total number of cache operations",
+            ),
+            &["operation", "result"],
         )?;
         registry.register(Box::new(cache_operations.clone()))?;
 
-        let operation_duration = register_histogram_vec!(
-            "cuenv_cache_operation_duration_seconds",
-            "Cache operation duration in seconds",
-            &["operation", "result"]
+        // Individual operation metrics for backward compatibility
+        let hits_counter = CounterVec::new(
+            Opts::new("cuenv_cache_hits_total", "Total number of cache hits"),
+            &["key_pattern"],
+        )?;
+        registry.register(Box::new(hits_counter.clone()))?;
+
+        let misses_counter = CounterVec::new(
+            Opts::new("cuenv_cache_misses_total", "Total number of cache misses"),
+            &["key_pattern"],
+        )?;
+        registry.register(Box::new(misses_counter.clone()))?;
+
+        let writes_counter = CounterVec::new(
+            Opts::new("cuenv_cache_writes_total", "Total number of cache writes"),
+            &["key_pattern"],
+        )?;
+        registry.register(Box::new(writes_counter.clone()))?;
+
+        let errors_counter = CounterVec::new(
+            Opts::new("cuenv_cache_errors_total", "Total number of cache errors"),
+            &["error_type"],
+        )?;
+        registry.register(Box::new(errors_counter.clone()))?;
+
+        let operation_duration = HistogramVec::new(
+            Opts::new(
+                "cuenv_cache_operation_duration_seconds",
+                "Cache operation duration in seconds",
+            )
+            .into(),
+            &["operation", "result"],
         )?;
         registry.register(Box::new(operation_duration.clone()))?;
 
-        let cache_gauges =
-            register_int_gauge_vec!("cuenv_cache_stats", "Cache statistics", &["metric"])?;
+        let cache_gauges = IntGaugeVec::new(
+            Opts::new("cuenv_cache_stats", "Cache statistics"),
+            &["metric"],
+        )?;
         registry.register(Box::new(cache_gauges.clone()))?;
 
         Ok(MetricsCollector {
             cache_operations,
+            hits_counter,
+            misses_counter,
+            writes_counter,
+            errors_counter,
             operation_duration,
             cache_gauges,
         })
@@ -215,6 +259,14 @@ impl CacheMonitor {
             .metrics
             .cache_operations
             .with_label_values(&[operation, "hit"])
+            .inc();
+
+        // Update specific hit counter
+        let key_pattern = self.extract_key_pattern(key);
+        self.inner
+            .metrics
+            .hits_counter
+            .with_label_values(&[&key_pattern])
             .inc();
 
         self.inner
@@ -246,6 +298,14 @@ impl CacheMonitor {
             .with_label_values(&[operation, "miss"])
             .inc();
 
+        // Update specific miss counter
+        let key_pattern = self.extract_key_pattern(key);
+        self.inner
+            .metrics
+            .misses_counter
+            .with_label_values(&[&key_pattern])
+            .inc();
+
         self.inner
             .metrics
             .operation_duration
@@ -267,11 +327,19 @@ impl CacheMonitor {
     }
 
     /// Record a cache write
-    pub fn record_write(&self, _key: &str, _size_bytes: u64, duration: Duration) {
+    pub fn record_write(&self, key: &str, _size_bytes: u64, duration: Duration) {
         self.inner
             .metrics
             .cache_operations
             .with_label_values(&["write", "success"])
+            .inc();
+
+        // Update specific write counter
+        let key_pattern = self.extract_key_pattern(key);
+        self.inner
+            .metrics
+            .writes_counter
+            .with_label_values(&[&key_pattern])
             .inc();
 
         self.inner
@@ -306,6 +374,13 @@ impl CacheMonitor {
             .metrics
             .cache_operations
             .with_label_values(&[operation, "error"])
+            .inc();
+
+        // Update specific error counter
+        self.inner
+            .metrics
+            .errors_counter
+            .with_label_values(&[operation])
             .inc();
     }
 
@@ -377,6 +452,7 @@ impl CacheMonitor {
             span,
             start_time: Instant::now(),
             monitor: self.clone(),
+            completed: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -431,6 +507,16 @@ impl CacheMonitor {
             _ => "xlarge",
         }
     }
+
+    /// Extract a pattern from a cache key for grouping metrics
+    fn extract_key_pattern(&self, key: &str) -> String {
+        // Simple pattern extraction - group by prefix before first colon or slash
+        if let Some(pos) = key.find(':').or_else(|| key.find('/')) {
+            key[..pos].to_string()
+        } else {
+            "other".to_string()
+        }
+    }
 }
 
 impl Clone for CacheMonitor {
@@ -446,41 +532,48 @@ pub struct TracedOperation {
     span: Span,
     start_time: Instant,
     monitor: CacheMonitor,
+    completed: std::sync::atomic::AtomicBool,
 }
 
 impl TracedOperation {
     /// Complete the operation successfully
     pub fn complete(self) {
-        tracing::info!(parent: &self.span, "Operation completed successfully");
+        if !self.completed.swap(true, Ordering::Relaxed) {
+            tracing::info!(parent: &self.span, "Operation completed successfully");
 
-        let _duration = self.start_time.elapsed();
-        self.monitor
-            .inner
-            .real_time_stats
-            .operations_in_flight
-            .fetch_sub(1, Ordering::Relaxed);
+            let _duration = self.start_time.elapsed();
+            self.monitor
+                .inner
+                .real_time_stats
+                .operations_in_flight
+                .fetch_sub(1, Ordering::Relaxed);
+        }
     }
 
     /// Complete the operation with an error
     pub fn error(self, error: &CacheError) {
-        tracing::error!(parent: &self.span, error = %error, "Operation failed");
+        if !self.completed.swap(true, Ordering::Relaxed) {
+            tracing::error!(parent: &self.span, error = %error, "Operation failed");
 
-        self.monitor
-            .inner
-            .real_time_stats
-            .operations_in_flight
-            .fetch_sub(1, Ordering::Relaxed);
+            self.monitor
+                .inner
+                .real_time_stats
+                .operations_in_flight
+                .fetch_sub(1, Ordering::Relaxed);
+        }
     }
 }
 
 impl Drop for TracedOperation {
     fn drop(&mut self) {
         // Ensure we decrement the counter even if the operation wasn't properly completed
-        self.monitor
-            .inner
-            .real_time_stats
-            .operations_in_flight
-            .fetch_sub(1, Ordering::Relaxed);
+        if !self.completed.swap(true, Ordering::Relaxed) {
+            self.monitor
+                .inner
+                .real_time_stats
+                .operations_in_flight
+                .fetch_sub(1, Ordering::Relaxed);
+        }
     }
 }
 
