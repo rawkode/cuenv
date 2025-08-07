@@ -1,9 +1,6 @@
 //! Test to check serialization behavior
-
 #[cfg(test)]
 mod serialization_tests {
-    use serde::{Deserialize, Serialize};
-
     #[test]
     fn test_byte_slice_serialization() {
         let value = b"recovery_test";

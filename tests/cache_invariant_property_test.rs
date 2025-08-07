@@ -837,7 +837,7 @@ mod cache_invariant_tests {
     }
 
     /// Invariant: Cache operations are atomic
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn invariant_operation_atomicity() {
         let temp_dir = TempDir::new().unwrap();
         let cache = Arc::new(
@@ -862,7 +862,10 @@ mod cache_invariant_tests {
             let values_clone = Arc::clone(&written_values);
 
             let handle = tokio::spawn(async move {
-                barrier_clone.wait();
+                // Use sync barrier in a blocking task to avoid blocking the async runtime
+                let _ = tokio::task::spawn_blocking(move || barrier_clone.wait())
+                    .await
+                    .expect("Barrier wait task failed");
 
                 for write_id in 0..writes_per_writer {
                     let unique_value = format!("writer_{}_write_{}", writer_id, write_id);
@@ -886,9 +889,13 @@ mod cache_invariant_tests {
             handles.push(handle);
         }
 
-        // Wait for all writers
-        for handle in handles {
-            handle.await.unwrap();
+        // Wait for all writers with timeout
+        for (idx, handle) in handles.into_iter().enumerate() {
+            match tokio::time::timeout(Duration::from_secs(30), handle).await {
+                Ok(Ok(_)) => {}
+                Ok(Err(e)) => panic!("Writer {} panicked: {}", idx, e),
+                Err(_) => panic!("Writer {} timed out after 30 seconds", idx),
+            }
         }
 
         // Check final state
@@ -913,11 +920,12 @@ mod cache_invariant_tests {
             );
         }
 
-        println!(
-            "Atomicity test completed: {} values written by {} writers",
-            written_values.lock().unwrap().len(),
-            num_writers
-        );
+        // Remove println! as per commit 637221a pattern
+        // println!(
+        //     "Atomicity test completed: {} values written by {} writers",
+        //     written_values.lock().unwrap().len(),
+        //     num_writers
+        // );
     }
 
     /// Basic roundtrip invariant test (property-based testing disabled for now)

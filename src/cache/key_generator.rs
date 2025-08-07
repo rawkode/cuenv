@@ -41,6 +41,8 @@ pub struct CacheKeyGenerator {
     /// Compiled regex patterns for performance
     include_patterns: Vec<Regex>,
     exclude_patterns: Vec<Regex>,
+    /// Task-specific compiled patterns
+    task_patterns: HashMap<String, (Vec<Regex>, Vec<Regex>)>,
 }
 
 impl CacheKeyGenerator {
@@ -56,6 +58,7 @@ impl CacheKeyGenerator {
             task_configs: HashMap::new(),
             include_patterns: vec![],
             exclude_patterns: vec![],
+            task_patterns: HashMap::new(),
         };
 
         generator.compile_patterns()?;
@@ -225,8 +228,12 @@ impl CacheKeyGenerator {
 
     /// Add a task-specific configuration
     pub fn add_task_config(&mut self, task_name: &str, config: CacheKeyFilterConfig) -> Result<()> {
+        // Compile task-specific patterns
+        let (include_patterns, exclude_patterns) = self.compile_task_patterns(&config)?;
+        self.task_patterns
+            .insert(task_name.to_string(), (include_patterns, exclude_patterns));
+
         self.task_configs.insert(task_name.to_string(), config);
-        self.compile_patterns()?;
         Ok(())
     }
 
@@ -235,17 +242,34 @@ impl CacheKeyGenerator {
         self.include_patterns.clear();
         self.exclude_patterns.clear();
 
-        // Compile global patterns first
+        // Compile global patterns only
         let global_config = self.global_config.clone();
         self.compile_config_patterns(&global_config)?;
 
-        // Compile task-specific patterns (these can override global patterns)
-        let task_configs: Vec<_> = self.task_configs.values().cloned().collect();
-        for config in task_configs {
-            self.compile_config_patterns(&config)?;
+        Ok(())
+    }
+
+    /// Compile patterns for a specific task configuration
+    fn compile_task_patterns(
+        &self,
+        config: &CacheKeyFilterConfig,
+    ) -> Result<(Vec<Regex>, Vec<Regex>)> {
+        let mut include_patterns = Vec::new();
+        let mut exclude_patterns = Vec::new();
+
+        // Add custom include patterns (these are specific to the task)
+        for pattern in &config.include {
+            let regex = Self::compile_pattern(pattern)?;
+            include_patterns.push(regex);
         }
 
-        Ok(())
+        // Add custom exclude patterns (these are specific to the task)
+        for pattern in &config.exclude {
+            let regex = Self::compile_pattern(pattern)?;
+            exclude_patterns.push(regex);
+        }
+
+        Ok((include_patterns, exclude_patterns))
     }
 
     /// Compile patterns from a specific configuration
@@ -323,7 +347,7 @@ impl CacheKeyGenerator {
             .unwrap_or(&self.global_config);
 
         for (key, value) in env_vars {
-            if self.should_include_var(key, config) {
+            if self.should_include_var(key, task_name, config) {
                 filtered.insert(key.clone(), value.clone());
             }
         }
@@ -332,9 +356,24 @@ impl CacheKeyGenerator {
     }
 
     /// Determine if a variable should be included in the cache key
-    fn should_include_var(&self, var_name: &str, config: &CacheKeyFilterConfig) -> bool {
+    fn should_include_var(
+        &self,
+        var_name: &str,
+        task_name: &str,
+        config: &CacheKeyFilterConfig,
+    ) -> bool {
+        // Get task-specific patterns if available
+        let (include_patterns, exclude_patterns) =
+            if let Some(patterns) = self.task_patterns.get(task_name) {
+                // Use task-specific patterns
+                (&patterns.0, &patterns.1)
+            } else {
+                // Use global patterns
+                (&self.include_patterns, &self.exclude_patterns)
+            };
+
         // Check exclude patterns first (denylist takes precedence)
-        for pattern in &self.exclude_patterns {
+        for pattern in exclude_patterns {
             if pattern.is_match(var_name) {
                 return false;
             }
@@ -343,7 +382,7 @@ impl CacheKeyGenerator {
         // Check include patterns
         let has_include_patterns = !config.include.is_empty();
         if has_include_patterns {
-            for pattern in &self.include_patterns {
+            for pattern in include_patterns {
                 if pattern.is_match(var_name) {
                     return true;
                 }
@@ -354,6 +393,12 @@ impl CacheKeyGenerator {
 
         // If no include patterns, use smart defaults if enabled
         if config.use_smart_defaults {
+            // Also check global exclude patterns when using smart defaults
+            for pattern in &self.exclude_patterns {
+                if pattern.is_match(var_name) {
+                    return false;
+                }
+            }
             return self.is_smart_default_var(var_name);
         }
 

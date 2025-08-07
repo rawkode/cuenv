@@ -224,7 +224,11 @@ impl CacheMetrics {
 
     /// Get compression ratio
     pub fn compression_ratio(&self) -> f64 {
-        self.inner.compression_ratio.read().copied().unwrap_or(1.0)
+        self.inner
+            .compression_ratio
+            .read()
+            .map(|v| *v)
+            .unwrap_or(1.0)
     }
 
     /// Get top access patterns

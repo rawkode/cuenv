@@ -170,7 +170,7 @@ impl LfuPolicy {
 
 impl EvictionPolicy for LfuPolicy {
     fn on_access(&self, key: &str, _size: u64) {
-        let old_freq = self.frequencies.get(key).copied().unwrap_or(0);
+        let old_freq = self.frequencies.get(key).map(|v| *v).unwrap_or(0);
         let new_freq = old_freq + 1;
 
         self.frequencies.insert(key.to_string(), new_freq);

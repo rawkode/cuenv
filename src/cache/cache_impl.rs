@@ -190,6 +190,11 @@ impl Cache {
         let inner = Arc::clone(&self.inner);
         let cleanup_interval = inner.config.cleanup_interval;
 
+        // Don't start cleanup task if interval is zero (useful for tests)
+        if cleanup_interval == Duration::ZERO {
+            return;
+        }
+
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(cleanup_interval);
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -1383,6 +1388,7 @@ impl fmt::Debug for Cache {
 impl Drop for CacheInner {
     fn drop(&mut self) {
         // Cancel cleanup task
+        // parking_lot RwLock doesn't block on drop, so this is safe
         if let Some(handle) = self.cleanup_handle.write().take() {
             handle.abort();
         }
