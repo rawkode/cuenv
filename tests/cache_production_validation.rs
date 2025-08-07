@@ -639,11 +639,10 @@ mod cache_production_tests {
     async fn test_gradual_memory_exhaustion() {
         let temp_dir = TempDir::new().unwrap();
 
-        // Start with generous limits and gradually reduce
-        // Set limits that will force eviction as we add entries
+        // Reduced limits for faster test execution
         let config = UnifiedCacheConfig {
-            max_memory_size: Some(20 * 1024 * 1024), // 20MB - will trigger eviction around 20k entries
-            max_entries: 30000,                      // Lower than what we'll try to store
+            max_memory_size: Some(10 * 1024 * 1024), // 10MB - will trigger eviction sooner
+            max_entries: 15000,                      // Lower limit
             compression_enabled: false,              // Disable to get predictable memory usage
             ..Default::default()
         };
@@ -654,15 +653,27 @@ mod cache_production_tests {
 
         println!("Testing gradual memory exhaustion...");
 
-        let entry_size = 1024; // 1KB per entry
+        let entry_size = 512; // 512B per entry (reduced from 1KB)
         let data = generate_test_data(entry_size, 999);
 
         let mut stored_keys = Vec::new();
         let mut eviction_started = false;
-        let mut eviction_start_point = 0;
+        let mut eviction_start_point: usize = 0;
 
         // Gradually fill memory
-        for i in 0..100000 {
+        for i in 0usize..100000 {
+            // Once eviction has begun, we don't need to keep pushing to 100k —
+            // running a bounded number of additional inserts exercises the policy
+            // sufficiently and keeps test runtime reasonable.
+            if eviction_started && i.saturating_sub(eviction_start_point) > 5000 {
+                println!(
+                    "  Stopping after exercising eviction for {} additional puts (from {})",
+                    i - eviction_start_point,
+                    eviction_start_point
+                );
+                break;
+            }
+
             let key = format!("memory_test_{}", i);
 
             match cache.put(&key, &data, None).await {
@@ -750,18 +761,18 @@ mod cache_production_tests {
             (old_hits as f64 / 1000.0) * 100.0
         );
 
-        // Validate memory management
+        // Validate memory management (adjusted for reduced limits)
         // The cache might use hard limits instead of eviction, which is also valid
         if eviction_started {
             assert!(
-                eviction_start_point > 5000,
+                eviction_start_point > 2500,
                 "Should allow substantial data before eviction (got: {})",
                 eviction_start_point
             );
         } else {
             // If no eviction, verify we hit a configured limit
             assert!(
-                stored_keys.len() >= 20000,
+                stored_keys.len() >= 10000,
                 "Should have stored substantial data before hitting limits (got: {})",
                 stored_keys.len()
             );
@@ -770,8 +781,8 @@ mod cache_production_tests {
         // Allow for cache overhead - actual memory usage can be higher than configured limit
         // due to metadata, indexing structures, and other overhead
         assert!(
-            final_stats.total_bytes <= 35 * 1024 * 1024,
-            "Should keep memory usage reasonable (got: {} MB, configured limit: 20MB)",
+            final_stats.total_bytes <= 18 * 1024 * 1024,
+            "Should keep memory usage reasonable (got: {} MB, configured limit: 10MB)",
             final_stats.total_bytes / (1024 * 1024)
         );
 

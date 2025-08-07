@@ -14,7 +14,6 @@ slow-timeout = { period = "30s" }
 # Cache and concurrent tests need limited parallelism
 [[profile.default.overrides]]
 filter = "test(concurrent) | test(cache)"
-test-threads = 4
 slow-timeout = { period = "20s" }
 
 # Chaos engineering tests need more time but not infinite
@@ -32,7 +31,7 @@ fail-fast = false
 # Ignore highly concurrent tests in CI to avoid TLS exhaustion
 [[profile.ci.overrides]]
 filter = "test(test_concurrent_env_modifications) | test(test_process_guard_timeout) | test(chaos) | test(stress) | test(concurrent) | test(memory_pressure) | test(cache_) and test(concurrent)"
-ignored = true
+status = "skip"
 
 # Run integration tests serially in CI
 [[profile.ci.overrides]]

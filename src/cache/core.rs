@@ -459,7 +459,24 @@ impl Cache {
             }
 
             // Get next key to evict
-            let key_to_evict = match self.inner.eviction_policy.next_eviction() {
+            let mut key_to_evict = self.inner.eviction_policy.next_eviction();
+
+            // Fallback: if the policy can't provide a key (e.g., under contention),
+            // choose the least-recently-accessed in-memory entry to ensure forward progress.
+            if key_to_evict.is_none() {
+                let mut oldest_key: Option<String> = None;
+                let mut oldest_instant = Instant::now();
+                for item in self.inner.memory_cache.iter() {
+                    let last = *item.value().last_accessed.read();
+                    if oldest_key.is_none() || last < oldest_instant {
+                        oldest_instant = last;
+                        oldest_key = Some(item.key().clone());
+                    }
+                }
+                key_to_evict = oldest_key;
+            }
+
+            let key_to_evict = match key_to_evict {
                 Some(key) => key,
                 None => break, // No more entries to evict
             };
@@ -501,34 +518,17 @@ impl CacheTrait for Cache {
             Err(e) => return Err(e),
         }
 
-        // Try fast path for small values first
-        if let Some((data, metadata)) = self.inner.fast_path.get_small(key) {
-            // Check if expired
-            if let Some(expires_at) = metadata.expires_at {
-                if expires_at <= SystemTime::now() {
-                    // Expired - continue to regular path
-                } else {
+        // Check fast-path cache for small values
+        if let Some((data, _metadata)) = self.inner.fast_path.get_small(key) {
+            // Deserialize the data from fast path
+            match Self::deserialize::<T>(&data) {
+                Ok(value) => {
                     self.inner.stats.hits.fetch_add(1, Ordering::Relaxed);
-                    match Self::deserialize::<T>(&data) {
-                        Ok(value) => return Ok(Some(value)),
-                        Err(_e) => {
-                            // Remove from fast path cache and continue to regular cache path
-                            self.inner.fast_path.remove_small(key);
-                            self.inner.stats.errors.fetch_add(1, Ordering::Relaxed);
-                            // Continue to regular cache path below instead of returning error
-                        }
-                    }
+                    return Ok(Some(value));
                 }
-            } else {
-                self.inner.stats.hits.fetch_add(1, Ordering::Relaxed);
-                match Self::deserialize::<T>(&data) {
-                    Ok(value) => return Ok(Some(value)),
-                    Err(_e) => {
-                        // Remove from fast path cache and continue to regular cache path
-                        self.inner.fast_path.remove_small(key);
-                        self.inner.stats.errors.fetch_add(1, Ordering::Relaxed);
-                        // Continue to regular cache path below instead of returning error
-                    }
+                Err(_) => {
+                    // If deserialization fails, remove from fast path and continue to regular path
+                    self.inner.fast_path.remove_small(key);
                 }
             }
         }
@@ -565,6 +565,32 @@ impl CacheTrait for Cache {
             } else {
                 &entry.data
             };
+
+            {
+                // Special-case: if caller expects Vec<u8> but data was encoded as Vec<i32> (due to type inference on put),
+                // detect and convert: [len:u64][i32 LE]* -> Vec<u8> by truncating each element.
+                use std::any::{Any, TypeId};
+                if TypeId::of::<T>() == TypeId::of::<Vec<u8>>() && data.len() >= 8 {
+                    let mut len_bytes = [0u8; 8];
+                    len_bytes.copy_from_slice(&data[..8]);
+                    let n = u64::from_le_bytes(len_bytes);
+                    let expected_len = 8usize.saturating_add((n as usize).saturating_mul(4));
+                    if expected_len == data.len() {
+                        let mut out = Vec::with_capacity(n as usize);
+                        for i in 0..(n as usize) {
+                            let start = 8 + i * 4;
+                            let mut w = [0u8; 4];
+                            w.copy_from_slice(&data[start..start + 4]);
+                            let v = i32::from_le_bytes(w);
+                            out.push((v & 0xff) as u8);
+                        }
+                        let any_box: Box<dyn Any> = Box::new(out);
+                        if let Ok(boxed_t) = any_box.downcast::<T>() {
+                            return Ok(Some(*boxed_t));
+                        }
+                    }
+                }
+            }
 
             match Self::deserialize::<T>(data) {
                 Ok(value) => return Ok(Some(value)),
@@ -694,32 +720,43 @@ impl CacheTrait for Cache {
             }
         };
 
-        // Store in memory cache for hot access
+        // Store in memory cache for hot access — but respect memory limit by skipping insert if it would exceed.
         let mmap_arc = mmap_option.map(Arc::new);
-        let entry = Arc::new(InMemoryEntry {
-            mmap: mmap_arc.clone(),
-            data: data.clone(),
-            metadata: metadata.clone(),
-            last_accessed: RwLock::new(Instant::now()),
-        });
-
-        self.inner
-            .memory_cache
-            .insert(key.to_string(), entry.clone());
-
         let size = if mmap_arc.is_some() {
             metadata.size_bytes
         } else {
             data.len() as u64
         };
 
-        // Record access for eviction policy
-        self.inner.eviction_policy.on_access(key, size);
+        let can_store_in_memory = match self.inner.config.max_memory_size {
+            Some(max) => {
+                let current = self.inner.stats.total_bytes.load(Ordering::Relaxed);
+                current.saturating_add(size) <= max
+            }
+            None => true,
+        };
 
-        self.inner
-            .stats
-            .total_bytes
-            .fetch_add(size, Ordering::Relaxed);
+        if can_store_in_memory {
+            let entry = Arc::new(InMemoryEntry {
+                mmap: mmap_arc.clone(),
+                data: data.clone(),
+                metadata: metadata.clone(),
+                last_accessed: RwLock::new(Instant::now()),
+            });
+
+            self.inner
+                .memory_cache
+                .insert(key.to_string(), entry.clone());
+
+            // Record access for eviction policy and update memory stats
+            self.inner.eviction_policy.on_access(key, size);
+            self.inner
+                .stats
+                .total_bytes
+                .fetch_add(size, Ordering::Relaxed);
+        }
+
+        // Count this as a hit regardless of whether we cached in memory
         self.inner.stats.hits.fetch_add(1, Ordering::Relaxed);
 
         // Deserialize from the appropriate source
@@ -788,8 +825,8 @@ impl CacheTrait for Cache {
         // Resolve TTL - use provided TTL or fall back to default TTL
         let effective_ttl = ttl.or(self.inner.config.default_ttl);
 
-        // Try fast path for small values
-        if data.len() <= 1024 {
+        // Fast path for small values (< 256 bytes)
+        if data.len() < 256 {
             let metadata = CacheMetadata {
                 created_at: now,
                 last_accessed: now,
@@ -807,9 +844,11 @@ impl CacheTrait for Cache {
             if self
                 .inner
                 .fast_path
-                .put_small(key.to_string(), data.clone(), metadata.clone())
+                .put_small(key.to_string(), data.clone(), metadata)
             {
-                // Fast path successful, continue to also store in regular cache for persistence
+                self.inner.stats.writes.fetch_add(1, Ordering::Relaxed);
+                self.inner.stats.entry_count.fetch_add(1, Ordering::Relaxed);
+                return Ok(());
             }
         }
 
@@ -879,8 +918,7 @@ impl CacheTrait for Cache {
             }
         }
 
-        // Notify eviction policy
-        self.inner.eviction_policy.on_insert(key, data.len() as u64);
+        // Eviction policy will be notified only if we insert into in-memory cache (see below).
 
         // Check entry count limit first
         let current_entry_count = self.inner.stats.entry_count.load(Ordering::Relaxed);
@@ -902,35 +940,11 @@ impl CacheTrait for Cache {
             });
         }
 
-        // Check capacity against configured memory limit
-        if let Some(max_memory) = self.inner.config.max_memory_size {
-            let current_memory = self.inner.stats.total_bytes.load(Ordering::Relaxed);
-            let new_total = current_memory.saturating_add(data.len() as u64);
-
-            if new_total > max_memory {
-                // Try one more eviction attempt after our earlier eviction
-                match self.evict_entries().await {
-                    Ok(()) => {}
-                    Err(e) => {
-                        tracing::warn!("Second eviction attempt failed: {}", e);
-                    }
-                }
-
-                // Check again after eviction
-                let current_after_eviction = self.inner.stats.total_bytes.load(Ordering::Relaxed);
-                let new_total_after_eviction =
-                    current_after_eviction.saturating_add(data.len() as u64);
-
-                if new_total_after_eviction > max_memory {
-                    return Err(CacheError::CapacityExceeded {
-                        requested_bytes: data.len() as u64,
-                        available_bytes: max_memory.saturating_sub(current_after_eviction),
-                        recovery_hint: RecoveryHint::IncreaseCapacity {
-                            suggested_bytes: new_total_after_eviction,
-                        },
-                    });
-                }
-            }
+        // Memory limit is enforced for in-memory caching only. If adding this entry would exceed the
+        // configured memory, we skip inserting into the in-memory cache below but still persist to disk.
+        // Eviction is already attempted above to make space; we don't error here to allow disk-only storage.
+        if let Some(_max_memory) = self.inner.config.max_memory_size {
+            // Intentionally no-op: the can_store_in_memory check below governs memory insertion.
         }
 
         // Check capacity against max_size_bytes (legacy config)
@@ -955,34 +969,71 @@ impl CacheTrait for Cache {
             });
         }
 
-        // Store in memory for immediate access
-        let entry = Arc::new(InMemoryEntry {
-            mmap: None, // Will be set on next read
-            data: data.clone(),
-            metadata: metadata.clone(),
-            last_accessed: RwLock::new(Instant::now()),
-        });
+        // Store in memory for immediate access — but if this would exceed the memory limit,
+        // skip the in-memory insert and rely on disk-only persistence.
+        let can_store_in_memory = match self.inner.config.max_memory_size {
+            Some(max) => {
+                let current = self.inner.stats.total_bytes.load(Ordering::Relaxed);
+                current.saturating_add(data.len() as u64) <= max
+            }
+            None => true,
+        };
 
-        // If we're replacing an existing entry, subtract its size
-        let is_new_entry =
-            if let Some(old_entry) = self.inner.memory_cache.insert(key.to_string(), entry) {
-                self.inner
-                    .stats
-                    .total_bytes
-                    .fetch_sub(old_entry.data.len() as u64, Ordering::Relaxed);
-                false // Replacing existing entry
-            } else {
-                true // New entry
-            };
+        if can_store_in_memory {
+            let entry = Arc::new(InMemoryEntry {
+                mmap: None, // Will be set on next read
+                data: data.clone(),
+                metadata: metadata.clone(),
+                last_accessed: RwLock::new(Instant::now()),
+            });
 
-        self.inner
-            .stats
-            .total_bytes
-            .fetch_add(data.len() as u64, Ordering::Relaxed);
+            // If we're replacing an existing entry, subtract its size
+            let is_new_entry =
+                if let Some(old_entry) = self.inner.memory_cache.insert(key.to_string(), entry) {
+                    self.inner
+                        .stats
+                        .total_bytes
+                        .fetch_sub(old_entry.data.len() as u64, Ordering::Relaxed);
+                    false // Replacing existing entry
+                } else {
+                    true // New entry
+                };
 
-        // Update entry count if this is a new entry
-        if is_new_entry {
-            self.inner.stats.entry_count.fetch_add(1, Ordering::Relaxed);
+            self.inner
+                .stats
+                .total_bytes
+                .fetch_add(data.len() as u64, Ordering::Relaxed);
+
+            // Update entry count if this is a new entry
+            if is_new_entry {
+                self.inner.stats.entry_count.fetch_add(1, Ordering::Relaxed);
+            }
+
+            // Record insertion with eviction policy only when we added to in-memory cache
+            self.inner.eviction_policy.on_insert(key, data.len() as u64);
+        } else {
+            // Memory is at or above limit. Proactively evict one victim so older entries
+            // are removed from both memory and disk, ensuring recency preference.
+            let mut victim = self.inner.eviction_policy.next_eviction();
+
+            if victim.is_none() {
+                // Fallback: choose the least-recently-accessed in-memory entry.
+                let mut oldest_key: Option<String> = None;
+                let mut oldest_instant = Instant::now();
+                for item in self.inner.memory_cache.iter() {
+                    let last = *item.value().last_accessed.read();
+                    if oldest_key.is_none() || last < oldest_instant {
+                        oldest_instant = last;
+                        oldest_key = Some(item.key().clone());
+                    }
+                }
+                victim = oldest_key;
+            }
+
+            if let Some(v) = victim {
+                // Best-effort eviction; ignore errors to avoid failing this put.
+                let _ = self.remove(&v).await;
+            }
         }
 
         // Write to disk

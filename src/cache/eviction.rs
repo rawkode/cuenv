@@ -7,8 +7,8 @@
 
 use crate::cache::errors::{CacheError, RecoveryHint, Result};
 use dashmap::DashMap;
-use parking_lot::{Mutex, RwLock};
-use std::collections::{BTreeMap, VecDeque};
+use parking_lot::Mutex;
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 /// Eviction policy trait
@@ -121,10 +121,8 @@ impl EvictionPolicy for LruPolicy {
 
 /// LFU (Least Frequently Used) eviction policy
 pub struct LfuPolicy {
-    /// Frequency counts
+    /// Frequency counts per key
     frequencies: DashMap<String, u64>,
-    /// Frequency to keys mapping
-    freq_map: RwLock<BTreeMap<u64, Vec<String>>>,
     /// Size tracking
     sizes: DashMap<String, u64>,
     /// Total memory usage
@@ -137,92 +135,63 @@ impl LfuPolicy {
     pub fn new(max_memory: u64) -> Self {
         Self {
             frequencies: DashMap::new(),
-            freq_map: RwLock::new(BTreeMap::new()),
             sizes: DashMap::new(),
             total_size: AtomicU64::new(0),
             max_memory,
         }
     }
-
-    fn update_frequency(&self, key: &str, old_freq: u64, new_freq: u64) {
-        // Try to acquire write lock with timeout to avoid deadlocks
-        let mut freq_map = match self.freq_map.try_write() {
-            Some(guard) => guard,
-            None => {
-                // If we can't get the lock, skip the update to avoid deadlock
-                // This is acceptable for LFU as it's a best-effort approximation
-                return;
-            }
-        };
-
-        // Remove from old frequency list
-        if old_freq > 0 {
-            if let Some(keys) = freq_map.get_mut(&old_freq) {
-                keys.retain(|k| k != key);
-                if keys.is_empty() {
-                    freq_map.remove(&old_freq);
-                }
-            }
-        }
-
-        // Add to new frequency list
-        freq_map
-            .entry(new_freq)
-            .or_insert_with(Vec::new)
-            .push(key.to_string());
-    }
 }
 
 impl EvictionPolicy for LfuPolicy {
     fn on_access(&self, key: &str, _size: u64) {
-        let old_freq = self.frequencies.get(key).map(|v| *v).unwrap_or(0);
-        let new_freq = old_freq + 1;
-
-        self.frequencies.insert(key.to_string(), new_freq);
-        self.update_frequency(key, old_freq, new_freq);
+        self.frequencies
+            .entry(key.to_string())
+            .and_modify(|f| *f += 1)
+            .or_insert(1);
     }
 
     fn on_insert(&self, key: &str, size: u64) {
         self.sizes.insert(key.to_string(), size);
         self.total_size.fetch_add(size, Ordering::AcqRel);
         self.frequencies.insert(key.to_string(), 1);
-        self.update_frequency(key, 0, 1);
     }
 
     fn on_remove(&self, key: &str, size: u64) {
-        if let Some((_, freq)) = self.frequencies.remove(key) {
-            self.update_frequency(key, freq, 0);
-        }
-
+        self.frequencies.remove(key);
         self.sizes.remove(key);
         self.total_size.fetch_sub(size, Ordering::AcqRel);
     }
 
     fn next_eviction(&self) -> Option<String> {
-        // Always try to return a candidate for eviction if we have any entries
-        // The cache itself will decide whether eviction is needed based on its own memory tracking
+        // Always try to return a candidate for eviction; the cache decides if eviction is needed.
+        // Lock-free O(n) scan over frequencies to find the minimum.
+        let mut candidate: Option<(String, u64)> = None;
 
-        // Use try_read() to avoid deadlocks
-        let freq_map = match self.freq_map.try_read() {
-            Some(guard) => guard,
-            None => return None, // Can't get lock, no eviction candidate
-        };
+        for r in self.frequencies.iter() {
+            let key = r.key();
+            let freq = *r.value();
 
-        // Find key with lowest frequency
-        freq_map
-            .iter()
-            .next()
-            .and_then(|(_, keys)| keys.first().cloned())
+            // Ensure the key hasn't been removed (still has a size recorded)
+            if self.sizes.contains_key(key) {
+                match candidate {
+                    Some((_, best_freq)) if freq < best_freq => {
+                        candidate = Some((key.clone(), freq));
+                    }
+                    None => {
+                        candidate = Some((key.clone(), freq));
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        candidate.map(|(k, _)| k)
     }
 
     fn clear(&self) {
         self.frequencies.clear();
         self.sizes.clear();
         self.total_size.store(0, Ordering::Release);
-
-        if let Some(mut freq_map) = self.freq_map.try_write() {
-            freq_map.clear();
-        }
     }
 
     fn memory_usage(&self) -> u64 {
@@ -238,7 +207,7 @@ pub struct ArcPolicy {
     c: usize,
     /// T1: recent cache entries
     t1: Mutex<VecDeque<String>>,
-    /// T2: frequent cache entries  
+    /// T2: frequent cache entries
     t2: Mutex<VecDeque<String>>,
     /// B1: ghost entries recently evicted from T1
     b1: Mutex<VecDeque<String>>,

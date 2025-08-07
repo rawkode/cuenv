@@ -1,7 +1,7 @@
 #![allow(unused)]
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use tempfile::TempDir;
 
 fn get_cuenv_binary() -> PathBuf {
@@ -10,6 +10,34 @@ fn get_cuenv_binary() -> PathBuf {
     path.push("debug");
     path.push("cuenv");
     path
+}
+
+// Simple timeout wrapper for commands to avoid hanging integration tests.
+fn run_command_with_timeout(
+    mut cmd: Command,
+    timeout: std::time::Duration,
+) -> std::io::Result<std::process::Output> {
+    // Capture output
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child = cmd.spawn()?;
+
+    let start = std::time::Instant::now();
+    loop {
+        match child.try_wait()? {
+            Some(_status) => {
+                // Process finished, collect remaining output
+                return child.wait_with_output();
+            }
+            None => {
+                if start.elapsed() >= timeout {
+                    // Timed out: kill and collect output
+                    let _ = child.kill();
+                    return child.wait_with_output();
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        }
+    }
 }
 
 #[test]
@@ -39,12 +67,17 @@ tasks: {
     )
     .unwrap();
 
-    let output = Command::new(get_cuenv_binary())
-        .current_dir(temp_dir.path())
-        .env("XDG_CACHE_HOME", temp_dir.path().join(".cache"))
-        .arg("run")
-        .output()
-        .expect("Failed to run cuenv");
+    let output = run_command_with_timeout(
+        {
+            let mut cmd = Command::new(get_cuenv_binary());
+            cmd.current_dir(temp_dir.path())
+                .env("XDG_CACHE_HOME", temp_dir.path().join(".cache"))
+                .arg("run");
+            cmd
+        },
+        std::time::Duration::from_secs(30),
+    )
+    .expect("Failed to run cuenv");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success());
@@ -75,13 +108,18 @@ tasks: {
     )
     .unwrap();
 
-    let output = Command::new(get_cuenv_binary())
-        .current_dir(temp_dir.path())
-        .env("XDG_CACHE_HOME", temp_dir.path().join(".cache"))
-        .arg("run")
-        .arg("hello")
-        .output()
-        .expect("Failed to run cuenv");
+    let output = run_command_with_timeout(
+        {
+            let mut cmd = Command::new(get_cuenv_binary());
+            cmd.current_dir(temp_dir.path())
+                .env("XDG_CACHE_HOME", temp_dir.path().join(".cache"))
+                .arg("run")
+                .arg("hello");
+            cmd
+        },
+        std::time::Duration::from_secs(30),
+    )
+    .expect("Failed to run cuenv");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -117,13 +155,18 @@ tasks: {
     )
     .unwrap();
 
-    let output = Command::new(get_cuenv_binary())
-        .current_dir(temp_dir.path())
-        .env("XDG_CACHE_HOME", temp_dir.path().join(".cache"))
-        .arg("run")
-        .arg("second")
-        .output()
-        .expect("Failed to run cuenv");
+    let output = run_command_with_timeout(
+        {
+            let mut cmd = Command::new(get_cuenv_binary());
+            cmd.current_dir(temp_dir.path())
+                .env("XDG_CACHE_HOME", temp_dir.path().join(".cache"))
+                .arg("run")
+                .arg("second");
+            cmd
+        },
+        std::time::Duration::from_secs(30),
+    )
+    .expect("Failed to run cuenv");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success());
@@ -155,13 +198,18 @@ tasks: {
     )
     .unwrap();
 
-    let output = Command::new(get_cuenv_binary())
-        .current_dir(temp_dir.path())
-        .env("XDG_CACHE_HOME", temp_dir.path().join(".cache"))
-        .arg("run")
-        .arg("nonexistent")
-        .output()
-        .expect("Failed to run cuenv");
+    let output = run_command_with_timeout(
+        {
+            let mut cmd = Command::new(get_cuenv_binary());
+            cmd.current_dir(temp_dir.path())
+                .env("XDG_CACHE_HOME", temp_dir.path().join(".cache"))
+                .arg("run")
+                .arg("nonexistent");
+            cmd
+        },
+        std::time::Duration::from_secs(30),
+    )
+    .expect("Failed to run cuenv");
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -200,13 +248,18 @@ tasks: {
     )
     .unwrap();
 
-    let output = Command::new(get_cuenv_binary())
-        .current_dir(temp_dir.path())
-        .env("XDG_CACHE_HOME", temp_dir.path().join(".cache"))
-        .arg("run")
-        .arg("script-task")
-        .output()
-        .expect("Failed to run cuenv");
+    let output = run_command_with_timeout(
+        {
+            let mut cmd = Command::new(get_cuenv_binary());
+            cmd.current_dir(temp_dir.path())
+                .env("XDG_CACHE_HOME", temp_dir.path().join(".cache"))
+                .arg("run")
+                .arg("script-task");
+            cmd
+        },
+        std::time::Duration::from_secs(30),
+    )
+    .expect("Failed to run cuenv");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success());

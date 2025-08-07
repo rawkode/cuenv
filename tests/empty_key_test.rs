@@ -26,7 +26,7 @@ async fn test_empty_key_handling() {
     // Test 2: Cache should still work after empty key rejection
     let result = tokio::time::timeout(
         Duration::from_secs(2),
-        cache.put("valid_key", &vec![4, 5, 6], None),
+        cache.put("valid_key", &vec![4u8, 5, 6], None),
     )
     .await;
 
@@ -123,7 +123,7 @@ async fn test_timeout_wrapped_error_recovery() {
     // Now try the valid key with timeout
     let result = tokio::time::timeout(
         Duration::from_secs(2),
-        cache.put("valid_key", &vec![4, 5, 6], None),
+        cache.put("valid_key", &vec![4u8, 5, 6], None),
     )
     .await;
 
