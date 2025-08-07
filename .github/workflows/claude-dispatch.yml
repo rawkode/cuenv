@@ -1,0 +1,41 @@
+name: Claude Code Dispatch
+on:
+  repository_dispatch:
+    types: [claude-dispatch]
+jobs:
+  claude-dispatch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup Nix cache
+        uses: cachix/cachix-action@v15
+        with:
+          name: cuenv
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - name: Build with Nix
+        run: nix build .#cuenv
+      - name: Setup development environment
+        run: |
+          echo "Setting up Nix development environment..."
+          # Ensure all dependencies are available
+          nix develop --command cargo --version
+          nix develop --command rustc --version
+          nix develop --command cargo nextest --version
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@eap
+        with:
+          mode: 'remote-agent'
+          model: "claude-opus-4-1-20250805"
