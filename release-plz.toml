@@ -1,0 +1,56 @@
+# Release-plz configuration
+# Documentation: https://release-plz.dev/docs/config
+
+[workspace]
+# Enable changelog generation using git-cliff
+changelog_update = true
+
+# Customize git-cliff changelog configuration
+changelog_config = "cliff.toml"
+
+# Dependencies update configuration
+dependencies_update = true
+
+# Allow dirty working tree (useful for CI)
+allow_dirty = false
+
+# Git configuration
+git_tag_enable = true
+git_tag_name = "v{{ version }}"
+
+# Git release configuration
+git_release_enable = true
+git_release_draft = false
+
+# PR configuration
+pr_labels = ["release"]
+pr_name = "chore: release v{{ version }}"
+
+# Semver check configuration (requires cargo-semver-checks)
+semver_check = true
+
+# Package-specific configuration
+[[package]]
+name = "cuenv"
+
+# Use conventional commits to determine version bumps
+# - feat: minor version bump
+# - fix: patch version bump  
+# - feat!: or BREAKING CHANGE: major version bump
+# 
+# Changelog groups commits by type
+changelog_include = [
+  "feat",
+  "fix",
+  "perf",
+  "refactor",
+  "build",
+  "chore",
+  "docs",
+  "style",
+  "test",
+]
+
+# Don't update these dependencies automatically
+# (add package names you want to exclude from automatic updates)
+# changelog_exclude = ["internal-*"]
