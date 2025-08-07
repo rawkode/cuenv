@@ -440,11 +440,21 @@ impl Cache {
     /// Evict entries based on the configured eviction policy
     async fn evict_entries(&self) -> Result<()> {
         let mut evicted_count = 0;
-        let target_memory = self.inner.memory_manager.memory_stats().total_memory * 7 / 10; // Target 70% usage
+
+        // Use cache's actual memory usage, not the eviction policy's tracking
+        let max_memory = match self.inner.config.max_memory_size {
+            Some(max) => max,
+            None => return Ok(()), // No memory limit configured
+        };
+
+        let target_memory = max_memory * 8 / 10; // Target 80% usage
 
         loop {
+            // Check current cache memory usage
+            let current_memory = self.inner.stats.total_bytes.load(Ordering::Relaxed);
+
             // Check if we need to evict more
-            if self.inner.eviction_policy.memory_usage() <= target_memory {
+            if current_memory <= target_memory {
                 break;
             }
 
@@ -459,19 +469,6 @@ impl Cache {
                 Ok(removed) => {
                     if removed {
                         evicted_count += 1;
-                        // Record disk space freed
-                        if let Some((_, entry)) = self.inner.memory_cache.remove(&key_to_evict) {
-                            let size = if entry.mmap.is_some() {
-                                entry.metadata.size_bytes
-                            } else {
-                                entry.data.len() as u64
-                            };
-                            self.inner.memory_manager.record_disk_usage(
-                                &Self::object_path(&self.inner, &key_to_evict),
-                                -(size as i64),
-                            );
-                            self.inner.eviction_policy.on_remove(&key_to_evict, size);
-                        }
                     }
                 }
                 Err(e) => {
@@ -551,6 +548,14 @@ impl CacheTrait for Cache {
                     return Ok(None);
                 }
             }
+
+            // Record access for eviction policy
+            let size = if entry.mmap.is_some() {
+                entry.metadata.size_bytes
+            } else {
+                entry.data.len() as u64
+            };
+            self.inner.eviction_policy.on_access(key, size);
 
             self.inner.stats.hits.fetch_add(1, Ordering::Relaxed);
 
@@ -708,6 +713,9 @@ impl CacheTrait for Cache {
             data.len() as u64
         };
 
+        // Record access for eviction policy
+        self.inner.eviction_policy.on_access(key, size);
+
         self.inner
             .stats
             .total_bytes
@@ -819,6 +827,22 @@ impl CacheTrait for Cache {
             cache_version: self.inner.version,
         };
 
+        // Check if we need to evict due to memory limits before adding new entry
+        if let Some(max_memory) = self.inner.config.max_memory_size {
+            let current_memory = self.inner.stats.total_bytes.load(Ordering::Relaxed);
+            let new_total = current_memory.saturating_add(data.len() as u64);
+
+            if new_total > max_memory {
+                // Run eviction to make space
+                match self.evict_entries().await {
+                    Ok(()) => {}
+                    Err(e) => {
+                        tracing::warn!("Failed to evict entries: {}", e);
+                    }
+                }
+            }
+        }
+
         // Check memory pressure and disk quota
         if !self.inner.memory_manager.can_allocate(data.len() as u64) {
             // Run eviction
@@ -878,7 +902,38 @@ impl CacheTrait for Cache {
             });
         }
 
-        // Check capacity
+        // Check capacity against configured memory limit
+        if let Some(max_memory) = self.inner.config.max_memory_size {
+            let current_memory = self.inner.stats.total_bytes.load(Ordering::Relaxed);
+            let new_total = current_memory.saturating_add(data.len() as u64);
+
+            if new_total > max_memory {
+                // Try one more eviction attempt after our earlier eviction
+                match self.evict_entries().await {
+                    Ok(()) => {}
+                    Err(e) => {
+                        tracing::warn!("Second eviction attempt failed: {}", e);
+                    }
+                }
+
+                // Check again after eviction
+                let current_after_eviction = self.inner.stats.total_bytes.load(Ordering::Relaxed);
+                let new_total_after_eviction =
+                    current_after_eviction.saturating_add(data.len() as u64);
+
+                if new_total_after_eviction > max_memory {
+                    return Err(CacheError::CapacityExceeded {
+                        requested_bytes: data.len() as u64,
+                        available_bytes: max_memory.saturating_sub(current_after_eviction),
+                        recovery_hint: RecoveryHint::IncreaseCapacity {
+                            suggested_bytes: new_total_after_eviction,
+                        },
+                    });
+                }
+            }
+        }
+
+        // Check capacity against max_size_bytes (legacy config)
         let new_total = self
             .inner
             .stats
@@ -1095,6 +1150,11 @@ impl CacheTrait for Cache {
             }
         }
 
+        // Record disk usage for quota tracking
+        self.inner
+            .memory_manager
+            .record_disk_usage(&data_path, data.len() as i64);
+
         self.inner.stats.writes.fetch_add(1, Ordering::Relaxed);
         Ok(())
     }
@@ -1114,6 +1174,9 @@ impl CacheTrait for Cache {
             } else {
                 entry.data.len() as u64
             };
+
+            // Record removal for eviction policy
+            self.inner.eviction_policy.on_remove(key, size);
 
             self.inner
                 .stats
@@ -1153,8 +1216,20 @@ impl CacheTrait for Cache {
             }
         }
 
+        // Get file size before removal for disk tracking
+        let file_size = match tokio::fs::metadata(&data_path).await {
+            Ok(metadata) => metadata.len() as i64,
+            Err(_) => 0, // File doesn't exist or can't get metadata
+        };
+
         match fs::remove_file(&data_path).await {
             Ok(()) => {
+                // Record negative disk usage for removed file
+                if file_size > 0 {
+                    self.inner
+                        .memory_manager
+                        .record_disk_usage(&data_path, -file_size);
+                }
                 removed = true;
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}

@@ -3,7 +3,8 @@
 mod serialization_tests {
     #[test]
     fn test_byte_slice_serialization() {
-        let value = b"recovery_test";
+        // Test with Vec<u8> instead of &[u8] for consistent serialization
+        let value = b"recovery_test".to_vec();
 
         // Test bincode serialization
         let serialized = bincode::serialize(&value).unwrap();
@@ -17,7 +18,7 @@ mod serialization_tests {
         let deserialized: Vec<u8> = bincode::deserialize(&serialized).unwrap();
         println!("Deserialized: {:?}", deserialized);
 
-        assert_eq!(deserialized, value.to_vec());
+        assert_eq!(deserialized, value);
     }
 
     #[test]

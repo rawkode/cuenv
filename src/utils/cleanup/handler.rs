@@ -264,7 +264,74 @@ impl ProcessGuard {
         }
     }
 
-    /// Wait for the process to complete with timeout
+    /// Wait for the process to complete with timeout (async version for use in async contexts)
+    pub async fn wait_with_timeout_async(&mut self) -> Result<std::process::ExitStatus> {
+        if let Some(mut child) = self.child.take() {
+            let remaining = self.timeout.saturating_sub(self.started_at.elapsed());
+
+            // Check if already timed out
+            if remaining.is_zero() {
+                let _ = child.kill();
+                return Err(Error::configuration("Process timed out"));
+            }
+
+            // Create a channel to communicate with the blocking thread
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            let registry_id = self.registry_id.take();
+
+            // Spawn a blocking task to wait for the process
+            let handle = tokio::task::spawn_blocking(move || {
+                let deadline = Instant::now() + remaining;
+                let poll_interval = Duration::from_millis(10);
+
+                loop {
+                    match child.try_wait() {
+                        Ok(Some(status)) => {
+                            // Unregister from cleanup registry
+                            if let Some(id) = registry_id {
+                                if let Ok(mut registry) = CLEANUP_REGISTRY.lock() {
+                                    registry.unregister(id);
+                                } else {
+                                    log::error!("Failed to lock cleanup registry for unregister");
+                                }
+                            }
+                            let _ = tx.send(Ok(status));
+                            return;
+                        }
+                        Ok(None) => {
+                            if Instant::now() >= deadline {
+                                let _ = child.kill();
+                                let _ = tx.send(Err(Error::configuration("Process timed out")));
+                                return;
+                            }
+                            // Sleep briefly before checking again
+                            std::thread::sleep(poll_interval);
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Err(Error::configuration(format!(
+                                "Failed to wait for process: {e}"
+                            ))));
+                            return;
+                        }
+                    }
+                }
+            });
+
+            // Wait for the result
+            match rx.await {
+                Ok(result) => result,
+                Err(_) => {
+                    // Channel was dropped, likely the task panicked
+                    handle.abort();
+                    Err(Error::configuration("Failed to wait for process"))
+                }
+            }
+        } else {
+            Err(Error::configuration("Process already consumed"))
+        }
+    }
+
+    /// Wait for the process to complete with timeout (sync version for use in non-async contexts)
     pub fn wait_with_timeout(&mut self) -> Result<std::process::ExitStatus> {
         if let Some(child) = self.child.as_mut() {
             let remaining = self.timeout.saturating_sub(self.started_at.elapsed());
@@ -290,11 +357,16 @@ impl ProcessGuard {
                 }
                 Ok(None) => {
                     // Still running, implement polling wait
-                    let poll_interval = Duration::from_millis(100);
+                    // Use shorter poll interval to reduce blocking time
+                    let poll_interval = Duration::from_millis(10); // Reduced from 100ms to 10ms
                     let deadline = Instant::now() + remaining;
 
                     loop {
+                        // Use shorter sleep to avoid blocking runtime for too long
                         std::thread::sleep(poll_interval);
+
+                        // Yield to other threads periodically
+                        std::thread::yield_now();
 
                         match child.try_wait() {
                             Ok(Some(status)) => {

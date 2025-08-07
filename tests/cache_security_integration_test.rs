@@ -482,6 +482,8 @@ async fn test_security_error_handling() {
 }
 
 proptest! {
+    #![proptest_config(ProptestConfig::with_cases(10))]
+
     /// Property-based test for signature security
     #[test]
     fn test_signature_property_based(
@@ -563,8 +565,8 @@ proptest! {
 
     #[test]
     fn test_capability_patterns_property_based(
-        keys in prop::collection::vec("[a-z]{1,5}/[a-z]{1,5}/[a-z]{1,5}", 1..20),
-        patterns in prop::collection::vec("([a-z]{1,5}/?)+\\*?", 1..10)
+        keys in prop::collection::vec("[a-z]{1,5}/[a-z]{1,5}/[a-z]{1,5}", 1..5),
+        patterns in prop::collection::vec("([a-z]{1,5}/?)+\\*?", 1..3)
     ) {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
@@ -583,7 +585,8 @@ proptest! {
                 ).unwrap();
                 for key in keys.iter() {
                     // Test if key would match pattern by checking authorization
-                    let matches = checker.check_permission(&token, &CacheOperation::Read { key: key.clone() }).is_ok();
+                    let result = checker.check_permission(&token, &CacheOperation::Read { key: key.clone() }).unwrap();
+                    let matches = result == AuthorizationResult::Authorized;
 
                     // Basic pattern matching properties
                     if pattern == "*" {

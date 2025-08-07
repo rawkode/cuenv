@@ -877,8 +877,8 @@ impl TaskExecutor {
 
         let mut guard = ProcessGuard::new(child, timeout);
 
-        // Wait for completion with timeout
-        let status = guard.wait_with_timeout().map_err(|e| {
+        // Wait for completion with timeout (use async version to avoid blocking the runtime)
+        let status = guard.wait_with_timeout_async().await.map_err(|e| {
             Error::command_execution(
                 &shell,
                 vec!["-c".to_string(), script_content.clone()],

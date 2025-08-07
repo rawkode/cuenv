@@ -13,8 +13,8 @@ fn test_config() -> UnifiedCacheConfig {
     UnifiedCacheConfig {
         max_size_bytes: 1024 * 1024, // 1MB
         max_entries: 100,
-        default_ttl: Some(Duration::from_secs(3600)), // 1 hour
-        compression_threshold: Some(512),             // Compress > 512 bytes
+        default_ttl: None, // No default TTL - let tests control expiration
+        compression_threshold: Some(512), // Compress > 512 bytes
         cleanup_interval: Duration::from_secs(60),
         encryption_enabled: false,
         compression_enabled: true,
