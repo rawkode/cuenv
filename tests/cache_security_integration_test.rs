@@ -13,7 +13,7 @@ use cuenv::cache::{
         AuthorizationResult, CacheOperation, CapabilityAuthority, CapabilityChecker, Permission,
     },
     merkle::{CacheEntryMetadata, MerkleTree},
-    secure_cache::{SecureCache, SecureCacheConfig},
+    secure::{SecureCache, SecureCacheConfig},
     signing::CacheSigner,
     Cache, ProductionCache, UnifiedCacheConfig,
 };

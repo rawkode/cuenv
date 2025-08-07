@@ -124,7 +124,7 @@ impl ActionCache {
         // Hash input files
         if let Some(inputs) = &task_config.inputs {
             for pattern in inputs {
-                let files = crate::cache::hash_engine::expand_glob_pattern(pattern, working_dir)?;
+                let files = crate::cache::hashing::expand_glob_pattern(pattern, working_dir)?;
                 for file in files {
                     // Use streaming hash computation for large files
                     let hash = compute_file_hash(&file).await?;
@@ -363,7 +363,7 @@ impl ActionCache {
     }
 
     /// Get statistics
-    pub fn stats(&self) -> crate::cache::concurrent_cache::CacheStatSnapshot {
+    pub fn stats(&self) -> super::CacheStatSnapshot {
         self.result_cache.stats()
     }
 

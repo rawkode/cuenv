@@ -20,7 +20,6 @@ mod mode;
 mod monitored;
 mod monitoring;
 mod performance;
-mod reliability;
 mod serialization;
 mod storage;
 mod streaming;
@@ -29,7 +28,6 @@ mod types;
 mod warming;
 
 // Feature modules
-mod advanced;
 mod concurrent;
 mod metrics;
 mod security;
@@ -61,7 +59,7 @@ pub use hashing::{expand_glob_pattern, HashEngine};
 pub use item::CacheItem;
 pub use mode::{get_cache_mode, CacheMode};
 
-// Legacy advanced caching components (deprecated)
+// Concurrent caching components
 pub use concurrent::action::{ActionCache, ActionComponents, ActionDigest, ActionResult};
 pub use concurrent::{ConcurrentCache, ConcurrentCacheBuilder};
 pub use content_addressed_store::{ContentAddressedStore, ObjectMetadata};
