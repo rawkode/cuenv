@@ -1,7 +1,7 @@
 use crate::atomic_file::write_atomic_string;
 use crate::cache::{get_cache_mode, CacheItem, CacheMode, HashEngine};
 use crate::core::errors::{Error, Result};
-use crate::xdg::XdgPaths;
+use crate::utils::xdg::XdgPaths;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};

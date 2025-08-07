@@ -145,9 +145,14 @@ impl LfuPolicy {
     }
 
     fn update_frequency(&self, key: &str, old_freq: u64, new_freq: u64) {
+        // Try to acquire write lock with timeout to avoid deadlocks
         let mut freq_map = match self.freq_map.try_write() {
             Some(guard) => guard,
-            None => return,
+            None => {
+                // If we can't get the lock, skip the update to avoid deadlock
+                // This is acceptable for LFU as it's a best-effort approximation
+                return;
+            }
         };
 
         // Remove from old frequency list
@@ -170,7 +175,7 @@ impl LfuPolicy {
 
 impl EvictionPolicy for LfuPolicy {
     fn on_access(&self, key: &str, _size: u64) {
-        let old_freq = self.frequencies.get(key).map(|f| *f).unwrap_or(0);
+        let old_freq = self.frequencies.get(key).map(|v| *v).unwrap_or(0);
         let new_freq = old_freq + 1;
 
         self.frequencies.insert(key.to_string(), new_freq);
@@ -194,14 +199,13 @@ impl EvictionPolicy for LfuPolicy {
     }
 
     fn next_eviction(&self) -> Option<String> {
-        if self.memory_usage() <= self.max_memory {
-            return None;
-        }
+        // Always try to return a candidate for eviction if we have any entries
+        // The cache itself will decide whether eviction is needed based on its own memory tracking
 
-        #[allow(clippy::question_mark)]
+        // Use try_read() to avoid deadlocks
         let freq_map = match self.freq_map.try_read() {
             Some(guard) => guard,
-            None => return None,
+            None => return None, // Can't get lock, no eviction candidate
         };
 
         // Find key with lowest frequency

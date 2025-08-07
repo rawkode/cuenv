@@ -3,7 +3,7 @@
 //! This module provides intelligent cache key generation that only includes
 //! relevant environment variables, similar to Bazel's approach for high cache hit rates.
 
-use crate::cue_parser::CacheEnvConfig;
+use crate::config::CacheEnvConfig;
 use crate::errors::{Error, Result};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -18,6 +18,7 @@ pub struct CacheKeyFilterConfig {
     /// Patterns to exclude (denylist)
     pub exclude: Vec<String>,
     /// Whether to use smart defaults for common build tools
+    #[serde(rename = "useSmartDefaults")]
     pub use_smart_defaults: bool,
 }
 
@@ -40,6 +41,8 @@ pub struct CacheKeyGenerator {
     /// Compiled regex patterns for performance
     include_patterns: Vec<Regex>,
     exclude_patterns: Vec<Regex>,
+    /// Task-specific compiled patterns
+    task_patterns: HashMap<String, (Vec<Regex>, Vec<Regex>)>,
 }
 
 impl CacheKeyGenerator {
@@ -55,6 +58,7 @@ impl CacheKeyGenerator {
             task_configs: HashMap::new(),
             include_patterns: vec![],
             exclude_patterns: vec![],
+            task_patterns: HashMap::new(),
         };
 
         generator.compile_patterns()?;
@@ -134,7 +138,7 @@ impl CacheKeyGenerator {
             "PAGER",
         ];
 
-        // Default denylist - exclude these always
+        // Default denylist - exclude these always for cross-platform consistency
         let denylist = vec![
             // Shell/session variables
             "PS1",
@@ -149,7 +153,7 @@ impl CacheKeyGenerator {
             "SHLVL",
             "_",
             "SHELL_SESSION_ID",
-            // Terminal/display
+            // Terminal/display (platform-specific)
             "DISPLAY",
             "WAYLAND_DISPLAY",
             "XDG_*",
@@ -191,12 +195,13 @@ impl CacheKeyGenerator {
             "EUID",
             "GID",
             "EGID",
-            // Other session-specific
+            // Platform-specific session variables
             "HOSTNAME",
             "LOGNAME",
             "USERDOMAIN",
             "COMPUTERNAME",
-            // Development environment specific
+            "USERNAME", // Windows-specific
+            // Development environment specific (terminal-dependent)
             "VTE_VERSION",
             "WT_SESSION",
             "TERM_PROGRAM",
@@ -205,12 +210,15 @@ impl CacheKeyGenerator {
             // macOS specific
             "__CF_USER_TEXT_ENCODING",
             "COMMAND_MODE",
+            "SECURITYSESSIONID",
             // Linux specific
             "XDG_RUNTIME_DIR",
             "XDG_DATA_DIRS",
             "XDG_CONFIG_DIRS",
             // Windows specific (WSL/Cygwin)
             "WSL*",
+            "WSL_DISTRO_NAME",
+            "WSL_INTEROP",
             "CYGWIN*",
             "MSYS*",
         ];
@@ -220,8 +228,12 @@ impl CacheKeyGenerator {
 
     /// Add a task-specific configuration
     pub fn add_task_config(&mut self, task_name: &str, config: CacheKeyFilterConfig) -> Result<()> {
+        // Compile task-specific patterns
+        let (include_patterns, exclude_patterns) = self.compile_task_patterns(&config)?;
+        self.task_patterns
+            .insert(task_name.to_string(), (include_patterns, exclude_patterns));
+
         self.task_configs.insert(task_name.to_string(), config);
-        self.compile_patterns()?;
         Ok(())
     }
 
@@ -230,17 +242,34 @@ impl CacheKeyGenerator {
         self.include_patterns.clear();
         self.exclude_patterns.clear();
 
-        // Compile global patterns first
+        // Compile global patterns only
         let global_config = self.global_config.clone();
         self.compile_config_patterns(&global_config)?;
 
-        // Compile task-specific patterns (these can override global patterns)
-        let task_configs: Vec<_> = self.task_configs.values().cloned().collect();
-        for config in task_configs {
-            self.compile_config_patterns(&config)?;
+        Ok(())
+    }
+
+    /// Compile patterns for a specific task configuration
+    fn compile_task_patterns(
+        &self,
+        config: &CacheKeyFilterConfig,
+    ) -> Result<(Vec<Regex>, Vec<Regex>)> {
+        let mut include_patterns = Vec::new();
+        let mut exclude_patterns = Vec::new();
+
+        // Add custom include patterns (these are specific to the task)
+        for pattern in &config.include {
+            let regex = Self::compile_pattern(pattern)?;
+            include_patterns.push(regex);
         }
 
-        Ok(())
+        // Add custom exclude patterns (these are specific to the task)
+        for pattern in &config.exclude {
+            let regex = Self::compile_pattern(pattern)?;
+            exclude_patterns.push(regex);
+        }
+
+        Ok((include_patterns, exclude_patterns))
     }
 
     /// Compile patterns from a specific configuration
@@ -286,8 +315,21 @@ impl CacheKeyGenerator {
 
     /// Compile a single pattern with error handling
     fn compile_pattern(pattern: &str) -> Result<Regex> {
-        Regex::new(pattern)
-            .map_err(|e| Error::configuration(format!("Invalid regex pattern '{pattern}': {e}")))
+        // Convert glob-style patterns to regex
+        let regex_pattern = if pattern.contains('*') || pattern.contains('?') {
+            // Convert glob pattern to regex
+            let escaped = regex::escape(pattern);
+            // Replace escaped glob characters with regex equivalents
+            let regex_pattern = escaped.replace(r"\*", ".*").replace(r"\?", ".");
+            // Anchor the pattern to match the entire string
+            format!("^{}$", regex_pattern)
+        } else {
+            // Exact match for patterns without wildcards
+            format!("^{}$", regex::escape(pattern))
+        };
+
+        Regex::new(&regex_pattern)
+            .map_err(|e| Error::configuration(format!("Invalid pattern '{pattern}': {e}")))
     }
 
     /// Filter environment variables based on configured patterns
@@ -305,7 +347,7 @@ impl CacheKeyGenerator {
             .unwrap_or(&self.global_config);
 
         for (key, value) in env_vars {
-            if self.should_include_var(key, config) {
+            if self.should_include_var(key, task_name, config) {
                 filtered.insert(key.clone(), value.clone());
             }
         }
@@ -314,9 +356,24 @@ impl CacheKeyGenerator {
     }
 
     /// Determine if a variable should be included in the cache key
-    fn should_include_var(&self, var_name: &str, config: &CacheKeyFilterConfig) -> bool {
+    fn should_include_var(
+        &self,
+        var_name: &str,
+        task_name: &str,
+        config: &CacheKeyFilterConfig,
+    ) -> bool {
+        // Get task-specific patterns if available
+        let (include_patterns, exclude_patterns) =
+            if let Some(patterns) = self.task_patterns.get(task_name) {
+                // Use task-specific patterns
+                (&patterns.0, &patterns.1)
+            } else {
+                // Use global patterns
+                (&self.include_patterns, &self.exclude_patterns)
+            };
+
         // Check exclude patterns first (denylist takes precedence)
-        for pattern in &self.exclude_patterns {
+        for pattern in exclude_patterns {
             if pattern.is_match(var_name) {
                 return false;
             }
@@ -325,7 +382,7 @@ impl CacheKeyGenerator {
         // Check include patterns
         let has_include_patterns = !config.include.is_empty();
         if has_include_patterns {
-            for pattern in &self.include_patterns {
+            for pattern in include_patterns {
                 if pattern.is_match(var_name) {
                     return true;
                 }
@@ -336,6 +393,12 @@ impl CacheKeyGenerator {
 
         // If no include patterns, use smart defaults if enabled
         if config.use_smart_defaults {
+            // Also check global exclude patterns when using smart defaults
+            for pattern in &self.exclude_patterns {
+                if pattern.is_match(var_name) {
+                    return false;
+                }
+            }
             return self.is_smart_default_var(var_name);
         }
 
@@ -536,13 +599,61 @@ impl CacheKeyGenerator {
         Ok(format!("{:x}", hasher.finalize()))
     }
 
-    /// Normalize working directory path for consistent cache keys
+    /// Normalize working directory path for consistent cache keys across platforms
     fn normalize_working_dir(&self, path: &Path) -> String {
-        // Use canonical path if possible, otherwise use as-is
-        if let Ok(canonical) = path.canonicalize() {
-            canonical.to_string_lossy().to_string()
+        // Normalize path separators to forward slashes for consistency
+        let path_str = path.to_string_lossy();
+        let mut normalized = path_str.replace('\\', "/");
+
+        // Remove trailing slashes and dots for consistency
+        while normalized.ends_with('/') || normalized.ends_with("/.") {
+            if normalized.ends_with("/.") {
+                normalized.truncate(normalized.len() - 2);
+            } else if normalized.ends_with('/') {
+                normalized.truncate(normalized.len() - 1);
+            }
+        }
+
+        // Handle path components like `/tmp/../project` by resolving them
+        // This is a simplified path resolution that doesn't access the filesystem
+        let mut components = Vec::new();
+        for component in normalized.split('/') {
+            match component {
+                "" | "." => continue, // Skip empty and current directory references
+                ".." => {
+                    if !components.is_empty() && components.last() != Some(&"..") {
+                        components.pop(); // Go up one directory
+                    } else if !normalized.starts_with('/') {
+                        // For relative paths, keep the ".."
+                        components.push(component);
+                    }
+                    // For absolute paths, ".." at root is ignored
+                }
+                _ => components.push(component),
+            }
+        }
+
+        let resolved = if normalized.starts_with('/') {
+            format!("/{}", components.join("/"))
         } else {
-            path.to_string_lossy().to_string()
+            components.join("/")
+        };
+
+        // Handle empty path case
+        if resolved.is_empty() || resolved == "/" {
+            return "/".to_string();
+        }
+
+        // Convert relative paths to absolute-style paths for consistency
+        if !resolved.starts_with('/') && !resolved.contains(':') {
+            format!("/{}", resolved)
+        } else if cfg!(windows) && resolved.len() > 1 && resolved.chars().nth(1) == Some(':') {
+            // Convert Windows drive letters to forward-slash format (C: -> /c)
+            let drive_letter = resolved.chars().next().unwrap().to_lowercase();
+            let rest = &resolved[2..];
+            format!("/{}{}", drive_letter, rest)
+        } else {
+            resolved
         }
     }
 

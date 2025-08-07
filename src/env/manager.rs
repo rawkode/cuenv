@@ -7,11 +7,11 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, RwLock};
 
 use crate::access_restrictions::AccessRestrictions;
+use crate::config::{CommandConfig, CueParser, HookConfig, HookType, ParseOptions, TaskConfig};
 use crate::core::types::EnvironmentVariables;
-use crate::cue_parser::{CommandConfig, CueParser, HookConfig, HookType, ParseOptions, TaskConfig};
-use crate::env_diff::EnvDiff;
+use crate::env::diff::EnvDiff;
 use crate::file_times::FileTimes;
-use crate::hook_manager::HookManager;
+use crate::hooks::manager::HookManager;
 use crate::output_filter::OutputFilter;
 use crate::platform::{PlatformOps, Shell};
 use crate::secrets::SecretManager;
@@ -26,8 +26,9 @@ use crate::platform::WindowsPlatform as Platform;
 #[derive(Clone)]
 pub struct EnvManager {
     original_env: HashMap<String, String>,
+    sourced_env: HashMap<String, String>, // Environment from hooks (nix, devenv, etc.)
     cue_vars: HashMap<String, String>,
-    cue_vars_metadata: HashMap<String, crate::cue_parser::VariableMetadata>,
+    cue_vars_metadata: HashMap<String, crate::config::VariableMetadata>,
     commands: HashMap<String, CommandConfig>,
     tasks: HashMap<String, TaskConfig>,
     hooks: HashMap<String, HookConfig>,
@@ -38,6 +39,7 @@ impl EnvManager {
         Self {
             // Pre-allocate with reasonable initial capacities to reduce rehashing
             original_env: HashMap::with_capacity(100), // Environment typically has many vars
+            sourced_env: HashMap::with_capacity(100),  // Sourced environment from hooks
             cue_vars: HashMap::with_capacity(50),      // CUE vars are usually fewer
             cue_vars_metadata: HashMap::with_capacity(50), // Metadata for each var
             commands: HashMap::with_capacity(20),      // Commands are limited
@@ -82,17 +84,17 @@ impl EnvManager {
         for (hook_type, hooks) in parse_result.hooks {
             if let Some(first_hook) = hooks.first() {
                 let hook_config = match first_hook {
-                    crate::cue_parser::Hook::Legacy(config) => config.clone(),
-                    crate::cue_parser::Hook::Exec { exec, .. } => HookConfig {
+                    crate::config::Hook::Legacy(config) => config.clone(),
+                    crate::config::Hook::Exec { exec, .. } => HookConfig {
                         command: exec.command.clone(),
                         args: exec.args.clone().unwrap_or_default(),
                         url: None,
                         source: exec.source,
                         constraints: vec![],
                         hook_type: if hook_type == "onEnter" {
-                            crate::cue_parser::HookType::OnEnter
+                            crate::config::HookType::OnEnter
                         } else {
-                            crate::cue_parser::HookType::OnExit
+                            crate::config::HookType::OnExit
                         },
                     },
                     _ => continue, // Skip other hook types for now
@@ -157,17 +159,17 @@ impl EnvManager {
         for (hook_type, hooks) in parse_result.hooks.clone() {
             if let Some(first_hook) = hooks.first() {
                 let hook_config = match first_hook {
-                    crate::cue_parser::Hook::Legacy(config) => config.clone(),
-                    crate::cue_parser::Hook::Exec { exec, .. } => HookConfig {
+                    crate::config::Hook::Legacy(config) => config.clone(),
+                    crate::config::Hook::Exec { exec, .. } => HookConfig {
                         command: exec.command.clone(),
                         args: exec.args.clone().unwrap_or_default(),
                         url: None,
                         source: exec.source,
                         constraints: vec![],
                         hook_type: if hook_type == "onEnter" {
-                            crate::cue_parser::HookType::OnEnter
+                            crate::config::HookType::OnEnter
                         } else {
-                            crate::cue_parser::HookType::OnExit
+                            crate::config::HookType::OnExit
                         },
                     },
                     _ => continue, // Skip other hook types for now
@@ -177,8 +179,78 @@ impl EnvManager {
         }
 
         // Execute sourcing hooks first to capture additional environment variables
-        let sourced_env_vars = HashMap::new();
-        // Note: Sourcing hooks are not supported in the TUI version yet
+        let mut sourced_env_vars = HashMap::new();
+
+        // Process onEnter hooks that provide environment (nix flake, devenv, source hooks)
+        let cache = crate::env::EnvCache::new(dir).ok();
+        for (hook_type, hooks) in &parse_result.hooks {
+            if hook_type == "onEnter" {
+                for hook in hooks {
+                    match hook {
+                        crate::config::Hook::SimpleNixFlake { flake }
+                        | crate::config::Hook::NixFlake { flake, .. } => {
+                            if let Some(ref cache) = cache {
+                                match crate::hooks::execute_nix_flake_hook(flake, cache, false)
+                                    .await
+                                {
+                                    Ok(env) => {
+                                        tracing::info!(
+                                            "Loaded {} variables from nix flake",
+                                            env.len()
+                                        );
+                                        sourced_env_vars.extend(env);
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!("Failed to execute nix flake hook: {}", e);
+                                    }
+                                }
+                            }
+                        }
+                        crate::config::Hook::SimpleDevenv { devenv }
+                        | crate::config::Hook::Devenv { devenv, .. } => {
+                            tracing::info!("Processing devenv hook");
+                            if let Some(ref cache) = cache {
+                                match crate::hooks::execute_devenv_hook(devenv, cache, false).await
+                                {
+                                    Ok(env) => {
+                                        tracing::info!(
+                                            "Loaded {} variables from devenv",
+                                            env.len()
+                                        );
+                                        sourced_env_vars.extend(env);
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!("Failed to execute devenv hook: {}", e);
+                                    }
+                                }
+                            }
+                        }
+                        crate::config::Hook::Exec { exec, .. } if exec.source.unwrap_or(false) => {
+                            tracing::info!("Processing source hook: {}", exec.command);
+                            match crate::hooks::execute_source_hook(exec, cache.as_ref()).await {
+                                Ok(env) => {
+                                    tracing::info!(
+                                        "Loaded {} variables from source hook",
+                                        env.len()
+                                    );
+                                    sourced_env_vars.extend(env);
+                                }
+                                Err(e) => {
+                                    tracing::warn!("Failed to execute source hook: {}", e);
+                                }
+                            }
+                        }
+                        _ => {
+                            // Non-sourcing hooks will be executed later
+                        }
+                    }
+                }
+            }
+        }
+
+        // Store the sourced environment
+        let has_sourced_env = !sourced_env_vars.is_empty();
+        self.sourced_env = sourced_env_vars.clone();
 
         // Merge CUE variables with sourced variables (CUE takes precedence)
         let mut merged_variables = sourced_env_vars;
@@ -186,7 +258,7 @@ impl EnvManager {
 
         // Apply the merged environment
         match self
-            .apply_merged_environment(dir, merged_variables, &options)
+            .apply_merged_environment(dir, merged_variables, &options, has_sourced_env)
             .await
         {
             Ok(()) => {
@@ -326,17 +398,17 @@ impl EnvManager {
         for (hook_type, hooks) in parse_result.hooks {
             if let Some(first_hook) = hooks.first() {
                 let hook_config = match first_hook {
-                    crate::cue_parser::Hook::Legacy(config) => config.clone(),
-                    crate::cue_parser::Hook::Exec { exec, .. } => HookConfig {
+                    crate::config::Hook::Legacy(config) => config.clone(),
+                    crate::config::Hook::Exec { exec, .. } => HookConfig {
                         command: exec.command.clone(),
                         args: exec.args.clone().unwrap_or_default(),
                         url: None,
                         source: exec.source,
                         constraints: vec![],
                         hook_type: if hook_type == "onEnter" {
-                            crate::cue_parser::HookType::OnEnter
+                            crate::config::HookType::OnEnter
                         } else {
-                            crate::cue_parser::HookType::OnExit
+                            crate::config::HookType::OnExit
                         },
                     },
                     _ => continue, // Skip other hook types for now
@@ -515,20 +587,23 @@ impl EnvManager {
     }
 
     pub fn run_command(&self, command: &str, args: &[String]) -> Result<i32> {
-        // Get the loaded environment variables (only the ones from CUE files)
-        let env_from_cue = self.cue_vars.clone();
+        // Start with sourced environment (from nix, devenv, etc.)
+        let mut base_env = self.sourced_env.clone();
 
-        // Resolve secrets in the environment variables
+        // Override with CUE-defined variables (CUE takes precedence)
+        base_env.extend(self.cue_vars.clone());
+
+        // Resolve secrets in the merged environment
         let (resolved_env, secret_values) = if cfg!(test) {
             // Skip secret resolution in tests
             use crate::core::types::SecretValues;
-            (env_from_cue, SecretValues::new())
+            (base_env, SecretValues::new())
         } else {
             let secret_manager = SecretManager::new();
 
             // Use futures::executor::block_on which works in more contexts
             let resolved_secrets = match futures::executor::block_on(async {
-                secret_manager.resolve_secrets(env_from_cue.into()).await
+                secret_manager.resolve_secrets(base_env.into()).await
             }) {
                 Ok(secrets) => secrets,
                 Err(e) => {
@@ -547,9 +622,11 @@ impl EnvManager {
         // Add minimal required environment variables for basic operation
         let mut final_env = resolved_env;
 
-        // PATH is needed to find executables
-        if let Some(path) = self.original_env.get("PATH") {
-            final_env.insert("PATH".to_string(), path.clone());
+        // PATH is needed to find executables - use sourced PATH if available, fallback to original
+        if !final_env.contains_key("PATH") {
+            if let Some(path) = self.original_env.get("PATH") {
+                final_env.insert("PATH".to_string(), path.clone());
+            }
         }
 
         // Set up platform-specific environment
@@ -707,20 +784,23 @@ impl EnvManager {
         args: &[String],
         restrictions: &AccessRestrictions,
     ) -> Result<i32> {
-        // Get the loaded environment variables (only the ones from CUE files)
-        let env_from_cue = self.cue_vars.clone();
+        // Start with sourced environment (from nix, devenv, etc.)
+        let mut base_env = self.sourced_env.clone();
 
-        // Resolve secrets in the environment variables
+        // Override with CUE-defined variables (CUE takes precedence)
+        base_env.extend(self.cue_vars.clone());
+
+        // Resolve secrets in the merged environment
         let (resolved_env, secret_values) = if cfg!(test) {
             // Skip secret resolution in tests
             use crate::core::types::SecretValues;
-            (env_from_cue, SecretValues::new())
+            (base_env, SecretValues::new())
         } else {
             let secret_manager = SecretManager::new();
 
             // Use futures::executor::block_on which works in more contexts
             let resolved_secrets = match futures::executor::block_on(async {
-                secret_manager.resolve_secrets(env_from_cue.into()).await
+                secret_manager.resolve_secrets(base_env.into()).await
             }) {
                 Ok(secrets) => secrets,
                 Err(e) => {
@@ -739,9 +819,11 @@ impl EnvManager {
         // Add minimal required environment variables for basic operation
         let mut final_env = resolved_env;
 
-        // PATH is needed to find executables
-        if let Some(path) = self.original_env.get("PATH") {
-            final_env.insert("PATH".to_string(), path.clone());
+        // PATH is needed to find executables - use sourced PATH if available, fallback to original
+        if !final_env.contains_key("PATH") {
+            if let Some(path) = self.original_env.get("PATH") {
+                final_env.insert("PATH".to_string(), path.clone());
+            }
         }
 
         // Set up platform-specific environment
@@ -1024,26 +1106,41 @@ impl EnvManager {
         dir: &Path,
         variables: HashMap<String, String>,
         options: &ParseOptions,
+        has_sourced_env: bool,
     ) -> Result<()> {
         // Build the new environment
         let mut new_env = self.original_env.clone();
         self.cue_vars.clear();
 
         for (key, value) in variables {
-            let expanded_value = match shellexpand::full(&value) {
-                Ok(expanded) => expanded.to_string(),
-                Err(e) => {
-                    return Err(Error::shell_expansion(
-                        &value,
-                        format!("Failed to expand value for {key}: {e}"),
-                    ));
+            // Skip shell expansion for nix-sourced variables that contain unexpandable references
+            // These will be expanded by the shell when the command runs
+            let final_value = if has_sourced_env && value.contains("$NIX_BUILD_TOP") {
+                // Don't expand nix-specific variables, they'll be set by the shell
+                value.clone()
+            } else {
+                // Try to expand other variables
+                match shellexpand::full(&value) {
+                    Ok(expanded) => expanded.to_string(),
+                    Err(e) => {
+                        // If expansion fails and it's a nix variable, just use it as-is
+                        if has_sourced_env && value.contains('$') {
+                            tracing::debug!("Skipping expansion for {key}={value} (will be expanded at runtime)");
+                            value.clone()
+                        } else {
+                            return Err(Error::shell_expansion(
+                                &value,
+                                format!("Failed to expand value for {key}: {e}"),
+                            ));
+                        }
+                    }
                 }
             };
 
-            tracing::debug!("Setting {key}={expanded_value}");
-            new_env.insert(key.clone(), expanded_value.clone());
-            self.cue_vars.insert(key.clone(), expanded_value.clone());
-            SyncEnv::set_var(key, expanded_value).map_err(|e| Error::Configuration {
+            tracing::debug!("Setting {key}={final_value}");
+            new_env.insert(key.clone(), final_value.clone());
+            self.cue_vars.insert(key.clone(), final_value.clone());
+            SyncEnv::set_var(key, final_value).map_err(|e| Error::Configuration {
                 message: format!("Failed to set environment variable: {e}"),
             })?;
         }
@@ -1139,7 +1236,14 @@ fn parse_shell_exports(output: &str) -> HashMap<String, String> {
             let value = export_line[eq_pos + 1..].trim();
 
             // Skip invalid variable names
-            if key.is_empty() || !key.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            // Variable names must start with a letter or underscore, followed by alphanumeric or underscore
+            if key.is_empty()
+                || !key
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_alphabetic() || c == '_')
+                || !key.chars().all(|c| c.is_alphanumeric() || c == '_')
+            {
                 continue;
             }
 

@@ -26,6 +26,17 @@ const CACHE_LINE_SIZE: usize = 128;
 const CACHE_LINE_SIZE: usize = 64;
 
 /// Align a type to cache line boundaries to prevent false sharing
+#[cfg(target_arch = "x86_64")]
+#[repr(align(64))]
+pub struct CacheLineAligned<T>(pub T);
+
+/// Align a type to cache line boundaries to prevent false sharing
+#[cfg(target_arch = "aarch64")]
+#[repr(align(128))]
+pub struct CacheLineAligned<T>(pub T);
+
+/// Align a type to cache line boundaries to prevent false sharing
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 #[repr(align(64))]
 pub struct CacheLineAligned<T>(pub T);
 
@@ -201,11 +212,11 @@ impl Drop for MemoryPool {
 
 /// Prefetch hints for the CPU
 #[inline(always)]
-pub fn prefetch_read<T>(ptr: *const T) {
+pub fn prefetch_read<T>(_ptr: *const T) {
     #[cfg(target_arch = "x86_64")]
     unsafe {
         use std::arch::x86_64::_mm_prefetch;
-        _mm_prefetch(ptr as *const i8, 0); // _MM_HINT_T0
+        _mm_prefetch(_ptr as *const i8, 0); // _MM_HINT_T0
     }
 
     // ARM64 prefetch is unstable in Rust 1.88.0
@@ -217,11 +228,11 @@ pub fn prefetch_read<T>(ptr: *const T) {
 }
 
 #[inline(always)]
-pub fn prefetch_write<T>(ptr: *const T) {
+pub fn prefetch_write<T>(_ptr: *const T) {
     #[cfg(target_arch = "x86_64")]
     unsafe {
         use std::arch::x86_64::_mm_prefetch;
-        _mm_prefetch(ptr as *const i8, 1); // _MM_HINT_T1
+        _mm_prefetch(_ptr as *const i8, 1); // _MM_HINT_T1
     }
 
     // ARM64 prefetch is unstable in Rust 1.88.0

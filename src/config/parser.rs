@@ -290,6 +290,10 @@ pub struct DevenvConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Hook {
+    /// Simple nix flake format (just flake field)
+    SimpleNixFlake { flake: NixFlakeConfig },
+    /// Simple devenv format (just devenv field)
+    SimpleDevenv { devenv: DevenvConfig },
     /// Legacy format for backward compatibility
     Legacy(HookConfig),
     /// Basic command execution with type field
@@ -299,7 +303,7 @@ pub enum Hook {
         #[serde(flatten)]
         exec: ExecConfig,
     },
-    /// Nix flake integration
+    /// Nix flake integration with explicit type
     NixFlake {
         #[serde(rename = "type")]
         hook_type: String,
@@ -307,7 +311,7 @@ pub enum Hook {
         exec: ExecConfig,
         flake: NixFlakeConfig,
     },
-    /// Devenv integration
+    /// Devenv integration with explicit type
     Devenv {
         #[serde(rename = "type")]
         hook_type: String,

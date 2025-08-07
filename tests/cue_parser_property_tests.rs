@@ -1,5 +1,5 @@
 #![allow(unused)]
-use cuenv::cue_parser::{CueParser, ParseOptions};
+use cuenv::config::{CueParser, ParseOptions};
 use proptest::prelude::*;
 use std::collections::HashMap;
 use std::fs;

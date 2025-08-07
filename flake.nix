@@ -210,24 +210,49 @@
           };
 
           # Comprehensive checks for nix flake check
-          checks = {
-            # Formatting check
-            formatting = treefmt.config.build.check self;
+          checks =
+            let
+              # Vendor cargo dependencies so checks can run offline
+              cargoVendor = pkgs.rustPlatform.fetchCargoVendor {
+                src = ./.;
+                name = "cuenv-cargo-vendor";
+                hash = "sha256-FI3CT29lnnKU0lfiUAJ3mK67WQjPNGvGql+NdKlbDBE=";
+              };
 
-            # Build check - ensure the package builds (without tests)
-            build = cuenv;
+              # Common preBuild steps for checks
+              checksPreBuild = ''
+                export HOME=$(mktemp -d)
+                export GOPATH="$HOME/go"
+                export GOCACHE="$HOME/go-cache"
+                export CGO_ENABLED=1
 
-            # Clippy check
-            clippy =
-              let
-                # Vendor cargo dependencies
-                cargoVendor = pkgs.rustPlatform.fetchCargoVendor {
-                  src = ./.;
-                  name = "cuenv-cargo-vendor";
-                  hash = "sha256-pW3zFLriHJINs3AvPVJFCaoDetiVrCZoiWC4XlZxYeo=";
-                };
-              in
-              pkgs.stdenv.mkDerivation {
+                # Copy Go vendor
+                cp -r ${goVendor}/vendor libcue-bridge/
+                chmod -R u+w libcue-bridge
+
+                # Setup cargo vendor for offline build
+                mkdir -p .cargo
+                cat > .cargo/config.toml <<EOF
+                [source.crates-io]
+                replace-with = "vendored-sources"
+
+                [source.vendored-sources]
+                directory = "vendor"
+                EOF
+
+                cp -r ${cargoVendor} vendor
+                chmod -R u+w vendor
+              '';
+            in
+            {
+              # Formatting check
+              formatting = treefmt.config.build.check self;
+
+              # Build check - ensure the package builds (without tests)
+              build = cuenv;
+
+              # Clippy check
+              clippy = pkgs.stdenv.mkDerivation {
                 pname = "cuenv-clippy-check";
                 version = version;
                 src = ./.;
@@ -235,30 +260,7 @@
                 nativeBuildInputs = nativeBuildInputs;
                 buildInputs = buildInputs;
 
-                # Copy vendored dependencies
-                preBuild = ''
-                  export HOME=$(mktemp -d)
-                  export GOPATH="$HOME/go"
-                  export GOCACHE="$HOME/go-cache"
-                  export CGO_ENABLED=1
-                  
-                  # Copy Go vendor
-                  cp -r ${goVendor}/vendor libcue-bridge/
-                  chmod -R u+w libcue-bridge
-                  
-                  # Setup cargo vendor
-                  mkdir -p .cargo
-                  cat > .cargo/config.toml <<EOF
-                  [source.crates-io]
-                  replace-with = "vendored-sources"
-                  
-                  [source.vendored-sources]
-                  directory = "vendor"
-                  EOF
-                  
-                  cp -r ${cargoVendor} vendor
-                  chmod -R u+w vendor
-                '';
+                preBuild = checksPreBuild;
 
                 buildPhase = ''
                   runHook preBuild
@@ -272,70 +274,62 @@
                 installPhase = "touch $out";
               };
 
-            # Unit tests (sandbox-compatible)
-            unit-tests = pkgs.stdenv.mkDerivation {
-              pname = "cuenv-unit-tests";
-              version = version;
-              src = ./.;
+              # Unit tests (sandbox-compatible)
+              unit-tests = pkgs.stdenv.mkDerivation {
+                pname = "cuenv-unit-tests";
+                version = version;
+                src = ./.;
 
-              nativeBuildInputs = nativeBuildInputs ++ [ pkgs.cargo-nextest ];
-              buildInputs = buildInputs;
+                nativeBuildInputs = nativeBuildInputs ++ [ pkgs.cargo-nextest ];
+                buildInputs = buildInputs;
 
-              preBuild = ''
-                export HOME=$(mktemp -d)
-                export GOPATH="$HOME/go"
-                export GOCACHE="$HOME/go-cache"
-                export CGO_ENABLED=1
-                export RUST_TEST_THREADS=2
-                export GOMAXPROCS=2
-                
-                cp -r ${goVendor}/vendor libcue-bridge/
-                chmod -R u+w libcue-bridge
-              '';
+                preBuild = checksPreBuild;
 
-              buildPhase = ''
-                runHook preBuild
-                # Run only unit tests that work in sandbox
-                cargo nextest run --lib --bins \
-                  -E 'not test(/concurrent|/thread_safe|/monitored_cache|/profiling|/tree_operations|/confidence|/sequential_pattern|/streaming|/prop_test_cache|/statistics|/parse_shell|/process_guard/)'
-                runHook postBuild
-              '';
+                buildPhase = ''
+                  export RUST_TEST_THREADS=2
+                  export GOMAXPROCS=2
+                  runHook preBuild
+                  # Run only unit tests that work in sandbox
+                  cargo nextest run --lib --bins \
+                    -E 'not test(/concurrent|thread_safe|monitored_cache|profiling|tree_operations|confidence|sequential_pattern|streaming|prop_test_cache|statistics|parse_shell|process_guard/)'
+                  runHook postBuild
+                '';
 
-              installPhase = "touch $out";
+                installPhase = "touch $out";
+              };
+
+              # Integration tests (requires network, runs in CI only)
+              integration-tests = pkgs.stdenv.mkDerivation {
+                pname = "cuenv-integration-tests";
+                version = version;
+                src = ./.;
+
+                nativeBuildInputs = nativeBuildInputs ++ [ pkgs.cargo-nextest ];
+                buildInputs = buildInputs;
+
+                preBuild = ''
+                  export HOME=$(mktemp -d)
+                  export GOPATH="$HOME/go"
+                  export GOCACHE="$HOME/go-cache"
+                  export CGO_ENABLED=1
+                  export RUST_TEST_THREADS=4
+                  export GOMAXPROCS=4
+
+                  cp -r ${goVendor}/vendor libcue-bridge/
+                  chmod -R u+w libcue-bridge
+                '';
+
+                buildPhase = ''
+                  runHook preBuild
+                  # This will fail in sandbox but documents what tests need network
+                  echo "Integration tests require network access and should be run in CI"
+                  echo "Would run: cargo nextest run --tests"
+                  runHook postBuild
+                '';
+
+                installPhase = "touch $out";
+              };
             };
-
-            # Integration tests (requires network, runs in CI only)
-            integration-tests = pkgs.stdenv.mkDerivation {
-              pname = "cuenv-integration-tests";
-              version = version;
-              src = ./.;
-
-              nativeBuildInputs = nativeBuildInputs ++ [ pkgs.cargo-nextest ];
-              buildInputs = buildInputs;
-
-              preBuild = ''
-                export HOME=$(mktemp -d)
-                export GOPATH="$HOME/go"
-                export GOCACHE="$HOME/go-cache"
-                export CGO_ENABLED=1
-                export RUST_TEST_THREADS=4
-                export GOMAXPROCS=4
-                
-                cp -r ${goVendor}/vendor libcue-bridge/
-                chmod -R u+w libcue-bridge
-              '';
-
-              buildPhase = ''
-                runHook preBuild
-                # This will fail in sandbox but documents what tests need network
-                echo "Integration tests require network access and should be run in CI"
-                echo "Would run: cargo nextest run --tests"
-                runHook postBuild
-              '';
-
-              installPhase = "touch $out";
-            };
-          };
 
           # Make formatter available
           formatter = treefmt.config.build.wrapper;

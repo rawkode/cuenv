@@ -192,6 +192,7 @@ where
                     delay
                 };
 
+                // Use standard thread sleep for blocking retry
                 std::thread::sleep(actual_delay);
 
                 // Calculate next delay with exponential backoff

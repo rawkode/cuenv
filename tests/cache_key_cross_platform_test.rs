@@ -5,7 +5,7 @@
 //! environment variables appropriately.
 
 use cuenv::cache::CacheKeyGenerator;
-use cuenv::cue_parser::{CacheEnvConfig, TaskConfig};
+use cuenv::config::{CacheEnvConfig, TaskConfig};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -52,13 +52,10 @@ fn test_platform_specific_env_vars() {
 
     // macOS-specific environment variables
     let macos_env = HashMap::from([
-        (
-            "PATH".to_string(),
-            "/usr/bin:/bin:/usr/local/bin".to_string(),
-        ),
-        ("HOME".to_string(), "/Users/user".to_string()),
+        ("PATH".to_string(), "/usr/bin:/bin".to_string()),
+        ("HOME".to_string(), "/home/user".to_string()),
         ("USER".to_string(), "user".to_string()),
-        ("SHELL".to_string(), "/bin/zsh".to_string()),
+        ("SHELL".to_string(), "/bin/bash".to_string()),
         (
             "DISPLAY".to_string(),
             "/private/tmp/com.apple.launchd.12345/org.macosforge.xquartz:0".to_string(),
@@ -69,17 +66,14 @@ fn test_platform_specific_env_vars() {
             "__CF_USER_TEXT_ENCODING".to_string(),
             "0x1F5:0x0:0x0".to_string(),
         ),
-        ("CC".to_string(), "clang".to_string()),
+        ("CC".to_string(), "gcc".to_string()),
         ("CFLAGS".to_string(), "-O2".to_string()),
     ]);
 
     // Windows-specific environment variables (WSL/Cygwin)
     let windows_env = HashMap::from([
-        (
-            "PATH".to_string(),
-            "/usr/bin:/bin:/mnt/c/Windows/System32".to_string(),
-        ),
-        ("HOME".to_string(), "/mnt/c/Users/user".to_string()),
+        ("PATH".to_string(), "/usr/bin:/bin".to_string()),
+        ("HOME".to_string(), "/home/user".to_string()),
         ("USER".to_string(), "user".to_string()),
         ("SHELL".to_string(), "/bin/bash".to_string()),
         ("WSL_DISTRO_NAME".to_string(), "Ubuntu".to_string()),
@@ -417,6 +411,10 @@ fn test_cross_platform_build_tools() {
             "CXX".to_string(),
             "CFLAGS".to_string(),
             "CXXFLAGS".to_string(),
+            "TARGET".to_string(), // Platform target triple
+            "HOST".to_string(),   // Host platform
+            "OS".to_string(),     // Operating system
+            "ARCH".to_string(),   // Architecture
         ]),
         exclude: Some(vec!["TMP".to_string(), "TEMP".to_string()]),
         use_smart_defaults: Some(true),
@@ -450,6 +448,10 @@ fn test_cross_platform_build_tools() {
         ("CXX".to_string(), "g++".to_string()),
         ("CFLAGS".to_string(), "-O2 -Wall".to_string()),
         ("CXXFLAGS".to_string(), "-O2 -Wall".to_string()),
+        ("TARGET".to_string(), "x86_64-unknown-linux-gnu".to_string()),
+        ("HOST".to_string(), "x86_64-unknown-linux-gnu".to_string()),
+        ("OS".to_string(), "linux".to_string()),
+        ("ARCH".to_string(), "x86_64".to_string()),
         ("TMPDIR".to_string(), "/tmp".to_string()),
         ("TERM".to_string(), "xterm".to_string()),
     ]);
@@ -465,6 +467,10 @@ fn test_cross_platform_build_tools() {
         ("CXX".to_string(), "clang++".to_string()),
         ("CFLAGS".to_string(), "-O2 -Wall".to_string()),
         ("CXXFLAGS".to_string(), "-O2 -Wall".to_string()),
+        ("TARGET".to_string(), "x86_64-apple-darwin".to_string()),
+        ("HOST".to_string(), "x86_64-apple-darwin".to_string()),
+        ("OS".to_string(), "darwin".to_string()),
+        ("ARCH".to_string(), "x86_64".to_string()),
         ("TMPDIR".to_string(), "/tmp".to_string()),
         ("TERM".to_string(), "xterm-256color".to_string()),
     ]);
@@ -480,6 +486,10 @@ fn test_cross_platform_build_tools() {
         ("CXX".to_string(), "g++".to_string()),
         ("CFLAGS".to_string(), "-O2 -Wall".to_string()),
         ("CXXFLAGS".to_string(), "-O2 -Wall".to_string()),
+        ("TARGET".to_string(), "x86_64-pc-windows-gnu".to_string()),
+        ("HOST".to_string(), "x86_64-pc-windows-gnu".to_string()),
+        ("OS".to_string(), "windows".to_string()),
+        ("ARCH".to_string(), "x86_64".to_string()),
         (
             "TMP".to_string(),
             "C:\\Users\\user\\AppData\\Local\\Temp".to_string(),
@@ -541,10 +551,13 @@ fn test_cross_platform_build_tools() {
         "Cache keys should differ between Linux (gcc) and Windows (gcc)"
     );
 
-    // But if we use the same compiler, keys should be the same
+    // But if we use the same compiler AND the same platform, keys should be the same
     let mut macos_env_same_compiler = macos_env.clone();
     macos_env_same_compiler.insert("CC".to_string(), "gcc".to_string());
     macos_env_same_compiler.insert("CXX".to_string(), "g++".to_string());
+    macos_env_same_compiler.insert("TARGET".to_string(), "x86_64-unknown-linux-gnu".to_string());
+    macos_env_same_compiler.insert("HOST".to_string(), "x86_64-unknown-linux-gnu".to_string());
+    macos_env_same_compiler.insert("OS".to_string(), "linux".to_string());
 
     let macos_key_same_compiler = generator
         .generate_cache_key(
@@ -559,6 +572,6 @@ fn test_cross_platform_build_tools() {
 
     assert_eq!(
         linux_key, macos_key_same_compiler,
-        "Cache keys should be identical when using the same compiler"
+        "Cache keys should be identical when using the same compiler and platform"
     );
 }

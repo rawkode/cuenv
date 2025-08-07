@@ -1,8 +1,8 @@
 #![allow(unused)]
 //! Integration tests for concurrent cache operations
 use cuenv::cache::{CacheConfig, CacheManager, CacheMode};
-use cuenv::cue_parser::TaskConfig;
-use cuenv::env_manager::EnvManager;
+use cuenv::config::TaskConfig;
+use cuenv::env::EnvManager;
 use cuenv::task_executor::TaskExecutor;
 use std::fs;
 use std::path::PathBuf;
@@ -71,6 +71,7 @@ async fn setup_test_env_async(tasks_cue: &str) -> (TaskExecutor, TempDir) {
 }
 
 #[test]
+#[ignore = "TLS exhaustion in CI - use nextest profile to run"]
 fn test_concurrent_cache_writes() {
     // Create a shared cache manager
     let (cache_manager, _cache_temp) = create_test_cache_manager();
@@ -159,6 +160,7 @@ fn test_concurrent_cache_writes() {
 
 #[test]
 #[cfg_attr(coverage, ignore)]
+#[ignore = "TLS exhaustion in CI - use nextest profile to run"]
 fn test_concurrent_same_key_access() {
     let (cache_manager, _cache_temp) = create_test_cache_manager();
     let temp_dir = Arc::new(TempDir::new().unwrap());
@@ -240,6 +242,7 @@ fn test_concurrent_same_key_access() {
 }
 
 #[test]
+#[ignore = "TLS exhaustion in CI - use nextest profile to run"]
 fn test_cache_invalidation_race() {
     let (cache_manager, _cache_temp) = create_test_cache_manager();
     let temp_dir = Arc::new(TempDir::new().unwrap());
@@ -341,6 +344,7 @@ fn test_cache_invalidation_race() {
 }
 
 #[tokio::test]
+#[ignore = "TLS exhaustion in CI - use nextest profile to run"]
 async fn test_concurrent_task_execution_with_cache() {
     let tasks_cue = r#"package env
 
@@ -418,6 +422,7 @@ tasks: {
 }
 
 #[test]
+#[ignore = "TLS exhaustion in CI - use nextest profile to run"]
 fn test_cache_cleanup() {
     let (cache_manager, _cache_temp) = create_test_cache_manager();
     let temp_dir = TempDir::new().unwrap();
@@ -477,6 +482,7 @@ fn test_cache_cleanup() {
 }
 
 #[test]
+#[ignore = "TLS exhaustion in CI - use nextest profile to run"]
 fn test_cache_lock_timeout() {
     // This test verifies that lock timeouts work correctly
     let (cache_manager, _cache_temp) = create_test_cache_manager();

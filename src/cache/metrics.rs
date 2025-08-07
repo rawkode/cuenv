@@ -227,7 +227,7 @@ impl CacheMetrics {
         self.inner
             .compression_ratio
             .read()
-            .map(|r| *r)
+            .map(|v| *v)
             .unwrap_or(1.0)
     }
 

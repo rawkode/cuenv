@@ -2,7 +2,7 @@
 #[cfg(test)]
 mod landlock_unit_tests {
     use cuenv::access_restrictions::AccessRestrictions;
-    use cuenv::cue_parser::{SecurityConfig, TaskConfig};
+    use cuenv::config::{SecurityConfig, TaskConfig};
     use std::path::PathBuf;
 
     #[test]

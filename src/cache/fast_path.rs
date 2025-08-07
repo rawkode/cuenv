@@ -109,6 +109,22 @@ impl FastPathCache {
         }
     }
 
+    /// Remove a small-value entry
+    ///
+    /// Returns `true` if an entry existed and was removed.
+    pub fn remove_small(&self, key: &str) -> bool {
+        let removed = self.small_values.remove(key).is_some();
+
+        if removed {
+            // Keep LRU tracker in sync
+            if let Some(mut tracker) = self.lru_tracker.try_write() {
+                tracker.access_order.retain(|k| k != key);
+            }
+        }
+
+        removed
+    }
+
     /// Clear all fast path entries
     #[allow(dead_code)]
     pub fn clear(&self) {

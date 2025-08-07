@@ -1,0 +1,9 @@
+# Cargo configuration to help with CI stability
+
+[env]
+# Limit test parallelism to avoid TLS exhaustion in CI
+RUST_TEST_THREADS = { value = "1", condition = "cfg(ci)" }
+
+[build]
+# Use fewer parallel jobs in CI to reduce resource pressure
+jobs = 1

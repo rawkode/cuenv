@@ -8,7 +8,7 @@
 use cuenv::cache::signing::CacheSigner;
 use cuenv::cache::CacheManager;
 use cuenv::cache::{ActionCache, ActionResult, ContentAddressedStore, HashEngine};
-use cuenv::cue_parser::TaskConfig;
+use cuenv::config::TaskConfig;
 use cuenv::sync_env::InstanceLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -49,7 +49,8 @@ async fn test_cache_signing_prevents_poisoning() {
 
     // Attempt to tamper with signature
     let mut tampered_sig = signed.clone();
-    tampered_sig.signature = b"deadbeef".to_vec();
+    // Create an invalid signature of the correct length (64 bytes for Ed25519)
+    tampered_sig.signature = vec![0xde; 64];
     assert!(!signer.verify(&tampered_sig).unwrap());
 
     // Attempt to tamper with nonce (replay attack)

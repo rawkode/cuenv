@@ -289,7 +289,7 @@ impl CacheConfigLoader {
             has_env_config = true;
         }
 
-        // Check for explicit enabled/disabled setting
+        // Check for explicit enabled/disabled setting (takes precedence over mode)
         if let Ok(enabled_str) = std::env::var("CUENV_CACHE_ENABLED") {
             global.enabled = enabled_str.to_lowercase() == "true";
             has_env_config = true;

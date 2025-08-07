@@ -1,28 +1,9 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
-      "Bash(./scripts/test-examples.sh:*)",
-      "Bash(./target/debug/cuenv:*)",
-      "Bash(bun:*)",
-      "Bash(cargo:*)",
-      "Bash(curl:*)",
-      "Bash(gh:*)",
-      "Bash(git:*)",
-      "Bash(grep:*)",
-      "Bash(ls:*)",
-      "Bash(mkdir:*)",
-      "Bash(nix:*)",
-      "Bash(tar:*)",
-      "WebFetch(domain:github.com)",
-      "Bash(find:*)",
-      "Bash(timeout:*)",
-      "Bash(./test_tempdir)",
-      "Bash(rm:*)",
-      "WebFetch(domain:nexte.st)",
-      "Bash(RUST_BACKTRACE=1 nix develop -c cargo nextest run test_task_execution --no-capture)",
-      "Bash(touch:*)",
-      "Bash(mv:*)",
-      "Bash(sed:*)"
+      "Bash(nix develop:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   },
@@ -37,6 +18,5 @@
         ]
       }
     ]
-  },
-  "$schema": "https://json.schemastore.org/claude-code-settings.json"
+  }
 }

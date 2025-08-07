@@ -1,7 +1,7 @@
 #![allow(unused)]
 use cuenv::audit::{init_audit_logger, AuditConfig, AuditLevel};
 use cuenv::command_executor::{CommandExecutor, SystemCommandExecutor};
-use cuenv::hook_manager::HookManager;
+use cuenv::hooks::HookManager;
 use cuenv::secrets::{CommandResolver, SecretManager};
 use cuenv::security::SecurityValidator;
 use cuenv::types::{CommandArguments, EnvironmentVariables};
@@ -72,13 +72,13 @@ async fn test_rate_limiting_hooks() {
         .unwrap()
         .with_rate_limiter(rate_limiter.clone());
 
-    let hook_config = cuenv::cue_parser::HookConfig {
+    let hook_config = cuenv::config::HookConfig {
         command: "echo".to_string(),
         args: vec!["test".to_string()],
         url: None,
         source: None,
         constraints: vec![],
-        hook_type: cuenv::cue_parser::HookType::OnEnter,
+        hook_type: cuenv::config::HookType::OnEnter,
     };
 
     let env_vars = HashMap::new();

@@ -341,15 +341,8 @@ impl<T: Cache + Send + Sync> Cache for SecureCache<T> {
         let start_time = SystemTime::now();
 
         // Get from underlying cache
-        let result = if self.config.require_signatures {
-            // When signatures are required, we need to store and retrieve signed raw bytes
-            // This is a limitation - signature verification requires serialization
-            // For now, we'll just get the value directly without signature verification
-            // TODO: Implement a separate signed storage layer that works with raw bytes
-            self.inner.get(key).await?
-        } else {
-            self.inner.get(key).await?
-        };
+        // TODO: This needs to handle a signed wrapper type when require_signatures is true
+        let result = self.inner.get(key).await?;
 
         let duration_ms = start_time.elapsed().unwrap().as_millis() as u64;
         let hit = result.is_some();
@@ -380,14 +373,8 @@ impl<T: Cache + Send + Sync> Cache for SecureCache<T> {
         let start_time = SystemTime::now();
 
         // Store with signature if required
-        if self.config.require_signatures {
-            // Signature verification requires additional trait bounds (Clone, Deserialize)
-            // that aren't available on the generic V type parameter
-            // TODO: Implement a separate signed storage layer that works with raw bytes
-            self.inner.put(key, value, ttl).await?;
-        } else {
-            self.inner.put(key, value, ttl).await?;
-        }
+        // TODO: This should wrap the value in a signed envelope when require_signatures is true
+        self.inner.put(key, value, ttl).await?;
 
         let duration_ms = start_time.elapsed().unwrap().as_millis() as u64;
 
@@ -518,7 +505,7 @@ mod tests {
     use crate::cache::traits::{Cache as CacheTrait, CacheConfig};
     use tempfile::TempDir;
 
-    async fn create_test_secure_cache() -> SecureCache<Cache> {
+    async fn create_test_secure_cache() -> (SecureCache<Cache>, TempDir) {
         let temp_dir = TempDir::new().unwrap();
         let cache_dir = temp_dir.path().to_path_buf();
 
@@ -526,16 +513,18 @@ mod tests {
             .await
             .unwrap();
 
-        SecureCache::builder(inner_cache)
+        let cache = SecureCache::builder(inner_cache)
             .cache_directory(&cache_dir)
             .build()
             .await
-            .unwrap()
+            .unwrap();
+
+        (cache, temp_dir)
     }
 
     #[tokio::test]
     async fn test_secure_cache_operations() {
-        let cache = create_test_secure_cache().await;
+        let (cache, _temp_dir) = create_test_secure_cache().await;
 
         // Test put and get
         cache.put("test_key", &"test_value", None).await.unwrap();
@@ -552,7 +541,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_integrity_verification() {
-        let cache = create_test_secure_cache().await;
+        let (cache, _temp_dir) = create_test_secure_cache().await;
 
         // Add some entries
         for i in 0..5 {
@@ -569,7 +558,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_merkle_proof_generation() {
-        let cache = create_test_secure_cache().await;
+        let (cache, _temp_dir) = create_test_secure_cache().await;
 
         // Add an entry
         cache.put("test_key", &"test_value", None).await.unwrap();

@@ -1,7 +1,7 @@
-use crate::cue_parser::ParseResult;
+use crate::config::ParseResult;
 use crate::utils::cleanup::handler::TempFileGuard;
 use crate::utils::network::retry::{retry_blocking, RetryConfig};
-use crate::xdg::XdgPaths;
+use crate::utils::xdg::XdgPaths;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
@@ -119,7 +119,7 @@ impl CueCache {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cue_parser::ParseResult;
+    use crate::config::ParseResult;
     use tempfile::TempDir;
 
     #[test]

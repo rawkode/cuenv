@@ -1,6 +1,6 @@
 #![allow(unused)]
 use async_trait::async_trait;
-use cuenv::env_manager::EnvManager;
+use cuenv::env::EnvManager;
 use cuenv::errors::Result;
 use cuenv::secrets::{SecretManager, SecretResolver};
 use cuenv::types::EnvironmentVariables;

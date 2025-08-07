@@ -1,7 +1,7 @@
 use crate::audit::{audit_logger, AuditLogger};
 use crate::command_executor::CommandExecutor;
+use crate::config::{HookConfig, HookConstraint};
 use crate::core::types::{CommandArguments, EnvironmentVariables};
-use crate::cue_parser::{HookConfig, HookConstraint};
 use crate::security::SecurityValidator;
 use crate::utils::network::rate_limit::RateLimitManager;
 use crate::utils::network::retry::RetryConfig;
@@ -447,7 +447,7 @@ mod tests {
             url: None,
             source: None,
             constraints: Vec::new(),
-            hook_type: crate::cue_parser::HookType::OnEnter,
+            hook_type: crate::config::HookType::OnEnter,
         };
 
         let env_vars = HashMap::new();
@@ -614,7 +614,7 @@ mod tests {
             constraints: vec![HookConstraint::CommandExists {
                 command: "devenv".to_string(),
             }],
-            hook_type: crate::cue_parser::HookType::OnEnter,
+            hook_type: crate::config::HookType::OnEnter,
         };
 
         let env_vars = HashMap::new();

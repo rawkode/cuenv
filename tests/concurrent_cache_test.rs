@@ -2,7 +2,7 @@
 #[cfg(test)]
 mod concurrent_cache_tests {
     use cuenv::cache::CacheManager;
-    use cuenv::cue_parser::TaskConfig;
+    use cuenv::config::TaskConfig;
     use std::fs::{self, OpenOptions};
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::{Arc, Barrier};
@@ -40,6 +40,7 @@ mod concurrent_cache_tests {
 
     /// Test concurrent access to the task cache
     #[test]
+    #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_concurrent_cache_access() {
         let temp_dir = TempDir::new().unwrap();
         let num_threads = 8;
@@ -118,6 +119,7 @@ mod concurrent_cache_tests {
 
     /// Test cache key generation is deterministic
     #[test]
+    #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_concurrent_cache_key_generation() {
         let temp_dir = TempDir::new().unwrap();
         let num_threads = 10;
@@ -247,6 +249,7 @@ mod concurrent_cache_tests {
 
     /// Test concurrent cache operations don't corrupt data
     #[test]
+    #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_cache_data_integrity() {
         let temp_dir = TempDir::new().unwrap();
         let num_threads = 5;

@@ -6,9 +6,9 @@ use cuenv::errors::{Error, Result};
 use cuenv::platform::{PlatformOps, Shell};
 use cuenv::shell::ShellType;
 use cuenv::state::StateManager;
-use cuenv::sync_env::InstanceLock;
+use cuenv::utils::sync::env::InstanceLock;
 use cuenv::{
-    directory::DirectoryManager, env_manager::EnvManager, shell_hook::ShellHook,
+    directory::DirectoryManager, env::EnvManager, shell_hook::ShellHook,
     task_executor::TaskExecutor,
 };
 use std::env;

@@ -184,7 +184,7 @@ proptest! {
         restrict_disk in prop::option::of(any::<bool>()),
         restrict_network in prop::option::of(any::<bool>()),
     ) {
-        use cuenv::cue_parser::{SecurityConfig, TaskConfig};
+        use cuenv::config::{SecurityConfig, TaskConfig};
 
         let security = SecurityConfig {
             restrict_disk,

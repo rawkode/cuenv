@@ -454,11 +454,18 @@ func extractCueData(v cue.Value) map[string]interface{} {
 				taskConfig["security"] = security
 			}
 
-			// Extract cache
+			// Extract cache - can be either a boolean or an object
 			if cacheField := iter.Value().LookupPath(cue.ParsePath("cache")); cacheField.Exists() {
-				var cache bool
-				if err := cacheField.Decode(&cache); err == nil {
-					taskConfig["cache"] = cache
+				// Try to decode as boolean first (simple case)
+				var cacheBool bool
+				if err := cacheField.Decode(&cacheBool); err == nil {
+					taskConfig["cache"] = cacheBool
+				} else {
+					// Try to decode as an object (advanced case)
+					var cacheObj map[string]interface{}
+					if err := cacheField.Decode(&cacheObj); err == nil {
+						taskConfig["cache"] = cacheObj
+					}
 				}
 			}
 
@@ -479,69 +486,21 @@ func extractCueData(v cue.Value) map[string]interface{} {
 	if hooksField := v.LookupPath(cue.ParsePath("hooks")); hooksField.Exists() {
 		hooks := make(map[string]interface{})
 
-		// Extract onEnter hook
+		// Extract onEnter hook(s) - can be a single hook or an array
 		if onEnterField := hooksField.LookupPath(cue.ParsePath("onEnter")); onEnterField.Exists() {
-			onEnter := make(map[string]interface{})
-			if cmdField := onEnterField.LookupPath(cue.ParsePath("command")); cmdField.Exists() {
-				var cmd string
-				if err := cmdField.Decode(&cmd); err == nil {
-					onEnter["command"] = cmd
-				}
-			}
-			if argsField := onEnterField.LookupPath(cue.ParsePath("args")); argsField.Exists() {
-				var args []string
-				if err := argsField.Decode(&args); err == nil {
-					onEnter["args"] = args
-				}
-			}
-			if urlField := onEnterField.LookupPath(cue.ParsePath("url")); urlField.Exists() {
-				var url string
-				if err := urlField.Decode(&url); err == nil {
-					onEnter["url"] = url
-				}
-			}
-			// Extract constraints
-			if constraintsField := onEnterField.LookupPath(cue.ParsePath("constraints")); constraintsField.Exists() {
-				var constraints []interface{}
-				if err := constraintsField.Decode(&constraints); err == nil {
-					onEnter["constraints"] = constraints
-				}
-			}
-			if len(onEnter) > 0 {
-				hooks["onEnter"] = onEnter
+			// Try to decode the entire field as a generic interface to detect its type
+			var rawValue interface{}
+			if err := onEnterField.Decode(&rawValue); err == nil {
+				hooks["onEnter"] = rawValue
 			}
 		}
 
-		// Extract onExit hook
+		// Extract onExit hook(s) - can be a single hook or an array
 		if onExitField := hooksField.LookupPath(cue.ParsePath("onExit")); onExitField.Exists() {
-			onExit := make(map[string]interface{})
-			if cmdField := onExitField.LookupPath(cue.ParsePath("command")); cmdField.Exists() {
-				var cmd string
-				if err := cmdField.Decode(&cmd); err == nil {
-					onExit["command"] = cmd
-				}
-			}
-			if argsField := onExitField.LookupPath(cue.ParsePath("args")); argsField.Exists() {
-				var args []string
-				if err := argsField.Decode(&args); err == nil {
-					onExit["args"] = args
-				}
-			}
-			if urlField := onExitField.LookupPath(cue.ParsePath("url")); urlField.Exists() {
-				var url string
-				if err := urlField.Decode(&url); err == nil {
-					onExit["url"] = url
-				}
-			}
-			// Extract constraints
-			if constraintsField := onExitField.LookupPath(cue.ParsePath("constraints")); constraintsField.Exists() {
-				var constraints []interface{}
-				if err := constraintsField.Decode(&constraints); err == nil {
-					onExit["constraints"] = constraints
-				}
-			}
-			if len(onExit) > 0 {
-				hooks["onExit"] = onExit
+			// Try to decode the entire field as a generic interface to detect its type
+			var rawValue interface{}
+			if err := onExitField.Decode(&rawValue); err == nil {
+				hooks["onExit"] = rawValue
 			}
 		}
 

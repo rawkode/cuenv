@@ -221,9 +221,8 @@ impl AccessPredictor {
 
                 // Update predecessors/successors
                 if let Some(prev_record) = self.access_history.get_mut(prev_key) {
-                    if !prev_record.successors.contains(&key_string) {
-                        prev_record.successors.push(key_string.clone());
-                    }
+                    // Always add successor to track transition frequency
+                    prev_record.successors.push(key_string.clone());
                 }
             }
         }
@@ -302,7 +301,8 @@ impl AccessPredictor {
                 if total_transitions > 0.0 {
                     let to_transitions =
                         from_record.successors.iter().filter(|s| *s == to).count() as f64;
-                    return to_transitions / total_transitions;
+                    let confidence = to_transitions / total_transitions;
+                    return confidence;
                 }
             }
         }
@@ -320,13 +320,9 @@ impl AccessPredictor {
     }
 
     fn calculate_dependency_confidence(&self, from: &str, to: &str) -> f64 {
-        if let Some(deps) = self.dependency_graph.get(to) {
-            if deps.contains(&from.to_string()) {
-                // Strong dependency detected
-                return 0.9;
-            }
-        }
-        0.0
+        // Use the same logic as sequential confidence since dependency is just
+        // another way to look at the same successor relationship
+        self.calculate_sequential_confidence(from, to)
     }
 
     fn analyze_patterns(&mut self) {

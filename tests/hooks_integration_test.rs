@@ -1,5 +1,5 @@
 #![allow(unused)]
-use cuenv::cue_parser::{CueParser, ParseOptions};
+use cuenv::config::{CueParser, ParseOptions};
 use std::fs;
 use tempfile::TempDir;
 
@@ -39,11 +39,11 @@ env: {
 
     let on_enter = &result.hooks.get("onEnter").unwrap()[0];
     match on_enter {
-        cuenv::cue_parser::Hook::Legacy(hook_config) => {
+        cuenv::config::Hook::Legacy(hook_config) => {
             assert_eq!(hook_config.command, "echo");
             assert_eq!(hook_config.args, vec!["Starting test environment"]);
         }
-        cuenv::cue_parser::Hook::Exec { exec, .. } => {
+        cuenv::config::Hook::Exec { exec, .. } => {
             assert_eq!(exec.command, "echo");
             assert_eq!(
                 exec.args.as_ref().unwrap(),
@@ -55,7 +55,7 @@ env: {
 
     let on_exit = &result.hooks.get("onExit").unwrap()[0];
     match on_exit {
-        cuenv::cue_parser::Hook::Legacy(hook_config) => {
+        cuenv::config::Hook::Legacy(hook_config) => {
             assert_eq!(hook_config.command, "echo");
             assert_eq!(hook_config.args, vec!["Stopping test environment"]);
             assert_eq!(
@@ -63,7 +63,7 @@ env: {
                 Some("https://example.com/stop".to_string())
             );
         }
-        cuenv::cue_parser::Hook::Exec { exec, .. } => {
+        cuenv::config::Hook::Exec { exec, .. } => {
             assert_eq!(exec.command, "echo");
             assert_eq!(
                 exec.args.as_ref().unwrap(),
