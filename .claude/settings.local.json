@@ -3,7 +3,11 @@
   "permissions": {
     "allow": [
       "Bash(nix develop:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   },

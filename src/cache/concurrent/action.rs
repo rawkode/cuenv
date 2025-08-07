@@ -3,10 +3,10 @@
 //! This module provides caching for task actions, including memoization
 //! of results and integration with content-addressed storage.
 
-use crate::cache::concurrent_cache::ConcurrentCache;
+use super::ConcurrentCache;
 use crate::cache::content_addressed_store::ContentAddressedStore;
-use crate::cache::key_generator::CacheKeyGenerator;
-use crate::cache::signing::{CacheSigner, SignedCacheEntry};
+use crate::cache::keys::CacheKeyGenerator;
+use crate::cache::security::signing::{CacheSigner, SignedCacheEntry};
 use crate::config::TaskConfig;
 use crate::core::errors::{Error, Result};
 use dashmap::DashMap;

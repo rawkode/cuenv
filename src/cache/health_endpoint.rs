@@ -762,7 +762,7 @@ impl RateLimiter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cache::cache_impl::Cache;
+    use crate::cache::core::Cache;
     use crate::cache::traits::CacheConfig;
     use tempfile::TempDir;
     use tokio::time::{sleep, Duration};

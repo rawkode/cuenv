@@ -3,6 +3,8 @@
 //! This module provides a high-performance, lock-free cache implementation
 //! using DashMap for concurrent access without explicit locking.
 
+pub mod action;
+
 use crate::cache::CachedTaskResult;
 use crate::core::errors::{Error, Result};
 use dashmap::DashMap;

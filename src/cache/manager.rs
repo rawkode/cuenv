@@ -5,8 +5,8 @@ use super::{
 };
 use crate::async_runtime::{run_async, AsyncRuntime};
 use crate::atomic_file::write_atomic_string;
-use crate::cache::key_generator::CacheKeyGenerator;
-use crate::cache::signing::CacheSigner;
+use crate::cache::keys::CacheKeyGenerator;
+use crate::cache::security::signing::CacheSigner;
 use crate::config::TaskConfig;
 use crate::core::errors::{Error, Result};
 use serde::{Deserialize, Serialize};

@@ -5,63 +5,46 @@
 
 // Core modules
 mod bridge;
-mod cache_impl;
-mod cache_warming;
+mod config;
+mod core;
+mod engine;
 mod errors;
 mod eviction;
 mod fast_path;
+mod hashing;
+mod item;
+mod keys;
+mod manager;
 mod memory_manager;
-mod metrics;
-mod metrics_endpoint;
-mod monitored_cache;
+mod mode;
+mod monitored;
 mod monitoring;
 mod performance;
-mod serde_helpers;
-mod storage_backend;
+mod reliability;
+mod serialization;
+mod storage;
 mod streaming;
 mod traits;
-
-// Legacy modules (to be migrated)
-mod config;
-mod configuration;
-mod engine;
-mod hash_engine;
-mod item;
-mod key_generator;
-mod mode;
-pub mod signing;
 mod types;
+mod warming;
 
-// Security modules (Phase 7)
-pub mod audit;
-pub mod capabilities;
-pub mod merkle;
-pub mod secure_cache;
-
-// Reliability and production features (Phase 9)
-// pub mod health_endpoint; // Disabled - missing ProductionHardening type
-pub mod reliability;
-
-// Advanced features (Phase 10)
-// pub mod analytics_dashboard; // Disabled - requires axum dependency
-// pub mod multi_tenant; // Disabled - missing CacheCapability type
-pub mod platform_optimizations;
-pub mod predictive_cache;
+// Feature modules
+mod advanced;
+mod concurrent;
+mod metrics;
+mod security;
 
 // Legacy implementations (deprecated - will be removed)
-mod action_cache;
-mod cache_manager;
-mod concurrent_cache;
 mod content_addressed_store;
 
 // Public exports - new unified API
 pub use bridge::{CacheBuilder, SyncCache};
-pub use cache_impl::Cache as ProductionCache;
+pub use core::Cache as ProductionCache;
 pub use errors::{CacheError, RecoveryHint, Result as CacheResult};
-pub use metrics_endpoint::MetricsEndpoint;
-pub use monitored_cache::{MonitoredCache, MonitoredCacheBuilder};
+pub use metrics::endpoint::MetricsEndpoint;
+pub use monitored::{MonitoredCache, MonitoredCacheBuilder};
 pub use monitoring::{CacheMonitor, HitRateReport, RealTimeStatsReport, TracedOperation};
-pub use storage_backend::{CompressionConfig, StorageBackend};
+pub use storage::{CompressionConfig, StorageBackend};
 pub use streaming::{CacheReader, CacheWriter, StreamingCache};
 pub use traits::{
     Cache, CacheConfig as UnifiedCacheConfig, CacheEntry, CacheKey, CacheMetadata,
@@ -69,23 +52,25 @@ pub use traits::{
 };
 
 // Legacy exports (deprecated - maintained for compatibility)
-pub use config::CacheConfig;
-pub use configuration::{
-    CacheConfigBuilder, CacheConfigLoader, CacheConfigResolver, CacheConfiguration,
+pub use config::{
+    CacheConfig, CacheConfigBuilder, CacheConfigLoader, CacheConfigResolver, CacheConfiguration,
     GlobalCacheConfig, TaskCacheConfig,
 };
 pub use engine::CacheEngine;
-pub use hash_engine::{expand_glob_pattern, HashEngine};
+pub use hashing::{expand_glob_pattern, HashEngine};
 pub use item::CacheItem;
 pub use mode::{get_cache_mode, CacheMode};
 
 // Legacy advanced caching components (deprecated)
-pub use action_cache::{ActionCache, ActionComponents, ActionDigest, ActionResult};
-pub use cache_manager::{CacheManager, CacheStatistics};
-pub use concurrent_cache::{ConcurrentCache, ConcurrentCacheBuilder};
+pub use concurrent::action::{ActionCache, ActionComponents, ActionDigest, ActionResult};
+pub use concurrent::{ConcurrentCache, ConcurrentCacheBuilder};
 pub use content_addressed_store::{ContentAddressedStore, ObjectMetadata};
-pub use key_generator::{CacheKeyFilterConfig, CacheKeyGenerator, FilterStats};
+pub use keys::{CacheKeyFilterConfig, CacheKeyGenerator, FilterStats};
+pub use manager::{CacheManager, CacheStatistics};
 pub use types::CachedTaskResult;
+
+// Re-export security components
+pub use security::{audit, capabilities, merkle, secure, signing};
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};

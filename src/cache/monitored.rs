@@ -436,7 +436,7 @@ impl<C: Cache + Clone> MonitoredCacheBuilder<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cache::cache_impl::Cache;
+    use crate::cache::core::Cache;
     use crate::cache::traits::{Cache as CacheTrait, CacheConfig};
     use tempfile::TempDir;
 

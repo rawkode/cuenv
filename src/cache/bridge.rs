@@ -3,7 +3,7 @@
 //! This module provides production-grade bridging between async and sync contexts
 //! using tokio::task::spawn_blocking and proper runtime management.
 
-use crate::cache::cache_impl::Cache;
+use crate::cache::core::Cache;
 use crate::cache::errors::{CacheError, RecoveryHint, Result};
 use crate::cache::traits::{Cache as CacheTrait, CacheMetadata, CacheStatistics};
 use serde::{de::DeserializeOwned, Serialize};

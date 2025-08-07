@@ -3,7 +3,7 @@
 //! This module provides a simple way to access cache metrics and reports
 //! without requiring a full HTTP server.
 
-use crate::cache::monitored_cache::MonitoredCache;
+use crate::cache::monitored::MonitoredCache;
 use crate::cache::traits::Cache;
 use std::sync::Arc;
 
@@ -138,8 +138,8 @@ impl From<crate::cache::monitoring::RealTimeStatsReport> for StatsJson {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cache::cache_impl::Cache;
-    use crate::cache::monitored_cache::MonitoredCacheBuilder;
+    use crate::cache::core::Cache;
+    use crate::cache::monitored::MonitoredCacheBuilder;
     use crate::cache::traits::{Cache as CacheTrait, CacheConfig};
     use tempfile::TempDir;
 

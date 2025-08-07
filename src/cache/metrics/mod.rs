@@ -5,6 +5,8 @@
 
 #![allow(dead_code)]
 
+pub mod endpoint;
+
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
