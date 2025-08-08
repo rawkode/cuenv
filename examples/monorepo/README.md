@@ -32,6 +32,7 @@ cuenv discover
 ```
 
 This will list all packages with their hierarchical names:
+
 - `root` - Root package
 - `projects:frontend` - Frontend project
 - `projects:backend` - Backend project
@@ -74,6 +75,7 @@ inputs: ["projects:frontend:build:dist"]
 ```
 
 These inputs are staged in an isolated environment and made available via environment variables:
+
 - `CUENV_INPUT_PROJECTS_FRONTEND_BUILD_DIST`
 
 ### 5. Task Outputs
@@ -118,6 +120,7 @@ cuenv discover --dump
 ## Environment Inheritance
 
 Packages inherit environment variables from their parent packages:
+
 - Root variables are available to all packages
 - Package-specific variables override parent values
 - Each package maintains its own environment scope
@@ -125,6 +128,7 @@ Packages inherit environment variables from their parent packages:
 ## Security
 
 Tasks can specify security restrictions that apply during execution:
+
 - File system access restrictions
 - Network access control
 - Sandboxing via Landlock (Linux)

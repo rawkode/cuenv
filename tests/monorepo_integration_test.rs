@@ -12,7 +12,7 @@ fn run_cuenv(dir: &std::path::Path, args: &[&str]) -> std::process::Output {
         .args(args)
         .current_dir(dir)
         .env("RUST_BACKTRACE", "1");
-    
+
     cmd.output().expect("Failed to execute cuenv")
 }
 
@@ -21,14 +21,15 @@ fn run_cuenv(dir: &std::path::Path, args: &[&str]) -> std::process::Output {
 fn test_monorepo_discover_command() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
-    
+
     // Create a monorepo structure
     fs::create_dir_all(root.join("cue.mod")).unwrap();
     fs::write(
         root.join("cue.mod/module.cue"),
         r#"module: "test.example/monorepo""#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Root package
     fs::write(
         root.join("env.cue"),
@@ -40,8 +41,9 @@ tasks: {
         description: "Deploy all services"
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Frontend package
     fs::create_dir_all(root.join("frontend")).unwrap();
     fs::write(
@@ -54,8 +56,9 @@ tasks: {
         description: "Build frontend"
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Backend package
     fs::create_dir_all(root.join("backend")).unwrap();
     fs::write(
@@ -68,23 +71,34 @@ tasks: {
         description: "Build backend"
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Run discover command
     let output = run_cuenv(root, &["discover"]);
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
-    assert!(output.status.success(), "Command failed: {}", String::from_utf8_lossy(&output.stderr));
-    
+
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
     // Check output contains all packages
     assert!(stdout.contains("root"), "Should list root package");
     assert!(stdout.contains("frontend"), "Should list frontend package");
     assert!(stdout.contains("backend"), "Should list backend package");
-    
+
     // Check tasks are listed
     assert!(stdout.contains("deploy"), "Should list deploy task");
-    assert!(stdout.contains("frontend:build"), "Should list frontend:build task");
-    assert!(stdout.contains("backend:build"), "Should list backend:build task");
+    assert!(
+        stdout.contains("frontend:build"),
+        "Should list frontend:build task"
+    );
+    assert!(
+        stdout.contains("backend:build"),
+        "Should list backend:build task"
+    );
 }
 
 /// Test running cross-package tasks
@@ -92,14 +106,15 @@ tasks: {
 fn test_monorepo_task_execution() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
-    
+
     // Create a monorepo structure
     fs::create_dir_all(root.join("cue.mod")).unwrap();
     fs::write(
         root.join("cue.mod/module.cue"),
         r#"module: "test.example/monorepo""#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Library package
     fs::create_dir_all(root.join("lib")).unwrap();
     fs::write(
@@ -113,8 +128,9 @@ tasks: {
         outputs: ["dist/lib.txt"]
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // App package that depends on lib
     fs::create_dir_all(root.join("app")).unwrap();
     fs::write(
@@ -128,21 +144,29 @@ tasks: {
         dependencies: ["lib:build"]
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Run task with cross-package dependency
     let output = run_cuenv(root, &["task", "run", "app:build"]);
-    
-    assert!(output.status.success(), "Command failed: {}", String::from_utf8_lossy(&output.stderr));
-    
+
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
     // Verify both tasks executed
-    assert!(root.join("lib/dist/lib.txt").exists(), "Library should be built");
+    assert!(
+        root.join("lib/dist/lib.txt").exists(),
+        "Library should be built"
+    );
     assert!(root.join("app/app.txt").exists(), "App should be built");
-    
+
     // Verify content
     let lib_content = fs::read_to_string(root.join("lib/dist/lib.txt")).unwrap();
     assert!(lib_content.contains("library built"));
-    
+
     let app_content = fs::read_to_string(root.join("app/app.txt")).unwrap();
     assert!(app_content.contains("app built"));
 }
@@ -152,14 +176,15 @@ tasks: {
 fn test_monorepo_task_list() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
-    
+
     // Create a monorepo structure
     fs::create_dir_all(root.join("cue.mod")).unwrap();
     fs::write(
         root.join("cue.mod/module.cue"),
         r#"module: "test.example/monorepo""#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Create multiple packages with tasks
     fs::write(
         root.join("env.cue"),
@@ -171,8 +196,9 @@ tasks: {
         description: "Clean all"
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     fs::create_dir_all(root.join("services/api")).unwrap();
     fs::write(
         root.join("services/api/env.cue"),
@@ -188,19 +214,30 @@ tasks: {
         description: "Build API"
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Run task list command
     let output = run_cuenv(root, &["task", "list"]);
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
-    assert!(output.status.success(), "Command failed: {}", String::from_utf8_lossy(&output.stderr));
-    
+
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
     // Check all tasks are listed with proper names
     assert!(stdout.contains("root:clean"), "Should list root:clean");
-    assert!(stdout.contains("services:api:test"), "Should list services:api:test");
-    assert!(stdout.contains("services:api:build"), "Should list services:api:build");
-    
+    assert!(
+        stdout.contains("services:api:test"),
+        "Should list services:api:test"
+    );
+    assert!(
+        stdout.contains("services:api:build"),
+        "Should list services:api:build"
+    );
+
     // Check descriptions are shown
     assert!(stdout.contains("Clean all"));
     assert!(stdout.contains("Test API"));
@@ -212,14 +249,15 @@ tasks: {
 fn test_run_task_from_subdirectory() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
-    
+
     // Create a monorepo structure
     fs::create_dir_all(root.join("cue.mod")).unwrap();
     fs::write(
         root.join("cue.mod/module.cue"),
         r#"module: "test.example/monorepo""#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Create packages
     fs::create_dir_all(root.join("packages/web")).unwrap();
     fs::write(
@@ -232,8 +270,9 @@ tasks: {
         description: "Build web"
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     fs::create_dir_all(root.join("packages/api")).unwrap();
     fs::write(
         root.join("packages/api/env.cue"),
@@ -246,17 +285,28 @@ tasks: {
         dependencies: ["packages:web:build"]
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Run task from api subdirectory
     let api_dir = root.join("packages/api");
     let output = run_cuenv(&api_dir, &["task", "run", "build"]);
-    
-    assert!(output.status.success(), "Command failed: {}", String::from_utf8_lossy(&output.stderr));
-    
+
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
     // Verify both tasks executed
-    assert!(root.join("packages/web/build.txt").exists(), "Web should be built");
-    assert!(root.join("packages/api/build.txt").exists(), "API should be built");
+    assert!(
+        root.join("packages/web/build.txt").exists(),
+        "Web should be built"
+    );
+    assert!(
+        root.join("packages/api/build.txt").exists(),
+        "API should be built"
+    );
 }
 
 /// Test circular dependency detection
@@ -264,14 +314,15 @@ tasks: {
 fn test_circular_dependency_detection() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
-    
+
     // Create a monorepo with circular dependencies
     fs::create_dir_all(root.join("cue.mod")).unwrap();
     fs::write(
         root.join("cue.mod/module.cue"),
         r#"module: "test.example/monorepo""#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     fs::create_dir_all(root.join("a")).unwrap();
     fs::write(
         root.join("a/env.cue"),
@@ -283,8 +334,9 @@ tasks: {
         dependencies: ["b:build"]
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     fs::create_dir_all(root.join("b")).unwrap();
     fs::write(
         root.join("b/env.cue"),
@@ -296,17 +348,24 @@ tasks: {
         dependencies: ["a:build"]
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Try to run task with circular dependency
     let output = run_cuenv(root, &["task", "run", "a:build"]);
-    
+
     // Should fail
-    assert!(!output.status.success(), "Should fail with circular dependency");
-    
+    assert!(
+        !output.status.success(),
+        "Should fail with circular dependency"
+    );
+
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Circular") || stderr.contains("circular"), 
-            "Should mention circular dependency: {}", stderr);
+    assert!(
+        stderr.contains("Circular") || stderr.contains("circular"),
+        "Should mention circular dependency: {}",
+        stderr
+    );
 }
 
 /// Test task with staged inputs
@@ -314,14 +373,15 @@ tasks: {
 fn test_task_with_staged_inputs() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
-    
+
     // Create a monorepo structure
     fs::create_dir_all(root.join("cue.mod")).unwrap();
     fs::write(
         root.join("cue.mod/module.cue"),
         r#"module: "test.example/monorepo""#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Data generator package
     fs::create_dir_all(root.join("generator")).unwrap();
     fs::write(
@@ -335,11 +395,12 @@ tasks: {
         outputs: ["data/input.txt"]
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Processor package that uses generated data
     fs::create_dir_all(root.join("processor")).unwrap();
-    
+
     // Create a simple processing script
     let script_content = if cfg!(target_os = "windows") {
         r#"@echo off
@@ -360,15 +421,15 @@ else
 fi
 "#
     };
-    
+
     let script_name = if cfg!(target_os = "windows") {
         "process.bat"
     } else {
         "process.sh"
     };
-    
+
     fs::write(root.join("processor").join(script_name), script_content).unwrap();
-    
+
     // Make script executable on Unix
     #[cfg(unix)]
     {
@@ -378,10 +439,11 @@ fi
         perms.set_mode(0o755);
         fs::set_permissions(&script_path, perms).unwrap();
     }
-    
+
     fs::write(
         root.join("processor/env.cue"),
-        format!(r#"package env
+        format!(
+            r#"package env
 env: {{ PROCESSOR: "true" }}
 tasks: {{
     "process": {{
@@ -390,19 +452,32 @@ tasks: {{
         dependencies: ["generator:generate"]
         inputs: ["generator:generate:data/input.txt"]
     }}
-}}"#, script_name),
-    ).unwrap();
-    
+}}"#,
+            script_name
+        ),
+    )
+    .unwrap();
+
     // Run the processing task
     let output = run_cuenv(root, &["task", "run", "processor:process"]);
-    
-    assert!(output.status.success(), "Command failed: {}", String::from_utf8_lossy(&output.stderr));
-    
+
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
     // Verify the processed file was created
     let processed_file = root.join("processor/processed.txt");
     assert!(processed_file.exists(), "Processed file should exist");
-    
+
     let content = fs::read_to_string(processed_file).unwrap();
-    assert!(content.contains("test data"), "Should contain original data");
-    assert!(content.contains("Processing complete"), "Should be processed");
+    assert!(
+        content.contains("test data"),
+        "Should contain original data"
+    );
+    assert!(
+        content.contains("Processing complete"),
+        "Should be processed"
+    );
 }

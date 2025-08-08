@@ -1059,7 +1059,7 @@ tasks: env.#Tasks & {
                     cuenv::monorepo::list_monorepo_tasks(&current_dir).await?;
                     return Ok(());
                 }
-                
+
                 // Only parse the CUE file to get task definitions
                 let options = ParseOptions {
                     environment: environment.or_else(|| env::var(CUENV_ENV_VAR).ok()),
@@ -1116,7 +1116,8 @@ tasks: env.#Tasks & {
                             &name,
                             &task_args,
                             audit,
-                        ).await?;
+                        )
+                        .await?;
                         std::process::exit(status);
                     } else if env_manager.get_task(&name).is_some() {
                         // Execute the specified task

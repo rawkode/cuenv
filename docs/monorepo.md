@@ -5,6 +5,7 @@ cuenv provides comprehensive support for monorepo structures, allowing you to ma
 ## Overview
 
 In a monorepo setup, cuenv can:
+
 - Discover all CUE packages in your repository
 - Execute tasks with cross-package dependencies
 - Stage outputs from one package as inputs to another
@@ -44,6 +45,7 @@ myrepo/
 ## Package Naming
 
 Packages are named hierarchically based on their path from the module root:
+
 - Root package: `root`
 - Nested packages: `parent:child` (e.g., `services:api`)
 - Deeply nested: `grandparent:parent:child` (e.g., `tools:ci:deploy`)
@@ -110,10 +112,12 @@ When a task declares inputs, cuenv stages these dependencies in an isolated envi
 ### Environment Variable Format
 
 Staged inputs are available through environment variables:
+
 - Pattern: `CUENV_INPUT_{PACKAGE}_{TASK}_{OUTPUT}`
 - Example: `CUENV_INPUT_SERVICES_API_BUILD_BIN_API`
 
 Special characters are converted to underscores:
+
 - `:` → `_`
 - `-` → `_`
 - `/` → `_`
@@ -140,6 +144,7 @@ cuenv run deploy
 ### Execution Order
 
 Tasks are executed in topological order based on their dependencies:
+
 1. Leaf tasks (no dependencies) execute first
 2. Dependent tasks execute after their dependencies complete
 3. Circular dependencies are detected and prevented
@@ -147,6 +152,7 @@ Tasks are executed in topological order based on their dependencies:
 ### Task Caching
 
 Tasks are cached within a single execution session:
+
 - Each task executes at most once
 - Diamond dependencies are handled efficiently
 - Cache is cleared between independent executions
@@ -162,6 +168,7 @@ cuenv discover
 ```
 
 Output:
+
 ```
 Found 4 packages:
   root
@@ -179,6 +186,7 @@ cuenv discover --dump
 ```
 
 This shows:
+
 - Package paths
 - Environment variables
 - Task definitions
@@ -193,6 +201,7 @@ cuenv run
 ```
 
 Output:
+
 ```
 Available tasks:
 
@@ -220,6 +229,7 @@ Packages can inherit environment variables from parent packages:
 3. **Isolation**: Each package maintains its own scope
 
 Example:
+
 ```cue
 // env.cue (root)
 env: {
@@ -266,6 +276,7 @@ tasks: {
 ### 1. Clear Output Declaration
 
 Always declare task outputs explicitly:
+
 ```cue
 outputs: ["dist/app.js", "dist/app.css"]
 ```
@@ -273,6 +284,7 @@ outputs: ["dist/app.js", "dist/app.css"]
 ### 2. Semantic Task Names
 
 Use descriptive task names:
+
 - `build` - Build artifacts
 - `test` - Run tests
 - `deploy` - Deploy service
@@ -293,6 +305,7 @@ Use descriptive task names:
 ### 5. Documentation
 
 Document tasks with descriptions:
+
 ```cue
 tasks: {
     "deploy": {
@@ -307,6 +320,7 @@ tasks: {
 ### Task Not Found
 
 If a cross-package task isn't found:
+
 1. Verify the package path is correct
 2. Check the task exists in the target package
 3. Ensure the env.cue file is valid CUE
@@ -314,11 +328,13 @@ If a cross-package task isn't found:
 ### Circular Dependencies
 
 cuenv detects circular dependencies:
+
 ```
 Error: Circular dependency detected: services:api:build
 ```
 
 Resolution:
+
 1. Review task dependencies
 2. Restructure to remove cycles
 3. Consider extracting common dependencies
@@ -326,6 +342,7 @@ Resolution:
 ### Missing Outputs
 
 If a task output isn't found:
+
 1. Ensure the task declares the output
 2. Verify the output path is correct
 3. Check the task actually creates the output
@@ -333,6 +350,7 @@ If a task output isn't found:
 ### Staging Issues
 
 If staged inputs aren't available:
+
 1. Check environment variable names
 2. Verify the input reference format
 3. Ensure the dependency task has completed
@@ -340,6 +358,7 @@ If staged inputs aren't available:
 ## Examples
 
 See the [`examples/monorepo`](../examples/monorepo) directory for a complete working example demonstrating:
+
 - Package discovery
 - Cross-package dependencies
 - Staged inputs

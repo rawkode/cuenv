@@ -1,7 +1,7 @@
 use crate::core::errors::{Error, Result};
 use crate::discovery::PackageDiscovery;
 use crate::env_manager::EnvManager;
-use crate::task::{TaskExecutor, MonorepoTaskRegistry, parse_reference, CrossPackageReference};
+use crate::task::{parse_reference, CrossPackageReference, MonorepoTaskRegistry, TaskExecutor};
 use std::path::Path;
 
 /// Execute a task in a monorepo context
@@ -13,7 +13,7 @@ pub async fn execute_monorepo_task(
 ) -> Result<i32> {
     // Check if this is a cross-package reference
     let parsed_ref = parse_reference(task_ref)?;
-    
+
     match parsed_ref {
         CrossPackageReference::LocalTask { task } => {
             // Local task - use regular execution
@@ -36,9 +36,9 @@ async fn execute_local_task(
     // Use regular env_manager for local tasks
     let mut env_manager = EnvManager::new()?;
     env_manager.load_directory(current_dir)?;
-    
+
     let executor = env_manager.create_task_executor()?;
-    
+
     if audit {
         executor.execute_task_with_audit(task_name, task_args).await
     } else {
@@ -55,28 +55,28 @@ async fn execute_cross_package_task(
 ) -> Result<i32> {
     // Find the module root
     let mut discovery = PackageDiscovery::new(32);
-    
+
     // Discover all packages in the monorepo
     let packages = discovery.discover(current_dir, true).await?;
-    
+
     if packages.is_empty() {
         return Err(Error::configuration(
             "No packages found in the repository".to_string(),
         ));
     }
-    
+
     // Build the task registry
     let registry = MonorepoTaskRegistry::from_packages(packages)?;
-    
+
     // Validate all dependencies
     registry.validate_all_dependencies()?;
-    
+
     // Create and execute using the cross-package executor
     let mut executor = TaskExecutor::new(registry);
-    
+
     // Execute the task
     executor.execute(task_ref)?;
-    
+
     Ok(0)
 }
 
@@ -85,28 +85,28 @@ pub async fn list_monorepo_tasks(current_dir: &Path) -> Result<()> {
     // Discover all packages
     let mut discovery = PackageDiscovery::new(32);
     let packages = discovery.discover(current_dir, true).await?;
-    
+
     if packages.is_empty() {
         println!("No packages found in the repository");
         return Ok(());
     }
-    
+
     // Build the task registry
     let registry = MonorepoTaskRegistry::from_packages(packages)?;
-    
+
     // List all tasks
     let all_tasks = registry.list_all_tasks();
-    
+
     if all_tasks.is_empty() {
         println!("No tasks found");
     } else {
         println!("Available tasks:");
         println!();
-        
+
         // Group tasks by package for better readability
-        let mut by_package: std::collections::HashMap<String, Vec<(String, Option<String>)>> = 
+        let mut by_package: std::collections::HashMap<String, Vec<(String, Option<String>)>> =
             std::collections::HashMap::new();
-        
+
         for (full_name, description) in all_tasks {
             // Extract package name from full task name
             let parts: Vec<&str> = full_name.split(':').collect();
@@ -119,11 +119,11 @@ pub async fn list_monorepo_tasks(current_dir: &Path) -> Result<()> {
                     .push((task, description));
             }
         }
-        
+
         // Sort packages for consistent output
         let mut packages: Vec<_> = by_package.keys().cloned().collect();
         packages.sort();
-        
+
         for package in packages {
             println!("  Package: {}", package);
             if let Some(tasks) = by_package.get(&package) {
@@ -138,7 +138,7 @@ pub async fn list_monorepo_tasks(current_dir: &Path) -> Result<()> {
             println!();
         }
     }
-    
+
     Ok(())
 }
 
@@ -149,7 +149,7 @@ pub fn is_monorepo(current_dir: &Path) -> bool {
     if cue_mod.exists() {
         return true;
     }
-    
+
     // Walk up to find cue.mod
     let mut dir = current_dir;
     while let Some(parent) = dir.parent() {
@@ -158,6 +158,6 @@ pub fn is_monorepo(current_dir: &Path) -> bool {
         }
         dir = parent;
     }
-    
+
     false
 }
