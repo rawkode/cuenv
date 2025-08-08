@@ -1,6 +1,5 @@
-use cuenv::discovery::{DiscoveredPackage, PackageDiscovery};
-use cuenv::task::registry::{MonorepoTaskRegistry, RegisteredTask};
-use std::collections::HashMap;
+use cuenv::discovery::PackageDiscovery;
+use cuenv::task::registry::MonorepoTaskRegistry;
 use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
@@ -91,7 +90,7 @@ tasks: {
     "deploy": {
         command: "deploy.sh"
         dependencies: ["projects:frontend:build", "projects:backend:build"]
-        inputs: ["projects:frontend:build:dist", "projects:backend:build:bin/server"]
+        inputs: ["projects:frontend:build#dist", "projects:backend:build#bin/server"]
     }
 }"#,
     )

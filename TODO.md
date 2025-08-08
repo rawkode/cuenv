@@ -1,76 +1,97 @@
-# TODO: Remaining Test Issues
+# TODO: Next Steps for Cross-Package Task Dependencies
 
-## Critical Issues
+## 🔴 Critical - Must Fix Before Merge
 
-### 1. LFU Eviction Policy Deadlock
+### 1. Fix Remaining Test Failures
 
-**Test:** `test_lfu_eviction_policy` in `tests/phase4_eviction_test.rs`
-**Status:** ⚠️ Partially fixed, still hanging
-**Problem:** The LFU eviction policy experiences deadlocks when multiple threads attempt to update frequency counts simultaneously.
-**Current Mitigation:** Changed from blocking `write()/read()` to `try_write()/try_read()` to avoid deadlocks, but this causes occasional missed updates.
-**Root Cause:** The `freq_map` RwLock in `src/cache/eviction.rs` creates a lock hierarchy issue when:
+**Status**: Two tests still failing despite fixes
 
-- Multiple get operations try to update frequencies concurrently
-- Eviction tries to read frequencies while updates are happening
-  **Suggested Fix:**
-- Consider using lock-free data structures (e.g., `DashMap` for freq_map)
-- Or implement a message-passing architecture for frequency updates
-- Or use atomic operations for frequency counting
+- [ ] `test_run_task_from_subdirectory` - Cross-package dependency resolution not working from subdirectories
+- [ ] `test_task_with_staged_inputs` - Environment variables not being passed to scripts correctly
 
-### 2. Task Execution Integration Test Timeout
+**Action Required**:
 
-**Test:** `test_task_execution` in `tests/task_integration_test.rs`
-**Status:** ⚠️ Intermittently failing
-**Problem:** Integration test that spawns external `cuenv` binary process times out after 30+ seconds
-**Potential Causes:**
+- Debug why environment variables aren't reaching the script execution
+- Verify the staging directory is created and symlinks are correct
+- Ensure the cross-package discovery is working when running from subdirectories
 
-- The cuenv binary initialization is too slow in test environment
-- CUE file parsing or FFI bridge initialization takes too long
-- Process spawning has environmental issues
-  **Suggested Investigation:**
-- Add timeout to the Command execution
-- Add debug logging to cuenv startup
-- Consider mocking the external process for unit tests
+### 2. Compilation Warnings
 
-## Completed Fixes
+- [ ] Fix `unused_mut` warning in `tests/dependency_staging_test.rs:8`
+- [ ] Remove unused imports in test files
 
-### ✅ Fixed Issues
+## 🟡 Important - Should Complete
 
-1. **test_capability_patterns_property_based** - Fixed authorization check logic and reduced proptest iterations
-2. **test_batch_put_operations** - Removed default TTL from test configuration
-3. **test_cache_without_ttl** - Set `default_ttl: None` for proper test control
-4. **test_cache_signing_prevents_poisoning** - Corrected Ed25519 signature length to 64 bytes
-5. **test_byte_slice_serialization** - Changed from `&[u8]` to `Vec<u8>` for proper serialization
-6. **Blocking operations in async contexts** - Added `wait_with_timeout_async()` and fixed `retry_async`
-7. **proptest performance** - Reduced test case count from 256 to 10, reduced data sizes
+### 3. Test Coverage Gaps
 
-## Technical Debt
+- [ ] Add test for invalid output reference syntax (e.g., `task#` without output)
+- [ ] Add test for deeply nested package hierarchies with outputs
+- [ ] Add test for error messages when referenced output doesn't exist
+- [ ] Add test for circular dependencies with outputs
+- [ ] Add test for multiple outputs from same task
 
-### Concurrency Architecture Review Needed
+### 4. Documentation Updates
 
-The cache implementation has multiple layers of locking that can cause deadlocks:
+- [ ] Update main README.md with cross-package task examples
+- [ ] Document the `#` separator syntax for outputs
+- [ ] Add monorepo examples to documentation
+- [ ] Document the difference between `dependencies` and `inputs`
+- [ ] Update CHANGELOG.md with new features
 
-- `DashMap` for cache entries
-- `RwLock` for eviction policy state
-- `Mutex` for LRU access order
-- Atomic operations for size tracking
+### 5. Example Updates
 
-Consider a comprehensive review to:
+- [ ] Update `examples/monorepo/` to demonstrate working cross-package tasks
+- [ ] Add example showing output staging and environment variables
+- [ ] Create a tutorial for monorepo setup
 
-- Document the lock hierarchy
-- Identify potential deadlock scenarios
-- Implement deadlock detection in tests
-- Consider lock-free alternatives where possible
+## 🟢 Nice to Have - Future Improvements
 
-### Testing Infrastructure
+### 6. Performance Optimizations
 
-- The `proptest` warning about `FileFailurePersistence::SourceParallel` should be addressed
-- Integration tests that spawn external processes need better timeout handling
-- Consider adding stress tests specifically for concurrent access patterns
+- [ ] Cache discovered packages to avoid repeated filesystem walks
+- [ ] Parallelize cross-package task execution where possible
+- [ ] Optimize staging for large files (consider hard links vs symlinks)
 
-## Next Steps
+### 7. Enhanced Error Messages
 
-1. **Immediate:** Investigate and fix the LFU eviction deadlock
-2. **Short-term:** Add proper timeouts to integration tests
-3. **Medium-term:** Review and refactor the concurrency model in the cache implementation
-4. **Long-term:** Implement comprehensive stress testing for concurrent operations
+- [ ] Better error when task output doesn't exist
+- [ ] Clearer message when cross-package reference can't be resolved
+- [ ] Suggest corrections for typos in package/task names
+
+### 8. Additional Features
+
+- [ ] Support for glob patterns in outputs (e.g., `*.txt`)
+- [ ] Support for output directories (not just files)
+- [ ] Add `--dry-run` flag to show execution plan
+- [ ] Add progress indicators for long-running cross-package tasks
+
+## 📋 Testing Checklist
+
+Before considering this feature complete:
+
+- [ ] All integration tests pass
+- [ ] Manual testing of example monorepo works
+- [ ] Cross-platform testing (Linux, macOS, Windows)
+- [ ] Performance testing with large monorepos
+- [ ] Documentation review and approval
+
+## 🐛 Known Issues
+
+1. **Environment Variable Propagation**: Staged inputs may not be accessible in scripts due to environment variable issues
+2. **Subdirectory Execution**: Running tasks from subdirectories with cross-package deps may fail
+3. **Windows Compatibility**: Symlink creation may require admin privileges on Windows
+
+## 📝 Notes
+
+- The `#` separator syntax is now implemented but needs thorough testing
+- Discovery module is working but could be optimized
+- Consider whether to support backward compatibility with `:` separator
+
+## 🚀 Release Criteria
+
+- [ ] All critical issues resolved
+- [ ] Test coverage > 80% for new code
+- [ ] Documentation complete
+- [ ] Examples working
+- [ ] CI/CD pipeline green
+- [ ] Performance benchmarks acceptable

@@ -211,14 +211,14 @@ fn test_environment_variables() {
 #[test]
 fn test_staging_strategy_selection() {
     // Test that we can select different staging strategies
-    let mut stager_symlink = DependencyStager::with_strategy(StagingStrategy::Symlink).unwrap();
+    let stager_symlink = DependencyStager::with_strategy(StagingStrategy::Symlink).unwrap();
     assert_eq!(stager_symlink.strategy(), StagingStrategy::Symlink);
 
-    let mut stager_copy = DependencyStager::with_strategy(StagingStrategy::Copy).unwrap();
+    let stager_copy = DependencyStager::with_strategy(StagingStrategy::Copy).unwrap();
     assert_eq!(stager_copy.strategy(), StagingStrategy::Copy);
 
     // Default should be Symlink
-    let mut stager_default = DependencyStager::new().unwrap();
+    let stager_default = DependencyStager::new().unwrap();
     assert_eq!(stager_default.strategy(), StagingStrategy::Symlink);
 }
 

@@ -33,7 +33,43 @@ async fn execute_local_task(
     task_args: &[String],
     audit: bool,
 ) -> Result<i32> {
-    // Use regular env_manager for local tasks
+    // First, check if we're in a monorepo context
+    if let Ok(module_root) = PackageDiscovery::find_module_root(current_dir) {
+        // Load the local environment to check if task has cross-package dependencies
+        let mut env_manager = EnvManager::new();
+        env_manager.load_env(current_dir).await?;
+
+        // Check if the task has cross-package dependencies
+        if let Some(task) = env_manager.get_task(task_name) {
+            if let Some(deps) = &task.dependencies {
+                // Check if any dependency is a cross-package reference
+                for dep in deps {
+                    if dep.contains(':') {
+                        // This task has cross-package dependencies, use monorepo execution
+                        // We need to figure out the full package name for this directory
+                        let mut discovery = PackageDiscovery::new(32);
+                        let packages = discovery.discover(&module_root, true).await?;
+
+                        // Find the package for the current directory
+                        for package in &packages {
+                            if package.path == current_dir {
+                                let full_task_name = format!("{}:{}", package.name, task_name);
+                                return execute_cross_package_task(
+                                    current_dir,
+                                    &full_task_name,
+                                    task_args,
+                                    audit,
+                                )
+                                .await;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // No cross-package dependencies, use regular execution
     let mut env_manager = EnvManager::new();
     env_manager.load_env(current_dir).await?;
 

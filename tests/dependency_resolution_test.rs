@@ -71,7 +71,7 @@ tasks: {
     "deploy": {
         command: "echo 'deploying'"
         dependencies: ["frontend:build", "backend:build"]
-        inputs: ["frontend:build:dist", "backend:build:bin/server"]
+        inputs: ["frontend:build#dist", "backend:build#bin/server"]
     }
 }"#,
     )
@@ -185,7 +185,7 @@ tasks: {
     "build": {
         command: "echo 'building app'"
         dependencies: ["lib:build"]
-        inputs: ["lib:build:dist/lib.so"]
+        inputs: ["lib:build#dist/lib.so"]
     }
 }"#,
     )
@@ -333,7 +333,7 @@ tasks: {
     "build": {
         command: "echo 'building b'"
         dependencies: ["c:build"]
-        inputs: ["c:build:lib.a"]
+        inputs: ["c:build#lib.a"]
         outputs: ["lib.so"]
     }
 }"#,
@@ -351,7 +351,7 @@ tasks: {
     "build": {
         command: "echo 'building a'"
         dependencies: ["b:build"]
-        inputs: ["b:build:lib.so"]
+        inputs: ["b:build#lib.so"]
     }
 }"#,
     )

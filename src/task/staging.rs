@@ -104,15 +104,23 @@ impl DependencyStager {
 
         // Create staging path
         // Use the dependency name as a subdirectory to avoid conflicts
-        let safe_name = dependency.name.replace(':', "_");
+        let safe_name = dependency.name.replace(':', "_").replace('#', "_");
         let staging_dir = self.staging_root.path().join(&safe_name);
+
+        // For target names with paths (e.g., "data/input.txt"), we only use the filename
+        // The directory structure is already captured in the safe_name
+        let final_target_name = Path::new(target_name)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(target_name);
+
         fs::create_dir_all(&staging_dir).map_err(|e| Error::FileSystem {
             path: staging_dir.clone(),
             operation: "create staging subdirectory".to_string(),
             source: e,
         })?;
 
-        let staged_path = staging_dir.join(target_name);
+        let staged_path = staging_dir.join(final_target_name);
 
         // Stage based on strategy
         match self.strategy {
@@ -276,11 +284,12 @@ impl DependencyStager {
         let mut env_vars = HashMap::new();
 
         for (name, path) in &self.staged {
-            // Convert "projects:frontend:dist/file.txt" to "CUENV_INPUT_PROJECTS_FRONTEND_DIST_FILE_TXT"
+            // Convert "projects:frontend#dist/file.txt" to "CUENV_INPUT_PROJECTS_FRONTEND_DIST_FILE_TXT"
             let env_key = format!(
                 "CUENV_INPUT_{}",
                 name.to_uppercase()
                     .replace(':', "_")
+                    .replace('#', "_")
                     .replace('-', "_")
                     .replace('/', "_")
                     .replace('.', "_")

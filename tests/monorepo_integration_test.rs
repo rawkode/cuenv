@@ -123,6 +123,14 @@ fn test_monorepo_task_execution() {
     )
     .unwrap();
 
+    // Root package (required for discovery to work)
+    fs::write(
+        root.join("env.cue"),
+        r#"package env
+env: { ROOT: "true" }"#,
+    )
+    .unwrap();
+
     // Library package
     fs::create_dir_all(root.join("lib")).unwrap();
     fs::write(
@@ -266,6 +274,14 @@ fn test_run_task_from_subdirectory() {
     )
     .unwrap();
 
+    // Root package (required for discovery to work)
+    fs::write(
+        root.join("env.cue"),
+        r#"package env
+env: { ROOT: "true" }"#,
+    )
+    .unwrap();
+
     // Create packages
     fs::create_dir_all(root.join("packages/web")).unwrap();
     fs::write(
@@ -331,6 +347,14 @@ fn test_circular_dependency_detection() {
     )
     .unwrap();
 
+    // Root package (required for discovery to work)
+    fs::write(
+        root.join("env.cue"),
+        r#"package env
+env: { ROOT: "true" }"#,
+    )
+    .unwrap();
+
     fs::create_dir_all(root.join("a")).unwrap();
     fs::write(
         root.join("a/env.cue"),
@@ -387,6 +411,14 @@ fn test_task_with_staged_inputs() {
     fs::write(
         root.join("cue.mod/module.cue"),
         r#"module: "test.example/monorepo""#,
+    )
+    .unwrap();
+
+    // Root package (required for discovery to work)
+    fs::write(
+        root.join("env.cue"),
+        r#"package env
+env: { ROOT: "true" }"#,
     )
     .unwrap();
 
@@ -458,7 +490,7 @@ tasks: {{
         script: "{}"
         description: "Process data"
         dependencies: ["generator:generate"]
-        inputs: ["generator:generate:data/input.txt"]
+        inputs: ["generator:generate#data/input.txt"]
     }}
 }}"#,
             script_name

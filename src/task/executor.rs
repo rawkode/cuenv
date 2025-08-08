@@ -175,7 +175,7 @@ impl TaskExecutor {
                             .resolve_task_output(&full_task_name, &output)?;
 
                         let staged_dep = StagedDependency {
-                            name: format!("{}:{}:{}", package, task, output),
+                            name: format!("{}:{}#{}", package, task, output),
                             source_path: output_path,
                             target_name: Some(output.clone()),
                         };

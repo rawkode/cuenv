@@ -248,7 +248,7 @@ tasks: {{
     "process": {{
         script: "{}"
         dependencies: ["producer:generate"]
-        inputs: ["producer:generate:output/data.txt"]
+        inputs: ["producer:generate#output/data.txt"]
     }}
 }}"#,
             script_name
