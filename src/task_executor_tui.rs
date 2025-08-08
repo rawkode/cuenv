@@ -1,5 +1,5 @@
 use crate::core::errors::{Error, Result};
-use crate::task_executor::TaskExecutor;
+use crate::task::executor::TaskExecutor;
 use crate::tui::{EventBus, FallbackRenderer, TuiApp};
 use std::io::IsTerminal;
 use std::sync::Arc;

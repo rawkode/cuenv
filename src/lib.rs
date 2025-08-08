@@ -38,7 +38,6 @@ pub mod shell;
 pub mod shell_hook;
 pub mod state;
 pub mod task;
-pub mod task_executor;
 pub mod task_executor_tui;
 pub mod tracing;
 pub mod tui;
@@ -48,5 +47,7 @@ pub mod utils;
 pub use core::constants;
 pub use core::errors;
 pub use core::types;
+// Re-export TaskExecutor from task module for backward compatibility
+pub use task::executor as task_executor;
 pub use utils::cleanup;
 pub use utils::sync::env as sync_env;

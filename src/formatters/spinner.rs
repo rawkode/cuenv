@@ -1,4 +1,4 @@
-use crate::task_executor::TaskExecutionPlan;
+use crate::task::executor::TaskExecutionPlan;
 use crate::tui::events::{TaskEvent, TaskRegistry, TaskState};
 use crossterm::{
     cursor::{Hide, MoveTo, Show},

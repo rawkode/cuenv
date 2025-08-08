@@ -1,7 +1,7 @@
 use crate::core::errors::{Error, Result};
 use crate::discovery::PackageDiscovery;
 use crate::env::EnvManager;
-use crate::task::{parse_reference, CrossPackageReference, MonorepoTaskRegistry, TaskExecutor};
+use crate::task::{parse_reference, CrossPackageReference, MonorepoTaskRegistry};
 use std::path::Path;
 
 /// Execute a task in a monorepo context
@@ -44,6 +44,7 @@ async fn execute_local_task(
             if let Some(deps) = &task.dependencies {
                 // Check if any dependency is a cross-package reference
                 for dep in deps {
+                    // A cross-package dependency contains a colon
                     if dep.contains(':') {
                         // This task has cross-package dependencies, use monorepo execution
                         // We need to figure out the full package name for this directory
@@ -51,17 +52,40 @@ async fn execute_local_task(
                         let packages = discovery.discover(&module_root, true).await?;
 
                         // Find the package for the current directory
+                        // Need to canonicalize paths for accurate comparison
+                        let canonical_current = current_dir
+                            .canonicalize()
+                            .unwrap_or_else(|_| current_dir.to_path_buf());
+
+                        let mut found_package = None;
                         for package in &packages {
-                            if package.path == current_dir {
-                                let full_task_name = format!("{}:{}", package.name, task_name);
-                                return execute_cross_package_task(
-                                    current_dir,
-                                    &full_task_name,
-                                    task_args,
-                                    audit,
-                                )
-                                .await;
+                            let canonical_package = package
+                                .path
+                                .canonicalize()
+                                .unwrap_or_else(|_| package.path.clone());
+                            if canonical_package == canonical_current {
+                                found_package = Some(package.name.clone());
+                                break;
                             }
+                        }
+
+                        if let Some(package_name) = found_package {
+                            let full_task_name = format!("{}:{}", package_name, task_name);
+                            return execute_cross_package_task(
+                                &module_root,
+                                &full_task_name,
+                                task_args,
+                                audit,
+                            )
+                            .await;
+                        } else {
+                            // If we didn't find the package, it might be because we need to discover from module root
+                            // This can happen when running from a subdirectory
+                            return Err(Error::configuration(format!(
+                                "Could not determine package name for directory: {}. Available packages: {:?}",
+                                current_dir.display(),
+                                packages.iter().map(|p| (&p.name, &p.path)).collect::<Vec<_>>()
+                            )));
                         }
                     }
                 }
@@ -108,11 +132,11 @@ async fn execute_cross_package_task(
     // Validate all dependencies
     registry.validate_all_dependencies()?;
 
-    // Create and execute using the cross-package executor
-    let mut executor = TaskExecutor::new(registry);
+    // Create executor with the monorepo registry
+    let mut executor = crate::task::TaskExecutor::new_with_registry(registry).await?;
 
     // Execute the task
-    executor.execute(task_ref)?;
+    executor.execute(task_ref).await?;
 
     Ok(0)
 }

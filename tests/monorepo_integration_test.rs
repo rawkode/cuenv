@@ -400,9 +400,9 @@ tasks: {
     );
 }
 
-/// Test task with staged inputs
+/// Test task with cross-package output dependencies
 #[test]
-fn test_task_with_staged_inputs() {
+fn test_task_with_cross_package_outputs() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
 
@@ -441,11 +441,11 @@ tasks: {
     // Processor package that uses generated data
     fs::create_dir_all(root.join("processor")).unwrap();
 
-    // Create a simple processing script
+    // Create a simple processing script that uses relative paths
     let script_content = if cfg!(target_os = "windows") {
         r#"@echo off
-if exist "%CUENV_INPUT_GENERATOR_GENERATE_DATA_INPUT_TXT%" (
-    type "%CUENV_INPUT_GENERATOR_GENERATE_DATA_INPUT_TXT%" > processed.txt
+if exist "..\generator\data\input.txt" (
+    type "..\generator\data\input.txt" > processed.txt
     echo Processing complete >> processed.txt
 ) else (
     echo No input data > processed.txt
@@ -453,8 +453,8 @@ if exist "%CUENV_INPUT_GENERATOR_GENERATE_DATA_INPUT_TXT%" (
 "#
     } else {
         r#"#!/bin/sh
-if [ -f "$CUENV_INPUT_GENERATOR_GENERATE_DATA_INPUT_TXT" ]; then
-    cat "$CUENV_INPUT_GENERATOR_GENERATE_DATA_INPUT_TXT" > processed.txt
+if [ -f "../generator/data/input.txt" ]; then
+    cat "../generator/data/input.txt" > processed.txt
     echo "Processing complete" >> processed.txt
 else
     echo "No input data" > processed.txt
@@ -490,7 +490,6 @@ tasks: {{
         script: "{}"
         description: "Process data"
         dependencies: ["generator:generate"]
-        inputs: ["generator:generate#data/input.txt"]
     }}
 }}"#,
             script_name

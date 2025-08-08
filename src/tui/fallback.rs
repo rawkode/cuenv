@@ -1,4 +1,4 @@
-use crate::task_executor::TaskExecutionPlan;
+use crate::task::executor::TaskExecutionPlan;
 use crate::tui::events::{TaskEvent, TaskRegistry, TaskState};
 use chrono::Local;
 use serde::Serialize;

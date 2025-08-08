@@ -36,8 +36,8 @@ tasks: {
     let registry = MonorepoTaskRegistry::from_packages(packages).unwrap();
 
     // Execute the task
-    let mut executor = TaskExecutor::new(registry);
-    executor.execute("root:hello").unwrap();
+    let mut executor = TaskExecutor::new_with_registry(registry).await.unwrap();
+    executor.execute("root:hello").await.unwrap();
 
     // Verify the output file was created
     let output_file = root.join("output.txt");
@@ -88,8 +88,8 @@ tasks: {
     let registry = MonorepoTaskRegistry::from_packages(packages).unwrap();
 
     // Execute the test task (should execute prepare -> build -> test)
-    let mut executor = TaskExecutor::new(registry);
-    executor.execute("root:test").unwrap();
+    let mut executor = TaskExecutor::new_with_registry(registry).await.unwrap();
+    executor.execute("root:test").await.unwrap();
 
     // Verify all files were created in the correct order
     assert!(root.join("prepare.txt").exists());
@@ -152,8 +152,8 @@ tasks: {
     let registry = MonorepoTaskRegistry::from_packages(packages).unwrap();
 
     // Execute app:build (should execute lib:build first)
-    let mut executor = TaskExecutor::new(registry);
-    executor.execute("app:build").unwrap();
+    let mut executor = TaskExecutor::new_with_registry(registry).await.unwrap();
+    executor.execute("app:build").await.unwrap();
 
     // Verify both tasks executed
     assert!(executor.is_executed("lib:build"));
@@ -162,122 +162,6 @@ tasks: {
     // Verify outputs exist
     assert!(root.join("lib/dist/lib.so").exists());
     assert!(root.join("app/app.txt").exists());
-}
-
-/// Test task execution with staged inputs
-#[tokio::test]
-async fn test_execution_with_staged_inputs() {
-    let temp_dir = TempDir::new().unwrap();
-    let root = temp_dir.path();
-
-    // Create a monorepo structure
-    fs::create_dir_all(root.join("cue.mod")).unwrap();
-    fs::write(
-        root.join("cue.mod/module.cue"),
-        r#"module: "test.example/monorepo""#,
-    )
-    .unwrap();
-
-    // Create producer package
-    fs::create_dir_all(root.join("producer")).unwrap();
-    fs::write(
-        root.join("producer/env.cue"),
-        r#"package env
-env: { PRODUCER: "true" }
-tasks: {
-    "generate": {
-        command: "mkdir -p output && echo 'data' > output/data.txt"
-        outputs: ["output/data.txt"]
-    }
-}"#,
-    )
-    .unwrap();
-
-    // Create consumer package
-    fs::create_dir_all(root.join("consumer")).unwrap();
-
-    // Create a script that uses the staged input
-    // The environment variable name will be CUENV_INPUT_PRODUCER_GENERATE_OUTPUT_DATA_TXT
-    // (slashes become underscores)
-    let script_content = if cfg!(target_os = "windows") {
-        r#"@echo off
-echo All environment variables: > result.txt
-set | findstr CUENV >> result.txt
-if defined CUENV_INPUT_PRODUCER_GENERATE_OUTPUT_DATA_TXT (
-    echo Input found at %CUENV_INPUT_PRODUCER_GENERATE_OUTPUT_DATA_TXT% >> result.txt
-) else (
-    echo No CUENV input found >> result.txt
-)
-"#
-    } else {
-        r#"#!/bin/sh
-echo "All environment variables:" > result.txt
-env | grep CUENV >> result.txt || echo "No CUENV vars" >> result.txt
-if [ -n "$CUENV_INPUT_PRODUCER_GENERATE_OUTPUT_DATA_TXT" ]; then
-    echo "Input found at $CUENV_INPUT_PRODUCER_GENERATE_OUTPUT_DATA_TXT" >> result.txt
-else
-    echo "No CUENV input found" >> result.txt
-fi
-"#
-    };
-
-    let script_name = if cfg!(target_os = "windows") {
-        "process.bat"
-    } else {
-        "process.sh"
-    };
-
-    fs::write(root.join("consumer").join(script_name), script_content).unwrap();
-
-    // Make script executable on Unix
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let script_path = root.join("consumer").join(script_name);
-        let mut perms = fs::metadata(&script_path).unwrap().permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(&script_path, perms).unwrap();
-    }
-
-    fs::write(
-        root.join("consumer/env.cue"),
-        format!(
-            r#"package env
-env: {{ CONSUMER: "true" }}
-tasks: {{
-    "process": {{
-        script: "{}"
-        dependencies: ["producer:generate"]
-        inputs: ["producer:generate#output/data.txt"]
-    }}
-}}"#,
-            script_name
-        ),
-    )
-    .unwrap();
-
-    // Discover and build registry
-    let mut discovery = PackageDiscovery::new(32);
-    let packages = discovery.discover(root, true).await.unwrap();
-    let registry = MonorepoTaskRegistry::from_packages(packages).unwrap();
-
-    // Execute consumer:process
-    let mut executor = TaskExecutor::new(registry);
-    executor.execute("consumer:process").unwrap();
-
-    // Verify the result file was created with staged input path
-    let result_file = root.join("consumer/result.txt");
-    assert!(result_file.exists(), "Result file should exist");
-
-    let content = fs::read_to_string(&result_file).unwrap();
-    println!("Result file content: {}", content);
-
-    // The staging should have provided the environment variable
-    assert!(
-        content.contains("Input found at"),
-        "Expected 'Input found at' but got: {}",
-        content
-    );
 }
 
 /// Test execution order calculation
@@ -342,7 +226,7 @@ tasks: {
     let registry = MonorepoTaskRegistry::from_packages(packages).unwrap();
 
     // Get execution order
-    let executor = TaskExecutor::new(registry);
+    let executor = TaskExecutor::new_with_registry(registry).await.unwrap();
     let order = executor.get_execution_order("a:build").unwrap();
 
     // Should be C -> B -> A
@@ -394,8 +278,8 @@ tasks: {
     let registry = MonorepoTaskRegistry::from_packages(packages).unwrap();
 
     // Execute task D
-    let mut executor = TaskExecutor::new(registry);
-    executor.execute("root:d").unwrap();
+    let mut executor = TaskExecutor::new_with_registry(registry).await.unwrap();
+    executor.execute("root:d").await.unwrap();
 
     // Check that A was only executed once
     let executions = fs::read_to_string(root.join("executions.txt")).unwrap();

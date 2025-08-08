@@ -1108,8 +1108,19 @@ tasks: env.#Tasks & {
 
             match task_name {
                 Some(name) => {
-                    // Check if this is a cross-package task reference
-                    if name.contains(':') && cuenv::monorepo::is_monorepo(&current_dir) {
+                    // Check if this is a cross-package task reference OR a local task with cross-package dependencies
+                    let has_cross_package_deps = if let Some(task) = env_manager.get_task(&name) {
+                        task.dependencies
+                            .as_ref()
+                            .map(|deps| deps.iter().any(|d| d.contains(':')))
+                            .unwrap_or(false)
+                    } else {
+                        false
+                    };
+
+                    if (name.contains(':') || has_cross_package_deps)
+                        && cuenv::monorepo::is_monorepo(&current_dir)
+                    {
                         // Handle cross-package task execution
                         let status = cuenv::monorepo::execute_monorepo_task(
                             &current_dir,

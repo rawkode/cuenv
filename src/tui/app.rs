@@ -1,4 +1,4 @@
-use crate::task_executor::TaskExecutor;
+use crate::task::executor::TaskExecutor;
 use crate::tui::{
     components::{EnvPane, FocusPane, MiniMap},
     event_bus::{EventBus, EventSubscriber},

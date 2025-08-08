@@ -26,6 +26,10 @@ pub struct MonorepoTaskRegistry {
     tasks: HashMap<String, RegisteredTask>,
     /// Map from package name to package path
     package_paths: HashMap<String, PathBuf>,
+    /// Cached task configs for TaskSource trait
+    task_configs: HashMap<String, TaskConfig>,
+    /// Empty env vars for TaskSource trait
+    empty_env_vars: HashMap<String, String>,
 }
 
 impl MonorepoTaskRegistry {
@@ -34,6 +38,8 @@ impl MonorepoTaskRegistry {
         Self {
             tasks: HashMap::new(),
             package_paths: HashMap::new(),
+            task_configs: HashMap::new(),
+            empty_env_vars: HashMap::new(),
         }
     }
 
@@ -61,10 +67,11 @@ impl MonorepoTaskRegistry {
                         package_name: package.name.clone(),
                         task_name: task_name.clone(),
                         package_path: package.path.clone(),
-                        config: task_config,
+                        config: task_config.clone(),
                     };
 
-                    registry.tasks.insert(full_name, registered_task);
+                    registry.tasks.insert(full_name.clone(), registered_task);
+                    registry.task_configs.insert(full_name, task_config);
                 }
             }
         }

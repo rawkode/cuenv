@@ -1,7 +1,6 @@
 use cuenv::discovery::PackageDiscovery;
 use cuenv::task::cross_package::{parse_reference, CrossPackageReference};
 use cuenv::task::registry::MonorepoTaskRegistry;
-use cuenv::task::staging::{DependencyStager, StagedDependency};
 use std::fs;
 use tempfile::TempDir;
 
@@ -142,9 +141,9 @@ tasks: {
     assert!(result.unwrap_err().to_string().contains("does not exist"));
 }
 
-/// Test resolving dependencies with staging
+/// Test accessing cross-package outputs via filesystem paths
 #[tokio::test]
-async fn test_stage_cross_package_dependencies() {
+async fn test_access_cross_package_outputs() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
 
@@ -201,10 +200,7 @@ tasks: {
     // Get the app:build task
     let app_task = registry.get_task("app:build").unwrap();
 
-    // Stage dependencies for the task
-    let mut stager = DependencyStager::new().unwrap();
-
-    // Resolve and stage each input
+    // Test that we can resolve cross-package outputs directly via filesystem paths
     if let Some(ref inputs) = app_task.config.inputs {
         for input in inputs {
             let dep_ref = parse_reference(input).unwrap();
@@ -218,23 +214,20 @@ tasks: {
                 let task_name = format!("{}:{}", package, task);
                 let output_path = registry.resolve_task_output(&task_name, &output).unwrap();
 
-                // Create a staged dependency
-                let staged_dep = StagedDependency {
-                    name: format!("{}:{}", task, output),
-                    source_path: output_path.clone(),
-                    target_name: Some(format!("{}_{}", task, output)),
-                };
+                // Verify the output file exists and is accessible
+                assert!(
+                    output_path.exists(),
+                    "Output file should exist at {:?}",
+                    output_path
+                );
+                assert!(output_path.is_file(), "Output should be a file");
 
-                // Stage the dependency
-                let staged_path = stager.stage_dependency(&staged_dep).unwrap();
-                assert!(staged_path.exists());
+                // Verify we can read the content
+                let content = fs::read_to_string(&output_path).unwrap();
+                assert_eq!(content, "shared library content");
             }
         }
     }
-
-    // Verify staged files exist
-    // We staged one dependency (lib.so)
-    // The stager's staging directory should contain the file
 }
 
 /// Test circular dependency detection

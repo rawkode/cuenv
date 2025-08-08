@@ -1264,6 +1264,29 @@ fn parse_shell_exports(output: &str) -> HashMap<String, String> {
     env_vars
 }
 
+// Implement TaskSource trait for EnvManager
+impl crate::task::source::TaskSource for EnvManager {
+    fn get_tasks(&self) -> &HashMap<String, TaskConfig> {
+        &self.tasks
+    }
+
+    fn list_tasks(&self) -> Vec<(String, Option<String>)> {
+        self.list_tasks()
+    }
+
+    fn get_env_vars(&self) -> &HashMap<String, String> {
+        self.get_cue_vars()
+    }
+
+    fn get_command_capabilities(&self, command: &str) -> Vec<String> {
+        self.get_command_capabilities(command)
+    }
+
+    fn get_filtered_vars(&self, capabilities: &[String]) -> HashMap<String, String> {
+        self.get_filtered_vars(capabilities)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
