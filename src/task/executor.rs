@@ -158,22 +158,28 @@ impl TaskExecutor {
             .ok_or_else(|| Error::configuration(format!("Task '{}' not found", task_name)))?;
 
         let mut stager = DependencyStager::new()?;
-        
+
         if let Some(ref inputs) = task.config.inputs {
             for input in inputs {
                 let input_ref = parse_reference(input)?;
-                
+
                 match input_ref {
-                    CrossPackageReference::PackageTaskOutput { package, task, output } => {
+                    CrossPackageReference::PackageTaskOutput {
+                        package,
+                        task,
+                        output,
+                    } => {
                         let full_task_name = format!("{}:{}", package, task);
-                        let output_path = self.registry.resolve_task_output(&full_task_name, &output)?;
-                        
+                        let output_path = self
+                            .registry
+                            .resolve_task_output(&full_task_name, &output)?;
+
                         let staged_dep = StagedDependency {
                             name: format!("{}:{}:{}", package, task, output),
                             source_path: output_path,
                             target_name: Some(output.clone()),
                         };
-                        
+
                         stager.stage_dependency(&staged_dep)?;
                     }
                     _ => {
@@ -217,14 +223,9 @@ impl TaskExecutor {
             }
         }
 
-        let output = cmd.output().map_err(|e| {
-            Error::command_execution(
-                command,
-                vec![],
-                e.to_string(),
-                None,
-            )
-        })?;
+        let output = cmd
+            .output()
+            .map_err(|e| Error::command_execution(command, vec![], e.to_string(), None))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -245,7 +246,7 @@ impl TaskExecutor {
         env_vars: Option<&HashMap<String, String>>,
     ) -> Result<()> {
         let full_path = working_dir.join(script_path);
-        
+
         if !full_path.exists() {
             return Err(Error::configuration(format!(
                 "Script '{}' not found at {}",
@@ -361,13 +362,13 @@ mod tests {
 
         // Create a mock package with tasks
         let mut parse_result = crate::config::ParseResult::default();
-        
+
         let build_task = TaskConfig {
             command: Some("echo 'building'".to_string()),
             outputs: Some(vec!["dist".to_string()]),
             ..Default::default()
         };
-        
+
         let test_task = TaskConfig {
             command: Some("echo 'testing'".to_string()),
             dependencies: Some(vec!["build".to_string()]),
@@ -403,13 +404,13 @@ mod tests {
 
         // Create packages with circular dependency
         let mut parse_result = crate::config::ParseResult::default();
-        
+
         let task_a = TaskConfig {
             command: Some("echo 'a'".to_string()),
             dependencies: Some(vec!["b".to_string()]),
             ..Default::default()
         };
-        
+
         let task_b = TaskConfig {
             command: Some("echo 'b'".to_string()),
             dependencies: Some(vec!["a".to_string()]),
@@ -432,6 +433,9 @@ mod tests {
 
         let result = executor.execute("test:a");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Circular dependency"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Circular dependency"));
     }
 }

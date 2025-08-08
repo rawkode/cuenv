@@ -1054,6 +1054,12 @@ tasks: env.#Tasks & {
             // Special case: if no task name is provided, just list available tasks
             // without loading the full environment (skip onEnter hooks)
             if task_name.is_none() {
+                // Check if we're in a monorepo context
+                if cuenv::monorepo::is_monorepo(&current_dir) {
+                    cuenv::monorepo::list_monorepo_tasks(&current_dir).await?;
+                    return Ok(());
+                }
+                
                 // Only parse the CUE file to get task definitions
                 let options = ParseOptions {
                     environment: environment.or_else(|| env::var(CUENV_ENV_VAR).ok()),
@@ -1102,8 +1108,17 @@ tasks: env.#Tasks & {
 
             match task_name {
                 Some(name) => {
-                    // Check if this is a defined task first
-                    if env_manager.get_task(&name).is_some() {
+                    // Check if this is a cross-package task reference
+                    if name.contains(':') && cuenv::monorepo::is_monorepo(&current_dir) {
+                        // Handle cross-package task execution
+                        let status = cuenv::monorepo::execute_monorepo_task(
+                            &current_dir,
+                            &name,
+                            &task_args,
+                            audit,
+                        ).await?;
+                        std::process::exit(status);
+                    } else if env_manager.get_task(&name).is_some() {
                         // Execute the specified task
                         let executor = TaskExecutor::new(env_manager, current_dir).await?;
                         let status = if output == "simple" {
