@@ -1,80 +1,138 @@
 # Monorepo Example
 
-This example demonstrates cuenv's discovery feature in a monorepo structure.
+This example demonstrates cuenv's support for monorepo structures with cross-package task dependencies.
 
 ## Structure
 
 ```
 monorepo/
-├── cue.mod/          # CUE module root
+├── cue.mod/           # CUE module root
 │   └── module.cue
-├── env.cue           # Root environment
+├── env.cue            # Root package configuration
 ├── projects/
-│   ├── frontend/     # Frontend project
-│   │   └── env.cue   # Frontend-specific environment
-│   └── backend/      # Backend project
-│       └── env.cue   # Backend-specific environment
+│   ├── frontend/      # Frontend package
+│   │   └── env.cue
+│   └── backend/       # Backend package
+│       └── env.cue
 └── tools/
-    ├── ci/           # CI/CD tools
-    │   └── env.cue   # CI environment variables
-    └── scripts/      # Build scripts
-        └── env.cue   # Script environment variables
+    ├── ci/            # CI/CD tools package
+    │   └── env.cue
+    └── scripts/       # Scripts package
+        └── env.cue
 ```
 
-## Usage
+## Features Demonstrated
 
-### Discover all packages
+### 1. Package Discovery
 
-From anywhere in the monorepo:
+Discover all packages in the monorepo:
 
 ```bash
 cuenv discover
 ```
 
-Expected output:
+This will list all packages with their hierarchical names:
+- `root` - Root package
+- `projects:frontend` - Frontend project
+- `projects:backend` - Backend project
+- `tools:ci` - CI/CD tools
+- `tools:scripts` - Utility scripts
 
-```
-Discovered CUE packages:
-  root -> /path/to/monorepo
-  projects:frontend -> /path/to/monorepo/projects/frontend
-  projects:backend -> /path/to/monorepo/projects/backend
-  tools:ci -> /path/to/monorepo/tools/ci
-  tools:scripts -> /path/to/monorepo/tools/scripts
+### 2. Cross-Package Dependencies
+
+The `tools:ci:deploy` task depends on both frontend and backend builds:
+
+```cue
+tasks: {
+    "deploy": {
+        command: "deployer"
+        dependencies: ["projects:frontend:build", "projects:backend:build"]
+        inputs: ["projects:frontend:build:dist", "projects:backend:build:bin/server"]
+    }
+}
 ```
 
-### Discover and load packages
+### 3. Task Execution
+
+Execute a task with cross-package dependencies:
 
 ```bash
-cuenv discover --load
+# From any directory in the monorepo:
+cuenv run tools:ci:deploy
+
+# Or use the short form from within a package:
+cd tools/ci
+cuenv run deploy
 ```
 
-This will also validate that each package can be successfully loaded.
+### 4. Staged Inputs
 
-### Load a specific environment
+Tasks can reference outputs from other packages:
 
-Navigate to any subdirectory and use cuenv normally:
+```cue
+inputs: ["projects:frontend:build:dist"]
+```
+
+These inputs are staged in an isolated environment and made available via environment variables:
+- `CUENV_INPUT_PROJECTS_FRONTEND_BUILD_DIST`
+
+### 5. Task Outputs
+
+Tasks can declare outputs that other tasks can depend on:
+
+```cue
+tasks: {
+    "build": {
+        command: "vite build"
+        outputs: ["dist"]
+    }
+}
+```
+
+## Usage Examples
+
+### List all tasks across the monorepo:
 
 ```bash
-cd projects/frontend
-cuenv reload
+cuenv run
 ```
 
-Or from the root, you could potentially load a specific package (future feature):
+### Execute the frontend build:
 
 ```bash
-cuenv load projects:frontend
+cuenv run projects:frontend:build
 ```
 
-## Package Naming Convention
+### Execute the deploy task (builds all dependencies):
 
-The discovery feature uses a hierarchical naming convention:
+```bash
+cuenv run tools:ci:deploy
+```
 
-- Root package: `root`
-- Nested packages: `parent:child` (using colon as separator)
-- Examples:
-  - `projects:frontend`
-  - `projects:backend`
-  - `tools:ci`
-  - `tools:scripts`
+### View package details:
 
-This makes it easy to identify and organize packages in large monorepos.
+```bash
+cuenv discover --dump
+```
+
+## Environment Inheritance
+
+Packages inherit environment variables from their parent packages:
+- Root variables are available to all packages
+- Package-specific variables override parent values
+- Each package maintains its own environment scope
+
+## Security
+
+Tasks can specify security restrictions that apply during execution:
+- File system access restrictions
+- Network access control
+- Sandboxing via Landlock (Linux)
+
+## Benefits
+
+1. **Type-safe configuration**: CUE provides schema validation
+2. **Dependency management**: Automatic task ordering
+3. **Isolation**: Staged inputs prevent side effects
+4. **Discoverability**: Easy to find all tasks and packages
+5. **Reproducibility**: Consistent execution across environments
