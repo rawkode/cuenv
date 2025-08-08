@@ -160,6 +160,9 @@ env: cuenv.#Env & {
 - Capability-based variable filtering for secure credential management
 - Command inference for automatic capability detection
 - Environment variable configuration (CUENV_ENV, CUENV_CAPABILITIES)
+- Monorepo support with cross-package task dependencies
+- Task execution with automatic dependency resolution
+- Staged dependency isolation for reproducible builds
 
 ## CUE File Format
 
@@ -431,6 +434,7 @@ cuenv run -e production -- aws s3 ls  # Automatically enables 'aws' capability
 - **[Environments](https://cuenv.dev/guides/environments)** - Environment-specific configurations
 - **[Capabilities](https://cuenv.dev/guides/capabilities)** - Capability-based variable filtering
 - **[Shell Integration](https://cuenv.dev/guides/shell-integration)** - Setting up shell hooks
+- **[Monorepo Support](docs/monorepo.md)** - Managing monorepo environments and cross-package tasks
 - **[Configuration](https://cuenv.dev/reference/configuration)** - Configuration options reference
 - **[Environment Variables](https://cuenv.dev/reference/env-vars)** - Using environment variables for configuration
 
