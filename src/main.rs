@@ -679,10 +679,7 @@ async fn main() -> Result<()> {
             let env_file = current_dir.join(ENV_CUE_FILENAME);
 
             if env_file.exists() && !force {
-                eprintln!(
-                    "Error: {} already exists. Use --force to overwrite.",
-                    ENV_CUE_FILENAME
-                );
+                eprintln!("Error: {ENV_CUE_FILENAME} already exists. Use --force to overwrite.");
                 std::process::exit(1);
             }
 
@@ -741,12 +738,9 @@ tasks: env.#Tasks & {
 "#;
 
             std::fs::write(&env_file, template)?;
-            println!("✓ Created {} with example configuration", ENV_CUE_FILENAME);
+            println!("✓ Created {ENV_CUE_FILENAME} with example configuration");
             println!("\nNext steps:");
-            println!(
-                "  1. Edit {} to customize your environment",
-                ENV_CUE_FILENAME
-            );
+            println!("  1. Edit {ENV_CUE_FILENAME} to customize your environment");
             println!(
                 "  2. Run 'cuenv allow {}' to allow this directory",
                 current_dir.display()
@@ -891,14 +885,12 @@ tasks: env.#Tasks & {
                                 let mut env_manager = EnvManager::new();
                                 if let Err(e) = env_manager.load_env(&current_dir).await {
                                     eprintln!("# cuenv: failed to load environment: {e}");
-                                } else {
-                                    if let Ok(Some(diff)) = StateManager::get_diff() {
-                                        for (key, value) in diff.added_or_changed() {
-                                            println!("{}", shell_impl.export(key, value));
-                                        }
-                                        for key in diff.removed() {
-                                            println!("{}", shell_impl.unset(key));
-                                        }
+                                } else if let Ok(Some(diff)) = StateManager::get_diff() {
+                                    for (key, value) in diff.added_or_changed() {
+                                        println!("{}", shell_impl.export(key, value));
+                                    }
+                                    for key in diff.removed() {
+                                        println!("{}", shell_impl.unset(key));
                                     }
                                 }
                             }
@@ -924,7 +916,7 @@ tasks: env.#Tasks & {
             use cuenv::discovery::PackageDiscovery;
 
             let current_dir = std::env::current_dir().map_err(|e| Error::Configuration {
-                message: format!("Failed to get current directory: {}", e),
+                message: format!("Failed to get current directory: {e}"),
             })?;
 
             let mut discovery = PackageDiscovery::new(max_depth);
@@ -936,70 +928,68 @@ tasks: env.#Tasks & {
                 Ok(packages) => {
                     if packages.is_empty() {
                         println!("No CUE packages found");
-                    } else {
-                        if dump {
-                            // Dump mode: show full details for each package
-                            for package in packages {
-                                println!("═══════════════════════════════════════════════");
-                                println!("Package: {}", package.name);
-                                println!("Path: {}", package.path.display());
+                    } else if dump {
+                        // Dump mode: show full details for each package
+                        for package in packages {
+                            println!("═══════════════════════════════════════════════");
+                            println!("Package: {}", package.name);
+                            println!("Path: {}", package.path.display());
 
-                                if let Some(ref result) = package.parse_result {
-                                    println!("\nEnvironment Variables:");
-                                    if result.variables.is_empty() {
-                                        println!("  (none)");
-                                    } else {
-                                        for (key, value) in &result.variables {
-                                            println!("  {}: {}", key, value);
-                                        }
-                                    }
-
-                                    if !result.tasks.is_empty() {
-                                        println!("\nTasks:");
-                                        for (name, task) in &result.tasks {
-                                            print!("  {}", name);
-                                            if let Some(ref desc) = task.description {
-                                                print!(" - {}", desc);
-                                            }
-                                            println!();
-                                        }
-                                    }
-
-                                    if !result.commands.is_empty() {
-                                        println!("\nCommands:");
-                                        for (name, cmd) in &result.commands {
-                                            print!("  {}", name);
-                                            if let Some(ref caps) = cmd.capabilities {
-                                                print!(" (capabilities: {})", caps.join(", "));
-                                            }
-                                            println!();
-                                        }
-                                    }
-
-                                    if !result.hooks.is_empty() {
-                                        println!("\nHooks:");
-                                        for (hook_type, hooks) in &result.hooks {
-                                            println!("  {}: {} hook(s)", hook_type, hooks.len());
-                                        }
-                                    }
+                            if let Some(ref result) = package.parse_result {
+                                println!("\nEnvironment Variables:");
+                                if result.variables.is_empty() {
+                                    println!("  (none)");
                                 } else {
-                                    println!("\n[Failed to load package]");
+                                    for (key, value) in &result.variables {
+                                        println!("  {key}: {value}");
+                                    }
                                 }
-                                println!();
+
+                                if !result.tasks.is_empty() {
+                                    println!("\nTasks:");
+                                    for (name, task) in &result.tasks {
+                                        print!("  {name}");
+                                        if let Some(ref desc) = task.description {
+                                            print!(" - {desc}");
+                                        }
+                                        println!();
+                                    }
+                                }
+
+                                if !result.commands.is_empty() {
+                                    println!("\nCommands:");
+                                    for (name, cmd) in &result.commands {
+                                        print!("  {name}");
+                                        if let Some(ref caps) = cmd.capabilities {
+                                            print!(" (capabilities: {})", caps.join(", "));
+                                        }
+                                        println!();
+                                    }
+                                }
+
+                                if !result.hooks.is_empty() {
+                                    println!("\nHooks:");
+                                    for (hook_type, hooks) in &result.hooks {
+                                        println!("  {}: {} hook(s)", hook_type, hooks.len());
+                                    }
+                                }
+                            } else {
+                                println!("\n[Failed to load package]");
                             }
-                        } else {
-                            // Normal mode: just list packages
-                            println!("Discovered CUE packages:");
-                            for package in packages {
-                                if load && package.parse_result.is_some() {
-                                    println!(
-                                        "  {} -> {} [loaded]",
-                                        package.name,
-                                        package.path.display()
-                                    );
-                                } else {
-                                    println!("  {} -> {}", package.name, package.path.display());
-                                }
+                            println!();
+                        }
+                    } else {
+                        // Normal mode: just list packages
+                        println!("Discovered CUE packages:");
+                        for package in packages {
+                            if load && package.parse_result.is_some() {
+                                println!(
+                                    "  {} -> {} [loaded]",
+                                    package.name,
+                                    package.path.display()
+                                );
+                            } else {
+                                println!("  {} -> {}", package.name, package.path.display());
                             }
                         }
                     }

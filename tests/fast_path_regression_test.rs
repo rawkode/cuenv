@@ -31,7 +31,7 @@ async fn test_fast_path_vec_u8_correctness() {
     ];
 
     for (i, test_data) in test_cases.iter().enumerate() {
-        let key = format!("fast_path_test_{}", i);
+        let key = format!("fast_path_test_{i}");
 
         // Store the value
         cache.put(&key, test_data, None).await.unwrap();
@@ -41,10 +41,7 @@ async fn test_fast_path_vec_u8_correctness() {
         assert_eq!(
             retrieved.as_ref(),
             Some(test_data),
-            "Failed for test case {}: expected {:?}, got {:?}",
-            i,
-            test_data,
-            retrieved
+            "Failed for test case {i}: expected {test_data:?}, got {retrieved:?}"
         );
     }
 
@@ -56,7 +53,7 @@ async fn test_fast_path_vec_u8_correctness() {
     ];
 
     for (i, test_data) in edge_cases.iter().enumerate() {
-        let key = format!("edge_case_test_{}", i);
+        let key = format!("edge_case_test_{i}");
 
         cache.put(&key, test_data, None).await.unwrap();
         let retrieved: Option<Vec<u8>> = cache.get(&key).await.unwrap();
@@ -107,7 +104,7 @@ async fn test_fast_path_concurrent_access() {
 
         let handle = tokio::spawn(async move {
             for i in 0..iterations_per_task {
-                let key = format!("concurrent_{}_{}", task_id, i);
+                let key = format!("concurrent_{task_id}_{i}");
                 let value: Vec<u8> = vec![(task_id * 10 + i % 10) as u8; 50];
 
                 cache_clone.put(&key, &value, None).await.unwrap();

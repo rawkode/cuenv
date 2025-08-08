@@ -176,7 +176,7 @@ pub async fn list_monorepo_tasks(current_dir: &Path) -> Result<()> {
                 let task = parts[parts.len() - 1].to_string();
                 by_package
                     .entry(package)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push((task, description));
             }
         }

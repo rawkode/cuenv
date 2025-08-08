@@ -135,7 +135,7 @@ fn test_symlink_toctou_protection() {
         assert!(result.is_err());
 
         let error_msg = format!("{}", result.unwrap_err());
-        println!("Symlink error message: {}", error_msg);
+        println!("Symlink error message: {error_msg}");
         assert!(
             error_msg.contains("Symlink detected")
                 || error_msg.contains("permission denied")

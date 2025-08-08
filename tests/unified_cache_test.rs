@@ -19,7 +19,7 @@ impl TestData {
     fn new(id: u64, size: usize) -> Self {
         Self {
             id,
-            name: format!("test-{}", id),
+            name: format!("test-{id}"),
             data: vec![id as u8; size],
             timestamp: SystemTime::now(),
         }
@@ -105,7 +105,7 @@ async fn test_cache_capacity_limits() {
 
     // Store values that fit
     for i in 0..5 {
-        let key = format!("small-{}", i);
+        let key = format!("small-{i}");
         let value = TestData::new(i, 50); // Small values
         cache.put(&key, &value, None).await.unwrap();
     }
@@ -180,7 +180,7 @@ async fn test_batch_operations() {
     // Prepare batch data
     let entries: Vec<_> = (0..10)
         .map(|i| {
-            let key = format!("batch-{}", i);
+            let key = format!("batch-{i}");
             let value = TestData::new(i, 50);
             let ttl = if i % 2 == 0 {
                 Some(Duration::from_secs(60))
@@ -200,7 +200,7 @@ async fn test_batch_operations() {
 
     assert_eq!(results.len(), keys.len());
     for (i, (key, value)) in results.iter().enumerate() {
-        assert_eq!(key, &format!("batch-{}", i));
+        assert_eq!(key, &format!("batch-{i}"));
         assert!(value.is_some());
         assert_eq!(value.as_ref().unwrap().id, i as u64);
     }
@@ -253,7 +253,7 @@ async fn test_cache_persistence() {
         let cache = CacheBuilder::new(&cache_path).build_async().await.unwrap();
 
         for i in 0..10 {
-            let key = format!("persist-{}", i);
+            let key = format!("persist-{i}");
             let value = TestData::new(i, 100);
             cache.put(&key, &value, None).await.unwrap();
         }
@@ -265,7 +265,7 @@ async fn test_cache_persistence() {
 
         // Data should be persisted
         for i in 0..10 {
-            let key = format!("persist-{}", i);
+            let key = format!("persist-{i}");
             let value: Option<TestData> = cache.get(&key).await.unwrap();
             assert!(value.is_some());
             assert_eq!(value.unwrap().id, i);
@@ -329,20 +329,20 @@ async fn test_cache_statistics_accuracy() {
 
     // Perform known operations
     for i in 0..5 {
-        let key = format!("stats-{}", i);
+        let key = format!("stats-{i}");
         let value = TestData::new(i, 50);
         cache.put(&key, &value, None).await.unwrap();
     }
 
     // Hits
     for i in 0..3 {
-        let key = format!("stats-{}", i);
+        let key = format!("stats-{i}");
         let _: Option<TestData> = cache.get(&key).await.unwrap();
     }
 
     // Misses
     for i in 10..12 {
-        let key = format!("stats-{}", i);
+        let key = format!("stats-{i}");
         let _: Option<TestData> = cache.get(&key).await.unwrap();
     }
 

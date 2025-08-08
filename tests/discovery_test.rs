@@ -76,7 +76,7 @@ env: {
     // Create a deeply nested structure to test max depth
     let mut deep_path = root.to_path_buf();
     for i in 0..35 {
-        deep_path = deep_path.join(format!("level{}", i));
+        deep_path = deep_path.join(format!("level{i}"));
         fs::create_dir_all(&deep_path).unwrap();
     }
     fs::write(

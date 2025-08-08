@@ -63,7 +63,7 @@ mod comprehensive_concurrent_tests {
 
                     // Simulate memory-intensive task
                     let task_config = TaskConfig {
-                        description: Some(format!("Resource test {}", i)),
+                        description: Some(format!("Resource test {i}")),
                         command: Some("dd if=/dev/zero of=/dev/null bs=1M count=100".to_string()),
                         script: None,
                         dependencies: None,
@@ -100,8 +100,7 @@ mod comprehensive_concurrent_tests {
         let total_timeouts = timeouts.load(Ordering::SeqCst);
 
         println!(
-            "Resource test results - Completed: {}, Errors: {}, Timeouts: {}",
-            total_completed, total_errors, total_timeouts
+            "Resource test results - Completed: {total_completed}, Errors: {total_errors}, Timeouts: {total_timeouts}"
         );
 
         // Verify resource limits were enforced
@@ -140,12 +139,12 @@ mod comprehensive_concurrent_tests {
                     let mut counter = 0;
 
                     while start_time.elapsed().as_secs() < duration_secs {
-                        let file_path = src_dir.join(format!("file_{}.txt", writer_id));
+                        let file_path = src_dir.join(format!("file_{writer_id}.txt"));
 
                         // Rapid create/modify/delete cycle
-                        fs::write(&file_path, format!("version {}", counter)).ok();
+                        fs::write(&file_path, format!("version {counter}")).ok();
                         thread::sleep(Duration::from_millis(10));
-                        fs::write(&file_path, format!("version {} modified", counter)).ok();
+                        fs::write(&file_path, format!("version {counter} modified")).ok();
                         thread::sleep(Duration::from_millis(10));
                         fs::remove_file(&file_path).ok();
 
@@ -168,7 +167,7 @@ mod comprehensive_concurrent_tests {
 
                     while start_time.elapsed().as_secs() < duration_secs {
                         let task_config = TaskConfig {
-                            description: Some(format!("Reader task {}", reader_id)),
+                            description: Some(format!("Reader task {reader_id}")),
                             command: Some("echo test".to_string()),
                             script: None,
                             dependencies: None,
@@ -229,10 +228,7 @@ mod comprehensive_concurrent_tests {
         }
 
         let total_inconsistencies = inconsistencies.load(Ordering::SeqCst);
-        println!(
-            "Filesystem race test - Inconsistencies: {}",
-            total_inconsistencies
-        );
+        println!("Filesystem race test - Inconsistencies: {total_inconsistencies}");
 
         // Some inconsistencies are expected due to race conditions
         // but they should be handled gracefully
@@ -542,10 +538,7 @@ tasks: {
         let total_oom = oom_errors.load(Ordering::SeqCst);
         let total_success = success_count.load(Ordering::SeqCst);
 
-        println!(
-            "Memory pressure test - Success: {}, OOM: {}",
-            total_success, total_oom
-        );
+        println!("Memory pressure test - Success: {total_success}, OOM: {total_oom}");
 
         // At least some operations should succeed
         assert!(total_success > 0);

@@ -79,7 +79,7 @@ mod cache_invariant_tests {
 
         // Test entry count limit
         for i in 0..200 {
-            let key = format!("entry_limit_test_{}", i);
+            let key = format!("entry_limit_test_{i}");
             let value = vec![i as u8; 1024]; // 1KB entries
             let _ = cache.put(&key, &value, None).await;
 
@@ -96,7 +96,7 @@ mod cache_invariant_tests {
         cache.clear().await.unwrap();
 
         for i in 0..200 {
-            let key = format!("memory_limit_test_{}", i);
+            let key = format!("memory_limit_test_{i}");
             let value = vec![i as u8; 8192]; // 8KB entries
             let _ = cache.put(&key, &value, None).await;
 
@@ -119,7 +119,7 @@ mod cache_invariant_tests {
                 panic!("Entry size limit invariant violated: oversized entry was accepted");
             }
             Err(e) => {
-                panic!("Unexpected error for oversized entry: {}", e);
+                panic!("Unexpected error for oversized entry: {e}");
             }
         }
     }
@@ -135,8 +135,8 @@ mod cache_invariant_tests {
         let mut previous_stats = cache.statistics().await.unwrap();
 
         for i in 0..100 {
-            let key = format!("stats_test_{}", i);
-            let value = format!("value_{}", i);
+            let key = format!("stats_test_{i}");
+            let value = format!("value_{i}");
 
             // Perform operations
             cache.put(&key, &value, None).await.unwrap();
@@ -158,10 +158,7 @@ mod cache_invariant_tests {
                 + previous_stats.errors;
             assert!(
                 current_total >= previous_total,
-                "Total operations should be monotonic: {} < {} at iteration {}",
-                current_total,
-                previous_total,
-                i
+                "Total operations should be monotonic: {current_total} < {previous_total} at iteration {i}"
             );
 
             assert!(
@@ -203,9 +200,7 @@ mod cache_invariant_tests {
             };
             assert!(
                 (0.0..=1.0).contains(&hit_rate),
-                "Hit rate should be between 0 and 1: {} at iteration {}",
-                hit_rate,
-                i
+                "Hit rate should be between 0 and 1: {hit_rate} at iteration {i}"
             );
 
             previous_stats = current_stats;
@@ -251,14 +246,13 @@ mod cache_invariant_tests {
             assert_eq!(
                 retrieved.as_ref(),
                 Some(original_data),
-                "Data integrity violated for {} (immediate retrieval)",
-                name
+                "Data integrity violated for {name} (immediate retrieval)"
             );
         }
 
         // Perform operations that might affect data
         for i in 0..100 {
-            let key = format!("interference_{}", i);
+            let key = format!("interference_{i}");
             let value = generate_random_data(1024, i as u64);
             cache.put(&key, &value, None).await.unwrap();
         }
@@ -269,8 +263,7 @@ mod cache_invariant_tests {
             if let Some(actual_data) = retrieved {
                 assert_eq!(
                     actual_data, *original_data,
-                    "Data integrity violated for {} (after interference)",
-                    name
+                    "Data integrity violated for {name} (after interference)"
                 );
             }
         }
@@ -287,8 +280,7 @@ mod cache_invariant_tests {
             if let Some(actual_data) = retrieved {
                 assert_eq!(
                     actual_data, *original_data,
-                    "Data integrity violated for {} (after restart)",
-                    name
+                    "Data integrity violated for {name} (after restart)"
                 );
             }
         }
@@ -313,7 +305,7 @@ mod cache_invariant_tests {
 
         // Store all entries at roughly the same time
         for key in &ttl_test_keys {
-            let value = format!("ttl_value_{}", key);
+            let value = format!("ttl_value_{key}");
             cache.put(key, &value, None).await.unwrap();
         }
 
@@ -321,8 +313,7 @@ mod cache_invariant_tests {
         for key in &ttl_test_keys {
             assert!(
                 cache.get::<Vec<u8>>(key).await.unwrap().is_some(),
-                "TTL invariant violated: {} not found immediately after store",
-                key
+                "TTL invariant violated: {key} not found immediately after store"
             );
         }
 
@@ -333,8 +324,7 @@ mod cache_invariant_tests {
         for key in &ttl_test_keys {
             assert!(
                 cache.get::<Vec<u8>>(key).await.unwrap().is_some(),
-                "TTL invariant violated: {} not found at 1s (TTL=2s)",
-                key
+                "TTL invariant violated: {key} not found at 1s (TTL=2s)"
             );
         }
 
@@ -371,7 +361,7 @@ mod cache_invariant_tests {
         let operations_per_thread = 25;
         let shared_keys = Arc::new(
             (0..20)
-                .map(|i| format!("shared_key_{}", i))
+                .map(|i| format!("shared_key_{i}"))
                 .collect::<Vec<_>>(),
         );
         let consistency_violations = Arc::new(AtomicU64::new(0));
@@ -388,7 +378,7 @@ mod cache_invariant_tests {
 
                 for op_id in 0..operations_per_thread {
                     let key = &keys_clone[rng.gen_range(0..keys_clone.len())];
-                    let expected_value = format!("consistent_value_{}_{}", thread_id, op_id);
+                    let expected_value = format!("consistent_value_{thread_id}_{op_id}");
 
                     // Write operation with timeout
                     match tokio::time::timeout(
@@ -442,8 +432,7 @@ mod cache_invariant_tests {
                 Ok(Err(_)) => { /* Thread panicked: handle silently */ }
                 Err(_) => {
                     eprintln!(
-                        "Thread {} timed out after 10 seconds - this is acceptable under high load",
-                        i
+                        "Thread {i} timed out after 10 seconds - this is acceptable under high load"
                     );
                     // Don't fail the test for timeout - it might be due to resource contention
                 }
@@ -456,8 +445,7 @@ mod cache_invariant_tests {
         // Consistency invariant: error rate should be low
         assert!(
             total_violations < 10,
-            "Concurrent consistency invariant violated: {} errors",
-            total_violations
+            "Concurrent consistency invariant violated: {total_violations} errors"
         );
 
         // Wait a moment for any cleanup operations to complete
@@ -475,7 +463,7 @@ mod cache_invariant_tests {
         .await
         {
             Ok(Ok(_)) => {}
-            Ok(Err(e)) => panic!("Cache put failed after concurrent operations: {}", e),
+            Ok(Err(e)) => panic!("Cache put failed after concurrent operations: {e}"),
             Err(_) => {
                 panic!("Cache put timed out after concurrent operations - cache may be deadlocked")
             }
@@ -488,7 +476,7 @@ mod cache_invariant_tests {
 
         for attempt in 1..=5 {
             // Use a unique key for each attempt to avoid interference
-            let attempt_key = format!("{}_attempt_{}", test_key, attempt);
+            let attempt_key = format!("{test_key}_attempt_{attempt}");
 
             // Add timeout to prevent hanging on cache operations
             match tokio::time::timeout(
@@ -552,17 +540,17 @@ mod cache_invariant_tests {
         if retrieved.is_none() {
             if let Some(e) = last_error {
                 // Check if this is the expected corruption error we handle gracefully
-                let error_msg = format!("{}", e);
+                let error_msg = format!("{e}");
                 if error_msg.contains("unexpected end of file") || error_msg.contains("Decode") {
                     println!(
                         "All attempts failed with expected corruption errors - this is acceptable"
                     );
                     println!("Key invariant maintained: cache detected corruption and handled it gracefully");
-                    println!("Original error was: {}", e);
+                    println!("Original error was: {e}");
                     // Use a successful value to satisfy the assertion
                     retrieved = Some(test_value.clone());
                 } else {
-                    panic!("Cache not functional after concurrent operations: {}", e);
+                    panic!("Cache not functional after concurrent operations: {e}");
                 }
             } else {
                 panic!("Cache not functional: all operations returned None");
@@ -614,8 +602,7 @@ mod cache_invariant_tests {
                             // Consistent behavior
                         }
                         Err(e) => {
-                            panic!("Error handling invariant violated: put succeeded but get failed for {}: {}", 
-                                test_name, e);
+                            panic!("Error handling invariant violated: put succeeded but get failed for {test_name}: {e}");
                         }
                     }
                 }
@@ -636,7 +623,7 @@ mod cache_invariant_tests {
                     }
 
                     // After error, cache should still be functional
-                    let recovery_key = format!("recovery_after_{}", test_name);
+                    let recovery_key = format!("recovery_after_{test_name}");
                     let recovery_value = b"recovery_test".to_vec();
 
                     cache
@@ -651,16 +638,14 @@ mod cache_invariant_tests {
                     assert_eq!(
                         retrieved.as_ref(),
                         Some(&recovery_value),
-                        "Cache should maintain functionality after error in {}",
-                        test_name
+                        "Cache should maintain functionality after error in {test_name}"
                     );
                 }
             }
         }
 
         println!(
-            "Error handling test: {} successes, {} errors (both acceptable)",
-            success_count, error_count
+            "Error handling test: {success_count} successes, {error_count} errors (both acceptable)"
         );
 
         // Invariant: Cache should remain operational regardless of errors
@@ -711,8 +696,7 @@ mod cache_invariant_tests {
         for (key, _) in &test_entries {
             assert!(
                 cache.get::<Vec<u8>>(key).await.unwrap().is_some(),
-                "Entry {} should exist before clear",
-                key
+                "Entry {key} should exist before clear"
             );
         }
 
@@ -730,8 +714,7 @@ mod cache_invariant_tests {
         for (key, _) in &test_entries {
             assert!(
                 cache.get::<Vec<u8>>(key).await.unwrap().is_none(),
-                "Clear invariant violated: entry {} still exists after clear",
-                key
+                "Clear invariant violated: entry {key} still exists after clear"
             );
         }
 
@@ -783,13 +766,12 @@ mod cache_invariant_tests {
                 .metadata(key)
                 .await
                 .unwrap()
-                .unwrap_or_else(|| panic!("Metadata should exist for key {}", key));
+                .unwrap_or_else(|| panic!("Metadata should exist for key {key}"));
 
             // Verify metadata consistency
             assert!(
                 metadata.size_bytes > 0,
-                "Metadata size should be positive for key {}",
-                key
+                "Metadata size should be positive for key {key}"
             );
 
             assert!(
@@ -802,14 +784,12 @@ mod cache_invariant_tests {
 
             assert!(
                 metadata.created_at >= store_time,
-                "Metadata created time should be reasonable for key {}",
-                key
+                "Metadata created time should be reasonable for key {key}"
             );
 
             assert!(
                 metadata.last_accessed >= metadata.created_at,
-                "Metadata last accessed should be >= created time for key {}",
-                key
+                "Metadata last accessed should be >= created time for key {key}"
             );
 
             // Verify data can still be retrieved
@@ -817,8 +797,7 @@ mod cache_invariant_tests {
             assert_eq!(
                 retrieved.as_ref(),
                 Some(value),
-                "Data should be retrievable after metadata query for key {}",
-                key
+                "Data should be retrievable after metadata query for key {key}"
             );
 
             // Access again and verify last_accessed updates
@@ -830,8 +809,7 @@ mod cache_invariant_tests {
 
             assert!(
                 metadata_after_access.last_accessed >= metadata_before_access.last_accessed,
-                "Last accessed time should update after access for key {}",
-                key
+                "Last accessed time should update after access for key {key}"
             );
         }
     }
@@ -868,7 +846,7 @@ mod cache_invariant_tests {
                     .expect("Barrier wait task failed");
 
                 for write_id in 0..writes_per_writer {
-                    let unique_value = format!("writer_{}_write_{}", writer_id, write_id);
+                    let unique_value = format!("writer_{writer_id}_write_{write_id}");
 
                     match cache_clone.put(atomicity_key, &unique_value, None).await {
                         Ok(_) => {
@@ -893,8 +871,8 @@ mod cache_invariant_tests {
         for (idx, handle) in handles.into_iter().enumerate() {
             match tokio::time::timeout(Duration::from_secs(30), handle).await {
                 Ok(Ok(_)) => {}
-                Ok(Err(e)) => panic!("Writer {} panicked: {}", idx, e),
-                Err(_) => panic!("Writer {} timed out after 30 seconds", idx),
+                Ok(Err(e)) => panic!("Writer {idx} panicked: {e}"),
+                Err(_) => panic!("Writer {idx} timed out after 30 seconds"),
             }
         }
 
@@ -908,15 +886,13 @@ mod cache_invariant_tests {
             let written_values = written_values.lock().unwrap();
             assert!(
                 written_values.contains(&final_string),
-                "Atomicity invariant violated: final value '{}' was not in written values",
-                final_string
+                "Atomicity invariant violated: final value '{final_string}' was not in written values"
             );
 
             // The final value should be a complete, valid value (not corrupted/partial)
             assert!(
                 final_string.starts_with("writer_") && final_string.contains("_write_"),
-                "Atomicity invariant violated: final value '{}' appears corrupted",
-                final_string
+                "Atomicity invariant violated: final value '{final_string}' appears corrupted"
             );
         }
 
@@ -951,8 +927,7 @@ mod cache_invariant_tests {
             assert_eq!(
                 retrieved,
                 Some(value),
-                "Roundtrip invariant violated for key '{}'",
-                key
+                "Roundtrip invariant violated for key '{key}'"
             );
         }
     }
@@ -975,8 +950,8 @@ mod cache_invariant_tests {
             let cache_clone = Arc::clone(&cache);
             let handle = tokio::spawn(async move {
                 for op_id in 0..operations_per_thread {
-                    let key = format!("thread_{}_{}", thread_id, op_id);
-                    let value = format!("value_{}_{}", thread_id, op_id);
+                    let key = format!("thread_{thread_id}_{op_id}");
+                    let value = format!("value_{thread_id}_{op_id}");
 
                     // Test with timeout
                     match tokio::time::timeout(
@@ -1025,7 +1000,7 @@ mod cache_invariant_tests {
         // Wait for all with timeout
         for (i, handle) in handles.into_iter().enumerate() {
             match tokio::time::timeout(Duration::from_secs(30), handle).await {
-                Ok(Ok(_)) => println!("Thread {} completed successfully", i),
+                Ok(Ok(_)) => println!("Thread {i} completed successfully"),
                 Ok(Err(_)) => { /* Thread panicked: handle silently */ }
                 Err(_) => { /* Thread timed out - acceptable under high load */ }
             }
@@ -1067,9 +1042,7 @@ mod cache_invariant_tests {
         // Statistics invariant: operations should increase
         assert!(
             final_total_operations >= initial_total_operations,
-            "Statistics invariant violated: {} < {}",
-            final_total_operations,
-            initial_total_operations
+            "Statistics invariant violated: {final_total_operations} < {initial_total_operations}"
         );
 
         // Basic sanity checks

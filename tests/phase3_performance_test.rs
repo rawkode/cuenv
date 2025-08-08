@@ -44,7 +44,7 @@ async fn test_streaming_apis() {
     match cache.put(key, &data, None).await {
         Ok(()) => {
             let write_duration = start.elapsed();
-            println!("Streaming write (1MB): {:?}", write_duration);
+            println!("Streaming write (1MB): {write_duration:?}");
 
             // Verify the data was stored
             let metadata = cache.metadata(key).await.unwrap();
@@ -61,12 +61,12 @@ async fn test_streaming_apis() {
                 Some(retrieved) => {
                     assert_eq!(retrieved.len(), data.len());
                     assert_eq!(retrieved, data);
-                    println!("Streaming read (1MB): {:?}", read_duration);
+                    println!("Streaming read (1MB): {read_duration:?}");
                 }
                 None => panic!("Failed to retrieve streamed data"),
             }
         }
-        Err(e) => panic!("Streaming write failed: {}", e),
+        Err(e) => panic!("Streaming write failed: {e}"),
     }
 }
 
@@ -93,7 +93,7 @@ async fn test_large_file_performance() {
             let write_duration = start.elapsed();
             let write_mb_per_sec =
                 (test_data.len() as f64 / 1024.0 / 1024.0) / write_duration.as_secs_f64();
-            println!("Large file write: {:.2} MB/s", write_mb_per_sec);
+            println!("Large file write: {write_mb_per_sec:.2} MB/s");
 
             // Test reading back
             let read_start = Instant::now();
@@ -105,7 +105,7 @@ async fn test_large_file_performance() {
                     assert_eq!(data.len(), test_data.len());
                     let read_mb_per_sec =
                         (data.len() as f64 / 1024.0 / 1024.0) / read_duration.as_secs_f64();
-                    println!("Large file read: {:.2} MB/s", read_mb_per_sec);
+                    println!("Large file read: {read_mb_per_sec:.2} MB/s");
 
                     // Performance assertions - should be reasonably fast (adjusted for CI environments)
                     assert!(write_mb_per_sec > 1.0, "Write speed should exceed 1 MB/s");
@@ -119,7 +119,7 @@ async fn test_large_file_performance() {
         }
         Err(e) => {
             // Large files might exceed limits, which is acceptable
-            println!("Large file test skipped due to: {}", e);
+            println!("Large file test skipped due to: {e}");
         }
     }
 }
@@ -138,11 +138,11 @@ async fn test_fast_path_performance() {
     // Write small values
     let start = Instant::now();
     for i in 0..iterations {
-        let key = format!("small_{}", i);
+        let key = format!("small_{i}");
         match cache.put(&key, &small_value, None).await {
             Ok(()) => {}
             Err(e) => {
-                println!("Warning: put failed for {}: {}", key, e);
+                println!("Warning: put failed for {key}: {e}");
                 // Continue with other operations
             }
         }
@@ -150,30 +150,27 @@ async fn test_fast_path_performance() {
     let write_duration = start.elapsed();
 
     let write_ops_per_sec = iterations as f64 / write_duration.as_secs_f64();
-    println!("Fast path writes: {:.0} ops/sec", write_ops_per_sec);
+    println!("Fast path writes: {write_ops_per_sec:.0} ops/sec");
 
     // Read small values (should hit fast path)
     let start = Instant::now();
     let mut successful_reads = 0;
     for i in 0..iterations {
-        let key = format!("small_{}", i);
+        let key = format!("small_{i}");
         match cache.get::<String>(&key).await {
             Ok(Some(_)) => successful_reads += 1,
             Ok(None) => {
                 // Value not found - might have been evicted
             }
             Err(e) => {
-                println!("Warning: get failed for {}: {}", key, e);
+                println!("Warning: get failed for {key}: {e}");
             }
         }
     }
     let read_duration = start.elapsed();
 
     let read_ops_per_sec = successful_reads as f64 / read_duration.as_secs_f64();
-    println!(
-        "Fast path reads: {:.0} ops/sec ({} successful)",
-        read_ops_per_sec, successful_reads
-    );
+    println!("Fast path reads: {read_ops_per_sec:.0} ops/sec ({successful_reads} successful)");
 
     // Performance assertions - should handle at least 100 ops/sec
     assert!(
@@ -209,8 +206,8 @@ async fn test_concurrent_access_performance() {
         let handle = tokio::spawn(async move {
             let mut successful_ops = 0;
             for i in 0..ops_per_task {
-                let key = format!("task_{}_key_{}", task_id, i);
-                let value = format!("value_{}", i);
+                let key = format!("task_{task_id}_key_{i}");
+                let value = format!("value_{i}");
 
                 match cache_clone.put(&key, &value, None).await {
                     Ok(()) => successful_ops += 1,
@@ -228,7 +225,7 @@ async fn test_concurrent_access_performance() {
     for handle in handles {
         match handle.await {
             Ok(successful) => total_successful += successful,
-            Err(e) => println!("Task failed: {}", e),
+            Err(e) => println!("Task failed: {e}"),
         }
     }
 
@@ -236,8 +233,7 @@ async fn test_concurrent_access_performance() {
     let ops_per_sec = total_successful as f64 / duration.as_secs_f64();
 
     println!(
-        "Concurrent writes: {:.0} ops/sec ({} tasks, {} successful ops)",
-        ops_per_sec, concurrent_tasks, total_successful
+        "Concurrent writes: {ops_per_sec:.0} ops/sec ({concurrent_tasks} tasks, {total_successful} successful ops)"
     );
 
     // Test concurrent reads
@@ -249,7 +245,7 @@ async fn test_concurrent_access_performance() {
         let handle = tokio::spawn(async move {
             let mut successful_reads = 0;
             for i in 0..ops_per_task {
-                let key = format!("task_{}_key_{}", task_id, i);
+                let key = format!("task_{task_id}_key_{i}");
                 match cache_clone.get::<String>(&key).await {
                     Ok(Some(_)) => successful_reads += 1,
                     Ok(None) | Err(_) => {
@@ -266,7 +262,7 @@ async fn test_concurrent_access_performance() {
     for handle in handles {
         match handle.await {
             Ok(successful) => total_read_successful += successful,
-            Err(e) => println!("Read task failed: {}", e),
+            Err(e) => println!("Read task failed: {e}"),
         }
     }
 
@@ -274,8 +270,7 @@ async fn test_concurrent_access_performance() {
     let read_ops_per_sec = total_read_successful as f64 / read_duration.as_secs_f64();
 
     println!(
-        "Concurrent reads: {:.0} ops/sec ({} tasks, {} successful reads)",
-        read_ops_per_sec, concurrent_tasks, total_read_successful
+        "Concurrent reads: {read_ops_per_sec:.0} ops/sec ({concurrent_tasks} tasks, {total_read_successful} successful reads)"
     );
 
     // Verify some operations succeeded
@@ -299,7 +294,7 @@ async fn test_memory_usage_patterns() {
 
     for (name, size) in sizes {
         let data = vec![0x77u8; size];
-        let key = format!("memory_test_{}", name);
+        let key = format!("memory_test_{name}");
 
         // Write
         let start = Instant::now();
@@ -309,7 +304,7 @@ async fn test_memory_usage_patterns() {
 
                 // Clear memory to force potential disk read
                 cache.clear().await.unwrap_or_else(|e| {
-                    println!("Warning: clear failed: {}", e);
+                    println!("Warning: clear failed: {e}");
                 });
 
                 // Read back
@@ -353,8 +348,8 @@ async fn test_batch_operations() {
 
     for i in 0..batch_size {
         entries.push((
-            format!("batch_key_{}", i),
-            format!("batch_value_{}", i),
+            format!("batch_key_{i}"),
+            format!("batch_value_{i}"),
             None as Option<Duration>,
         ));
     }
@@ -365,15 +360,10 @@ async fn test_batch_operations() {
         Ok(()) => {
             let duration = start.elapsed();
             let ops_per_sec = batch_size as f64 / duration.as_secs_f64();
-            println!(
-                "Batch put: {} items in {:?} ({:.0} items/sec)",
-                batch_size, duration, ops_per_sec
-            );
+            println!("Batch put: {batch_size} items in {duration:?} ({ops_per_sec:.0} items/sec)");
 
             // Test batch get
-            let keys: Vec<String> = (0..batch_size)
-                .map(|i| format!("batch_key_{}", i))
-                .collect();
+            let keys: Vec<String> = (0..batch_size).map(|i| format!("batch_key_{i}")).collect();
 
             let start = Instant::now();
             let results: Vec<(String, Option<String>)> = cache.get_many(&keys).await.unwrap();
@@ -383,8 +373,7 @@ async fn test_batch_operations() {
 
             assert_eq!(results.len(), batch_size);
             println!(
-                "Batch get: {} items in {:?} ({:.0} items/sec, {} successful)",
-                batch_size, duration, get_ops_per_sec, successful_gets
+                "Batch get: {batch_size} items in {duration:?} ({get_ops_per_sec:.0} items/sec, {successful_gets} successful)"
             );
 
             // Most operations should succeed
@@ -394,7 +383,7 @@ async fn test_batch_operations() {
             );
         }
         Err(e) => {
-            println!("Batch operations failed: {}", e);
+            println!("Batch operations failed: {e}");
             // Test individual operations as fallback
             let mut individual_success = 0;
             for (key, value, ttl) in &entries {
@@ -419,7 +408,7 @@ async fn test_statistics_accuracy() {
 
     // Get initial statistics
     let initial_stats = cache.statistics().await.unwrap();
-    println!("Initial stats: {:?}", initial_stats);
+    println!("Initial stats: {initial_stats:?}");
 
     // Perform some operations
     let num_ops = 50;
@@ -427,8 +416,8 @@ async fn test_statistics_accuracy() {
     let mut successful_gets = 0;
 
     for i in 0..num_ops {
-        let key = format!("stats_test_{}", i);
-        let value = format!("value_{}", i);
+        let key = format!("stats_test_{i}");
+        let value = format!("value_{i}");
 
         // Put operation
         if cache.put(&key, &value, None).await.is_ok() {
@@ -443,7 +432,7 @@ async fn test_statistics_accuracy() {
 
     // Get final statistics
     let final_stats = cache.statistics().await.unwrap();
-    println!("Final stats: {:?}", final_stats);
+    println!("Final stats: {final_stats:?}");
 
     // Verify statistics make sense
     let final_total_ops = final_stats.hits + final_stats.misses + final_stats.errors;
@@ -462,10 +451,7 @@ async fn test_statistics_accuracy() {
         );
     }
 
-    println!(
-        "Operations: {} puts successful, {} gets successful",
-        successful_puts, successful_gets
-    );
+    println!("Operations: {successful_puts} puts successful, {successful_gets} gets successful");
 }
 
 #[tokio::test]
@@ -488,7 +474,7 @@ async fn test_cache_persistence() {
         for (key, value) in &test_data {
             match cache.put(key, value, None).await {
                 Ok(()) => {}
-                Err(e) => println!("Warning: failed to store {}: {}", key, e),
+                Err(e) => println!("Warning: failed to store {key}: {e}"),
             }
         }
 
@@ -496,7 +482,7 @@ async fn test_cache_persistence() {
         for (key, expected_value) in &test_data {
             match cache.get::<String>(key).await.unwrap_or(None) {
                 Some(actual) => assert_eq!(&actual, expected_value),
-                None => println!("Warning: {} not found before restart", key),
+                None => println!("Warning: {key} not found before restart"),
             }
         }
     } // Cache drops here
@@ -514,10 +500,10 @@ async fn test_cache_persistence() {
         match restored_cache.get::<String>(key).await.unwrap_or(None) {
             Some(_) => {
                 found_count += 1;
-                println!("Key {} persisted across restart", key);
+                println!("Key {key} persisted across restart");
             }
             None => {
-                println!("Key {} not found after restart (may be expected)", key);
+                println!("Key {key} not found after restart (may be expected)");
             }
         }
     }
@@ -550,6 +536,6 @@ async fn test_cache_persistence() {
                 None => panic!("Cache not functional after restart"),
             }
         }
-        Err(e) => panic!("Cache not functional after restart: {}", e),
+        Err(e) => panic!("Cache not functional after restart: {e}"),
     }
 }

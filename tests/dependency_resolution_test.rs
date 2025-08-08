@@ -211,14 +211,13 @@ tasks: {
                 output,
             } = dep_ref
             {
-                let task_name = format!("{}:{}", package, task);
+                let task_name = format!("{package}:{task}");
                 let output_path = registry.resolve_task_output(&task_name, &output).unwrap();
 
                 // Verify the output file exists and is accessible
                 assert!(
                     output_path.exists(),
-                    "Output file should exist at {:?}",
-                    output_path
+                    "Output file should exist at {output_path:?}"
                 );
                 assert!(output_path.is_file(), "Output should be a file");
 

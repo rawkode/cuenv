@@ -101,8 +101,8 @@ fn test_concurrent_cache_writes() {
 
                 // Create a unique task config
                 let task_config = TaskConfig {
-                    description: Some(format!("Test task {}", i)),
-                    command: Some(format!("echo task_{}", i)),
+                    description: Some(format!("Test task {i}")),
+                    command: Some(format!("echo task_{i}")),
                     script: None,
                     dependencies: None,
                     working_dir: None,
@@ -117,14 +117,14 @@ fn test_concurrent_cache_writes() {
                 };
 
                 // Create input file
-                let input_file = src_dir.join(format!("file_{}.rs", i));
-                fs::write(&input_file, format!("// Content for file {}", i)).unwrap();
+                let input_file = src_dir.join(format!("file_{i}.rs"));
+                fs::write(&input_file, format!("// Content for file {i}")).unwrap();
 
                 // Create output file
-                let output_file = build_dir.join(format!("output_{}.o", i));
-                fs::write(&output_file, format!("Output {}", i)).unwrap();
+                let output_file = build_dir.join(format!("output_{i}.o"));
+                fs::write(&output_file, format!("Output {i}")).unwrap();
 
-                let task_name = format!("task_{}", i);
+                let task_name = format!("task_{i}");
 
                 // Generate cache key
                 let env_vars = std::collections::HashMap::new();
@@ -296,8 +296,8 @@ fn test_cache_invalidation_race() {
 
                 // Each thread uses a different task config to ensure different cache keys
                 let task_config = TaskConfig {
-                    description: Some(format!("Task for thread {}", i)),
-                    command: Some(format!("echo thread{}", i)),
+                    description: Some(format!("Task for thread {i}")),
+                    command: Some(format!("echo thread{i}")),
                     script: None,
                     dependencies: None,
                     working_dir: None,
@@ -314,7 +314,7 @@ fn test_cache_invalidation_race() {
                 // Generate unique cache key for this thread
                 let cache_key = cache_manager
                     .generate_cache_key(
-                        &format!("test_task_{}", i),
+                        &format!("test_task_{i}"),
                         &task_config,
                         &std::collections::HashMap::new(),
                         temp_dir.path(),
@@ -430,7 +430,7 @@ fn test_cache_cleanup() {
     // Create some cached entries
     for i in 0..5 {
         let task_config = TaskConfig {
-            description: Some(format!("Old task {}", i)),
+            description: Some(format!("Old task {i}")),
             command: Some("echo old".to_string()),
             script: None,
             dependencies: None,
@@ -439,7 +439,7 @@ fn test_cache_cleanup() {
             inputs: None,
             outputs: None,
             cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
-            cache_key: Some(format!("old_key_{}", i)),
+            cache_key: Some(format!("old_key_{i}")),
             cache_env: None,
             timeout: None,
             security: None,
@@ -447,7 +447,7 @@ fn test_cache_cleanup() {
 
         let cache_key = cache_manager
             .generate_cache_key(
-                &format!("old_task_{}", i),
+                &format!("old_task_{i}"),
                 &task_config,
                 &std::collections::HashMap::new(),
                 temp_dir.path(),

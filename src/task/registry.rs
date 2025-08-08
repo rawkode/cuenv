@@ -28,8 +28,6 @@ pub struct MonorepoTaskRegistry {
     package_paths: HashMap<String, PathBuf>,
     /// Cached task configs for TaskSource trait
     task_configs: HashMap<String, TaskConfig>,
-    /// Empty env vars for TaskSource trait
-    empty_env_vars: HashMap<String, String>,
 }
 
 impl MonorepoTaskRegistry {
@@ -39,7 +37,6 @@ impl MonorepoTaskRegistry {
             tasks: HashMap::new(),
             package_paths: HashMap::new(),
             task_configs: HashMap::new(),
-            empty_env_vars: HashMap::new(),
         }
     }
 

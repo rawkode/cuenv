@@ -39,7 +39,7 @@ mod deadlock_tests {
 
         match put_result {
             Ok(Ok(())) => println!("Recovery put succeeded"),
-            Ok(Err(e)) => panic!("Recovery put failed: {}", e),
+            Ok(Err(e)) => panic!("Recovery put failed: {e}"),
             Err(_) => panic!("Recovery put timed out - DEADLOCK DETECTED"),
         }
 
@@ -55,7 +55,7 @@ mod deadlock_tests {
                 println!("Recovery get succeeded");
             }
             Ok(Ok(None)) => panic!("Recovery get returned None"),
-            Ok(Err(e)) => panic!("Recovery get failed: {}", e),
+            Ok(Err(e)) => panic!("Recovery get failed: {e}"),
             Err(_) => panic!("Recovery get timed out - DEADLOCK DETECTED"),
         }
 
@@ -78,16 +78,16 @@ mod deadlock_tests {
                     let _ = cache.put("", &vec![i], None).await;
 
                     // Then try recovery
-                    let key = format!("recovery_{}", i);
+                    let key = format!("recovery_{i}");
                     match tokio::time::timeout(
                         Duration::from_secs(2),
                         cache.put(&key, &vec![i], None),
                     )
                     .await
                     {
-                        Ok(Ok(())) => println!("Thread {} recovery succeeded", i),
-                        Ok(Err(e)) => println!("Thread {} recovery failed: {}", i, e),
-                        Err(_) => println!("Thread {} recovery TIMED OUT", i),
+                        Ok(Ok(())) => println!("Thread {i} recovery succeeded"),
+                        Ok(Err(e)) => println!("Thread {i} recovery failed: {e}"),
+                        Err(_) => println!("Thread {i} recovery TIMED OUT"),
                     }
                 })
             })

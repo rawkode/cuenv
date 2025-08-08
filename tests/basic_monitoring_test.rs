@@ -45,8 +45,8 @@ fn test_hit_rate_analysis() {
 
     // Generate some patterns
     for i in 0..10 {
-        monitor.record_hit(&format!("user:{}", i), "get", Duration::from_millis(1));
-        monitor.record_hit(&format!("session:{}", i), "get", Duration::from_millis(1));
+        monitor.record_hit(&format!("user:{i}"), "get", Duration::from_millis(1));
+        monitor.record_hit(&format!("session:{i}"), "get", Duration::from_millis(1));
     }
 
     for i in 0..5 {

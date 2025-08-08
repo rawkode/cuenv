@@ -86,7 +86,7 @@ tasks: {
     );
 
     // Debug output
-    println!("stdout: {}", stdout);
+    println!("stdout: {stdout}");
     println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
 
     // Check output contains all packages
@@ -395,8 +395,7 @@ tasks: {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("Circular") || stderr.contains("circular"),
-        "Should mention circular dependency: {}",
-        stderr
+        "Should mention circular dependency: {stderr}"
     );
 }
 
@@ -487,12 +486,11 @@ fi
 env: {{ PROCESSOR: "true" }}
 tasks: {{
     "process": {{
-        script: "{}"
+        script: "{script_name}"
         description: "Process data"
         dependencies: ["generator:generate"]
     }}
-}}"#,
-            script_name
+}}"#
         ),
     )
     .unwrap();

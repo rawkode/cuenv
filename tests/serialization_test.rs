@@ -16,7 +16,7 @@ mod serialization_tests {
 
         // Deserialize back
         let deserialized: Vec<u8> = bincode::deserialize(&serialized).unwrap();
-        println!("Deserialized: {:?}", deserialized);
+        println!("Deserialized: {deserialized:?}");
 
         assert_eq!(deserialized, value);
     }
@@ -34,6 +34,6 @@ mod serialization_tests {
         // Try to deserialize empty data
         let empty_data: &[u8] = &[];
         let result: Result<Vec<u8>, _> = bincode::deserialize(empty_data);
-        println!("Deserializing empty data: {:?}", result);
+        println!("Deserializing empty data: {result:?}");
     }
 }

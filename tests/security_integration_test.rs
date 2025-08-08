@@ -138,11 +138,8 @@ async fn test_rate_limiting_secrets() {
     let mut env_vars = EnvironmentVariables::new();
     for i in 0..5 {
         env_vars.insert(
-            format!("SECRET_{}", i),
-            format!(
-                r#"cuenv-resolver://{{"cmd":"echo","args":["secret-value-{}"]}}"#,
-                i
-            ),
+            format!("SECRET_{i}"),
+            format!(r#"cuenv-resolver://{{"cmd":"echo","args":["secret-value-{i}"]}}"#),
         );
     }
 

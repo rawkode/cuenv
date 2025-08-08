@@ -22,7 +22,7 @@ mod concurrent_cache_tests {
     /// Helper to create a basic test task configuration
     fn create_test_task(name: &str, cache_enabled: bool) -> TaskConfig {
         TaskConfig {
-            description: Some(format!("Test task: {}", name)),
+            description: Some(format!("Test task: {name}")),
             command: Some("echo test".to_string()),
             script: None,
             dependencies: None,
@@ -92,7 +92,7 @@ mod concurrent_cache_tests {
                                 .ok();
                         }
                         Err(e) => {
-                            eprintln!("Cache error: {}", e);
+                            eprintln!("Cache error: {e}");
                         }
                     }
                 })
@@ -107,10 +107,7 @@ mod concurrent_cache_tests {
         let total_hits = cache_hits.load(Ordering::SeqCst);
         let total_misses = cache_misses.load(Ordering::SeqCst);
 
-        println!(
-            "Cache test results - Hits: {}, Misses: {}",
-            total_hits, total_misses
-        );
+        println!("Cache test results - Hits: {total_hits}, Misses: {total_misses}");
 
         // Verify results
         assert_eq!(total_hits + total_misses, num_threads as u32);
@@ -162,8 +159,7 @@ mod concurrent_cache_tests {
         for (thread_id, key) in all_keys.iter() {
             assert_eq!(
                 key, first_key,
-                "Thread {} generated different key: {} vs {}",
-                thread_id, key, first_key
+                "Thread {thread_id} generated different key: {key} vs {first_key}"
             );
         }
     }
@@ -266,8 +262,8 @@ mod concurrent_cache_tests {
         // Create different input files for different tasks
         for i in 0..num_tasks {
             fs::write(
-                src_dir.join(format!("input{}.txt", i)),
-                format!("content for task {}", i),
+                src_dir.join(format!("input{i}.txt")),
+                format!("content for task {i}"),
             )
             .unwrap();
         }
@@ -285,13 +281,13 @@ mod concurrent_cache_tests {
 
                     // Each thread works on multiple tasks
                     for task_id in 0..num_tasks {
-                        let mut task_config = create_test_task(&format!("task_{}", task_id), true);
+                        let mut task_config = create_test_task(&format!("task_{task_id}"), true);
                         task_config.inputs = Some(vec![format!("src/input{}.txt", task_id)]);
                         task_config.outputs = Some(vec![format!("build/output{}.txt", task_id)]);
 
                         let cache_key = cache
                             .generate_cache_key_legacy(
-                                &format!("task_{}", task_id),
+                                &format!("task_{task_id}"),
                                 &task_config,
                                 &working_dir,
                             )
@@ -309,10 +305,10 @@ mod concurrent_cache_tests {
                             Ok(None) => {
                                 // Create output
                                 let output_file =
-                                    working_dir.join(format!("build/output{}.txt", task_id));
+                                    working_dir.join(format!("build/output{task_id}.txt"));
                                 fs::write(
                                     &output_file,
-                                    format!("Thread {} executed task {}", thread_id, task_id),
+                                    format!("Thread {thread_id} executed task {task_id}"),
                                 )
                                 .unwrap();
 
@@ -348,8 +344,8 @@ mod concurrent_cache_tests {
 
         // Verify all output files exist
         for i in 0..num_tasks {
-            let output_file = build_dir.join(format!("output{}.txt", i));
-            assert!(output_file.exists(), "Output file {} should exist", i);
+            let output_file = build_dir.join(format!("output{i}.txt"));
+            assert!(output_file.exists(), "Output file {i} should exist");
         }
     }
 }

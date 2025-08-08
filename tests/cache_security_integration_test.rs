@@ -349,7 +349,7 @@ async fn test_audit_logging_integrity() {
     for i in 0..10 {
         logger
             .log_cache_read(
-                &format!("key_{}", i),
+                &format!("key_{i}"),
                 i % 2 == 0,
                 Some(1024),
                 5,
@@ -358,7 +358,7 @@ async fn test_audit_logging_integrity() {
             .await
             .unwrap();
         logger
-            .log_cache_write(&format!("key_{}", i), 1024, false, 3, context.clone())
+            .log_cache_write(&format!("key_{i}"), 1024, false, 3, context.clone())
             .await
             .unwrap();
     }
@@ -632,8 +632,8 @@ async fn test_concurrent_security_operations() {
         let cache = secure_cache.clone();
         let handle = tokio::spawn(async move {
             for j in 0..10 {
-                let key = format!("thread_{}_key_{}", i, j);
-                let data = TestCacheData::new(i * 10 + j, format!("value_{}", j));
+                let key = format!("thread_{i}_key_{j}");
+                let data = TestCacheData::new(i * 10 + j, format!("value_{j}"));
 
                 // Put data
                 cache.put(&key, &data, None).await.unwrap();
@@ -680,8 +680,8 @@ async fn test_security_performance() {
     // Perform many operations
     for i in 0..500 {
         // Reduced from 1000 to 500 for faster test
-        let key = format!("perf_key_{}", i);
-        let data = TestCacheData::new(i, format!("perf_value_{}", i));
+        let key = format!("perf_key_{i}");
+        let data = TestCacheData::new(i, format!("perf_value_{i}"));
 
         secure_cache.put(&key, &data, None).await.unwrap();
         let _retrieved: Option<TestCacheData> = secure_cache.get(&key).await.unwrap();
@@ -694,8 +694,7 @@ async fn test_security_performance() {
     // 30ms * 1000 = 30 seconds max
     assert!(
         duration.as_millis() < 30000,
-        "Performance test took too long: {:?}",
-        duration
+        "Performance test took too long: {duration:?}"
     );
 
     // Verify integrity after performance test

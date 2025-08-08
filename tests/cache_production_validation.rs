@@ -218,7 +218,7 @@ mod cache_production_tests {
         let mut cold_loads = 0;
 
         for i in 0..1000 {
-            let key = format!("startup_key_{}", i);
+            let key = format!("startup_key_{i}");
 
             // Try to get from cache (will miss)
             if cache.get::<Vec<u8>>(&key).await.unwrap().is_none() {
@@ -226,7 +226,7 @@ mod cache_production_tests {
 
                 // Simulate loading from database/external source
                 tokio::time::sleep(Duration::from_micros(100)).await; // Simulate DB latency
-                let value = format!("startup_value_{}", i).repeat(10);
+                let value = format!("startup_value_{i}").repeat(10);
 
                 // Store in cache
                 cache.put(&key, &value, None).await.unwrap();
@@ -248,7 +248,7 @@ mod cache_production_tests {
         let mut warm_misses = 0;
 
         for i in 0..1000 {
-            let key = format!("startup_key_{}", i);
+            let key = format!("startup_key_{i}");
 
             match cache.get::<Vec<u8>>(&key).await.unwrap() {
                 Some(_) => warm_hits += 1,
@@ -273,8 +273,8 @@ mod cache_production_tests {
         for i in 0..2000 {
             if i % 3 == 0 {
                 // New data
-                let key = format!("mixed_key_{}", i);
-                let value = format!("mixed_value_{}", i);
+                let key = format!("mixed_key_{i}");
+                let value = format!("mixed_value_{i}");
                 cache.put(&key, &value, None).await.unwrap();
                 mixed_writes += 1;
             } else {
@@ -328,10 +328,10 @@ mod cache_production_tests {
 
         // Pre-populate cache with critical data
         let critical_keys = (0..100)
-            .map(|i| format!("critical_key_{}", i))
+            .map(|i| format!("critical_key_{i}"))
             .collect::<Vec<_>>();
         for key in &critical_keys {
-            let value = format!("critical_value_{}", key);
+            let value = format!("critical_value_{key}");
             cache.put(key, &value, None).await.unwrap();
         }
 
@@ -347,7 +347,7 @@ mod cache_production_tests {
         ];
 
         for (scenario_name, failure_duration) in scenarios {
-            println!("  Testing scenario: {}", scenario_name);
+            println!("  Testing scenario: {scenario_name}");
 
             let scenario_start = Instant::now();
             failure_simulation.store(true, Ordering::Relaxed);
@@ -368,8 +368,8 @@ mod cache_production_tests {
                     "disk_corruption" => {
                         // Cache might need to rebuild some entries
                         for i in 0..10 {
-                            let key = format!("recovery_key_{}", i);
-                            let value = format!("recovery_value_{}", i);
+                            let key = format!("recovery_key_{i}");
+                            let value = format!("recovery_value_{i}");
                             let _ = cache_clone.put(&key, &value, None).await;
                         }
                     }
@@ -424,15 +424,9 @@ mod cache_production_tests {
                 "    Scenario duration: {:.2}s",
                 scenario_duration.as_secs_f64()
             );
-            println!("    Recovery time: {}ms", recovery_duration);
-            println!(
-                "    Operations during failure: {}",
-                operations_during_failure
-            );
-            println!(
-                "    Successful: {}, Failed: {}",
-                successful_operations, failed_operations
-            );
+            println!("    Recovery time: {recovery_duration}ms");
+            println!("    Operations during failure: {operations_during_failure}");
+            println!("    Successful: {successful_operations}, Failed: {failed_operations}");
 
             let availability = successful_operations as f64 / operations_during_failure as f64;
             println!(
@@ -443,13 +437,11 @@ mod cache_production_tests {
             // Validate resilience requirements
             assert!(
                 availability > 0.7,
-                "Should maintain >70% availability during {}",
-                scenario_name
+                "Should maintain >70% availability during {scenario_name}"
             );
             assert!(
                 recovery_duration < 1000,
-                "Recovery should be under 1 second for {}",
-                scenario_name
+                "Recovery should be under 1 second for {scenario_name}"
             );
         }
 
@@ -510,7 +502,7 @@ mod cache_production_tests {
                     let operation_type = rng.gen_range(0..100);
                     // Use a bounded set of keys to ensure cache hits
                     let key_index = rng.gen_range(0..1000);
-                    let key = format!("load_key_{}", key_index);
+                    let key = format!("load_key_{key_index}");
 
                     match operation_type {
                         0..=69 => {
@@ -578,9 +570,9 @@ mod cache_production_tests {
 
         println!("Sustained high load test results:");
         println!("  Duration: {:.2}s", total_duration.as_secs_f64());
-        println!("  Total operations: {}", total_operations);
-        println!("  Total errors: {}", total_errors);
-        println!("  Actual ops/sec: {:.0}", actual_ops_per_sec);
+        println!("  Total operations: {total_operations}");
+        println!("  Total errors: {total_errors}");
+        println!("  Actual ops/sec: {actual_ops_per_sec:.0}");
         println!(
             "  Error rate: {:.4}%",
             (total_errors as f64 / total_operations as f64) * 100.0
@@ -674,7 +666,7 @@ mod cache_production_tests {
                 break;
             }
 
-            let key = format!("memory_test_{}", i);
+            let key = format!("memory_test_{i}");
 
             match cache.put(&key, &data, None).await {
                 Ok(_) => {
@@ -704,11 +696,11 @@ mod cache_production_tests {
                     }
                 }
                 Err(CacheError::CapacityExceeded { .. }) => {
-                    println!("  Hit memory limit at entry {}", i);
+                    println!("  Hit memory limit at entry {i}");
                     break;
                 }
                 Err(e) => {
-                    panic!("Unexpected error at entry {}: {}", i, e);
+                    panic!("Unexpected error at entry {i}: {e}");
                 }
             }
         }
@@ -766,8 +758,7 @@ mod cache_production_tests {
         if eviction_started {
             assert!(
                 eviction_start_point > 2500,
-                "Should allow substantial data before eviction (got: {})",
-                eviction_start_point
+                "Should allow substantial data before eviction (got: {eviction_start_point})"
             );
         } else {
             // If no eviction, verify we hit a configured limit
@@ -797,8 +788,7 @@ mod cache_production_tests {
 
         assert!(
             recent_hits > 300,
-            "Should maintain good hit rate for recent data (got: {})",
-            recent_hits
+            "Should maintain good hit rate for recent data (got: {recent_hits})"
         );
     }
 
@@ -909,7 +899,7 @@ mod cache_production_tests {
         let mut rng = StdRng::seed_from_u64(1001);
         (0..count)
             .map(|i| CacheItem {
-                key: format!("session:{}", i),
+                key: format!("session:{i}"),
                 data: generate_test_data(rng.gen_range(100..500), i as u64),
             })
             .collect()
@@ -919,7 +909,7 @@ mod cache_production_tests {
         let mut rng = StdRng::seed_from_u64(1002);
         (0..count)
             .map(|i| CacheItem {
-                key: format!("fragment:page_{}", i),
+                key: format!("fragment:page_{i}"),
                 data: generate_test_data(rng.gen_range(1000..5000), i as u64),
             })
             .collect()
@@ -929,7 +919,7 @@ mod cache_production_tests {
         let mut rng = StdRng::seed_from_u64(1003);
         (0..count)
             .map(|i| CacheItem {
-                key: format!("api:response_{}", i),
+                key: format!("api:response_{i}"),
                 data: generate_test_data(rng.gen_range(200..2000), i as u64),
             })
             .collect()
@@ -939,7 +929,7 @@ mod cache_production_tests {
         let mut rng = StdRng::seed_from_u64(1004);
         (0..count)
             .map(|i| CacheItem {
-                key: format!("asset:static_{}", i),
+                key: format!("asset:static_{i}"),
                 data: generate_test_data(rng.gen_range(5000..50000), i as u64),
             })
             .collect()

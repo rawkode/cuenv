@@ -30,7 +30,7 @@ async fn test_tui_no_lockup_between_tasks() {
             bus.publish(cuenv::tui::events::TaskEvent::Log {
                 task_name: "task1".to_string(),
                 stream: cuenv::tui::events::LogStream::Stdout,
-                content: format!("Task 1 log line {}", i),
+                content: format!("Task 1 log line {i}"),
             })
             .await;
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -59,7 +59,7 @@ async fn test_tui_no_lockup_between_tasks() {
             bus.publish(cuenv::tui::events::TaskEvent::Log {
                 task_name: "task2".to_string(),
                 stream: cuenv::tui::events::LogStream::Stdout,
-                content: format!("Task 2 log line {}", i),
+                content: format!("Task 2 log line {i}"),
             })
             .await;
             tokio::time::sleep(Duration::from_millis(10)).await;

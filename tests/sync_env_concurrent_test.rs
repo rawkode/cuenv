@@ -22,11 +22,11 @@ mod concurrent_tests {
 
                     // Use a unique key per thread with UUID to avoid any conflicts
                     let thread_id = uuid::Uuid::new_v4();
-                    let key = format!("CONCURRENT_TEST_{}_{}", i, thread_id);
+                    let key = format!("CONCURRENT_TEST_{i}_{thread_id}");
 
                     for j in 0..iterations {
                         // Set a value
-                        let value = format!("thread_{}_iter_{}", i, j);
+                        let value = format!("thread_{i}_iter_{j}");
                         SyncEnv::set_var(&key, &value).unwrap();
 
                         // Read it back immediately
@@ -34,11 +34,7 @@ mod concurrent_tests {
                         assert_eq!(
                             read_value,
                             Some(value.clone()),
-                            "Thread {} iteration {}: expected {}, got {:?}",
-                            i,
-                            j,
-                            value,
-                            read_value
+                            "Thread {i} iteration {j}: expected {value}, got {read_value:?}"
                         );
 
                         // Small random delay to increase chance of contention
@@ -123,7 +119,7 @@ mod concurrent_tests {
                     for _ in 0..20 {
                         // Reduced from 100
                         let current = SyncEnv::var(test_key).unwrap().unwrap_or_default();
-                        let new_value = format!("{}_thread_{}", current, i);
+                        let new_value = format!("{current}_thread_{i}");
                         SyncEnv::set_var(test_key, &new_value).unwrap();
 
                         // Small delay to increase contention

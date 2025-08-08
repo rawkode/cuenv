@@ -125,8 +125,8 @@ tasks: {
     let stderr = String::from_utf8_lossy(&output.stderr);
     if !output.status.success() {
         eprintln!("Exit code: {}", output.status.code().unwrap_or(-1));
-        eprintln!("STDOUT: {}", stdout);
-        eprintln!("STDERR: {}", stderr);
+        eprintln!("STDOUT: {stdout}");
+        eprintln!("STDERR: {stderr}");
     }
     assert!(output.status.success());
     assert!(stdout.contains("Hello from task"));
@@ -217,8 +217,7 @@ tasks: {
     // which results in "Failed to spawn command" error
     assert!(
         stderr.contains("Failed to spawn command") || stderr.contains("not found"),
-        "Expected error in stderr, got: '{}'",
-        stderr
+        "Expected error in stderr, got: '{stderr}'"
     );
 }
 

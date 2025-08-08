@@ -62,11 +62,11 @@ mod state_race_condition_tests {
                             // Create unique state
                             let diff = EnvDiff::new(
                                 HashMap::from([(
-                                    format!("OLD_VAR_{}", thread_id),
+                                    format!("OLD_VAR_{thread_id}"),
                                     "old".to_string(),
                                 )]),
                                 HashMap::from([(
-                                    format!("NEW_VAR_{}", thread_id),
+                                    format!("NEW_VAR_{thread_id}"),
                                     "new".to_string(),
                                 )]),
                             );
@@ -76,8 +76,8 @@ mod state_race_condition_tests {
                             match StateManager::load(
                                 dir,
                                 &file,
-                                Some(&format!("env_{}_{}", thread_id, i)),
-                                &[format!("cap_{}", thread_id)],
+                                Some(&format!("env_{thread_id}_{i}")),
+                                &[format!("cap_{thread_id}")],
                                 &diff,
                                 &watches,
                             )
@@ -101,8 +101,7 @@ mod state_race_condition_tests {
                                         }
                                         Err(e) => {
                                             errors.lock().unwrap().push(format!(
-                                                "Thread {} unload error: {}",
-                                                thread_id, e
+                                                "Thread {thread_id} unload error: {e}"
                                             ));
                                         }
                                     }
@@ -111,7 +110,7 @@ mod state_race_condition_tests {
                                     errors
                                         .lock()
                                         .unwrap()
-                                        .push(format!("Thread {} load error: {}", thread_id, e));
+                                        .push(format!("Thread {thread_id} load error: {e}"));
                                 }
                             }
                         });
@@ -138,7 +137,7 @@ mod state_race_condition_tests {
 
         if !error_list.is_empty() {
             for error in error_list.iter() {
-                eprintln!("Error: {}", error);
+                eprintln!("Error: {error}");
             }
             panic!("State management race conditions detected");
         }
@@ -182,7 +181,7 @@ mod state_race_condition_tests {
                             StateManager::load(
                                 temp_dir.path(),
                                 &temp_dir.path().join("env.cue"),
-                                Some(&format!("writer_{}_v{}", writer_id, counter)),
+                                Some(&format!("writer_{writer_id}_v{counter}")),
                                 &[],
                                 &diff,
                                 &watches,
@@ -243,10 +242,7 @@ mod state_race_condition_tests {
         }
 
         let total_inconsistencies = inconsistencies.load(Ordering::SeqCst);
-        println!(
-            "State consistency test - Inconsistencies detected: {}",
-            total_inconsistencies
-        );
+        println!("State consistency test - Inconsistencies detected: {total_inconsistencies}");
 
         assert_eq!(
             total_inconsistencies, 0,
@@ -274,8 +270,8 @@ mod state_race_condition_tests {
                     barrier.wait();
 
                     for i in 0..iterations {
-                        let key = format!("RACE_TEST_VAR_{}_{}", thread_id, i);
-                        let value = format!("value_{}_{}", thread_id, i);
+                        let key = format!("RACE_TEST_VAR_{thread_id}_{i}");
+                        let value = format!("value_{thread_id}_{i}");
 
                         // Set variable
                         if SyncEnv::set_var(&key, &value).is_err() {
@@ -344,7 +340,7 @@ mod state_race_condition_tests {
                     let _lock = prefix_lock.lock().unwrap();
 
                     // Set a unique prefix for this thread
-                    let prefix = format!("PREFIX_{}", thread_id);
+                    let prefix = format!("PREFIX_{thread_id}");
                     SyncEnv::set_var("CUENV_PREFIX", &prefix).unwrap();
 
                     let temp_dir = TempDir::new().unwrap();
@@ -357,7 +353,7 @@ mod state_race_condition_tests {
                         StateManager::load(
                             temp_dir.path(),
                             &temp_dir.path().join("env.cue"),
-                            Some(&format!("env_{}", thread_id)),
+                            Some(&format!("env_{thread_id}")),
                             &[],
                             &diff,
                             &watches,
@@ -366,7 +362,7 @@ mod state_race_condition_tests {
                         .unwrap();
 
                         // Verify the correct prefixed variables were set
-                        let expected_var = format!("{}_CUENV_DIR", prefix);
+                        let expected_var = format!("{prefix}_CUENV_DIR");
                         if SyncEnv::var(&expected_var).unwrap().is_none() {
                             prefix_mismatches.fetch_add(1, Ordering::SeqCst);
                         }

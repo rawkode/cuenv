@@ -198,7 +198,7 @@ mod tests {
             let result = cb
                 .call(|| async move {
                     attempt_clone.fetch_add(1, Ordering::SeqCst);
-                    Ok(format!("success-{}", i))
+                    Ok(format!("success-{i}"))
                 })
                 .await;
             assert!(result.is_ok());

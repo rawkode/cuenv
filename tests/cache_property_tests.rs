@@ -663,16 +663,16 @@ mod cache_property_tests {
 
         // Store some entries
         for i in 0..10 {
-            let key = format!("test_key_{}", i);
-            let value = format!("test_value_{}", i);
+            let key = format!("test_key_{i}");
+            let value = format!("test_value_{i}");
             cache.put(&key, &value, None).await.unwrap();
         }
 
         // Verify entries exist
         for i in 0..10 {
-            let key = format!("test_key_{}", i);
+            let key = format!("test_key_{i}");
             let result: Option<String> = cache.get(&key).await.unwrap();
-            assert!(result.is_some(), "Entry {} should exist before clear", i);
+            assert!(result.is_some(), "Entry {i} should exist before clear");
         }
 
         // Clear cache
@@ -680,9 +680,9 @@ mod cache_property_tests {
 
         // Verify no entries exist
         for i in 0..10 {
-            let key = format!("test_key_{}", i);
+            let key = format!("test_key_{i}");
             let result: Option<String> = cache.get(&key).await.unwrap();
-            assert!(result.is_none(), "Entry {} should not exist after clear", i);
+            assert!(result.is_none(), "Entry {i} should not exist after clear");
         }
     }
 }

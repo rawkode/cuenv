@@ -60,10 +60,10 @@ async fn test_hit_rate_analysis() -> Result<(), CacheError> {
     // Generate pattern-based access
     for i in 0..10 {
         monitored
-            .put(&format!("user:{}", i), &format!("data{}", i), None)
+            .put(&format!("user:{i}"), &format!("data{i}"), None)
             .await?;
         monitored
-            .put(&format!("session:{}", i), &format!("data{}", i), None)
+            .put(&format!("session:{i}"), &format!("data{i}"), None)
             .await?;
     }
 
@@ -71,10 +71,10 @@ async fn test_hit_rate_analysis() -> Result<(), CacheError> {
     for i in 0..20 {
         let _: Option<String> = monitored.get(&format!("user:{}", i % 10)).await?;
         if i < 10 {
-            let _: Option<String> = monitored.get(&format!("session:{}", i)).await?;
+            let _: Option<String> = monitored.get(&format!("session:{i}")).await?;
         } else {
             // These will be misses
-            let _: Option<String> = monitored.get(&format!("session:{}", i)).await?;
+            let _: Option<String> = monitored.get(&format!("session:{i}")).await?;
         }
     }
 
@@ -116,9 +116,9 @@ async fn test_performance_profiling() -> Result<(), CacheError> {
     // Need enough operations to ensure we get samples with 1/100 sampling rate
     for i in 0..500 {
         monitored
-            .put(&format!("key{}", i), &format!("value{}", i), None)
+            .put(&format!("key{i}"), &format!("value{i}"), None)
             .await?;
-        let _: Option<String> = monitored.get(&format!("key{}", i)).await?;
+        let _: Option<String> = monitored.get(&format!("key{i}")).await?;
     }
 
     // Get flamegraph data
@@ -152,8 +152,8 @@ async fn test_concurrent_monitoring() -> Result<(), CacheError> {
         let cache = Arc::clone(&monitored);
         let handle = tokio::spawn(async move {
             for i in 0..10 {
-                let key = format!("task{}:key{}", task_id, i);
-                cache.put(&key, &format!("value{}", i), None).await.unwrap();
+                let key = format!("task{task_id}:key{i}");
+                cache.put(&key, &format!("value{i}"), None).await.unwrap();
                 let _: Option<String> = cache.get(&key).await.unwrap();
             }
         });

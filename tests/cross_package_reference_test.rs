@@ -113,7 +113,7 @@ fn test_parse_invalid_characters() {
 
     for invalid in test_cases {
         let result = parse_reference(invalid);
-        assert!(result.is_err(), "Should reject: {}", invalid);
+        assert!(result.is_err(), "Should reject: {invalid}");
     }
 }
 
@@ -129,7 +129,7 @@ fn test_parse_empty_components() {
 
     for invalid in test_cases {
         let result = parse_reference(invalid);
-        assert!(result.is_err(), "Should reject: {}", invalid);
+        assert!(result.is_err(), "Should reject: {invalid}");
     }
 }
 

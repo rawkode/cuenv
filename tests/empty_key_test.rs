@@ -19,7 +19,7 @@ async fn test_empty_key_handling() {
         Ok(Err(CacheError::InvalidKey { .. })) => {
             // This is expected
         }
-        Ok(Err(e)) => panic!("Unexpected error for empty key: {}", e),
+        Ok(Err(e)) => panic!("Unexpected error for empty key: {e}"),
         Err(_) => panic!("Put with empty key timed out"),
     }
 
@@ -34,7 +34,7 @@ async fn test_empty_key_handling() {
         Ok(Ok(_)) => {
             // Expected
         }
-        Ok(Err(e)) => panic!("Valid key rejected after empty key: {}", e),
+        Ok(Err(e)) => panic!("Valid key rejected after empty key: {e}"),
         Err(_) => panic!("Put with valid key timed out after empty key attempt"),
     }
 
@@ -44,11 +44,11 @@ async fn test_empty_key_handling() {
 
     match result {
         Ok(Ok(Some(v))) => {
-            println!("DEBUG: Expected [4, 5, 6], got {:?}", v);
+            println!("DEBUG: Expected [4, 5, 6], got {v:?}");
             assert_eq!(v, vec![4, 5, 6]);
         }
         Ok(Ok(None)) => panic!("Valid key not found"),
-        Ok(Err(e)) => panic!("Get failed: {}", e),
+        Ok(Err(e)) => panic!("Get failed: {e}"),
         Err(_) => panic!("Get timed out"),
     }
 }
@@ -65,7 +65,7 @@ async fn test_basic_vec_serialization() {
     cache.put("basic_test", &test_vec, None).await.unwrap();
 
     let retrieved: Option<Vec<u8>> = cache.get("basic_test").await.unwrap();
-    println!("DEBUG basic: Expected {:?}, got {:?}", test_vec, retrieved);
+    println!("DEBUG basic: Expected {test_vec:?}, got {retrieved:?}");
     assert_eq!(retrieved, Some(test_vec));
 }
 
@@ -79,18 +79,18 @@ async fn test_error_recovery_vec_serialization() {
     // First, try an operation that should fail (but not corrupt state)
     let result = cache.put("", &vec![1, 2, 3], None).await;
     assert!(result.is_err(), "Empty key should fail");
-    println!("DEBUG empty key error: {:?}", result);
+    println!("DEBUG empty key error: {result:?}");
 
     // Now try a valid operation - this should work correctly
     let test_vec = vec![4u8, 5, 6];
-    println!("DEBUG putting: {:?}", test_vec);
+    println!("DEBUG putting: {test_vec:?}");
     cache
         .put("valid_key_after_error", &test_vec, None)
         .await
         .unwrap();
 
     let retrieved: Option<Vec<u8>> = cache.get("valid_key_after_error").await.unwrap();
-    println!("DEBUG retrieved: {:?}", retrieved);
+    println!("DEBUG retrieved: {retrieved:?}");
 
     // Verify raw bytes if possible
     if let Some(ref v) = retrieved {
@@ -131,7 +131,7 @@ async fn test_timeout_wrapped_error_recovery() {
         Ok(Ok(_)) => {
             println!("DEBUG: Valid put completed");
         }
-        Ok(Err(e)) => panic!("Valid key rejected after empty key: {}", e),
+        Ok(Err(e)) => panic!("Valid key rejected after empty key: {e}"),
         Err(_) => panic!("Put with valid key timed out after empty key attempt"),
     }
 
@@ -141,11 +141,11 @@ async fn test_timeout_wrapped_error_recovery() {
 
     match result {
         Ok(Ok(Some(v))) => {
-            println!("DEBUG timeout wrapped: Expected [4, 5, 6], got {:?}", v);
+            println!("DEBUG timeout wrapped: Expected [4, 5, 6], got {v:?}");
             assert_eq!(v, vec![4, 5, 6]);
         }
         Ok(Ok(None)) => panic!("Valid key not found"),
-        Ok(Err(e)) => panic!("Get failed: {}", e),
+        Ok(Err(e)) => panic!("Get failed: {e}"),
         Err(_) => panic!("Get timed out"),
     }
 }
@@ -169,7 +169,7 @@ async fn test_null_byte_key_handling() {
         Ok(Err(CacheError::InvalidKey { .. })) => {
             // This is expected
         }
-        Ok(Err(e)) => panic!("Unexpected error for null byte key: {}", e),
+        Ok(Err(e)) => panic!("Unexpected error for null byte key: {e}"),
         Err(_) => panic!("Put with null byte key timed out"),
     }
 
@@ -184,7 +184,7 @@ async fn test_null_byte_key_handling() {
         Ok(Ok(_)) => {
             // Expected
         }
-        Ok(Err(e)) => panic!("Valid key rejected after null byte key: {}", e),
+        Ok(Err(e)) => panic!("Valid key rejected after null byte key: {e}"),
         Err(_) => panic!("Put with valid key timed out after null byte key attempt"),
     }
 }

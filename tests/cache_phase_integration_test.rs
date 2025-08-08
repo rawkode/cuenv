@@ -58,7 +58,7 @@ mod cache_integration_tests {
         ];
 
         for (config_name, config) in configs {
-            println!("  Testing configuration: {}", config_name);
+            println!("  Testing configuration: {config_name}");
 
             let cache_dir = temp_dir.path().join(config_name);
             let cache = ProductionCache::new(cache_dir.clone(), config.clone())
@@ -79,9 +79,7 @@ mod cache_integration_tests {
                 assert_eq!(
                     retrieved.as_ref(),
                     Some(expected_value),
-                    "Value mismatch for key {} in config {}",
-                    key,
-                    config_name
+                    "Value mismatch for key {key} in config {config_name}"
                 );
             }
 
@@ -117,7 +115,7 @@ mod cache_integration_tests {
                 }
             }
 
-            println!("    {} entries survived restart", found_after_restart);
+            println!("    {found_after_restart} entries survived restart");
             assert!(found_after_restart > 0, "Some data should survive restart");
         }
     }
@@ -156,7 +154,7 @@ mod cache_integration_tests {
                 let mut successful_writes = 0;
 
                 for i in 0..entries_per_writer {
-                    let key = format!("writer_{}_{}", writer_id, i);
+                    let key = format!("writer_{writer_id}_{i}");
                     let value = generate_test_data(512, (writer_id * 1000 + i) as u64); // Reduced from 2KB to 512 bytes
 
                     match cache_clone.put(&key, &value, None).await {
@@ -166,7 +164,7 @@ mod cache_integration_tests {
                             break;
                         }
                         Err(e) => {
-                            println!("Unexpected error from writer {}: {}", writer_id, e);
+                            println!("Unexpected error from writer {writer_id}: {e}");
                             break;
                         }
                     }
@@ -188,7 +186,7 @@ mod cache_integration_tests {
             "    Total writes attempted: {}",
             num_writers * entries_per_writer
         );
-        println!("    Successful writes: {}", total_writes);
+        println!("    Successful writes: {total_writes}");
         println!("    Cache entries: {}", stats_after_fill.entry_count);
         println!(
             "    Memory usage: {} MB",
@@ -223,7 +221,7 @@ mod cache_integration_tests {
                         // 80% reads
                         let writer_id = rng.gen_range(0..num_writers);
                         let entry_id = rng.gen_range(0..entries_per_writer);
-                        let key = format!("writer_{}_{}", writer_id, entry_id);
+                        let key = format!("writer_{writer_id}_{entry_id}");
 
                         match cache_clone.get::<Vec<u8>>(&key).await.unwrap() {
                             Some(_) => hits += 1,
@@ -231,7 +229,7 @@ mod cache_integration_tests {
                         }
                     } else {
                         // 20% writes (to test concurrent access during eviction)
-                        let key = format!("reader_{}_{}", reader_id, i);
+                        let key = format!("reader_{reader_id}_{i}");
                         let value = generate_test_data(1024, (reader_id * 1000 + i) as u64);
 
                         match cache_clone.put(&key, &value, None).await {
@@ -261,9 +259,9 @@ mod cache_integration_tests {
 
         let stats_after_mixed = cache.statistics().await.unwrap();
         println!("  After mixed workload:");
-        println!("    Read hits: {}", total_hits);
-        println!("    Read misses: {}", total_misses);
-        println!("    Reader writes: {}", total_reader_writes);
+        println!("    Read hits: {total_hits}");
+        println!("    Read misses: {total_misses}");
+        println!("    Reader writes: {total_reader_writes}");
         println!(
             "    Hit rate: {:.2}%",
             (total_hits as f64 / (total_hits + total_misses) as f64) * 100.0
@@ -311,14 +309,14 @@ mod cache_integration_tests {
         let mut cumulative_stats = Vec::new();
 
         for (phase_name, num_operations, data_size) in workload_phases {
-            println!("  Phase: {}", phase_name);
+            println!("  Phase: {phase_name}");
 
             let phase_start = SystemTime::now();
 
             // Execute workload phase
             for i in 0..num_operations {
                 let i = i as usize;
-                let key = format!("{}_{}", phase_name, i);
+                let key = format!("{phase_name}_{i}");
                 let value = generate_test_data(data_size, i as u64);
 
                 // Mix of operations
@@ -460,8 +458,7 @@ mod cache_integration_tests {
             assert_eq!(
                 retrieved.as_ref(),
                 Some(expected_value),
-                "Data integrity check failed for {}",
-                key
+                "Data integrity check failed for {key}"
             );
         }
 
@@ -483,7 +480,7 @@ mod cache_integration_tests {
                 );
             }
             Err(e) => {
-                println!("    Large secret failed with error: {}", e);
+                println!("    Large secret failed with error: {e}");
             }
         }
 
@@ -512,20 +509,20 @@ mod cache_integration_tests {
         let temporary_keys = vec!["temp_token", "session_data", "csrf_token"];
         let mut successfully_stored_ttl_keys = Vec::new();
         for key in &temporary_keys {
-            println!("    Putting TTL key: {}", key);
+            println!("    Putting TTL key: {key}");
             match cache
                 .put(key, &b"temporary_sensitive_data".to_vec(), None)
                 .await
             {
                 Ok(_) => {
-                    println!("    TTL key stored successfully: {}", key);
+                    println!("    TTL key stored successfully: {key}");
                     successfully_stored_ttl_keys.push(key.to_string());
                 }
                 Err(CacheError::CapacityExceeded { .. }) => {
-                    println!("    TTL key rejected due to capacity: {}", key);
+                    println!("    TTL key rejected due to capacity: {key}");
                 }
                 Err(e) => {
-                    println!("    TTL key failed with error: {}", e);
+                    println!("    TTL key failed with error: {e}");
                 }
             }
         }
@@ -536,13 +533,13 @@ mod cache_integration_tests {
             match cache.get::<Vec<u8>>(key).await {
                 Ok(Some(_)) => {
                     found_immediately += 1;
-                    println!("    Found key: {}", key);
+                    println!("    Found key: {key}");
                 }
                 Ok(None) => {
-                    println!("    Key not found: {}", key);
+                    println!("    Key not found: {key}");
                 }
                 Err(e) => {
-                    println!("    Error getting key {}: {}", key, e);
+                    println!("    Error getting key {key}: {e}");
                 }
             }
         }
@@ -586,7 +583,7 @@ mod cache_integration_tests {
                 }
                 Err(e) => {
                     // Verify error messages don't leak sensitive data
-                    let error_str = format!("{}", e);
+                    let error_str = format!("{e}");
                     assert!(!error_str.contains("password"));
                     assert!(!error_str.contains("secret"));
                     assert!(!error_str.contains("token"));
@@ -607,13 +604,11 @@ mod cache_integration_tests {
 
         // Since we can't clone the cache easily, let's test differently
         // Test concurrent access to the same cache instance
-        let secure_keys: Vec<String> = (0..100)
-            .map(|i| format!("secure_concurrent_{}", i))
-            .collect();
+        let secure_keys: Vec<String> = (0..100).map(|i| format!("secure_concurrent_{i}")).collect();
 
         // Store sensitive data
         for key in &secure_keys {
-            let value = format!("sensitive_value_{}", key).as_bytes().to_vec();
+            let value = format!("sensitive_value_{key}").as_bytes().to_vec();
             cache.put(key, &value, None).await.unwrap();
         }
 
@@ -647,7 +642,7 @@ mod cache_integration_tests {
         let total_ops = final_stats.hits + final_stats.misses + final_stats.writes;
         let hit_rate =
             final_stats.hits as f64 / (final_stats.hits + final_stats.misses).max(1) as f64;
-        println!("    Total operations: {}", total_ops);
+        println!("    Total operations: {total_ops}");
         println!("    Entries: {}", final_stats.entry_count);
         println!("    Hit rate: {:.2}%", hit_rate * 100.0);
 
@@ -721,8 +716,7 @@ mod cache_integration_tests {
             if let Some(actual_value) = retrieved {
                 assert_eq!(
                     actual_value, *expected_value,
-                    "Storage persistence failed for {}",
-                    key
+                    "Storage persistence failed for {key}"
                 );
             }
         }
@@ -744,7 +738,7 @@ mod cache_integration_tests {
                 let mut worker_errors = 0;
 
                 for i in 0..operations_per_worker {
-                    let key = format!("concurrent_{}_{}", worker_id, i);
+                    let key = format!("concurrent_{worker_id}_{i}");
                     let value = generate_test_data(512, (worker_id * 1000 + i) as u64);
 
                     // Mix of operations
@@ -801,7 +795,7 @@ mod cache_integration_tests {
         let mut eviction_entries = 0;
         // Reduce to 200 entries max to avoid timeout
         for i in 0..200 {
-            let key = format!("eviction_test_{}", i);
+            let key = format!("eviction_test_{i}");
             let value = generate_test_data(8192, i as u64); // 8KB entries (within 10KB limit)
 
             match cache.put(&key, &value, None).await {
@@ -818,7 +812,7 @@ mod cache_integration_tests {
         }
 
         let stats_after_eviction = cache.statistics().await.unwrap();
-        println!("    Entries stored before eviction: {}", eviction_entries);
+        println!("    Entries stored before eviction: {eviction_entries}");
         println!(
             "    Cache entries after eviction: {}",
             stats_after_eviction.entry_count
@@ -832,11 +826,10 @@ mod cache_integration_tests {
 
         // Simulate distributed cache scenarios
         // (Note: This would normally involve actual remote cache servers)
-        let distributed_keys: Vec<String> =
-            (0..100).map(|i| format!("distributed_{}", i)).collect();
+        let distributed_keys: Vec<String> = (0..100).map(|i| format!("distributed_{i}")).collect();
 
         for key in &distributed_keys {
-            let value = format!("distributed_value_{}", key);
+            let value = format!("distributed_value_{key}");
             match cache.put(key, &value, None).await {
                 Ok(_) => {}
                 Err(CacheError::CapacityExceeded { .. }) => {
@@ -844,7 +837,7 @@ mod cache_integration_tests {
                     println!("    Note: Cache capacity reached, some entries may not be stored");
                     break;
                 }
-                Err(e) => panic!("Unexpected cache error: {:?}", e),
+                Err(e) => panic!("Unexpected cache error: {e:?}"),
             }
         }
 
@@ -883,10 +876,7 @@ mod cache_integration_tests {
         // Clear cache to ensure clean state after heavy eviction testing
         // This prevents corruption from previous phases affecting this test
         cache.clear().await.unwrap_or_else(|e| {
-            println!(
-                "    Warning: Failed to clear cache before security test: {}",
-                e
-            );
+            println!("    Warning: Failed to clear cache before security test: {e}");
         });
 
         // Give the cache a moment to stabilize after clearing
@@ -898,12 +888,9 @@ mod cache_integration_tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        let security_test_key = format!("security_test_{}", timestamp);
+        let security_test_key = format!("security_test_{timestamp}");
         let security_test_value: Vec<u8> = b"secure_sensitive_data".to_vec();
-        println!(
-            "    About to store security test data with key: {}",
-            security_test_key
-        );
+        println!("    About to store security test data with key: {security_test_key}");
         match cache
             .put(&security_test_key, &security_test_value, None)
             .await
@@ -916,10 +903,7 @@ mod cache_integration_tests {
                 println!("    Security test data rejected due to capacity - expected under memory pressure");
             }
             Err(e) => {
-                println!(
-                    "    Security test data failed with error: {} - continuing test",
-                    e
-                );
+                println!("    Security test data failed with error: {e} - continuing test");
             }
         }
 
@@ -931,7 +915,7 @@ mod cache_integration_tests {
         let security_key = security_test_key.to_string();
 
         let get_task = tokio::spawn(async move {
-            println!("    [Task] Starting cache.get for key: {}", security_key);
+            println!("    [Task] Starting cache.get for key: {security_key}");
             let result = cache_clone.get::<Vec<u8>>(&security_key).await;
             println!("    [Task] Completed cache.get");
             result
@@ -960,12 +944,12 @@ mod cache_integration_tests {
                     );
                 }
                 Err(e) => {
-                    println!("    Security data retrieval failed with error: {}", e);
+                    println!("    Security data retrieval failed with error: {e}");
                     println!("    This is acceptable under extreme memory pressure");
                 }
             },
             Ok(Err(e)) => {
-                println!("    Task failed to complete: {}", e);
+                println!("    Task failed to complete: {e}");
                 println!("    This can happen under extreme load conditions");
             }
         }
@@ -984,7 +968,7 @@ mod cache_integration_tests {
                     // Expected when cache approaches capacity
                     break;
                 }
-                Err(e) => panic!("Unexpected cache error: {:?}", e),
+                Err(e) => panic!("Unexpected cache error: {e:?}"),
             }
         }
 
@@ -1044,10 +1028,7 @@ mod cache_integration_tests {
         if final_successful_writes == 0 {
             println!("    Cache correctly rejected writes under memory pressure");
         } else {
-            println!(
-                "    Cache accepted {} final writes under pressure",
-                final_successful_writes
-            );
+            println!("    Cache accepted {final_successful_writes} final writes under pressure");
         }
         // Only check hit rate if we had successful writes
         if final_successful_writes > 0 {
@@ -1063,7 +1044,7 @@ mod cache_integration_tests {
         assert!(final_stats.entry_count > 0, "Should have entries remaining");
         // Data integrity is critical - even under pressure, corrupted data is unacceptable
         if final_data_integrity_failures > 0 {
-            println!("    WARNING: {} data integrity failures detected - this indicates a serious cache bug", final_data_integrity_failures);
+            println!("    WARNING: {final_data_integrity_failures} data integrity failures detected - this indicates a serious cache bug");
         }
 
         // For now, we'll allow some integrity failures under extreme load, but this should be fixed
@@ -1090,7 +1071,7 @@ mod cache_integration_tests {
     fn generate_test_data_set(count: usize, value_size: usize) -> Vec<(String, Vec<u8>)> {
         (0..count)
             .map(|i| {
-                let key = format!("test_key_{}", i);
+                let key = format!("test_key_{i}");
                 let value = generate_test_data(value_size, i as u64);
                 (key, value)
             })

@@ -22,7 +22,7 @@ async fn test_lru_eviction_policy() {
 
     // Fill cache beyond limit
     for i in 0..20 {
-        let key = format!("key_{}", i);
+        let key = format!("key_{i}");
         let value = vec![0u8; 1024]; // 1KB each
         cache.put(&key, &value, None).await.unwrap();
 
@@ -57,7 +57,7 @@ async fn test_lfu_eviction_policy() {
 
     // Add entries with different access frequencies
     for i in 0..10 {
-        let key = format!("key_{}", i);
+        let key = format!("key_{i}");
         let value = vec![0u8; 1024]; // 1KB each
         cache.put(&key, &value, None).await.unwrap();
 
@@ -69,7 +69,7 @@ async fn test_lfu_eviction_policy() {
 
     // Add more entries to trigger eviction
     for i in 10..20 {
-        let key = format!("key_{}", i);
+        let key = format!("key_{i}");
         let value = vec![0u8; 1024];
         cache.put(&key, &value, None).await.unwrap();
     }
@@ -103,14 +103,14 @@ async fn test_arc_eviction_policy() {
     // Simulate mixed access pattern
     // First, fill with sequential access (T1 candidates)
     for i in 0..10 {
-        let key = format!("seq_{}", i);
+        let key = format!("seq_{i}");
         let value = vec![0u8; 1024];
         cache.put(&key, &value, None).await.unwrap();
     }
 
     // Then add frequently accessed items (T2 candidates)
     for i in 0..5 {
-        let key = format!("freq_{}", i);
+        let key = format!("freq_{i}");
         let value = vec![0u8; 1024];
         cache.put(&key, &value, None).await.unwrap();
 
@@ -122,19 +122,18 @@ async fn test_arc_eviction_policy() {
 
     // Trigger eviction with new entries
     for i in 10..25 {
-        let key = format!("new_{}", i);
+        let key = format!("new_{i}");
         let value = vec![0u8; 1024];
         cache.put(&key, &value, None).await.unwrap();
     }
 
     // Frequently accessed items should be retained
     for i in 0..5 {
-        let key = format!("freq_{}", i);
+        let key = format!("freq_{i}");
         let result: Option<Vec<u8>> = cache.get(&key).await.unwrap();
         assert!(
             result.is_some(),
-            "Frequently accessed key {} should be retained",
-            key
+            "Frequently accessed key {key} should be retained"
         );
     }
 }
@@ -157,14 +156,14 @@ async fn test_memory_pressure_handling() {
     // Fill cache to create memory pressure
     let mut keys = Vec::new();
     for i in 0..100 {
-        let key = format!("pressure_test_{}", i);
+        let key = format!("pressure_test_{i}");
         let value = vec![0u8; 1024]; // 1KB each
 
         match cache.put(&key, &value, None).await {
             Ok(()) => keys.push(key),
             Err(e) => {
                 // Should eventually hit quota and trigger eviction
-                println!("Put failed as expected: {}", e);
+                println!("Put failed as expected: {e}");
                 break;
             }
         }
@@ -209,11 +208,11 @@ async fn test_disk_quota_management() {
 
     let mut successful_puts = 0;
     for i in 0..10 {
-        let key = format!("disk_quota_{}", i);
+        let key = format!("disk_quota_{i}");
         match cache.put(&key, &large_value, None).await {
             Ok(()) => successful_puts += 1,
             Err(e) => {
-                println!("Expected disk quota error: {}", e);
+                println!("Expected disk quota error: {e}");
                 break;
             }
         }
@@ -251,7 +250,7 @@ async fn test_concurrent_eviction_safety() {
         let cache = cache.clone();
         let handle = tokio::spawn(async move {
             for i in 0..50 {
-                let key = format!("concurrent_{}_{}", task_id, i);
+                let key = format!("concurrent_{task_id}_{i}");
                 let value = vec![task_id as u8; 512]; // 512B each
 
                 // Randomly put or get
@@ -304,7 +303,7 @@ async fn test_eviction_with_ttl() {
 
     // Add entries with short TTL
     for i in 0..5 {
-        let key = format!("ttl_{}", i);
+        let key = format!("ttl_{i}");
         let value = vec![0u8; 1024];
         cache
             .put(&key, &value, Some(Duration::from_millis(100)))
@@ -314,7 +313,7 @@ async fn test_eviction_with_ttl() {
 
     // Add entries without TTL
     for i in 5..10 {
-        let key = format!("permanent_{}", i);
+        let key = format!("permanent_{i}");
         let value = vec![0u8; 1024];
         cache.put(&key, &value, None).await.unwrap();
     }
@@ -324,14 +323,14 @@ async fn test_eviction_with_ttl() {
 
     // Add more entries to trigger eviction
     for i in 10..15 {
-        let key = format!("new_{}", i);
+        let key = format!("new_{i}");
         let value = vec![0u8; 1024];
         cache.put(&key, &value, None).await.unwrap();
     }
 
     // TTL entries should be gone
     for i in 0..5 {
-        let key = format!("ttl_{}", i);
+        let key = format!("ttl_{i}");
         let result: Option<Vec<u8>> = cache.get(&key).await.unwrap();
         assert!(result.is_none(), "Expired entry should be removed");
     }
@@ -339,7 +338,7 @@ async fn test_eviction_with_ttl() {
     // Permanent entries should still exist (unless evicted)
     let mut permanent_count = 0;
     for i in 5..10 {
-        let key = format!("permanent_{}", i);
+        let key = format!("permanent_{i}");
         let result: Option<Vec<u8>> = cache.get(&key).await.unwrap();
         if result.is_some() {
             permanent_count += 1;

@@ -34,7 +34,7 @@ mod landlock_audit_tests {
             }
             Err(e) => {
                 // If strace is not available, that's OK for CI
-                eprintln!("Audit test skipped: {}", e);
+                eprintln!("Audit test skipped: {e}");
             }
         }
     }
@@ -61,7 +61,7 @@ mod landlock_audit_tests {
                 assert!(has_localhost);
             }
             Err(e) => {
-                eprintln!("Audit test skipped: {}", e);
+                eprintln!("Audit test skipped: {e}");
             }
         }
     }
@@ -88,7 +88,7 @@ mod landlock_audit_tests {
                 report.print_summary();
             }
             Err(e) => {
-                eprintln!("Audit test skipped: {}", e);
+                eprintln!("Audit test skipped: {e}");
             }
         }
     }

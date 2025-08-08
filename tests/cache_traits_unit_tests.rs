@@ -42,7 +42,7 @@ impl TestData {
             name: name.to_string(),
             values: vec![1, 2, 3, id as i32],
             optional: if id % 2 == 0 {
-                Some(format!("even_{}", id))
+                Some(format!("even_{id}"))
             } else {
                 None
             },
@@ -74,7 +74,7 @@ async fn test_cache_metadata_creation_and_fields() {
     assert_eq!(metadata.cache_version, 1);
 
     // Test Debug trait
-    let debug_str = format!("{:?}", metadata);
+    let debug_str = format!("{metadata:?}");
     assert!(debug_str.contains("CacheMetadata"));
     assert!(debug_str.contains("size_bytes: 1024"));
 }
@@ -238,14 +238,14 @@ async fn test_cache_clear() {
 
     // Add multiple items
     for i in 0..5 {
-        let key = format!("clear_test_{}", i);
-        let value = format!("value_{}", i);
+        let key = format!("clear_test_{i}");
+        let value = format!("value_{i}");
         cache.put(&key, &value, None).await.unwrap();
     }
 
     // Verify items exist
     for i in 0..5 {
-        let key = format!("clear_test_{}", i);
+        let key = format!("clear_test_{i}");
         assert!(cache.contains(&key).await.unwrap());
     }
 
@@ -254,7 +254,7 @@ async fn test_cache_clear() {
 
     // Verify items are gone
     for i in 0..5 {
-        let key = format!("clear_test_{}", i);
+        let key = format!("clear_test_{i}");
         assert!(!cache.contains(&key).await.unwrap());
     }
 }
@@ -466,7 +466,7 @@ async fn test_key_validation() {
 
     for key in valid_keys {
         let result = cache.put(key, &"value", None).await;
-        assert!(result.is_ok(), "Key '{}' should be valid", key);
+        assert!(result.is_ok(), "Key '{key}' should be valid");
     }
 }
 

@@ -24,8 +24,7 @@ mod empty_key_tests {
         // Assert that empty key is rejected with InvalidKey error
         assert!(
             matches!(result, Err(CacheError::InvalidKey { .. })),
-            "Empty key should be rejected with InvalidKey error, got: {:?}",
-            result
+            "Empty key should be rejected with InvalidKey error, got: {result:?}"
         );
 
         // Test 2: Verify cache remains functional after empty key rejection
@@ -55,8 +54,7 @@ mod empty_key_tests {
 
         assert!(
             matches!(get_result, Err(CacheError::InvalidKey { .. })),
-            "Empty key should be rejected on get operation too, got: {:?}",
-            get_result
+            "Empty key should be rejected on get operation too, got: {get_result:?}"
         );
 
         // Test 5: Verify cache is still functional
@@ -91,8 +89,7 @@ mod empty_key_tests {
 
         assert!(
             matches!(metadata_result, Err(CacheError::InvalidKey { .. })),
-            "Empty key should be rejected on metadata operation, got: {:?}",
-            metadata_result
+            "Empty key should be rejected on metadata operation, got: {metadata_result:?}"
         );
 
         // Test remove operation with empty key
@@ -100,8 +97,7 @@ mod empty_key_tests {
 
         assert!(
             matches!(remove_result, Err(CacheError::InvalidKey { .. })),
-            "Empty key should be rejected on remove operation, got: {:?}",
-            remove_result
+            "Empty key should be rejected on remove operation, got: {remove_result:?}"
         );
     }
 }

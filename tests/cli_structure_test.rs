@@ -37,7 +37,7 @@ fn test_help_shows_all_main_commands() {
 #[test]
 fn test_shell_subcommand_exists() {
     let output = Command::new("./target/debug/cuenv")
-        .args(&["shell", "--help"])
+        .args(["shell", "--help"])
         .output()
         .expect("Failed to execute cuenv");
 
@@ -52,7 +52,7 @@ fn test_shell_subcommand_exists() {
 #[test]
 fn test_shell_init_subcommand() {
     let output = Command::new("./target/debug/cuenv")
-        .args(&["shell", "init", "--help"])
+        .args(["shell", "init", "--help"])
         .output()
         .expect("Failed to execute cuenv");
 
@@ -70,7 +70,7 @@ fn test_shell_init_subcommand() {
 #[test]
 fn test_shell_load_subcommand() {
     let output = Command::new("./target/debug/cuenv")
-        .args(&["shell", "load", "--help"])
+        .args(["shell", "load", "--help"])
         .output()
         .expect("Failed to execute cuenv");
 
@@ -88,7 +88,7 @@ fn test_shell_load_subcommand() {
 #[test]
 fn test_shell_unload_subcommand() {
     let output = Command::new("./target/debug/cuenv")
-        .args(&["shell", "unload", "--help"])
+        .args(["shell", "unload", "--help"])
         .output()
         .expect("Failed to execute cuenv");
 
@@ -106,7 +106,7 @@ fn test_shell_unload_subcommand() {
 #[test]
 fn test_shell_hook_subcommand() {
     let output = Command::new("./target/debug/cuenv")
-        .args(&["shell", "hook", "--help"])
+        .args(["shell", "hook", "--help"])
         .output()
         .expect("Failed to execute cuenv");
 
@@ -124,7 +124,7 @@ fn test_shell_hook_subcommand() {
 #[test]
 fn test_cache_clear_subcommand() {
     let output = Command::new("./target/debug/cuenv")
-        .args(&["cache", "clear", "--help"])
+        .args(["cache", "clear", "--help"])
         .output()
         .expect("Failed to execute cuenv");
 
@@ -142,7 +142,7 @@ fn test_cache_clear_subcommand() {
 #[test]
 fn test_cache_stats_subcommand() {
     let output = Command::new("./target/debug/cuenv")
-        .args(&["cache", "stats", "--help"])
+        .args(["cache", "stats", "--help"])
         .output()
         .expect("Failed to execute cuenv");
 
@@ -222,7 +222,7 @@ fn test_init_force_overwrites_existing_file() {
 
     let output = Command::new("./target/debug/cuenv")
         .current_dir(temp_dir.path())
-        .args(&["init", "--force"])
+        .args(["init", "--force"])
         .output()
         .expect("Failed to execute cuenv");
 
@@ -329,7 +329,7 @@ fn test_legacy_clear_cache_removed() {
 fn test_load_command_removed() {
     // The load command should no longer exist at the top level
     let output = Command::new("./target/debug/cuenv")
-        .args(&["load", "--help"])
+        .args(["load", "--help"])
         .output()
         .expect("Failed to execute cuenv");
 
@@ -343,7 +343,7 @@ fn test_load_command_removed() {
 fn test_unload_command_removed() {
     // The unload command should no longer exist at the top level
     let output = Command::new("./target/debug/cuenv")
-        .args(&["unload", "--help"])
+        .args(["unload", "--help"])
         .output()
         .expect("Failed to execute cuenv");
 
@@ -357,7 +357,7 @@ fn test_unload_command_removed() {
 fn test_hook_command_removed() {
     // The hook command should no longer exist at the top level
     let output = Command::new("./target/debug/cuenv")
-        .args(&["hook", "--help"])
+        .args(["hook", "--help"])
         .output()
         .expect("Failed to execute cuenv");
 

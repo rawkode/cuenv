@@ -121,8 +121,8 @@ async fn test_discover_all_tasks() {
     for package in &packages {
         if let Some(ref result) = package.parse_result {
             println!("Package {}: {} tasks", package.name, result.tasks.len());
-            for (task_name, _) in &result.tasks {
-                println!("  - {}", task_name);
+            for task_name in result.tasks.keys() {
+                println!("  - {task_name}");
                 found_tasks.push((package.name.clone(), task_name.clone()));
             }
             total_tasks += result.tasks.len();
@@ -143,9 +143,7 @@ async fn test_discover_all_tasks() {
             found_tasks
                 .iter()
                 .any(|(p, t)| p == &package_str && t == &task_str),
-            "Expected task {}:{} not found",
-            package,
-            task
+            "Expected task {package}:{task} not found"
         );
     }
 }
@@ -359,13 +357,12 @@ tasks: {
 
     // Debug: print all tasks
     let all_tasks = registry.list_all_tasks();
-    println!("All tasks in registry: {:?}", all_tasks);
+    println!("All tasks in registry: {all_tasks:?}");
 
     // The registry should be created successfully
     assert!(
         registry.get_task("root:deploy").is_some(),
-        "Task 'root:deploy' not found. Available tasks: {:?}",
-        all_tasks
+        "Task 'root:deploy' not found. Available tasks: {all_tasks:?}"
     );
 
     // But validation of dependencies should fail

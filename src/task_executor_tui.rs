@@ -315,7 +315,7 @@ impl TaskExecutorTui for TaskExecutor {
             loop {
                 interval.tick().await;
                 let formatter = formatter_tick.read().await;
-                if let Err(_) = formatter.tick().await {
+                if formatter.tick().await.is_err() {
                     break;
                 }
             }

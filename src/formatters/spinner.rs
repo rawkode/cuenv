@@ -179,7 +179,7 @@ impl SpinnerFormatter {
                 .unwrap_or_default();
 
             let mut display = TaskDisplay::new(task_name.clone(), depth, deps);
-            display.line_number = Some((self.start_line + idx as u16 + 2) as u16);
+            display.line_number = Some(self.start_line + idx as u16 + 2);
             tasks.insert(task_name.clone(), display);
         }
 
@@ -216,11 +216,12 @@ impl SpinnerFormatter {
     }
 
     /// Recursively add a task and its dependents to the display order
+    #[allow(clippy::only_used_in_recursion)]
     fn add_task_and_dependents(
         &self,
         task_name: &str,
         plan: &TaskExecutionPlan,
-        depths: &HashMap<String, usize>,
+        _depths: &HashMap<String, usize>,
         order: &mut Vec<String>,
         processed: &mut std::collections::HashSet<String>,
     ) {
@@ -236,7 +237,7 @@ impl SpinnerFormatter {
             if let Some(deps) = &other_config.dependencies {
                 if deps.contains(&task_name.to_string()) && !processed.contains(other_name) {
                     // This task depends on the current one, add it next (with indentation)
-                    self.add_task_and_dependents(other_name, plan, depths, order, processed);
+                    self.add_task_and_dependents(other_name, plan, _depths, order, processed);
                 }
             }
         }
@@ -365,7 +366,7 @@ impl SpinnerFormatter {
                     if task
                         .message
                         .as_ref()
-                        .map_or(false, |m| m.contains("cache hit"))
+                        .is_some_and(|m| m.contains("cache hit"))
                     {
                         task.is_skipped = true;
                         task.skip_reason = Some("Already cached".to_string());
