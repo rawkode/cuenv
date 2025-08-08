@@ -230,7 +230,7 @@ impl Cache {
 
         // Scan disk for orphaned metadata files (no corresponding data file)
         let metadata_dir = inner.base_dir.join("metadata");
-        if metadata_dir.exists() {
+        if fs::metadata(&metadata_dir).await.is_ok() {
             Self::scan_for_corrupted_files(inner, &metadata_dir, &mut corrupted_keys).await;
         }
 
@@ -279,7 +279,8 @@ impl Cache {
                 // Check if corresponding data file exists
                 if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
                     let data_path = Self::object_path_from_hash(inner, file_stem);
-                    if !data_path.exists() {
+                    let data_exists = fs::metadata(&data_path).await.is_ok();
+                    if !data_exists {
                         // Orphaned metadata file - clean it up
                         if fs::remove_file(&path).await.is_ok() {
                             cleanup_count += 1;
@@ -825,6 +826,27 @@ impl CacheTrait for Cache {
         // Resolve TTL - use provided TTL or fall back to default TTL
         let effective_ttl = ttl.or(self.inner.config.default_ttl);
 
+        // Check entry count limit before any insertion
+        let current_entry_count = self.inner.stats.entry_count.load(Ordering::Relaxed);
+        let is_replacing_existing =
+            self.inner.memory_cache.contains_key(key) || self.inner.fast_path.contains_small(key);
+
+        if !is_replacing_existing
+            && self.inner.config.max_entries > 0
+            && current_entry_count >= self.inner.config.max_entries
+        {
+            return Err(CacheError::CapacityExceeded {
+                requested_bytes: data.len() as u64,
+                available_bytes: 0,
+                recovery_hint: RecoveryHint::Manual {
+                    instructions: format!(
+                        "Cache has reached maximum entry limit of {}. Consider increasing max_entries or clearing old entries.",
+                        self.inner.config.max_entries
+                    ),
+                },
+            });
+        }
+
         // Fast path for small values (< 256 bytes)
         if data.len() < 256 {
             let metadata = CacheMetadata {
@@ -847,7 +869,10 @@ impl CacheTrait for Cache {
                 .put_small(key.to_string(), data.clone(), metadata)
             {
                 self.inner.stats.writes.fetch_add(1, Ordering::Relaxed);
-                self.inner.stats.entry_count.fetch_add(1, Ordering::Relaxed);
+                // Only increment entry count if this is a new entry
+                if !is_replacing_existing {
+                    self.inner.stats.entry_count.fetch_add(1, Ordering::Relaxed);
+                }
                 return Ok(());
             }
         }
@@ -919,26 +944,6 @@ impl CacheTrait for Cache {
         }
 
         // Eviction policy will be notified only if we insert into in-memory cache (see below).
-
-        // Check entry count limit first
-        let current_entry_count = self.inner.stats.entry_count.load(Ordering::Relaxed);
-        let is_replacing_existing = self.inner.memory_cache.contains_key(key);
-
-        if !is_replacing_existing
-            && self.inner.config.max_entries > 0
-            && current_entry_count >= self.inner.config.max_entries
-        {
-            return Err(CacheError::CapacityExceeded {
-                requested_bytes: data.len() as u64,
-                available_bytes: 0,
-                recovery_hint: RecoveryHint::Manual {
-                    instructions: format!(
-                        "Cache has reached maximum entry limit of {}. Consider increasing max_entries or clearing old entries.",
-                        self.inner.config.max_entries
-                    ),
-                },
-            });
-        }
 
         // Memory limit is enforced for in-memory caching only. If adding this entry would exceed the
         // configured memory, we skip inserting into the in-memory cache below but still persist to disk.
@@ -1309,7 +1314,12 @@ impl CacheTrait for Cache {
             Err(e) => return Err(e),
         }
 
-        // Check memory first
+        // Check fast-path cache first
+        if self.inner.fast_path.contains_small(key) {
+            return Ok(true);
+        }
+
+        // Check memory cache
         if let Some(entry) = self.inner.memory_cache.get(key) {
             // Check if expired
             if let Some(expires_at) = entry.metadata.expires_at {
@@ -1322,7 +1332,24 @@ impl CacheTrait for Cache {
 
         // Check disk - only need to check metadata
         let metadata_path = Self::metadata_path(&self.inner, key);
-        if !metadata_path.exists() {
+
+        // Use async metadata check instead of sync exists()
+        let exists = match fs::metadata(&metadata_path).await {
+            Ok(_) => true,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
+            Err(e) => {
+                return Err(CacheError::Io {
+                    path: metadata_path.clone(),
+                    operation: "check metadata file existence",
+                    source: e,
+                    recovery_hint: RecoveryHint::Retry {
+                        after: Duration::from_millis(100),
+                    },
+                });
+            }
+        };
+
+        if !exists {
             return Ok(false);
         }
 
@@ -1380,7 +1407,12 @@ impl CacheTrait for Cache {
             Err(e) => return Err(e),
         }
 
-        // Check memory first
+        // Check fast-path cache first
+        if let Some((_data, metadata)) = self.inner.fast_path.get_small(key) {
+            return Ok(Some(metadata));
+        }
+
+        // Check memory cache
         if let Some(entry) = self.inner.memory_cache.get(key) {
             return Ok(Some(entry.metadata.clone()));
         }
@@ -1418,7 +1450,7 @@ impl CacheTrait for Cache {
 
         // Clear disk cache
         let objects_dir = self.inner.base_dir.join("objects");
-        if objects_dir.exists() {
+        if fs::metadata(&objects_dir).await.is_ok() {
             match fs::remove_dir_all(&objects_dir).await {
                 Ok(()) => {}
                 Err(e) => {
@@ -1448,7 +1480,7 @@ impl CacheTrait for Cache {
 
         // Also clear metadata directory
         let metadata_dir = self.inner.base_dir.join("metadata");
-        if metadata_dir.exists() {
+        if fs::metadata(&metadata_dir).await.is_ok() {
             match fs::remove_dir_all(&metadata_dir).await {
                 Ok(()) => {}
                 Err(e) => {

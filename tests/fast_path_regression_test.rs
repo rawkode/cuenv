@@ -21,7 +21,7 @@ async fn test_fast_path_vec_u8_correctness() {
         .unwrap();
 
     // Test various small Vec<u8> values that should use the fast path
-    let test_cases = vec![
+    let test_cases = [
         vec![0u8; 10],                // All zeros
         vec![255u8; 10],              // All max values
         vec![1, 2, 3, 4, 5],          // Sequential values
@@ -49,7 +49,7 @@ async fn test_fast_path_vec_u8_correctness() {
     }
 
     // Test edge cases around the fast-path threshold (256 bytes)
-    let edge_cases = vec![
+    let edge_cases = [
         vec![42u8; 255], // Just under threshold
         vec![42u8; 256], // Exactly at threshold
         vec![42u8; 257], // Just over threshold

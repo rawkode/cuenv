@@ -109,6 +109,25 @@ impl FastPathCache {
         }
     }
 
+    /// Check if a key exists in the fast-path cache
+    #[inline(always)]
+    pub fn contains_small(&self, key: &str) -> bool {
+        if let Some(entry) = self.small_values.get(key) {
+            // Check expiration
+            if let Some(expires_at) = entry.metadata.expires_at {
+                if expires_at <= SystemTime::now() {
+                    // Expired - remove and return false
+                    drop(entry);
+                    self.small_values.remove(key);
+                    return false;
+                }
+            }
+            true
+        } else {
+            false
+        }
+    }
+
     /// Remove a small-value entry
     ///
     /// Returns `true` if an entry existed and was removed.
