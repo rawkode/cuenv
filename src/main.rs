@@ -97,7 +97,7 @@ enum Commands {
         #[arg(long)]
         audit: bool,
 
-        /// Output format for task execution (tui or simple)
+        /// Output format for task execution (tui, simple, or spinner)
         #[arg(long, value_name = "FORMAT", default_value = "tui")]
         output: String,
 
@@ -1138,6 +1138,12 @@ tasks: env.#Tasks & {
                             use cuenv::task_executor_tui::TaskExecutorTui;
                             executor
                                 .execute_with_tui(&[name.clone()], &task_args, audit)
+                                .await?
+                        } else if output == "spinner" {
+                            // Use spinner mode (Docker Compose-style)
+                            use cuenv::task_executor_tui::TaskExecutorTui;
+                            executor
+                                .execute_with_spinner(&[name.clone()], &task_args, audit)
                                 .await?
                         } else if audit {
                             executor.execute_task_with_audit(&name, &task_args).await?

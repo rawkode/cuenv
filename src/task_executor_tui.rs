@@ -23,6 +23,14 @@ pub trait TaskExecutorTui {
         audit_mode: bool,
         trace_output: bool,
     ) -> Result<i32>;
+
+    /// Execute tasks with spinner output (Docker Compose-style)
+    async fn execute_with_spinner(
+        &self,
+        task_names: &[String],
+        args: &[String],
+        audit_mode: bool,
+    ) -> Result<i32>;
 }
 
 impl TaskExecutorTui for TaskExecutor {
@@ -236,6 +244,103 @@ impl TaskExecutorTui for TaskExecutor {
         // Cleanup
         drop(event_bus);
         let _ = event_handle.await;
+
+        result
+    }
+
+    async fn execute_with_spinner(
+        &self,
+        task_names: &[String],
+        args: &[String],
+        audit_mode: bool,
+    ) -> Result<i32> {
+        use crate::formatters::SpinnerFormatter;
+
+        // Build execution plan
+        let plan = self.build_execution_plan(task_names)?;
+
+        // Create event bus
+        let event_bus = EventBus::new();
+
+        // Set as global event bus so task executor can publish events
+        let _ = EventBus::set_global(event_bus.clone());
+
+        // Register all tasks with the event bus
+        for (task_name, task_config) in &plan.tasks {
+            let dependencies = task_config.dependencies.clone().unwrap_or_default();
+            event_bus
+                .register_task(task_name.clone(), dependencies)
+                .await;
+        }
+
+        // Create spinner formatter
+        let mut formatter = SpinnerFormatter::new(event_bus.registry().clone());
+
+        // Initialize the display
+        formatter.initialize(&plan).await.map_err(|e| {
+            Error::configuration(format!("Failed to initialize spinner formatter: {}", e))
+        })?;
+
+        // Subscribe to events
+        let mut subscriber = event_bus.subscribe();
+        let formatter = Arc::new(tokio::sync::RwLock::new(formatter));
+        let formatter_clone = formatter.clone();
+
+        // Create a channel to signal completion
+        let (done_tx, mut done_rx) = tokio::sync::oneshot::channel::<()>();
+
+        // Spawn event handler with completion signal
+        let event_handle = tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    event = subscriber.recv() => {
+                        if let Some(event) = event {
+                            let formatter = formatter_clone.read().await;
+                            let _ = formatter.handle_event(event).await;
+                        } else {
+                            break;
+                        }
+                    }
+                    _ = &mut done_rx => {
+                        break;
+                    }
+                }
+            }
+        });
+
+        // Spawn ticker for animation
+        let formatter_tick = formatter.clone();
+        let ticker_handle = tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(100));
+            loop {
+                interval.tick().await;
+                let formatter = formatter_tick.read().await;
+                if let Err(_) = formatter.tick().await {
+                    break;
+                }
+            }
+        });
+
+        // Execute tasks
+        let result = self
+            .execute_tasks_with_dependencies_internal(task_names, args, audit_mode, true)
+            .await;
+
+        // Signal completion to event handler
+        let _ = done_tx.send(());
+
+        // Stop the ticker
+        ticker_handle.abort();
+
+        // Wait for event handler to finish
+        let _ = event_handle.await;
+
+        // Cleanup formatter
+        let formatter = formatter.read().await;
+        let _ = formatter.cleanup();
+
+        // Cleanup event bus
+        drop(event_bus);
 
         result
     }
