@@ -23,7 +23,6 @@ git_release_enable = true
 git_release_draft = false
 
 # PR configuration
-pr_labels = ["release"]
 pr_name = "chore: release {{ version }}"
 
 # Semver check configuration (requires cargo-semver-checks)
