@@ -89,12 +89,7 @@ impl MonorepoTaskRegistry {
     pub fn list_all_tasks(&self) -> Vec<(String, Option<String>)> {
         self.tasks
             .values()
-            .map(|task| {
-                (
-                    task.full_name.clone(),
-                    task.config.description.clone(),
-                )
-            })
+            .map(|task| (task.full_name.clone(), task.config.description.clone()))
             .collect()
     }
 
@@ -106,13 +101,16 @@ impl MonorepoTaskRegistry {
     /// Resolve a task output to its filesystem path
     pub fn resolve_task_output(&self, task_ref: &str, output_name: &str) -> Result<PathBuf> {
         // Get the task
-        let task = self.get_task(task_ref).ok_or_else(|| {
-            Error::configuration(format!("Task '{}' not found", task_ref))
-        })?;
+        let task = self
+            .get_task(task_ref)
+            .ok_or_else(|| Error::configuration(format!("Task '{}' not found", task_ref)))?;
 
         // Check if the task declares this output
         if let Some(ref outputs) = task.config.outputs {
-            if !outputs.iter().any(|o| o == output_name || o.ends_with(output_name)) {
+            if !outputs
+                .iter()
+                .any(|o| o == output_name || o.ends_with(output_name))
+            {
                 return Err(Error::configuration(format!(
                     "Task '{}' does not declare output '{}'",
                     task_ref, output_name
@@ -148,7 +146,7 @@ impl MonorepoTaskRegistry {
                 for dep in deps {
                     // Parse the dependency reference
                     let dep_ref = parse_reference(dep)?;
-                    
+
                     // For cross-package dependencies, check if the task exists
                     if dep_ref.is_cross_package() {
                         let full_dep_name = match dep_ref {
@@ -185,7 +183,7 @@ impl MonorepoTaskRegistry {
                 for input in inputs {
                     // Parse input reference
                     let input_ref = parse_reference(input)?;
-                    
+
                     if let Some(output) = input_ref.output() {
                         // This is a reference to a specific output
                         let task_ref = match &input_ref {
@@ -226,14 +224,17 @@ impl MonorepoTaskRegistry {
                             match dep_ref {
                                 CrossPackageReference::LocalTask { task } => {
                                     // Local dependency - need to match within same package
-                                    let local_full_name = format!("{}:{}", registered_task.package_name, task);
+                                    let local_full_name =
+                                        format!("{}:{}", registered_task.package_name, task);
                                     local_full_name == task_name
                                 }
                                 CrossPackageReference::PackageTask { package, task } => {
                                     let full_name = format!("{}:{}", package, task);
                                     full_name == task_name
                                 }
-                                CrossPackageReference::PackageTaskOutput { package, task, .. } => {
+                                CrossPackageReference::PackageTaskOutput {
+                                    package, task, ..
+                                } => {
                                     let full_name = format!("{}:{}", package, task);
                                     full_name == task_name
                                 }
@@ -286,7 +287,7 @@ mod tests {
     #[test]
     fn test_task_registration() {
         let mut registry = MonorepoTaskRegistry::new();
-        
+
         let task = RegisteredTask {
             full_name: "test:task".to_string(),
             package_name: "test".to_string(),
@@ -300,7 +301,9 @@ mod tests {
         };
 
         registry.tasks.insert("test:task".to_string(), task);
-        registry.package_paths.insert("test".to_string(), PathBuf::from("/test"));
+        registry
+            .package_paths
+            .insert("test".to_string(), PathBuf::from("/test"));
 
         assert_eq!(registry.task_count(), 1);
         assert_eq!(registry.package_count(), 1);

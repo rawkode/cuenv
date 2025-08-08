@@ -1,7 +1,7 @@
 use cuenv::discovery::PackageDiscovery;
+use cuenv::task::cross_package::{parse_reference, CrossPackageReference};
 use cuenv::task::registry::MonorepoTaskRegistry;
 use cuenv::task::staging::{DependencyStager, StagedDependency};
-use cuenv::task::cross_package::{parse_reference, CrossPackageReference};
 use std::fs;
 use tempfile::TempDir;
 
@@ -10,14 +10,15 @@ use tempfile::TempDir;
 async fn test_resolve_cross_package_dependencies() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
-    
+
     // Create a monorepo structure
     fs::create_dir_all(root.join("cue.mod")).unwrap();
     fs::write(
         root.join("cue.mod/module.cue"),
         r#"module: "test.example/monorepo""#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Frontend package with build output
     fs::create_dir_all(root.join("frontend")).unwrap();
     fs::write(
@@ -30,13 +31,14 @@ tasks: {
         outputs: ["dist"]
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Create actual output files
     fs::create_dir_all(root.join("frontend/dist")).unwrap();
     fs::write(root.join("frontend/dist/index.html"), "<html>Test</html>").unwrap();
     fs::write(root.join("frontend/dist/bundle.js"), "console.log('test')").unwrap();
-    
+
     // Backend package with build output
     fs::create_dir_all(root.join("backend")).unwrap();
     fs::write(
@@ -49,12 +51,17 @@ tasks: {
         outputs: ["bin/server"]
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Create actual output files
     fs::create_dir_all(root.join("backend/bin")).unwrap();
-    fs::write(root.join("backend/bin/server"), "#!/bin/bash\necho 'server'").unwrap();
-    
+    fs::write(
+        root.join("backend/bin/server"),
+        "#!/bin/bash\necho 'server'",
+    )
+    .unwrap();
+
     // Deploy package that depends on both
     fs::write(
         root.join("env.cue"),
@@ -67,24 +74,29 @@ tasks: {
         inputs: ["frontend:build:dist", "backend:build:bin/server"]
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Discover packages
     let mut discovery = PackageDiscovery::new(32);
     let packages = discovery.discover(root, true).await.unwrap();
-    
+
     // Build registry
     let registry = MonorepoTaskRegistry::from_packages(packages).unwrap();
-    
+
     // Validate all dependencies exist
     registry.validate_all_dependencies().unwrap();
-    
+
     // Test resolving task outputs
-    let frontend_dist = registry.resolve_task_output("frontend:build", "dist").unwrap();
+    let frontend_dist = registry
+        .resolve_task_output("frontend:build", "dist")
+        .unwrap();
     assert!(frontend_dist.exists());
     assert!(frontend_dist.is_dir());
-    
-    let backend_server = registry.resolve_task_output("backend:build", "bin/server").unwrap();
+
+    let backend_server = registry
+        .resolve_task_output("backend:build", "bin/server")
+        .unwrap();
     assert!(backend_server.exists());
     assert!(backend_server.is_file());
 }
@@ -94,14 +106,15 @@ tasks: {
 async fn test_resolve_missing_outputs() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
-    
+
     // Create a monorepo structure
     fs::create_dir_all(root.join("cue.mod")).unwrap();
     fs::write(
         root.join("cue.mod/module.cue"),
         r#"module: "test.example/monorepo""#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Package with declared but missing outputs
     fs::write(
         root.join("env.cue"),
@@ -113,15 +126,16 @@ tasks: {
         outputs: ["dist/missing.txt"]
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Discover packages
     let mut discovery = PackageDiscovery::new(32);
     let packages = discovery.discover(root, true).await.unwrap();
-    
+
     // Build registry
     let registry = MonorepoTaskRegistry::from_packages(packages).unwrap();
-    
+
     // Resolving missing output should fail
     let result = registry.resolve_task_output("root:build", "dist/missing.txt");
     assert!(result.is_err());
@@ -133,14 +147,15 @@ tasks: {
 async fn test_stage_cross_package_dependencies() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
-    
+
     // Create a monorepo structure
     fs::create_dir_all(root.join("cue.mod")).unwrap();
     fs::write(
         root.join("cue.mod/module.cue"),
         r#"module: "test.example/monorepo""#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Library package with output
     fs::create_dir_all(root.join("lib")).unwrap();
     fs::write(
@@ -153,12 +168,13 @@ tasks: {
         outputs: ["dist/lib.so"]
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Create actual output
     fs::create_dir_all(root.join("lib/dist")).unwrap();
     fs::write(root.join("lib/dist/lib.so"), "shared library content").unwrap();
-    
+
     // App package that depends on lib
     fs::create_dir_all(root.join("app")).unwrap();
     fs::write(
@@ -172,44 +188,50 @@ tasks: {
         inputs: ["lib:build:dist/lib.so"]
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Discover packages
     let mut discovery = PackageDiscovery::new(32);
     let packages = discovery.discover(root, true).await.unwrap();
-    
+
     // Build registry
     let registry = MonorepoTaskRegistry::from_packages(packages).unwrap();
-    
+
     // Get the app:build task
     let app_task = registry.get_task("app:build").unwrap();
-    
+
     // Stage dependencies for the task
     let mut stager = DependencyStager::new().unwrap();
-    
+
     // Resolve and stage each input
     if let Some(ref inputs) = app_task.config.inputs {
         for input in inputs {
             let dep_ref = parse_reference(input).unwrap();
-            
-            if let CrossPackageReference::PackageTaskOutput { package, task, output } = dep_ref {
+
+            if let CrossPackageReference::PackageTaskOutput {
+                package,
+                task,
+                output,
+            } = dep_ref
+            {
                 let task_name = format!("{}:{}", package, task);
                 let output_path = registry.resolve_task_output(&task_name, &output).unwrap();
-                
+
                 // Create a staged dependency
                 let staged_dep = StagedDependency {
                     name: format!("{}:{}", task, output),
                     source_path: output_path.clone(),
                     target_name: Some(format!("{}_{}", task, output)),
                 };
-                
+
                 // Stage the dependency
                 let staged_path = stager.stage_dependency(&staged_dep).unwrap();
                 assert!(staged_path.exists());
             }
         }
     }
-    
+
     // Verify staged files exist
     // We staged one dependency (lib.so)
     // The stager's staging directory should contain the file
@@ -220,14 +242,15 @@ tasks: {
 async fn test_circular_dependencies() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
-    
+
     // Create a monorepo structure with circular dependencies
     fs::create_dir_all(root.join("cue.mod")).unwrap();
     fs::write(
         root.join("cue.mod/module.cue"),
         r#"module: "test.example/monorepo""#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Package A depends on B
     fs::create_dir_all(root.join("a")).unwrap();
     fs::write(
@@ -240,8 +263,9 @@ tasks: {
         dependencies: ["b:build"]
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Package B depends on A (circular)
     fs::create_dir_all(root.join("b")).unwrap();
     fs::write(
@@ -254,15 +278,16 @@ tasks: {
         dependencies: ["a:build"]
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Discover packages
     let mut discovery = PackageDiscovery::new(32);
     let packages = discovery.discover(root, true).await.unwrap();
-    
+
     // Build registry - should succeed
     let registry = MonorepoTaskRegistry::from_packages(packages).unwrap();
-    
+
     // Validation should still pass at registry level
     // (Circular detection happens during execution)
     registry.validate_all_dependencies().unwrap();
@@ -273,14 +298,15 @@ tasks: {
 async fn test_transitive_dependencies() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
-    
+
     // Create a monorepo with transitive dependencies: A -> B -> C
     fs::create_dir_all(root.join("cue.mod")).unwrap();
     fs::write(
         root.join("cue.mod/module.cue"),
         r#"module: "test.example/monorepo""#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Package C (no dependencies)
     fs::create_dir_all(root.join("c")).unwrap();
     fs::write(
@@ -293,9 +319,10 @@ tasks: {
         outputs: ["lib.a"]
     }
 }"#,
-    ).unwrap();
+    )
+    .unwrap();
     fs::write(root.join("c/lib.a"), "library archive").unwrap();
-    
+
     // Package B depends on C
     fs::create_dir_all(root.join("b")).unwrap();
     fs::write(
@@ -310,9 +337,10 @@ tasks: {
         outputs: ["lib.so"]
     }
 }"#,
-    ).unwrap();
+    )
+    .unwrap();
     fs::write(root.join("b/lib.so"), "shared library").unwrap();
-    
+
     // Package A depends on B
     fs::create_dir_all(root.join("a")).unwrap();
     fs::write(
@@ -326,23 +354,24 @@ tasks: {
         inputs: ["b:build:lib.so"]
     }
 }"#,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Discover packages
     let mut discovery = PackageDiscovery::new(32);
     let packages = discovery.discover(root, true).await.unwrap();
-    
+
     // Build registry
     let registry = MonorepoTaskRegistry::from_packages(packages).unwrap();
-    
+
     // Validate all dependencies
     registry.validate_all_dependencies().unwrap();
-    
+
     // Get dependents of C
     let c_dependents = registry.get_dependents("c:build");
     assert_eq!(c_dependents.len(), 1);
     assert_eq!(c_dependents[0].full_name, "b:build");
-    
+
     // Get dependents of B
     let b_dependents = registry.get_dependents("b:build");
     assert_eq!(b_dependents.len(), 1);

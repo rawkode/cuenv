@@ -80,20 +80,20 @@ impl DependencyStager {
                 operation: "stage dependency".to_string(),
                 source: std::io::Error::new(
                     std::io::ErrorKind::NotFound,
-                    format!("Source path does not exist: {}", dependency.source_path.display()),
+                    format!(
+                        "Source path does not exist: {}",
+                        dependency.source_path.display()
+                    ),
                 ),
             });
         }
 
         // Determine target name
-        let target_name = dependency.target_name.as_ref().map(|s| s.as_str()).or_else(
-            || {
-                dependency
-                    .source_path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-            },
-        );
+        let target_name = dependency
+            .target_name
+            .as_ref()
+            .map(|s| s.as_str())
+            .or_else(|| dependency.source_path.file_name().and_then(|n| n.to_str()));
 
         let target_name = target_name.ok_or_else(|| {
             Error::configuration(format!(
@@ -116,13 +116,18 @@ impl DependencyStager {
 
         // Stage based on strategy
         match self.strategy {
-            StagingStrategy::Symlink => self.stage_with_symlink(&dependency.source_path, &staged_path)?,
+            StagingStrategy::Symlink => {
+                self.stage_with_symlink(&dependency.source_path, &staged_path)?
+            }
             StagingStrategy::Copy => self.stage_with_copy(&dependency.source_path, &staged_path)?,
-            StagingStrategy::Hardlink => self.stage_with_hardlink(&dependency.source_path, &staged_path)?,
+            StagingStrategy::Hardlink => {
+                self.stage_with_hardlink(&dependency.source_path, &staged_path)?
+            }
         }
 
         // Track staged dependency
-        self.staged.insert(dependency.name.clone(), staged_path.clone());
+        self.staged
+            .insert(dependency.name.clone(), staged_path.clone());
 
         Ok(staged_path)
     }
@@ -156,38 +161,44 @@ impl DependencyStager {
         // Create symlink
         #[cfg(unix)]
         {
-            std::os::unix::fs::symlink(&absolute_source, target).map_err(|e| Error::FileSystem {
-                path: target.to_path_buf(),
-                operation: format!(
-                    "create symlink from {} to {}",
-                    absolute_source.display(),
-                    target.display()
-                ),
-                source: e,
+            std::os::unix::fs::symlink(&absolute_source, target).map_err(|e| {
+                Error::FileSystem {
+                    path: target.to_path_buf(),
+                    operation: format!(
+                        "create symlink from {} to {}",
+                        absolute_source.display(),
+                        target.display()
+                    ),
+                    source: e,
+                }
             })?;
         }
 
         #[cfg(windows)]
         {
             if absolute_source.is_dir() {
-                std::os::windows::fs::symlink_dir(&absolute_source, target).map_err(|e| Error::FileSystem {
-                    path: target.to_path_buf(),
-                    operation: format!(
-                        "create directory symlink from {} to {}",
-                        absolute_source.display(),
-                        target.display()
-                    ),
-                    source: e,
+                std::os::windows::fs::symlink_dir(&absolute_source, target).map_err(|e| {
+                    Error::FileSystem {
+                        path: target.to_path_buf(),
+                        operation: format!(
+                            "create directory symlink from {} to {}",
+                            absolute_source.display(),
+                            target.display()
+                        ),
+                        source: e,
+                    }
                 })?;
             } else {
-                std::os::windows::fs::symlink_file(&absolute_source, target).map_err(|e| Error::FileSystem {
-                    path: target.to_path_buf(),
-                    operation: format!(
-                        "create file symlink from {} to {}",
-                        absolute_source.display(),
-                        target.display()
-                    ),
-                    source: e,
+                std::os::windows::fs::symlink_file(&absolute_source, target).map_err(|e| {
+                    Error::FileSystem {
+                        path: target.to_path_buf(),
+                        operation: format!(
+                            "create file symlink from {} to {}",
+                            absolute_source.display(),
+                            target.display()
+                        ),
+                        source: e,
+                    }
                 })?;
             }
         }
@@ -265,10 +276,14 @@ impl DependencyStager {
         let mut env_vars = HashMap::new();
 
         for (name, path) in &self.staged {
-            // Convert "projects:frontend:dist" to "CUENV_INPUT_PROJECTS_FRONTEND_DIST"
+            // Convert "projects:frontend:dist/file.txt" to "CUENV_INPUT_PROJECTS_FRONTEND_DIST_FILE_TXT"
             let env_key = format!(
                 "CUENV_INPUT_{}",
-                name.to_uppercase().replace(':', "_").replace('-', "_")
+                name.to_uppercase()
+                    .replace(':', "_")
+                    .replace('-', "_")
+                    .replace('/', "_")
+                    .replace('.', "_")
             );
             env_vars.insert(env_key, path.to_string_lossy().to_string());
         }

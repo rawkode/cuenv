@@ -5,14 +5,9 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CrossPackageReference {
     /// Local task in the same package
-    LocalTask {
-        task: String,
-    },
+    LocalTask { task: String },
     /// Task in another package
-    PackageTask {
-        package: String,
-        task: String,
-    },
+    PackageTask { package: String, task: String },
     /// Specific output from a task in another package
     PackageTaskOutput {
         package: String,
@@ -56,9 +51,7 @@ impl CrossPackageReference {
 
     /// Create a local task reference
     pub fn local(task: impl Into<String>) -> Self {
-        Self::LocalTask {
-            task: task.into(),
-        }
+        Self::LocalTask { task: task.into() }
     }
 
     /// Create a package task reference
@@ -150,7 +143,7 @@ pub fn parse_reference(input: &str) -> Result<CrossPackageReference> {
     //   We'll treat it as package:subpackage:task (joining first two as package)
     // - Four or more: package:...:task OR package:...:task:output
     //   We need a heuristic to decide
-    
+
     match parts.len() {
         1 => {
             // Local task reference
@@ -169,9 +162,18 @@ pub fn parse_reference(input: &str) -> Result<CrossPackageReference> {
             // This is the ambiguous case: could be package:task:output or package:subpackage:task
             // We'll use a heuristic: if the last component is a common output name, treat as output
             // Otherwise, treat as nested package
-            
-            let common_outputs = ["dist", "build", "out", "output", "artifacts", "bin", "lib", "target"];
-            
+
+            let common_outputs = [
+                "dist",
+                "build",
+                "out",
+                "output",
+                "artifacts",
+                "bin",
+                "lib",
+                "target",
+            ];
+
             if common_outputs.contains(&parts[2]) {
                 // Likely package:task:output
                 Ok(CrossPackageReference::PackageTaskOutput {
@@ -190,11 +192,20 @@ pub fn parse_reference(input: &str) -> Result<CrossPackageReference> {
         n if n >= 4 => {
             // Four or more components
             // Pattern: package:subpackage:...:task OR package:subpackage:...:task:output
-            // 
+            //
             // We'll check if the last component looks like an output
             let last = parts[n - 1];
-            let common_outputs = ["dist", "build", "out", "output", "artifacts", "bin", "lib", "target"];
-            
+            let common_outputs = [
+                "dist",
+                "build",
+                "out",
+                "output",
+                "artifacts",
+                "bin",
+                "lib",
+                "target",
+            ];
+
             if common_outputs.contains(&last) {
                 // Treat as package:...:task:output
                 let package = parts[0..n - 2].join(":");

@@ -130,15 +130,23 @@ async fn test_discover_all_tasks() {
         }
     }
 
-    println!("Total tasks found: {}, expected: {}", total_tasks, expected_tasks.len());
-    
+    println!(
+        "Total tasks found: {}, expected: {}",
+        total_tasks,
+        expected_tasks.len()
+    );
+
     // Verify expected tasks are present
     for (package, task) in &expected_tasks {
         let package_str = package.to_string();
         let task_str = task.to_string();
         assert!(
-            found_tasks.iter().any(|(p, t)| p == &package_str && t == &task_str),
-            "Expected task {}:{} not found", package, task
+            found_tasks
+                .iter()
+                .any(|(p, t)| p == &package_str && t == &task_str),
+            "Expected task {}:{} not found",
+            package,
+            task
         );
     }
 }
@@ -182,8 +190,14 @@ async fn test_registry_task_metadata() {
     assert_eq!(frontend_build.package_name, "projects:frontend");
     assert_eq!(frontend_build.task_name, "build");
     assert!(frontend_build.package_path.ends_with("projects/frontend"));
-    assert_eq!(frontend_build.config.command, Some("vite build".to_string()));
-    assert_eq!(frontend_build.config.outputs, Some(vec!["dist".to_string()]));
+    assert_eq!(
+        frontend_build.config.command,
+        Some("vite build".to_string())
+    );
+    assert_eq!(
+        frontend_build.config.outputs,
+        Some(vec!["dist".to_string()])
+    );
 
     // Check CI deploy task with dependencies
     let ci_deploy = registry.get_task("tools:ci:deploy").unwrap();
@@ -210,7 +224,11 @@ async fn test_list_all_tasks() {
     let registry = MonorepoTaskRegistry::from_packages(packages).unwrap();
     let all_tasks = registry.list_all_tasks();
 
-    assert!(all_tasks.len() >= 6, "Should have at least 6 tasks, found {}", all_tasks.len());
+    assert!(
+        all_tasks.len() >= 6,
+        "Should have at least 6 tasks, found {}",
+        all_tasks.len()
+    );
 
     // Check that task names are properly formatted
     let task_names: Vec<String> = all_tasks.iter().map(|t| t.0.clone()).collect();
@@ -232,9 +250,16 @@ async fn test_get_tasks_by_package() {
 
     // Get tasks for frontend package
     let frontend_tasks = registry.get_tasks_by_package("projects:frontend");
-    assert!(frontend_tasks.len() >= 2, "Frontend should have at least 2 tasks, found {}", frontend_tasks.len());
-    
-    let task_names: Vec<&str> = frontend_tasks.iter().map(|t| t.task_name.as_str()).collect();
+    assert!(
+        frontend_tasks.len() >= 2,
+        "Frontend should have at least 2 tasks, found {}",
+        frontend_tasks.len()
+    );
+
+    let task_names: Vec<&str> = frontend_tasks
+        .iter()
+        .map(|t| t.task_name.as_str())
+        .collect();
     assert!(task_names.contains(&"build"));
     assert!(task_names.contains(&"test"));
 
@@ -252,7 +277,7 @@ async fn test_resolve_task_outputs() {
     // Create actual output directories to test resolution
     fs::create_dir_all(root.join("projects/frontend/dist")).unwrap();
     fs::write(root.join("projects/frontend/dist/index.html"), "test").unwrap();
-    
+
     fs::create_dir_all(root.join("projects/backend/bin")).unwrap();
     fs::write(root.join("projects/backend/bin/server"), "binary").unwrap();
 
@@ -262,28 +287,36 @@ async fn test_resolve_task_outputs() {
     let registry = MonorepoTaskRegistry::from_packages(packages).unwrap();
 
     // Resolve frontend build output
-    let frontend_dist = registry.resolve_task_output("projects:frontend:build", "dist").unwrap();
+    let frontend_dist = registry
+        .resolve_task_output("projects:frontend:build", "dist")
+        .unwrap();
     assert!(frontend_dist.exists());
     assert!(frontend_dist.is_dir());
     assert!(frontend_dist.join("index.html").exists());
 
     // Resolve backend build output
-    let backend_bin = registry.resolve_task_output("projects:backend:build", "bin/server").unwrap();
+    let backend_bin = registry
+        .resolve_task_output("projects:backend:build", "bin/server")
+        .unwrap();
     assert!(backend_bin.exists());
     assert!(backend_bin.is_file());
 
     // Non-existent task
-    assert!(registry.resolve_task_output("nonexistent:task", "output").is_err());
+    assert!(registry
+        .resolve_task_output("nonexistent:task", "output")
+        .is_err());
 
     // Non-existent output
-    assert!(registry.resolve_task_output("projects:frontend:build", "nonexistent").is_err());
+    assert!(registry
+        .resolve_task_output("projects:frontend:build", "nonexistent")
+        .is_err());
 }
 
 #[tokio::test]
 async fn test_registry_with_missing_package() {
     let temp_dir = TempDir::new().unwrap();
     let root = temp_dir.path();
-    
+
     // Create minimal monorepo
     fs::create_dir_all(root.join("cue.mod")).unwrap();
     fs::write(
@@ -308,11 +341,15 @@ tasks: {
 
     let mut discovery = PackageDiscovery::new(32);
     let packages = discovery.discover(root, true).await.unwrap();
-    
+
     // Debug: print package info
     println!("Found {} packages", packages.len());
     for package in &packages {
-        println!("Package {}: parse_result = {:?}", package.name, package.parse_result.is_some());
+        println!(
+            "Package {}: parse_result = {:?}",
+            package.name,
+            package.parse_result.is_some()
+        );
         if let Some(ref result) = package.parse_result {
             println!("  Tasks: {:?}", result.tasks.keys().collect::<Vec<_>>());
             println!("  Num tasks: {}", result.tasks.len());
@@ -335,7 +372,10 @@ tasks: {
     // But validation of dependencies should fail
     let validation = registry.validate_all_dependencies();
     assert!(validation.is_err());
-    assert!(validation.unwrap_err().to_string().contains("nonexistent:package:task"));
+    assert!(validation
+        .unwrap_err()
+        .to_string()
+        .contains("nonexistent:package:task"));
 }
 
 #[tokio::test]
