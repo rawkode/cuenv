@@ -258,13 +258,11 @@ src/
 ### Phase 1: Foundation (Low Risk, High Impact)
 
 1. **Create Core Domain Structure**
-
    - Move `src/types.rs`, `src/errors.rs`, `src/constants.rs` to `src/core/`
    - Create `src/core/mod.rs` with proper re-exports
    - Update `src/lib.rs` to use new core structure
 
 2. **Establish Utilities Module**
-
    - Create `src/utils/` structure
    - Move standalone utility modules (`sync_env.rs`, `cleanup.rs`, `xdg.rs`, etc.)
    - Ensure no circular dependencies
@@ -277,13 +275,11 @@ src/
 ### Phase 2: Execution & Security (Medium Risk, Medium Impact)
 
 1. **Organize Execution Engine**
-
    - Create `src/execution/` structure
    - Move task and command execution modules
    - Extract common patterns into reusable components
 
 2. **Consolidate Security Modules**
-
    - Create `src/security/` structure
    - Group security-related functionality
    - Ensure security validation paths are clear
@@ -296,7 +292,6 @@ src/
 ### Phase 3: Storage & UI (Medium Risk, Lower Impact)
 
 1. **Storage Organization**
-
    - Reorganize `src/cache/` into `src/storage/cache/`
    - Move remote cache functionality
    - Consolidate file operations
@@ -309,13 +304,11 @@ src/
 ### Phase 4: Finalization & Polish (Low Risk, Low Impact)
 
 1. **Documentation Updates**
-
    - Update module documentation
    - Create architectural diagrams
    - Document migration guide
 
 2. **Performance Optimization**
-
    - Analyze import patterns
    - Optimize compilation units
    - Reduce unnecessary dependencies

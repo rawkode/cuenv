@@ -161,13 +161,11 @@ enum RuntimeHandle {
 ## Future Enhancements (Phase 2)
 
 1. **Remote Cache Support**
-
    - gRPC protocol for efficiency
    - Consistent hashing for distribution
    - Read-through/write-through patterns
 
 2. **Advanced Features**
-
    - Compression for values > threshold
    - Encryption for sensitive data
    - Multi-tier caching (L1/L2/L3)

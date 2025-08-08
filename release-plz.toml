@@ -16,7 +16,7 @@ allow_dirty = false
 
 # Git configuration
 git_tag_enable = true
-git_tag_name = "v{{ version }}"
+git_tag_name = "{{ version }}"
 
 # Git release configuration
 git_release_enable = true
@@ -24,7 +24,7 @@ git_release_draft = false
 
 # PR configuration
 pr_labels = ["release"]
-pr_name = "chore: release v{{ version }}"
+pr_name = "chore: release {{ version }}"
 
 # Semver check configuration (requires cargo-semver-checks)
 semver_check = true

@@ -264,12 +264,10 @@ build --remote_cache_header=authorization=Bearer your-jwt-token
 ### Common Issues
 
 1. **Connection Refused**
-
    - Check server is running: `ps aux | grep bazel_cache_server`
    - Verify port is open: `nc -zv localhost 50051`
 
 2. **Circuit Breaker Open**
-
    - Check server logs for errors
    - Verify network connectivity
    - Wait for circuit breaker timeout

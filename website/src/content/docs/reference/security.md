@@ -239,12 +239,10 @@ cuenv task my-task
 ### Common Errors
 
 1. **"Landlock not available"**
-
    - Kernel doesn't support Landlock
    - Security restrictions will be ignored
 
 2. **"Permission denied"**
-
    - Path not in allowed lists
    - Run with `--audit` to debug
 

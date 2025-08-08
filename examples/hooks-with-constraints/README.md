@@ -12,7 +12,6 @@ This example demonstrates how to use constraints with hooks in cuenv. Constraint
 ### Example Scenarios
 
 1. **devenv Integration** - The `onEnter` hook will only run `devenv up` if:
-
    - The `devenv` command is available in PATH
 
 2. **Conditional Cleanup** - The `onExit` hook will only run cleanup if:
