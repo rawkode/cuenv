@@ -381,6 +381,7 @@ mod tests {
         let package = DiscoveredPackage {
             name: "test".to_string(),
             path: PathBuf::from("/test"),
+            relative_path: PathBuf::new(),
             parse_result: Some(parse_result),
         };
 
@@ -423,6 +424,7 @@ mod tests {
         let package = DiscoveredPackage {
             name: "test".to_string(),
             path: PathBuf::from("/test"),
+            relative_path: PathBuf::new(),
             parse_result: Some(parse_result),
         };
 

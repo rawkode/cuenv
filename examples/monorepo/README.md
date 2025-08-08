@@ -48,7 +48,7 @@ tasks: {
     "deploy": {
         command: "deployer"
         dependencies: ["projects:frontend:build", "projects:backend:build"]
-        inputs: ["projects:frontend:build:dist", "projects:backend:build:bin/server"]
+        inputs: ["projects:frontend:build#dist", "projects:backend:build#bin/server"]
     }
 }
 ```
@@ -71,7 +71,7 @@ cuenv run deploy
 Tasks can reference outputs from other packages:
 
 ```cue
-inputs: ["projects:frontend:build:dist"]
+inputs: ["projects:frontend:build#dist"]
 ```
 
 These inputs are staged in an isolated environment and made available via environment variables:

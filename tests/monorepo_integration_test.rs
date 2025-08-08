@@ -4,14 +4,15 @@ use tempfile::TempDir;
 
 /// Helper to run cuenv command in a directory
 fn run_cuenv(dir: &std::path::Path, args: &[&str]) -> std::process::Output {
-    let mut cmd = Command::new("cargo");
-    cmd.arg("run")
-        .arg("--bin")
-        .arg("cuenv")
-        .arg("--")
-        .args(args)
-        .current_dir(dir)
-        .env("RUST_BACKTRACE", "1");
+    // Get the project root directory
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let project_root = std::path::Path::new(manifest_dir);
+
+    // Build the path to the cuenv binary
+    let exe_path = project_root.join("target").join("debug").join("cuenv");
+
+    let mut cmd = Command::new(exe_path);
+    cmd.args(args).current_dir(dir).env("RUST_BACKTRACE", "1");
 
     cmd.output().expect("Failed to execute cuenv")
 }
@@ -74,8 +75,8 @@ tasks: {
     )
     .unwrap();
 
-    // Run discover command
-    let output = run_cuenv(root, &["discover"]);
+    // Run discover command with --dump to see tasks
+    let output = run_cuenv(root, &["discover", "--dump"]);
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert!(
@@ -84,21 +85,28 @@ tasks: {
         String::from_utf8_lossy(&output.stderr)
     );
 
+    // Debug output
+    println!("stdout: {}", stdout);
+    println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+
     // Check output contains all packages
     assert!(stdout.contains("root"), "Should list root package");
     assert!(stdout.contains("frontend"), "Should list frontend package");
     assert!(stdout.contains("backend"), "Should list backend package");
 
-    // Check tasks are listed
+    // Check tasks are listed (within their package sections)
     assert!(stdout.contains("deploy"), "Should list deploy task");
-    assert!(
-        stdout.contains("frontend:build"),
-        "Should list frontend:build task"
-    );
-    assert!(
-        stdout.contains("backend:build"),
-        "Should list backend:build task"
-    );
+    assert!(stdout.contains("build"), "Should list build tasks");
+
+    // Check that frontend package has build task
+    let frontend_section = stdout.find("Package: frontend").unwrap();
+    let frontend_build = stdout[frontend_section..].find("build").unwrap();
+    assert!(frontend_build > 0, "Frontend should have build task");
+
+    // Check that backend package has build task
+    let backend_section = stdout.find("Package: backend").unwrap();
+    let backend_build = stdout[backend_section..].find("build").unwrap();
+    assert!(backend_build > 0, "Backend should have build task");
 }
 
 /// Test running cross-package tasks
@@ -148,7 +156,7 @@ tasks: {
     .unwrap();
 
     // Run task with cross-package dependency
-    let output = run_cuenv(root, &["task", "run", "app:build"]);
+    let output = run_cuenv(root, &["run", "app:build"]);
 
     assert!(
         output.status.success(),
@@ -217,8 +225,8 @@ tasks: {
     )
     .unwrap();
 
-    // Run task list command
-    let output = run_cuenv(root, &["task", "list"]);
+    // Run command without arguments to list tasks
+    let output = run_cuenv(root, &["run"]);
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert!(
@@ -290,7 +298,7 @@ tasks: {
 
     // Run task from api subdirectory
     let api_dir = root.join("packages/api");
-    let output = run_cuenv(&api_dir, &["task", "run", "build"]);
+    let output = run_cuenv(&api_dir, &["run", "build"]);
 
     assert!(
         output.status.success(),
@@ -352,7 +360,7 @@ tasks: {
     .unwrap();
 
     // Try to run task with circular dependency
-    let output = run_cuenv(root, &["task", "run", "a:build"]);
+    let output = run_cuenv(root, &["run", "a:build"]);
 
     // Should fail
     assert!(
@@ -459,7 +467,7 @@ tasks: {{
     .unwrap();
 
     // Run the processing task
-    let output = run_cuenv(root, &["task", "run", "processor:process"]);
+    let output = run_cuenv(root, &["run", "processor:process"]);
 
     assert!(
         output.status.success(),

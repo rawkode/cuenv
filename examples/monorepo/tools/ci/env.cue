@@ -11,7 +11,7 @@ env: {
 tasks: {
 	"deploy": {
 		command: "deployer"
-		dependencies: ["projects:frontend:dist"]
-		inputs: ["dist:projects:frontend:dist"]
+		dependencies: ["projects:frontend:build"]
+		inputs: ["projects:frontend:build#dist"]
 	}
 }

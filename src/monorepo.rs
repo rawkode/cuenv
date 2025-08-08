@@ -1,6 +1,6 @@
 use crate::core::errors::{Error, Result};
 use crate::discovery::PackageDiscovery;
-use crate::env_manager::EnvManager;
+use crate::env::EnvManager;
 use crate::task::{parse_reference, CrossPackageReference, MonorepoTaskRegistry, TaskExecutor};
 use std::path::Path;
 
@@ -34,10 +34,11 @@ async fn execute_local_task(
     audit: bool,
 ) -> Result<i32> {
     // Use regular env_manager for local tasks
-    let mut env_manager = EnvManager::new()?;
-    env_manager.load_directory(current_dir)?;
+    let mut env_manager = EnvManager::new();
+    env_manager.load_env(current_dir).await?;
 
-    let executor = env_manager.create_task_executor()?;
+    let executor =
+        crate::task_executor::TaskExecutor::new(env_manager, current_dir.to_path_buf()).await?;
 
     if audit {
         executor.execute_task_with_audit(task_name, task_args).await

@@ -13,31 +13,31 @@ fn test_parse_local_task_reference() {
 
 #[test]
 fn test_parse_package_task_reference() {
-    // Use a task name that won't be confused with an output
-    let reference = parse_reference("projects:frontend:test").unwrap();
+    // Simple package:task reference
+    let reference = parse_reference("projects:build").unwrap();
     assert_eq!(
         reference,
         CrossPackageReference::PackageTask {
-            package: "projects:frontend".to_string(),
-            task: "test".to_string(),
+            package: "projects".to_string(),
+            task: "build".to_string(),
         }
     );
 
-    // "build" will be interpreted as an output name due to our heuristic
+    // Nested package:task reference
     let reference2 = parse_reference("projects:frontend:build").unwrap();
     assert_eq!(
         reference2,
-        CrossPackageReference::PackageTaskOutput {
-            package: "projects".to_string(),
-            task: "frontend".to_string(),
-            output: "build".to_string(),
+        CrossPackageReference::PackageTask {
+            package: "projects:frontend".to_string(),
+            task: "build".to_string(),
         }
     );
 }
 
 #[test]
 fn test_parse_package_task_output_reference() {
-    let reference = parse_reference("projects:frontend:build:dist").unwrap();
+    // Using # separator for outputs
+    let reference = parse_reference("projects:frontend:build#dist").unwrap();
     assert_eq!(
         reference,
         CrossPackageReference::PackageTaskOutput {
@@ -46,14 +46,35 @@ fn test_parse_package_task_output_reference() {
             output: "dist".to_string(),
         }
     );
+
+    // Simple package with output
+    let reference2 = parse_reference("backend:compile#bin/server").unwrap();
+    assert_eq!(
+        reference2,
+        CrossPackageReference::PackageTaskOutput {
+            package: "backend".to_string(),
+            task: "compile".to_string(),
+            output: "bin/server".to_string(),
+        }
+    );
 }
 
 #[test]
 fn test_parse_complex_package_hierarchy() {
-    // Test deeply nested package names
-    let reference = parse_reference("tools:ci:cd:deploy:artifacts").unwrap();
+    // Test deeply nested package names without output
+    let reference = parse_reference("tools:ci:cd:deploy").unwrap();
     assert_eq!(
         reference,
+        CrossPackageReference::PackageTask {
+            package: "tools:ci:cd".to_string(),
+            task: "deploy".to_string(),
+        }
+    );
+
+    // Test deeply nested package names with output
+    let reference2 = parse_reference("tools:ci:cd:deploy#artifacts").unwrap();
+    assert_eq!(
+        reference2,
         CrossPackageReference::PackageTaskOutput {
             package: "tools:ci:cd".to_string(),
             task: "deploy".to_string(),
@@ -84,11 +105,10 @@ fn test_parse_empty_string() {
 #[test]
 fn test_parse_invalid_characters() {
     let test_cases = vec![
-        "build@test",
-        "package:task!",
-        "package:ta sk",
-        "../package:task",
-        "package::task",
+        "build@test",    // @ not allowed
+        "package:task!", // ! not allowed
+        "package:ta sk", // space not allowed
+        "package::task", // empty component
     ];
 
     for invalid in test_cases {
@@ -126,14 +146,14 @@ fn test_normalize_package_names() {
         }
     );
 
-    // With "build" it will be interpreted as output
-    let reference2 = parse_reference("my-package:sub_package:build").unwrap();
+    // With # separator for output
+    let reference2 = parse_reference("my-package:sub_package:build#dist").unwrap();
     assert_eq!(
         reference2,
         CrossPackageReference::PackageTaskOutput {
-            package: "my-package".to_string(),
-            task: "sub_package".to_string(),
-            output: "build".to_string(),
+            package: "my-package:sub_package".to_string(),
+            task: "build".to_string(),
+            output: "dist".to_string(),
         }
     );
 }
@@ -160,7 +180,7 @@ fn test_reference_to_string() {
                 task: "build".to_string(),
                 output: "dist".to_string(),
             },
-            "projects:frontend:build:dist",
+            "projects:frontend:build#dist",
         ),
     ];
 

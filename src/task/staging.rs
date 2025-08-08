@@ -332,7 +332,7 @@ mod tests {
         );
 
         // Temporarily replace the staged map for testing
-        let mut test_stager = DependencyStager {
+        let test_stager = DependencyStager {
             staging_root: stager.staging_root,
             strategy: stager.strategy,
             staged,

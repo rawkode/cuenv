@@ -85,7 +85,7 @@ impl fmt::Display for CrossPackageReference {
                 package,
                 task,
                 output,
-            } => write!(f, "{}:{}:{}", package, task, output),
+            } => write!(f, "{}:{}#{}", package, task, output),
         }
     }
 }
@@ -96,11 +96,9 @@ impl fmt::Display for CrossPackageReference {
 /// - "task" -> LocalTask
 /// - "package:task" -> PackageTask (package can be single component)
 /// - "package:sub:task" -> PackageTask (package = "package:sub")
-/// - "package:sub:task:output" -> PackageTaskOutput
+/// - "package:sub:task#output" -> PackageTaskOutput with output
 ///
-/// The parser assumes the last component is always the task name,
-/// and if there's one more component after that, it's the output.
-/// Everything before the task is the package name.
+/// The # separator is used to distinguish outputs from task/package names
 pub fn parse_reference(input: &str) -> Result<CrossPackageReference> {
     // Validate input
     if input.is_empty() {
@@ -108,19 +106,37 @@ pub fn parse_reference(input: &str) -> Result<CrossPackageReference> {
     }
 
     // Check for invalid characters
-    // Allow alphanumeric, colons, hyphens, underscores, slashes, and dots for file paths
-    if !input
-        .chars()
-        .all(|c| c.is_alphanumeric() || c == ':' || c == '-' || c == '_' || c == '/' || c == '.')
-    {
+    // Allow alphanumeric, colons, hyphens, underscores, slashes, dots, and # for outputs
+    if !input.chars().all(|c| {
+        c.is_alphanumeric() || c == ':' || c == '-' || c == '_' || c == '/' || c == '.' || c == '#'
+    }) {
         return Err(Error::configuration(format!(
             "Invalid characters in task reference: {}",
             input
         )));
     }
 
-    // Split by colons
-    let parts: Vec<&str> = input.split(':').collect();
+    // First, check if there's an output specifier (#)
+    let (task_ref, output) = if let Some(hash_pos) = input.find('#') {
+        let task_part = &input[..hash_pos];
+        let output_part = &input[hash_pos + 1..];
+
+        if task_part.is_empty() {
+            return Err(Error::configuration(
+                "Task reference before # cannot be empty",
+            ));
+        }
+        if output_part.is_empty() {
+            return Err(Error::configuration("Output path after # cannot be empty"));
+        }
+
+        (task_part, Some(output_part))
+    } else {
+        (input, None)
+    };
+
+    // Split task reference by colons
+    let parts: Vec<&str> = task_ref.split(':').collect();
 
     // Check for empty components
     if parts.iter().any(|p| p.is_empty()) {
@@ -130,101 +146,64 @@ pub fn parse_reference(input: &str) -> Result<CrossPackageReference> {
         )));
     }
 
-    // Parse based on number of components
-    // Strategy: We need to distinguish between:
-    // - package names (which can contain colons like "projects:frontend")
-    // - task names
-    // - output names
-    //
-    // Since we can't reliably distinguish without more context, we'll use a convention:
+    // Now parse based on the presence of output and number of components
+    // With the # separator, we can unambiguously determine the structure:
+    // - Everything before # is the task reference
+    // - Everything after # is the output path
+    // The task reference follows the pattern:
     // - Single component: local task
-    // - Two components: package:task (single-level package)
-    // - Three components: Either package:task:output OR package:subpackage:task
-    //   We'll treat it as package:subpackage:task (joining first two as package)
-    // - Four or more: package:...:task OR package:...:task:output
-    //   We need a heuristic to decide
+    // - Two or more components: package:...:task (last is task, rest is package)
 
-    match parts.len() {
-        1 => {
-            // Local task reference
-            Ok(CrossPackageReference::LocalTask {
-                task: parts[0].to_string(),
+    match (parts.len(), output) {
+        // Local task without output
+        (1, None) => Ok(CrossPackageReference::LocalTask {
+            task: parts[0].to_string(),
+        }),
+
+        // Local task with output (rare but valid: "build#dist")
+        (1, Some(_out)) => {
+            // For local tasks with output, we don't have a separate variant,
+            // so we return an error or could extend the enum
+            Err(Error::configuration(
+                "Local task output references are not supported. Use package:task#output format",
+            ))
+        }
+
+        // Package:task without output
+        (2, None) => Ok(CrossPackageReference::PackageTask {
+            package: parts[0].to_string(),
+            task: parts[1].to_string(),
+        }),
+
+        // Package:task with output
+        (2, Some(out)) => Ok(CrossPackageReference::PackageTaskOutput {
+            package: parts[0].to_string(),
+            task: parts[1].to_string(),
+            output: out.to_string(),
+        }),
+
+        // Multiple colons - everything except the last is package, last is task
+        (n, None) if n >= 3 => {
+            let task = parts[n - 1].to_string();
+            let package = parts[..n - 1].join(":");
+            Ok(CrossPackageReference::PackageTask { package, task })
+        }
+
+        // Multiple colons with output
+        (n, Some(out)) if n >= 3 => {
+            let task = parts[n - 1].to_string();
+            let package = parts[..n - 1].join(":");
+            Ok(CrossPackageReference::PackageTaskOutput {
+                package,
+                task,
+                output: out.to_string(),
             })
         }
-        2 => {
-            // Simple package:task reference
-            Ok(CrossPackageReference::PackageTask {
-                package: parts[0].to_string(),
-                task: parts[1].to_string(),
-            })
-        }
-        3 => {
-            // This is the ambiguous case: could be package:task:output or package:subpackage:task
-            // We'll use a heuristic: if the last component is a common output name, treat as output
-            // Otherwise, treat as nested package
 
-            let common_outputs = [
-                "dist",
-                "build",
-                "out",
-                "output",
-                "artifacts",
-                "bin",
-                "lib",
-                "target",
-            ];
-
-            if common_outputs.contains(&parts[2]) {
-                // Likely package:task:output
-                Ok(CrossPackageReference::PackageTaskOutput {
-                    package: parts[0].to_string(),
-                    task: parts[1].to_string(),
-                    output: parts[2].to_string(),
-                })
-            } else {
-                // Likely package:subpackage:task
-                Ok(CrossPackageReference::PackageTask {
-                    package: format!("{}:{}", parts[0], parts[1]),
-                    task: parts[2].to_string(),
-                })
-            }
-        }
-        n if n >= 4 => {
-            // Four or more components
-            // Pattern: package:subpackage:...:task OR package:subpackage:...:task:output
-            //
-            // We'll check if the last component looks like an output
-            let last = parts[n - 1];
-            let common_outputs = [
-                "dist",
-                "build",
-                "out",
-                "output",
-                "artifacts",
-                "bin",
-                "lib",
-                "target",
-            ];
-
-            if common_outputs.contains(&last) {
-                // Treat as package:...:task:output
-                let package = parts[0..n - 2].join(":");
-                let task = parts[n - 2];
-                Ok(CrossPackageReference::PackageTaskOutput {
-                    package,
-                    task: task.to_string(),
-                    output: last.to_string(),
-                })
-            } else {
-                // Treat as package:...:task (no output)
-                let package = parts[0..n - 1].join(":");
-                Ok(CrossPackageReference::PackageTask {
-                    package,
-                    task: last.to_string(),
-                })
-            }
-        }
-        _ => unreachable!(), // Split always returns at least 1 element
+        _ => Err(Error::configuration(format!(
+            "Invalid task reference format: {}",
+            input
+        ))),
     }
 }
 
