@@ -115,9 +115,10 @@ pub fn parse_reference(input: &str) -> Result<CrossPackageReference> {
     }
 
     // Check for invalid characters
+    // Allow alphanumeric, colons, hyphens, underscores, slashes, and dots for file paths
     if !input
         .chars()
-        .all(|c| c.is_alphanumeric() || c == ':' || c == '-' || c == '_')
+        .all(|c| c.is_alphanumeric() || c == ':' || c == '-' || c == '_' || c == '/' || c == '.')
     {
         return Err(Error::configuration(format!(
             "Invalid characters in task reference: {}",
