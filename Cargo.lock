@@ -699,6 +699,7 @@ dependencies = [
  "url",
  "users",
  "uuid",
+ "walkdir",
  "which",
  "whoami",
  "xxhash-rust",

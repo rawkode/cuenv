@@ -1,8 +1,12 @@
 package env
 
+import "github.com/rawkode/cuenv"
+
+cuenv.#Env
+
 capabilities: {
 	secrets: {
-		commands: ["ls"]
+		commands: ["ls", "terraform"]
 	}
 }
 
@@ -18,7 +22,8 @@ env: {
 tasks: {
 	"build": {
 		description: "Build the project"
-		command:     "echo 'Building project...' && sleep 1 && echo 'Build complete!'"
+		capabilities: ["secrets"]
+		command: "echo 'Building project...' && sleep 1 && echo 'Build complete!'"
 		dependencies: ["test", "lint"]
 		inputs: ["src/*"]
 		outputs: ["build/app"]

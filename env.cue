@@ -16,27 +16,27 @@ env: {
 }
 
 // Development lifecycle hooks
-hooks: {
-	onEnter: [
-		// Source nix flake development environment
-		{
-			flake: {
-				// Use current directory's flake
-				dir: "."
-			}
-		},
-		// Then show welcome message
-		{
-			command: "echo"
-			args: ["🦀 cuenv development environment activated (with nix toolchain)"]
-		},
-	]
+// hooks: {
+// 	onEnter: [
+// 		// Source nix flake development environment
+// 		{
+// 			flake: {
+// 				// Use current directory's flake
+// 				dir: "."
+// 			}
+// 		},
+// 		// Then show welcome message
+// 		{
+// 			command: "echo"
+// 			args: ["🦀 cuenv development environment activated (with nix toolchain)"]
+// 		},
+// 	]
 
-	onExit: {
-		command: "echo"
-		args: ["👋 Leaving cuenv development environment"]
-	}
-}
+// 	onExit: {
+// 		command: "echo"
+// 		args: ["👋 Leaving cuenv development environment"]
+// 	}
+// }
 
 // Comprehensive task definitions
 tasks: {

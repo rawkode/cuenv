@@ -8,7 +8,10 @@ use cuenv::shell::ShellType;
 use cuenv::state::StateManager;
 use cuenv::utils::sync::env::InstanceLock;
 use cuenv::{
-    directory::DirectoryManager, env::EnvManager, shell_hook::ShellHook,
+    config::{CueParser, ParseOptions},
+    directory::DirectoryManager,
+    env::EnvManager,
+    shell_hook::ShellHook,
     task_executor::TaskExecutor,
 };
 use std::env;
@@ -39,31 +42,41 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    Load {
-        #[arg(short, long)]
-        directory: Option<PathBuf>,
-
-        /// Environment to use (e.g., dev, staging, production)
-        #[arg(short = 'e', long = "env")]
-        environment: Option<String>,
-
-        /// Capabilities to enable (can be specified multiple times)
-        #[arg(short = 'c', long = "capability")]
-        capabilities: Vec<String>,
-    },
-    Unload,
-    Status,
+    /// Initialize a new env.cue file with example configuration
     Init {
-        shell: String,
+        /// Force overwrite existing file
+        #[arg(short, long)]
+        force: bool,
     },
+
+    /// Allow cuenv to load environments in a directory
     Allow {
         #[arg(default_value = ".")]
         directory: PathBuf,
     },
+
+    /// Deny cuenv from loading environments in a directory
     Deny {
         #[arg(default_value = ".")]
         directory: PathBuf,
     },
+
+    /// Display current environment status and changes
+    Status,
+    /// Discover all CUE packages in the repository
+    Discover {
+        /// Maximum depth to search for env.cue files
+        #[arg(long, default_value = "32")]
+        max_depth: usize,
+        /// Load and validate discovered packages
+        #[arg(short, long)]
+        load: bool,
+        /// Dump the CUE values for each package
+        #[arg(short, long)]
+        dump: bool,
+    },
+
+    /// Run a task or command with the loaded environment
     Run {
         /// Environment to use (e.g., dev, staging, production)
         #[arg(short = 'e', long = "env")]
@@ -92,6 +105,7 @@ enum Commands {
         #[arg(long)]
         trace_output: bool,
     },
+    /// Execute a command directly with the loaded environment
     Exec {
         /// Environment to use (e.g., dev, staging, production)
         #[arg(short = 'e', long = "env")]
@@ -111,30 +125,33 @@ enum Commands {
         #[arg(long)]
         audit: bool,
     },
-    /// Generate shell hook
-    Hook {
-        /// Shell name (defaults to current shell)
-        shell: Option<String>,
-    },
+
     /// Export environment variables for the current directory
     Export {
         /// Shell format (defaults to current shell)
         shell: Option<String>,
     },
-    /// Dump complete environment
+
+    /// Dump complete environment in shell format
     Dump {
         /// Shell format (defaults to current shell)
         shell: Option<String>,
     },
-    /// Prune stale state
+
+    /// Prune stale environment state
     Prune,
-    /// Clear task cache
-    ClearCache,
-    /// Cache management commands
+
+    /// Manage the task and environment cache
     Cache {
         #[command(subcommand)]
         command: CacheCommands,
     },
+    /// Configure shell integration for automatic environment loading
+    Shell {
+        #[command(subcommand)]
+        command: ShellCommands,
+    },
+
     /// Generate shell completion scripts
     Completion {
         /// Shell to generate completion for
@@ -149,6 +166,35 @@ enum Commands {
     /// Internal completion helper - complete allowed hosts
     #[command(name = "_complete_hosts", hide = true)]
     CompleteHosts,
+}
+
+#[derive(Subcommand)]
+enum ShellCommands {
+    /// Generate shell hook for automatic environment loading
+    Init {
+        /// Shell type (bash, zsh, fish, etc.)
+        shell: String,
+    },
+    /// Manually load environment from current directory
+    Load {
+        #[arg(short, long)]
+        directory: Option<PathBuf>,
+
+        /// Environment to use (e.g., dev, staging, production)
+        #[arg(short = 'e', long = "env")]
+        environment: Option<String>,
+
+        /// Capabilities to enable (can be specified multiple times)
+        #[arg(short = 'c', long = "capability")]
+        capabilities: Vec<String>,
+    },
+    /// Manually unload current environment
+    Unload,
+    /// Generate shell hook for current directory
+    Hook {
+        /// Shell name (defaults to current shell)
+        shell: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -189,7 +235,7 @@ _cuenv_completion() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     # Main commands
-    local commands="load unload status init allow deny run exec hook export dump prune clear-cache cache remote-cache-server completion help"
+    local commands="init status allow deny run exec export dump prune cache shell completion help"
     
     # Flags that take arguments
     case "${prev}" in
@@ -278,21 +324,17 @@ _cuenv() {
 _cuenv_commands() {
     local commands
     commands=(
-        'load:Load environment from current directory'
-        'unload:Unload current environment'
-        'status:Show current environment status'
-        'init:Initialize shell hook'
-        'allow:Allow directory for cuenv'
-        'deny:Deny directory for cuenv'
-        'run:Run a task'
-        'exec:Execute command with environment'
-        'hook:Generate shell hook'
-        'export:Export environment variables'
+        'init:Initialize a new env.cue file'
+        'status:Display current environment status'
+        'allow:Allow cuenv in a directory'
+        'deny:Deny cuenv in a directory'
+        'run:Run a task or command with the environment'
+        'exec:Execute a command with the environment'
+        'export:Export environment variables for the current directory'
         'dump:Dump complete environment'
         'prune:Prune stale state'
-        'clear-cache:Clear task cache'
         'cache:Cache management commands'
-        'remote-cache-server:Start remote cache server'
+        'shell:Shell integration commands'
         'completion:Generate shell completion scripts'
         'help:Print help information'
     )
@@ -333,21 +375,17 @@ fn generate_fish_completion() -> Result<()> {
 
 # Main commands
 complete -c cuenv -f
-complete -c cuenv -n '__fish_use_subcommand' -a 'load' -d 'Load environment from current directory'
-complete -c cuenv -n '__fish_use_subcommand' -a 'unload' -d 'Unload current environment'
-complete -c cuenv -n '__fish_use_subcommand' -a 'status' -d 'Show current environment status'
-complete -c cuenv -n '__fish_use_subcommand' -a 'init' -d 'Initialize shell hook'
-complete -c cuenv -n '__fish_use_subcommand' -a 'allow' -d 'Allow directory for cuenv'
-complete -c cuenv -n '__fish_use_subcommand' -a 'deny' -d 'Deny directory for cuenv'
-complete -c cuenv -n '__fish_use_subcommand' -a 'run' -d 'Run a task'
-complete -c cuenv -n '__fish_use_subcommand' -a 'exec' -d 'Execute command with environment'
-complete -c cuenv -n '__fish_use_subcommand' -a 'hook' -d 'Generate shell hook'
-complete -c cuenv -n '__fish_use_subcommand' -a 'export' -d 'Export environment variables'
+complete -c cuenv -n '__fish_use_subcommand' -a 'init' -d 'Initialize a new env.cue file'
+complete -c cuenv -n '__fish_use_subcommand' -a 'status' -d 'Display current environment status'
+complete -c cuenv -n '__fish_use_subcommand' -a 'allow' -d 'Allow cuenv in a directory'
+complete -c cuenv -n '__fish_use_subcommand' -a 'deny' -d 'Deny cuenv in a directory'
+complete -c cuenv -n '__fish_use_subcommand' -a 'run' -d 'Run a task or command with the environment'
+complete -c cuenv -n '__fish_use_subcommand' -a 'exec' -d 'Execute a command with the environment'
+complete -c cuenv -n '__fish_use_subcommand' -a 'export' -d 'Export environment variables for the current directory'
 complete -c cuenv -n '__fish_use_subcommand' -a 'dump' -d 'Dump complete environment'
 complete -c cuenv -n '__fish_use_subcommand' -a 'prune' -d 'Prune stale state'
-complete -c cuenv -n '__fish_use_subcommand' -a 'clear-cache' -d 'Clear task cache'
 complete -c cuenv -n '__fish_use_subcommand' -a 'cache' -d 'Cache management commands'
-complete -c cuenv -n '__fish_use_subcommand' -a 'remote-cache-server' -d 'Start remote cache server'
+complete -c cuenv -n '__fish_use_subcommand' -a 'shell' -d 'Shell integration commands'
 complete -c cuenv -n '__fish_use_subcommand' -a 'completion' -d 'Generate shell completion scripts'
 complete -c cuenv -n '__fish_use_subcommand' -a 'help' -d 'Print help information'
 
@@ -377,7 +415,7 @@ fn generate_elvish_completion() -> Result<()> {
 
 edit:complete:arg-completer[cuenv] = {|@words|
     fn complete-commands {
-        put load unload status init allow deny run exec hook export dump prune clear-cache cache remote-cache-server completion help
+        put init status allow deny run exec export dump prune cache shell completion help
     }
     
     fn complete-tasks {
@@ -438,9 +476,9 @@ Register-ArgumentCompleter -Native -CommandName cuenv -ScriptBlock {
     param($commandName, $wordToComplete, $cursorPosition)
     
     $commands = @(
-        'load', 'unload', 'status', 'init', 'allow', 'deny', 'run', 'exec',
-        'hook', 'export', 'dump', 'prune', 'clear-cache', 'cache',
-        'remote-cache-server', 'completion', 'help'
+        'init', 'status', 'allow', 'deny', 'run', 'exec',
+        'export', 'dump', 'prune', 'cache', 'shell',
+        'completion', 'help'
     )
     
     $flags = @('-h', '--help', '-V', '--version', '-e', '--env', '-c', '--capability', '--audit')
@@ -635,86 +673,240 @@ async fn main() -> Result<()> {
     }
 
     match cli.command {
-        Some(Commands::Load {
-            directory,
-            environment,
-            capabilities,
-        }) => {
-            // Acquire instance lock to prevent concurrent modifications
-            let _lock = match InstanceLock::acquire() {
-                Ok(lock) => lock,
-                Err(e) => {
-                    return Err(Error::Configuration {
-                        message: e.to_string(),
-                    })
-                }
-            };
+        Some(Commands::Init { force }) => {
+            // Initialize a new env.cue file
+            let current_dir = env::current_dir()?;
+            let env_file = current_dir.join(ENV_CUE_FILENAME);
 
-            let dir = match directory {
-                Some(d) => d,
-                None => match env::current_dir() {
-                    Ok(d) => d,
-                    Err(e) => {
-                        return Err(Error::file_system(
-                            PathBuf::from("."),
-                            "get current directory",
-                            e,
-                        ));
-                    }
-                },
-            };
-            let mut env_manager = EnvManager::new();
-
-            // Use environment variables as fallback if CLI args not provided
-            let env_name = environment.or_else(|| env::var(CUENV_ENV_VAR).ok());
-
-            let mut caps = capabilities;
-            if caps.is_empty() {
-                // Check for CUENV_CAPABILITIES env var (comma-separated)
-                if let Ok(env_caps) = env::var(CUENV_CAPABILITIES_VAR) {
-                    caps = env_caps
-                        .split(',')
-                        .map(|s| s.trim().to_string())
-                        .filter(|s| !s.is_empty())
-                        .collect();
-                }
+            if env_file.exists() && !force {
+                eprintln!(
+                    "Error: {} already exists. Use --force to overwrite.",
+                    ENV_CUE_FILENAME
+                );
+                std::process::exit(1);
             }
 
-            // Load environment with options
-            env_manager
-                .load_env_with_options(&dir, env_name, caps, None)
-                .await?;
+            let template = r#"package main
 
-            let shell = Platform::get_current_shell()
-                .unwrap_or(Shell::Bash)
-                .as_str();
+import "cuenv.io/env"
 
-            match env_manager.export_for_shell(shell) {
-                Ok(output) => print!("{output}"),
-                Err(e) => return Err(e),
+// Define your environment configuration
+environment: env.#Environment & {
+    // Development environment
+    dev: {
+        variables: {
+            NODE_ENV: {
+                value: "development"
+                description: "Node environment"
+            }
+            DEBUG: {
+                value: "true"
+                description: "Enable debug mode"
             }
         }
-        Some(Commands::Unload) => {
-            // Acquire instance lock to prevent concurrent modifications
-            let _lock = match InstanceLock::acquire() {
-                Ok(lock) => lock,
-                Err(e) => {
-                    return Err(Error::Configuration {
-                        message: e.to_string(),
-                    })
+    }
+    
+    // Production environment
+    production: {
+        variables: {
+            NODE_ENV: {
+                value: "production"
+                description: "Node environment"
+            }
+            DEBUG: {
+                value: "false"
+                description: "Disable debug mode"
+            }
+        }
+    }
+}
+
+// Define tasks
+tasks: env.#Tasks & {
+    dev: {
+        description: "Start development server"
+        command: ["npm", "run", "dev"]
+    }
+    
+    build: {
+        description: "Build for production"
+        command: ["npm", "run", "build"]
+    }
+    
+    test: {
+        description: "Run tests"
+        command: ["npm", "test"]
+    }
+}
+"#;
+
+            std::fs::write(&env_file, template)?;
+            println!("✓ Created {} with example configuration", ENV_CUE_FILENAME);
+            println!("\nNext steps:");
+            println!(
+                "  1. Edit {} to customize your environment",
+                ENV_CUE_FILENAME
+            );
+            println!(
+                "  2. Run 'cuenv allow {}' to allow this directory",
+                current_dir.display()
+            );
+            println!("  3. Add shell hook with 'eval \"$(cuenv shell init <shell>)\"'");
+        }
+        Some(Commands::Shell { command }) => {
+            match command {
+                ShellCommands::Init { shell } => match ShellHook::generate_hook(&shell) {
+                    Ok(output) => print!("{output}"),
+                    Err(e) => return Err(e),
+                },
+                ShellCommands::Load {
+                    directory,
+                    environment,
+                    capabilities,
+                } => {
+                    // Same as Commands::Load
+                    let _lock = match InstanceLock::acquire() {
+                        Ok(lock) => lock,
+                        Err(e) => {
+                            return Err(Error::Configuration {
+                                message: e.to_string(),
+                            })
+                        }
+                    };
+
+                    let dir = match directory {
+                        Some(d) => d,
+                        None => match env::current_dir() {
+                            Ok(d) => d,
+                            Err(e) => {
+                                return Err(Error::file_system(
+                                    PathBuf::from("."),
+                                    "get current directory",
+                                    e,
+                                ));
+                            }
+                        },
+                    };
+                    let mut env_manager = EnvManager::new();
+
+                    let env_name = environment.or_else(|| env::var(CUENV_ENV_VAR).ok());
+
+                    let mut caps = capabilities;
+                    if caps.is_empty() {
+                        if let Ok(env_caps) = env::var(CUENV_CAPABILITIES_VAR) {
+                            caps = env_caps
+                                .split(',')
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty())
+                                .collect();
+                        }
+                    }
+
+                    env_manager
+                        .load_env_with_options(&dir, env_name, caps, None)
+                        .await?;
+
+                    let shell = Platform::get_current_shell()
+                        .unwrap_or(Shell::Bash)
+                        .as_str();
+
+                    match env_manager.export_for_shell(shell) {
+                        Ok(output) => print!("{output}"),
+                        Err(e) => return Err(e),
+                    }
                 }
-            };
+                ShellCommands::Unload => {
+                    // Same as Commands::Unload
+                    let _lock = match InstanceLock::acquire() {
+                        Ok(lock) => lock,
+                        Err(e) => {
+                            return Err(Error::Configuration {
+                                message: e.to_string(),
+                            })
+                        }
+                    };
 
-            let mut env_manager = EnvManager::new();
-            env_manager.unload_env()?;
+                    let mut env_manager = EnvManager::new();
+                    env_manager.unload_env()?;
 
-            let shell = Platform::get_current_shell()
-                .unwrap_or(Shell::Bash)
-                .as_str();
+                    let shell = Platform::get_current_shell()
+                        .unwrap_or(Shell::Bash)
+                        .as_str();
 
-            match env_manager.export_for_shell(shell) {
-                Ok(output) => print!("{output}"),
-                Err(e) => return Err(e),
+                    match env_manager.export_for_shell(shell) {
+                        Ok(output) => print!("{output}"),
+                        Err(e) => return Err(e),
+                    }
+                }
+                ShellCommands::Hook { shell } => {
+                    // Same as Commands::Hook
+                    let shell_type = match shell {
+                        Some(s) => ShellType::from_name(&s),
+                        None => {
+                            if let Some(arg0) = env::args().next() {
+                                ShellType::detect_from_arg(&arg0)
+                            } else {
+                                match Platform::get_current_shell() {
+                                    Ok(Shell::Bash) => ShellType::Bash,
+                                    Ok(Shell::Zsh) => ShellType::Zsh,
+                                    Ok(Shell::Fish) => ShellType::Fish,
+                                    Ok(Shell::PowerShell) => ShellType::PowerShell,
+                                    Ok(Shell::Cmd) => ShellType::Cmd,
+                                    _ => ShellType::Bash,
+                                }
+                            }
+                        }
+                    };
+
+                    let shell_impl = shell_type.as_shell();
+                    let current_dir = env::current_dir()?;
+
+                    if StateManager::should_unload(&current_dir) {
+                        if let Ok(Some(diff)) = StateManager::get_diff() {
+                            for key in diff.removed() {
+                                println!("{}", shell_impl.unset(key));
+                            }
+                            for (key, _) in diff.added_or_changed() {
+                                if diff.prev.contains_key(key) {
+                                    if let Some(orig_value) = diff.prev.get(key) {
+                                        println!("{}", shell_impl.export(key, orig_value));
+                                    }
+                                } else {
+                                    println!("{}", shell_impl.unset(key));
+                                }
+                            }
+                        }
+                        StateManager::unload().await.map_err(|e| {
+                            Error::configuration(format!("Failed to unload state: {e}"))
+                        })?;
+                    } else if current_dir.join(ENV_CUE_FILENAME).exists() {
+                        let dir_manager = DirectoryManager::new();
+                        if dir_manager
+                            .is_directory_allowed(&current_dir)
+                            .unwrap_or(false)
+                        {
+                            if StateManager::files_changed()
+                                || StateManager::should_load(&current_dir)
+                            {
+                                let mut env_manager = EnvManager::new();
+                                if let Err(e) = env_manager.load_env(&current_dir).await {
+                                    eprintln!("# cuenv: failed to load environment: {e}");
+                                } else {
+                                    if let Ok(Some(diff)) = StateManager::get_diff() {
+                                        for (key, value) in diff.added_or_changed() {
+                                            println!("{}", shell_impl.export(key, value));
+                                        }
+                                        for key in diff.removed() {
+                                            println!("{}", shell_impl.unset(key));
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            eprintln!("# cuenv: Directory not allowed. Run 'cuenv allow {}' to allow this directory.", current_dir.display());
+                        }
+                    }
+                }
             }
         }
         Some(Commands::Status) => {
@@ -724,10 +916,97 @@ async fn main() -> Result<()> {
                 Err(e) => return Err(e),
             }
         }
-        Some(Commands::Init { shell }) => match ShellHook::generate_hook(&shell) {
-            Ok(output) => print!("{output}"),
-            Err(e) => return Err(e),
-        },
+        Some(Commands::Discover {
+            max_depth,
+            load,
+            dump,
+        }) => {
+            use cuenv::discovery::PackageDiscovery;
+
+            let current_dir = std::env::current_dir().map_err(|e| Error::Configuration {
+                message: format!("Failed to get current directory: {}", e),
+            })?;
+
+            let mut discovery = PackageDiscovery::new(max_depth);
+
+            // If dump is requested, we need to load the packages
+            let should_load = load || dump;
+
+            match discovery.discover(&current_dir, should_load).await {
+                Ok(packages) => {
+                    if packages.is_empty() {
+                        println!("No CUE packages found");
+                    } else {
+                        if dump {
+                            // Dump mode: show full details for each package
+                            for package in packages {
+                                println!("═══════════════════════════════════════════════");
+                                println!("Package: {}", package.name);
+                                println!("Path: {}", package.path.display());
+
+                                if let Some(ref result) = package.parse_result {
+                                    println!("\nEnvironment Variables:");
+                                    if result.variables.is_empty() {
+                                        println!("  (none)");
+                                    } else {
+                                        for (key, value) in &result.variables {
+                                            println!("  {}: {}", key, value);
+                                        }
+                                    }
+
+                                    if !result.tasks.is_empty() {
+                                        println!("\nTasks:");
+                                        for (name, task) in &result.tasks {
+                                            print!("  {}", name);
+                                            if let Some(ref desc) = task.description {
+                                                print!(" - {}", desc);
+                                            }
+                                            println!();
+                                        }
+                                    }
+
+                                    if !result.commands.is_empty() {
+                                        println!("\nCommands:");
+                                        for (name, cmd) in &result.commands {
+                                            print!("  {}", name);
+                                            if let Some(ref caps) = cmd.capabilities {
+                                                print!(" (capabilities: {})", caps.join(", "));
+                                            }
+                                            println!();
+                                        }
+                                    }
+
+                                    if !result.hooks.is_empty() {
+                                        println!("\nHooks:");
+                                        for (hook_type, hooks) in &result.hooks {
+                                            println!("  {}: {} hook(s)", hook_type, hooks.len());
+                                        }
+                                    }
+                                } else {
+                                    println!("\n[Failed to load package]");
+                                }
+                                println!();
+                            }
+                        } else {
+                            // Normal mode: just list packages
+                            println!("Discovered CUE packages:");
+                            for package in packages {
+                                if load && package.parse_result.is_some() {
+                                    println!(
+                                        "  {} -> {} [loaded]",
+                                        package.name,
+                                        package.path.display()
+                                    );
+                                } else {
+                                    println!("  {} -> {}", package.name, package.path.display());
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+        }
         Some(Commands::Allow { directory }) => {
             let dir_manager = DirectoryManager::new();
             let abs_dir = if directory.is_absolute() {
@@ -771,6 +1050,34 @@ async fn main() -> Result<()> {
                     ));
                 }
             };
+
+            // Special case: if no task name is provided, just list available tasks
+            // without loading the full environment (skip onEnter hooks)
+            if task_name.is_none() {
+                // Only parse the CUE file to get task definitions
+                let options = ParseOptions {
+                    environment: environment.or_else(|| env::var(CUENV_ENV_VAR).ok()),
+                    capabilities: Vec::new(),
+                };
+
+                let parse_result =
+                    CueParser::eval_package_with_options(&current_dir, "env", &options)?;
+
+                if parse_result.tasks.is_empty() {
+                    println!("No tasks defined in the CUE package");
+                } else {
+                    println!("Available tasks:");
+                    for (name, task) in parse_result.tasks {
+                        match task.description {
+                            Some(desc) => println!("  {name}: {desc}"),
+                            None => println!("  {name}"),
+                        }
+                    }
+                }
+                return Ok(());
+            }
+
+            // For actual task execution, load the full environment
             let mut env_manager = EnvManager::new();
 
             // Use environment variables as fallback if CLI args not provided
@@ -841,21 +1148,7 @@ async fn main() -> Result<()> {
                         std::process::exit(status);
                     }
                 }
-                None => {
-                    // List available tasks
-                    let tasks = env_manager.list_tasks();
-                    if tasks.is_empty() {
-                        println!("No tasks defined in the CUE package");
-                    } else {
-                        println!("Available tasks:");
-                        for (name, description) in tasks {
-                            match description {
-                                Some(desc) => println!("  {name}: {desc}"),
-                                None => println!("  {name}"),
-                            }
-                        }
-                    }
-                }
+                None => unreachable!("task_name is None should have been handled earlier"),
             }
         }
         Some(Commands::Exec {
@@ -918,83 +1211,6 @@ async fn main() -> Result<()> {
                 std::process::exit(status);
             }
         }
-        Some(Commands::Hook { shell }) => {
-            let shell_type = match shell {
-                Some(s) => ShellType::from_name(&s),
-                None => {
-                    // Try to detect from $0
-                    if let Some(arg0) = env::args().next() {
-                        ShellType::detect_from_arg(&arg0)
-                    } else {
-                        // Fallback to platform detection
-                        match Platform::get_current_shell() {
-                            Ok(Shell::Bash) => ShellType::Bash,
-                            Ok(Shell::Zsh) => ShellType::Zsh,
-                            Ok(Shell::Fish) => ShellType::Fish,
-                            Ok(Shell::PowerShell) => ShellType::PowerShell,
-                            Ok(Shell::Cmd) => ShellType::Cmd,
-                            _ => ShellType::Bash,
-                        }
-                    }
-                }
-            };
-
-            let shell_impl = shell_type.as_shell();
-
-            // Check if we should load/unload based on current directory
-            let current_dir = env::current_dir()?;
-
-            if StateManager::should_unload(&current_dir) {
-                // Output unload commands
-                if let Ok(Some(diff)) = StateManager::get_diff() {
-                    for key in diff.removed() {
-                        println!("{}", shell_impl.unset(key));
-                    }
-                    for (key, _) in diff.added_or_changed() {
-                        if diff.prev.contains_key(key) {
-                            // Restore original value
-                            if let Some(orig_value) = diff.prev.get(key) {
-                                println!("{}", shell_impl.export(key, orig_value));
-                            }
-                        } else {
-                            // Variable was added, remove it
-                            println!("{}", shell_impl.unset(key));
-                        }
-                    }
-                }
-                StateManager::unload()
-                    .await
-                    .map_err(|e| Error::configuration(format!("Failed to unload state: {e}")))?;
-            } else if current_dir.join(ENV_CUE_FILENAME).exists() {
-                // Check if directory is allowed
-                let dir_manager = DirectoryManager::new();
-                if dir_manager
-                    .is_directory_allowed(&current_dir)
-                    .unwrap_or(false)
-                {
-                    // Check if files have changed and reload if needed
-                    if StateManager::files_changed() || StateManager::should_load(&current_dir) {
-                        // Need to load/reload
-                        let mut env_manager = EnvManager::new();
-                        if let Err(e) = env_manager.load_env(&current_dir).await {
-                            eprintln!("# cuenv: failed to load environment: {e}");
-                        } else {
-                            // Output export commands
-                            if let Ok(Some(diff)) = StateManager::get_diff() {
-                                for (key, value) in diff.added_or_changed() {
-                                    println!("{}", shell_impl.export(key, value));
-                                }
-                                for key in diff.removed() {
-                                    println!("{}", shell_impl.unset(key));
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    eprintln!("# cuenv: Directory not allowed. Run 'cuenv allow {}' to allow this directory.", current_dir.display());
-                }
-            }
-        }
         Some(Commands::Export { shell }) => {
             let shell_type = match shell {
                 Some(s) => ShellType::from_name(&s),
@@ -1049,17 +1265,6 @@ async fn main() -> Result<()> {
                 println!("Pruned cuenv state");
             } else {
                 println!("No cuenv state to prune");
-            }
-        }
-        Some(Commands::ClearCache) => {
-            // Legacy command - redirect to new cache clear command
-            let cache = cuenv::cache::new_cache(".cache").build_sync()?;
-            match cache.clear() {
-                Ok(()) => println!("✓ Task cache cleared"),
-                Err(e) => {
-                    eprintln!("Failed to clear task cache: {e}");
-                    return Err(e.into());
-                }
             }
         }
         Some(Commands::Cache { command }) => {

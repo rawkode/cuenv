@@ -8,7 +8,11 @@
       "Bash(mkdir:*)",
       "Bash(mv:*)",
       "Bash(nix:*)",
-      "WebFetch(domain:socket.dev)"
+      "WebFetch(domain:socket.dev)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.rs)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   },
