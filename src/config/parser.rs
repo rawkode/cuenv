@@ -107,7 +107,7 @@ pub struct CommandConfig {
     pub capabilities: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TaskConfig {
     pub description: Option<String>,
     pub command: Option<String>,
