@@ -119,6 +119,7 @@
           cargo-outdated
           cargo-audit
           cargo-nextest
+          cargo-llvm-cov
           cue
           gopls
           gotools
