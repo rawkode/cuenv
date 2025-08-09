@@ -1,9 +1,7 @@
 package env
 
-import "github.com/rawkode/cuenv"
-
 // Environment configuration with capabilities
-env: cuenv.#Env & {
+env: {
 	// Basic variables (always available)
 	DATABASE_URL: "postgres://localhost/mydb"
 	API_KEY:      "test-api-key"
@@ -19,19 +17,6 @@ env: cuenv.#Env & {
 	DOCKER_REGISTRY: "docker.io"    @capability("docker")
 	DOCKER_IMAGE:    "myapp:latest" @capability("docker")
 
-	// Capabilities with associated commands
-	capabilities: {
-		aws: {
-			commands: ["aws", "pulumi", "terraform"]
-		}
-		docker: {
-			commands: ["docker", "docker-compose"]
-		}
-		database: {
-			commands: ["psql", "mysql", "migrate"]
-		}
-	}
-
 	// Environment-specific overrides
 	environment: {
 		production: {
@@ -44,7 +29,17 @@ env: cuenv.#Env & {
 			API_KEY:      "staging-api-key"
 		}
 	}
-}
 
-// Capabilities can also be defined at the top level
-capabilities: env.capabilities
+	// Capabilities definition
+	capabilities: {
+		aws: {
+			commands: ["aws", "pulumi", "terraform"]
+		}
+		docker: {
+			commands: ["docker", "docker-compose"]
+		}
+		database: {
+			commands: ["psql", "mysql", "migrate"]
+		}
+	}
+}

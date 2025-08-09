@@ -170,8 +170,48 @@ pub trait TaskSource {
     fn get_command_capabilities(&self, command: &str) -> Vec<String>;
     fn get_filtered_vars(&self, capabilities: &[String]) -> HashMap<String, String>;
 }
-// TODO: SecretManager should be available from a secrets crate or core
-// For now, commenting out secret resolution functionality
+// Basic secret resolver for CUE resolver format
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Serialize)]
+struct ResolverConfig {
+    cmd: String,
+    args: Vec<String>,
+}
+
+fn resolve_secret(value: &str) -> Result<String> {
+    if let Some(json_str) = value.strip_prefix("cuenv-resolver://") {
+        if let Ok(config) = serde_json::from_str::<ResolverConfig>(json_str) {
+            // Execute the resolver command
+            let output = std::process::Command::new(&config.cmd)
+                .args(&config.args)
+                .output()
+                .map_err(|e| {
+                    Error::configuration(format!(
+                        "Failed to execute resolver command '{}': {}",
+                        config.cmd, e
+                    ))
+                })?;
+
+            if output.status.success() {
+                let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                Ok(result)
+            } else {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                Err(Error::configuration(format!(
+                    "Resolver command '{}' failed: {}",
+                    config.cmd, stderr
+                )))
+            }
+        } else {
+            // If it's not valid JSON, just return the original value
+            Ok(value.to_string())
+        }
+    } else {
+        // Not a resolver reference, return as-is
+        Ok(value.to_string())
+    }
+}
 
 // TODO: Platform should be imported from a shared location
 // #[cfg(unix)]
@@ -744,12 +784,17 @@ impl EnvManager {
         base_env.extend(self.cue_vars.clone());
 
         // Resolve secrets in the merged environment
-        // Secret resolution disabled until SecretManager is available
-        let (resolved_env, _secret_values) = {
-            // Skip secret resolution for now
-            use cuenv_core::types::SecretValues;
-            (base_env, SecretValues::new())
-        };
+        let mut resolved_env = HashMap::new();
+        for (key, value) in base_env {
+            let resolved_value = match resolve_secret(&value) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::warn!("Failed to resolve secret for {}: {}", key, e);
+                    value // Keep original value if resolution fails
+                }
+            };
+            resolved_env.insert(key, resolved_value);
+        }
 
         // Add minimal required environment variables for basic operation
         let mut final_env = resolved_env;
@@ -924,12 +969,17 @@ impl EnvManager {
         base_env.extend(self.cue_vars.clone());
 
         // Resolve secrets in the merged environment
-        // Secret resolution disabled until SecretManager is available
-        let (resolved_env, _secret_values) = {
-            // Skip secret resolution for now
-            use cuenv_core::types::SecretValues;
-            (base_env, SecretValues::new())
-        };
+        let mut resolved_env = HashMap::new();
+        for (key, value) in base_env {
+            let resolved_value = match resolve_secret(&value) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::warn!("Failed to resolve secret for {}: {}", key, e);
+                    value // Keep original value if resolution fails
+                }
+            };
+            resolved_env.insert(key, resolved_value);
+        }
 
         // Add minimal required environment variables for basic operation
         let mut final_env = resolved_env;

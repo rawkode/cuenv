@@ -62,7 +62,7 @@ env: {
     // Test without capabilities - should include non-capability-tagged vars
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
-        .arg("load")
+        .arg("export")
         .env_clear() // Clear all environment variables to ensure clean test
         .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
         .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string())) // CUE needs HOME
@@ -74,20 +74,22 @@ env: {
     assert!(stdout.contains("export DATABASE_URL="));
     assert!(stdout.contains("export API_KEY="));
 
-    // Test with aws capability
+    // Test with aws capability - use run command for capability filtering
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
-        .arg("load")
-        .arg("-c")
+        .arg("run")
+        .arg("--capability")
         .arg("aws")
+        .arg("--")
+        .arg("env")
         .output()
         .expect("Failed to execute command");
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("export AWS_REGION="));
-    assert!(stdout.contains("export AWS_ACCESS_KEY="));
-    assert!(!stdout.contains("export DOCKER_REGISTRY="));
+    assert!(stdout.contains("AWS_REGION="));
+    assert!(stdout.contains("AWS_ACCESS_KEY="));
+    assert!(!stdout.contains("DOCKER_REGISTRY="));
 }
 
 #[test]
@@ -113,12 +115,16 @@ env: {
 "#;
     std::fs::write(temp_dir.path().join("env.cue"), env_content).unwrap();
 
-    // Test with production environment
+    // Test with production environment - use run command for environment selection
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
-        .arg("load")
-        .arg("-e")
+        .arg("run")
+        .arg("--env")
         .arg("production")
+        .arg("--")
+        .arg("sh")
+        .arg("-c")
+        .arg("echo DATABASE_URL=$DATABASE_URL PORT=$PORT")
         .output()
         .expect("Failed to execute command");
 
@@ -144,7 +150,7 @@ GITHUB_TOKEN: "github://myorg/myrepo/GITHUB_TOKEN"
 
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
-        .arg("load")
+        .arg("export")
         .env_clear() // Clear all environment variables to ensure clean test
         .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
         .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string())) // CUE needs HOME
@@ -154,7 +160,7 @@ GITHUB_TOKEN: "github://myorg/myrepo/GITHUB_TOKEN"
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // Secret references should be passed through as-is in load
+    // Secret references should be passed through as-is in export
     assert!(stdout.contains("op://Personal/aws/key"));
     assert!(stdout.contains("github://myorg/myrepo/GITHUB_TOKEN"));
 }
@@ -239,14 +245,14 @@ DATABASE_URL: "postgres://localhost/mydb"
 
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
-        .arg("load")
+        .arg("export")
         .env_clear() // Clear all environment variables to ensure clean test
         .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
         .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string())) // CUE needs HOME
         .output()
         .expect("Failed to execute command");
 
-    // Should fail because package isn't "cuenv"
+    // Should fail because package isn't "env"
     assert!(!output.status.success());
 }
 
