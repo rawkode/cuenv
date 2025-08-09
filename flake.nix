@@ -239,6 +239,16 @@
 
               # Copy Go vendor
               cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
+
+              # Platform-specific setup for macOS framework linking
+              ${
+                if pkgs.stdenv.isDarwin then
+                  ''
+                    export RUSTFLAGS="-C link-arg=-framework -C link-arg=Security -C link-arg=-framework -C link-arg=CoreFoundation -C link-arg=-framework -C link-arg=SystemConfiguration"
+                  ''
+                else
+                  ""
+              }
               chmod -R u+w crates/libcue-ffi-bridge
 
               # Setup cargo vendor for offline build

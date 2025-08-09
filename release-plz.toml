@@ -44,43 +44,54 @@ publish = true
 [[package]]
 name = "cuenv-core"
 publish = false
+release = false
 
 [[package]]
 name = "cuenv-libcue-ffi-bridge"
 publish = false
+release = false
 
 [[package]]
 name = "cuenv-config"
 publish = false
+release = false
 
 [[package]]
 name = "cuenv-env"
 publish = false
+release = false
 
 [[package]]
 name = "cuenv-shell"
 publish = false
+release = false
 
 [[package]]
 name = "cuenv-task"
 publish = false
+release = false
 
 [[package]]
 name = "cuenv-cache"
 publish = false
+release = false
 
 [[package]]
 name = "cuenv-security"
 publish = false
+release = false
 
 [[package]]
 name = "cuenv-tui"
 publish = false
+release = false
 
 [[package]]
 name = "cuenv-hooks"
 publish = false
+release = false
 
 [[package]]
 name = "cuenv-utils"
 publish = false
+release = false
