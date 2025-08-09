@@ -6,7 +6,6 @@ use crate::keys::CacheKeyGenerator;
 use crate::security::signing::CacheSigner;
 use cuenv_config::TaskConfig;
 use cuenv_core::{Error, Result};
-use cuenv_utils::async_runtime::{run_async, AsyncRuntime};
 use cuenv_utils::atomic_file::write_atomic_string;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -68,13 +67,20 @@ impl CacheManager {
             task_env_filters: HashMap::new(),
         };
 
-        if AsyncRuntime::is_in_async_context() {
+        // Check if we're already in an async context
+        if tokio::runtime::Handle::try_current().is_ok() {
             return Err(Error::configuration(
                 "Cannot use sync constructor from async context. Use new() instead.".to_string(),
             ));
         }
 
-        run_async(Self::new_internal(config))
+        // Create a new runtime for this operation
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| Error::configuration(format!("Failed to create tokio runtime: {e}")))?;
+            
+        rt.block_on(Self::new_internal(config))
     }
 
     /// Internal constructor shared by both sync and async versions
