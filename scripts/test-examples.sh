@@ -27,20 +27,20 @@ test_cue_dir() {
     
     echo -e "\n${YELLOW}Testing $name...${NC}"
     
-    # Test basic load
-    echo -n "  Load test: "
-    if $CUENV load -d "$dir" > /dev/null 2>&1; then
+    # Test basic export
+    echo -n "  Export test: "
+    if (cd "$dir" && $CUENV export) > /dev/null 2>&1; then
         echo -e "${GREEN}PASS${NC}"
     else
         echo -e "${RED}FAIL${NC}"
-        $CUENV load -d "$dir" 2>&1 | sed 's/^/    /'
+        (cd "$dir" && $CUENV export) 2>&1 | sed 's/^/    /'
         return 1
     fi
     
     # Test with environment if the file has environment configs
     if grep -q "environment:" "$dir/env.cue" 2>/dev/null; then
         echo -n "  Environment test (production): "
-        if $CUENV load -d "$dir" -e production > /dev/null 2>&1; then
+        if (cd "$dir" && $CUENV run --env production -- echo "test") > /dev/null 2>&1; then
             echo -e "${GREEN}PASS${NC}"
         else
             echo -e "${RED}FAIL${NC}"
@@ -51,7 +51,7 @@ test_cue_dir() {
     # Test with capabilities if the file has capability tags
     if grep -q "@capability" "$dir/env.cue" 2>/dev/null; then
         echo -n "  Capability test (aws): "
-        if $CUENV load -d "$dir" -c aws > /dev/null 2>&1; then
+        if (cd "$dir" && $CUENV run --capability aws -- echo "test") > /dev/null 2>&1; then
             echo -e "${GREEN}PASS${NC}"
         else
             echo -e "${RED}FAIL${NC}"
@@ -84,10 +84,10 @@ EOF
 
     echo -n "  Secret resolution test: "
     if OUTPUT=$(cd "$TEMP_DIR" && $CUENV exec env 2>&1); then
-        if echo "$OUTPUT" | grep -q "SECRET_VAR=\\*\\*\\*\\*\\*\\*\\*\\*\\*\\*\\*"; then
-            echo -e "${GREEN}PASS${NC} (secret properly masked)"
+        if echo "$OUTPUT" | grep -q "SECRET_VAR=resolved-secret"; then
+            echo -e "${GREEN}PASS${NC} (secret properly resolved)"
         else
-            echo -e "${RED}FAIL - Secret not properly masked${NC}"
+            echo -e "${RED}FAIL - Secret not properly resolved${NC}"
             echo "$OUTPUT" | sed 's/^/    /'
             return 1
         fi
@@ -102,26 +102,9 @@ EOF
 # Run all tests
 echo -e "${YELLOW}Running cuenv example tests${NC}"
 
-# Initialize CUE module at examples level if it doesn't exist
-if [ ! -f "$EXAMPLES_DIR/cue.mod/module.cue" ]; then
-    echo -e "${YELLOW}Initializing CUE module in examples directory...${NC}"
-    (cd "$EXAMPLES_DIR" && cue mod init github.com/rawkode/cuenv-examples) > /dev/null 2>&1 || {
-        echo -e "${RED}Failed to initialize CUE module${NC}"
-        exit 1
-    }
-fi
-
-# Fetch dependencies (skip in Nix sandbox)
-if [ -z "${CUENV_SKIP_CUE_FETCH:-}" ]; then
-    echo -e "${YELLOW}Fetching CUE dependencies...${NC}"
-    cd "$EXAMPLES_DIR"
-    if ! cue mod tidy 2>&1; then
-        echo -e "${RED}Failed to fetch CUE dependencies${NC}"
-        exit 1
-    fi
-else
-    echo -e "${YELLOW}Skipping CUE dependency fetch (running in sandbox)${NC}"
-fi
+# Use bundled CUE schemas to avoid fetching
+echo -e "${YELLOW}Using bundled CUE schemas (no fetching required)${NC}"
+export CUE_ROOT="$PROJECT_ROOT/cue"
 
 FAILED=0
 

@@ -177,6 +177,9 @@
             export GOCACHE="$HOME/go-cache"
             export CGO_ENABLED=1
 
+            # Setup CUE root to use bundled schemas, avoiding external fetching
+            export CUE_ROOT="$PWD/cue"
+
             # Copy vendored dependencies
             cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
             chmod -R u+w crates/libcue-ffi-bridge
@@ -229,6 +232,9 @@
               export GOPATH="$HOME/go"
               export GOCACHE="$HOME/go-cache"
               export CGO_ENABLED=1
+
+              # Setup CUE root to use bundled schemas, avoiding external fetching
+              export CUE_ROOT="$PWD/cue"
 
               # Copy Go vendor
               cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
@@ -335,6 +341,9 @@
                 export RUST_TEST_THREADS=4
                 export GOMAXPROCS=4
 
+                # Setup CUE root to use bundled schemas, avoiding external fetching
+                export CUE_ROOT="$PWD/cue"
+
                 cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
                 chmod -R u+w crates/libcue-ffi-bridge
               '';
@@ -358,10 +367,14 @@
           buildInputs = buildInputs ++ nativeBuildInputs ++ devTools;
 
           shellHook = ''
+            # Setup CUE root to use bundled schemas, avoiding external fetching
+            export CUE_ROOT="$PWD/cue"
+
             if [ -t 2 ]; then
               echo "cuenv development environment" >&2
               echo "Rust version: $(rustc --version)" >&2
               echo "Go version: $(go version)" >&2
+              echo "CUE root: $CUE_ROOT" >&2
               echo "" >&2
               echo "Available commands:" >&2
               echo "  cargo build    - Build the project" >&2
