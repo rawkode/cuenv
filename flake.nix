@@ -119,7 +119,6 @@
           cargo-outdated
           cargo-audit
           cargo-nextest
-          cargo-llvm-cov
           cue
           gopls
           gotools
@@ -130,6 +129,9 @@
           protobuf
           grpcurl
           netcat
+        ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+          # cargo-llvm-cov only works on Linux
+          cargo-llvm-cov
         ];
 
         # Read version from Cargo.toml
