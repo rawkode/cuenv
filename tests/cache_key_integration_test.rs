@@ -609,13 +609,22 @@ fn test_mixed_build_tools_cache_key_generation() {
 }
 
 /// Test integration with CacheManager
-#[test]
-fn test_cache_manager_integration() {
+#[tokio::test]
+async fn test_cache_manager_integration() {
     // Create a temporary directory for cache
     let _temp_dir = tempfile::tempdir().unwrap(); // Prefix with underscore to indicate intentional unused
 
-    // Create cache manager
-    let cache_manager = CacheManager::new_sync().unwrap();
+    // Create cache manager - use the same pattern as new_sync but with async
+    let engine = std::sync::Arc::new(cuenv::cache::CacheEngine::new().unwrap());
+    let config = cuenv::cache::CacheConfig {
+        base_dir: engine.cache_dir.clone(),
+        max_size: 1024 * 1024 * 1024, // 1GB default
+        mode: cuenv::cache::CacheMode::ReadWrite,
+        inline_threshold: 4096, // 4KB default
+        env_filter: Default::default(),
+        task_env_filters: std::collections::HashMap::new(),
+    };
+    let cache_manager = CacheManager::new(config).await.unwrap();
 
     // Test task configuration
     let task_config = TaskConfig {
