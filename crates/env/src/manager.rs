@@ -186,14 +186,22 @@ fn resolve_secret(value: &str) -> Result<String> {
             let output = std::process::Command::new(&config.cmd)
                 .args(&config.args)
                 .output()
-                .map_err(|e| Error::configuration(format!("Failed to execute resolver command '{}': {}", config.cmd, e)))?;
-            
+                .map_err(|e| {
+                    Error::configuration(format!(
+                        "Failed to execute resolver command '{}': {}",
+                        config.cmd, e
+                    ))
+                })?;
+
             if output.status.success() {
                 let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 Ok(result)
             } else {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                Err(Error::configuration(format!("Resolver command '{}' failed: {}", config.cmd, stderr)))
+                Err(Error::configuration(format!(
+                    "Resolver command '{}' failed: {}",
+                    config.cmd, stderr
+                )))
             }
         } else {
             // If it's not valid JSON, just return the original value
@@ -775,7 +783,7 @@ impl EnvManager {
         // Override with CUE-defined variables (CUE takes precedence)
         base_env.extend(self.cue_vars.clone());
 
-        // Resolve secrets in the merged environment  
+        // Resolve secrets in the merged environment
         let mut resolved_env = HashMap::new();
         for (key, value) in base_env {
             let resolved_value = match resolve_secret(&value) {
@@ -960,7 +968,7 @@ impl EnvManager {
         // Override with CUE-defined variables (CUE takes precedence)
         base_env.extend(self.cue_vars.clone());
 
-        // Resolve secrets in the merged environment  
+        // Resolve secrets in the merged environment
         let mut resolved_env = HashMap::new();
         for (key, value) in base_env {
             let resolved_value = match resolve_secret(&value) {
