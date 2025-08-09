@@ -9,18 +9,24 @@ fn get_cuenv_binary() -> PathBuf {
 
 #[test]
 fn test_basic_env_loading() {
-    // Use the existing basic example instead of creating temporary files
-    let example_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent() // cli crate -> root
-        .unwrap()
-        .parent() // crates -> root
-        .unwrap()
-        .join("examples/basic");
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create a basic env.cue file in package env
+    let env_content = r#"package env
+
+env: {
+    DATABASE_URL: "postgres://localhost/mydb"
+    API_KEY: "test-api-key"
+    DEBUG: "true"
+    PORT: "3000"
+}
+"#;
+    std::fs::write(temp_dir.path().join("env.cue"), env_content).unwrap();
 
     let output = Command::new(get_cuenv_binary())
-        .current_dir(&example_dir)
+        .current_dir(temp_dir.path())
         .arg("export")
-        .env("CUE_ROOT", example_dir.parent().unwrap().join("cue")) // Set CUE_ROOT
+        .env_clear() // Clear all environment variables to ensure clean test
         .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
         .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string())) // CUE needs HOME
         .output()
