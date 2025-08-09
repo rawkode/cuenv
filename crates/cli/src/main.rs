@@ -21,7 +21,6 @@ use crate::platform::UnixPlatform as Platform;
 #[cfg(windows)]
 use crate::platform::WindowsPlatform as Platform;
 
-mod async_runtime;
 mod directory;
 mod discovery;
 mod monorepo;

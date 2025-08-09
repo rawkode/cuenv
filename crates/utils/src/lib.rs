@@ -4,7 +4,6 @@
 //! the cuenv workspace. All functions here are designed to be pure and
 //! side-effect free where possible.
 
-pub mod async_runtime;
 pub mod atomic_file;
 pub mod cleanup;
 pub mod compression;
@@ -18,7 +17,6 @@ pub mod sync;
 pub mod tracing;
 pub mod xdg;
 
-pub use async_runtime::*;
 pub use atomic_file::*;
 pub use cleanup::*;
 pub use compression::*;
