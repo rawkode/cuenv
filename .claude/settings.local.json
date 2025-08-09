@@ -21,7 +21,9 @@
       "Bash(../../target/debug/cuenv run)",
       "Bash(/home/rawkode/Code/src/github.com/rawkode/cuenv/target/debug/cuenv run)",
       "Bash(chmod:*)",
-      "Bash(/home/rawkode/Code/src/github.com/rawkode/cuenv/test_debug.sh:*)"
+      "Bash(/home/rawkode/Code/src/github.com/rawkode/cuenv/test_debug.sh:*)",
+      "Bash(cp:*)",
+      "Bash(RUST_BACKTRACE=1 nix develop -c cargo test -p cuenv-hooks test_constraint_command_exists -- --nocapture)"
     ],
     "deny": []
   },

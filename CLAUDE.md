@@ -212,6 +212,7 @@ Environment configurations are defined in `env.cue` files following the schema i
 2. **Protobuf**: Required for building (remote cache features)
 3. **Go Version**: Requires Go 1.24+ for CUE support
 4. **Vendored Dependencies**: Go dependencies are vendored via Nix
+5. **Nix Flake Warning**: You may see "attribute 'package' missing" error when running `nix flake check`. This can be safely ignored as it doesn't affect functionality
 
 ## Security Considerations
 

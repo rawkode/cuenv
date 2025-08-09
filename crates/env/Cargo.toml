@@ -1,0 +1,57 @@
+[package]
+name = "cuenv-env"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+
+[dependencies]
+# Workspace crates
+cuenv-core.workspace = true
+cuenv-utils.workspace = true
+cuenv-config.workspace = true
+cuenv-security.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# File watching
+notify.workspace = true
+
+# Async runtime
+tokio.workspace = true
+tokio-stream.workspace = true
+
+# Data structures
+dashmap.workspace = true
+parking_lot.workspace = true
+once_cell.workspace = true
+
+# Error handling
+log.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+
+# File system and paths
+dirs.workspace = true
+tempfile.workspace = true
+which.workspace = true
+shellexpand.workspace = true
+shell-words.workspace = true
+
+# Crypto
+sha2.workspace = true
+
+# Async
+futures.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+uuid.workspace = true
+
+[features]
+default = []

@@ -1,35 +1,41 @@
-[package]
-name = "cuenv"
+[workspace]
+members = [
+  "crates/core",
+  "crates/libcue-ffi-bridge",
+  "crates/config",
+  "crates/env",
+  "crates/shell",
+  "crates/task",
+  "crates/cache",
+  "crates/security",
+  "crates/tui",
+  "crates/hooks",
+  "crates/utils",
+  "crates/cli",
+]
+resolver = "2"
+
+[workspace.package]
 version = "0.4.7"
 edition = "2021"
 authors = ["David Flanagan"]
-description = "A direnv alternative that uses CUE files for environment configuration"
 license = "MIT"
 repository = "https://github.com/rawkode/cuenv"
 homepage = "https://github.com/rawkode/cuenv"
 documentation = "https://github.com/rawkode/cuenv"
-readme = "README.md"
-keywords = ["environment", "cue", "direnv", "env", "shell"]
-categories = ["command-line-utilities", "development-tools", "config"]
 
-[features]
-default = []
-nix-build = []
-
-[dependencies]
-clap = { version = "4.5", features = ["derive"] }
-clap_complete = "4.5"
+[workspace.dependencies]
+# Core dependencies
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 anyhow = "1.0"
 thiserror = "1.0"
-dirs = "5.0"
-shellexpand = "3.1"
-crossterm = "0.27"
-unicode-width = "0.1"
-libc = "0.2"
-regex = "1.10"
-lazy_static = "1.4"
+miette = "7.4"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+log = "0.4"
+
+# Async runtime
 tokio = { version = "1.35", features = [
   "macros",
   "rt-multi-thread",
@@ -38,98 +44,107 @@ tokio = { version = "1.35", features = [
   "test-util",
   "signal",
 ] }
+tokio-stream = { version = "0.1", features = ["sync"] }
 async-trait = "0.1"
-axum = "0.7"
-shlex = "1.1"
 futures = "0.3"
+
+# CLI and shell
+clap = { version = "4.5", features = ["derive"] }
+clap_complete = "4.5"
+shlex = "1.1"
+shell-words = "1.1"
+
+# File system and paths
+dirs = "5.0"
+shellexpand = "3.1"
+walkdir = "2.4"
+notify = "6.1"
+tempfile = "3.8"
+fs2 = "0.4"
+globset = "0.4"
+which = "6.0"
+memmap2 = "0.9"
+
+# Data structures and algorithms
+dashmap = "6.1"
+parking_lot = "0.12"
+crossbeam = "0.8"
+lru = "0.12"
+lazy_static = "1.4"
+once_cell = "1.19"
+uuid = { version = "1.7", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde", "clock"] }
+bytes = "1.5"
+
+# Serialization and encoding
+base64 = "0.22"
+hex = "0.4"
+bincode = "1.3"
+
+# Compression and hashing
+flate2 = "1.0"
+zstd = "0.13"
+sha2 = "0.10"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+crc32c = "0.6"
+
+# Security
 zeroize = { version = "1.7", features = ["derive"] }
+ed25519-dalek = { version = "2.1", features = ["rand_core"] }
+getrandom = "0.2"
+rand = "0.8"
+
+# Networking
 reqwest = { version = "0.11", default-features = false, features = [
   "json",
   "rustls-tls",
 ] }
+axum = "0.7"
 url = "2.4"
-lru = "0.12"
-base64 = "0.22"
-flate2 = "1.0"
-sha2 = "0.10"
-rand = "0.8"
-# Moon cache system for robust build caching
-miette = "7.4"
-tracing = "0.1"
-log = "0.4"
-xxhash-rust = { version = "0.8", features = ["xxh3"] }
-fs2 = "0.4"
-globset = "0.4"
-once_cell = "1.19"
+
+# Terminal UI
+ratatui = { version = "0.28", features = ["crossterm"] }
+crossterm = "0.27"
+unicode-width = "0.1"
+
+# System information
+libc = "0.2"
 users = "0.11"
-uuid = { version = "1.7", features = ["v4"] }
-chrono = { version = "0.4", features = ["serde", "clock"] }
+signal-hook = "0.3"
 hostname = "0.4"
 whoami = "1.5"
-# Buck2-inspired concurrent data structures
-dashmap = "6.1"
-parking_lot = "0.12"
-crossbeam = "0.8"
-hex = "0.4"
-bytes = "1.5"
-tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
-bincode = "1.3"
-# Environment sourcing and file watching
+sysinfo = "0.30"
+
+# Other utilities
+regex = "1.10"
 dotenv = "0.15"
-shell-words = "1.1"
-notify = "6.1"
-which = "6.0"
-tempfile = "3.8"
-walkdir = "2.4"
-memmap2 = "0.9"
-zstd = "0.13"
-crc32c = "0.6"
-# Monitoring and observability dependencies
+fastrand = "2.0"
+pin-project-lite = "0.2"
+
+# Monitoring and observability
 opentelemetry = { version = "0.20", features = ["metrics"] }
 opentelemetry_sdk = { version = "0.20", features = ["rt-tokio", "metrics"] }
 prometheus = "0.13"
 tracing-flame = "0.2"
-fastrand = "2.0"
-sysinfo = "0.30"
-pin-project-lite = "0.2"
-# Ed25519 signatures for cryptographic integrity (Phase 7)
-ed25519-dalek = { version = "2.1", features = ["rand_core"] }
-getrandom = "0.2"
-# TUI dependencies
-ratatui = { version = "0.28", features = ["crossterm"] }
-tokio-stream = { version = "0.1", features = ["sync"] }
 
-[target.'cfg(unix)'.dependencies]
-signal-hook = "0.3"
-
-# Linux-only dependencies for access restrictions
-[target.'cfg(target_os = "linux")'.dependencies]
+# Linux-specific
 landlock = "0.4"
 
-[build-dependencies]
-cc = "1.0"
+# Internal crates
+cuenv-core = { path = "crates/core" }
+cuenv-libcue-ffi-bridge = { path = "crates/libcue-ffi-bridge" }
+cuenv-config = { path = "crates/config" }
+cuenv-env = { path = "crates/env" }
+cuenv-shell = { path = "crates/shell" }
+cuenv-task = { path = "crates/task" }
+cuenv-cache = { path = "crates/cache" }
+cuenv-security = { path = "crates/security" }
+cuenv-tui = { path = "crates/tui" }
+cuenv-hooks = { path = "crates/hooks" }
+cuenv-utils = { path = "crates/utils" }
 
-[dev-dependencies]
-proptest = "1.4"
-criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
-tempfile = "3.20"
-serial_test = "3.0"
 
-[lints.rust]
+[workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
 
-[[bench]]
-name = "critical_paths"
-harness = false
-
-[[bench]]
-name = "cache_production_bench"
-harness = false
-
-[[bench]]
-name = "cache_phase2_bench"
-harness = false
-
-[[bench]]
-name = "cache_regression_bench"
-harness = false
+# The main CLI package will be created later

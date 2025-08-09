@@ -1,0 +1,84 @@
+[package]
+name = "cuenv-cache"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+
+[dependencies]
+# Workspace crates
+cuenv-core.workspace = true
+cuenv-utils.workspace = true
+cuenv-config.workspace = true
+
+# Async runtime
+tokio.workspace = true
+async-trait.workspace = true
+
+# Data structures and concurrency
+dashmap.workspace = true
+parking_lot.workspace = true
+lru.workspace = true
+crossbeam.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+bincode.workspace = true
+
+# Hashing and compression
+sha2.workspace = true
+xxhash-rust.workspace = true
+crc32c.workspace = true
+flate2.workspace = true
+zstd.workspace = true
+
+# Networking
+axum.workspace = true
+reqwest.workspace = true
+futures.workspace = true
+hyper = { version = "0.14", features = ["server", "runtime", "http1"] }
+dirs.workspace = true
+
+# File system
+memmap2.workspace = true
+tempfile.workspace = true
+
+# Time and UUID
+uuid.workspace = true
+chrono.workspace = true
+
+# Error handling
+anyhow.workspace = true
+miette.workspace = true
+log.workspace = true
+tracing.workspace = true
+
+# Security
+ed25519-dalek.workspace = true
+getrandom.workspace = true
+globset.workspace = true
+regex.workspace = true
+rand.workspace = true
+zeroize.workspace = true
+
+# Monitoring
+opentelemetry.workspace = true
+opentelemetry_sdk.workspace = true
+prometheus.workspace = true
+sysinfo.workspace = true
+pin-project-lite.workspace = true
+libc.workspace = true
+hex.workspace = true
+fastrand.workspace = true
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
+proptest = "1.4"
+serial_test = "3.0"
+
+[features]
+default = []

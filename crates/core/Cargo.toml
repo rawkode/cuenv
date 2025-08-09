@@ -1,0 +1,23 @@
+[package]
+name = "cuenv-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+description = "Core types and errors for cuenv"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+miette = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+zeroize = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]

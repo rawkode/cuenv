@@ -1,0 +1,33 @@
+[package]
+name = "cuenv-config"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+
+[dependencies]
+# Workspace crates
+cuenv-core.workspace = true
+cuenv-libcue-ffi-bridge.workspace = true
+cuenv-utils.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Error handling
+log.workspace = true
+
+# Standard library extensions
+fs2.workspace = true
+tempfile.workspace = true
+
+[dev-dependencies]
+serial_test = "3.0"
+tempfile.workspace = true
+
+[features]
+default = []

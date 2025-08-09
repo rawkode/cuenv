@@ -55,9 +55,9 @@ checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 
 [[package]]
 name = "anstream"
-version = "0.6.19"
+version = "0.6.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "301af1932e46185686725e0fad2f8f2aa7da69dd70bf6ecc44d6b703844a3933"
+checksum = "3ae563653d1938f79b1ab1b5e668c87c76a9930414574a6583a7b7e11a8e6192"
 dependencies = [
  "anstyle",
  "anstyle-parse",
@@ -85,22 +85,22 @@ dependencies = [
 
 [[package]]
 name = "anstyle-query"
-version = "1.1.3"
+version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c8bdeb6047d8983be085bab0ba1472e6dc604e7041dbf6fcd5e71523014fae9"
+checksum = "9e231f6134f61b71076a3eab506c379d4f36122f2af15a9ff04415ea4c3339e2"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
 name = "anstyle-wincon"
-version = "3.0.9"
+version = "3.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "403f75924867bb1033c59fbf0797484329750cfbe3c4325cd33127941fabc882"
+checksum = "3e0633414522a32ffaac8ac6cc8f748e090c5717661fddeea04219e2344f5f2a"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -385,9 +385,9 @@ dependencies = [
 
 [[package]]
 name = "clap_complete"
-version = "4.5.55"
+version = "4.5.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5abde44486daf70c5be8b8f8f1b66c49f86236edf6fa2abadb4d961c4c6229a"
+checksum = "67e4efcbb5da11a92e8a609233aa1e8a7d91e38de0be865f016d14700d45a7fd"
 dependencies = [
  "clap",
 ]
@@ -636,39 +636,69 @@ version = "0.4.7"
 dependencies = [
  "anyhow",
  "async-trait",
- "axum",
- "base64 0.22.1",
- "bincode",
- "bytes",
- "cc",
  "chrono",
  "clap",
  "clap_complete",
+ "cuenv-cache",
+ "cuenv-config",
+ "cuenv-core",
+ "cuenv-env",
+ "cuenv-hooks",
+ "cuenv-libcue-ffi-bridge",
+ "cuenv-security",
+ "cuenv-shell",
+ "cuenv-task",
+ "cuenv-tui",
+ "cuenv-utils",
+ "dirs 5.0.1",
+ "futures",
+ "libc",
+ "log",
+ "miette",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "sha2",
+ "shellexpand",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "walkdir",
+ "which",
+]
+
+[[package]]
+name = "cuenv-cache"
+version = "0.4.7"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "bincode",
+ "chrono",
  "crc32c",
  "criterion",
  "crossbeam",
- "crossterm 0.27.0",
+ "cuenv-config",
+ "cuenv-core",
+ "cuenv-utils",
  "dashmap",
  "dirs 5.0.1",
- "dotenv",
  "ed25519-dalek",
  "fastrand",
  "flate2",
- "fs2",
  "futures",
  "getrandom 0.2.16",
  "globset",
  "hex",
- "hostname",
- "landlock",
- "lazy_static",
+ "hyper 0.14.32",
  "libc",
  "log",
  "lru",
  "memmap2",
  "miette",
- "notify",
- "once_cell",
  "opentelemetry",
  "opentelemetry_sdk",
  "parking_lot",
@@ -676,34 +706,244 @@ dependencies = [
  "prometheus",
  "proptest",
  "rand 0.8.5",
- "ratatui",
  "regex",
  "reqwest",
  "serde",
  "serde_json",
  "serial_test",
  "sha2",
+ "sysinfo",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "uuid",
+ "xxhash-rust",
+ "zeroize",
+ "zstd",
+]
+
+[[package]]
+name = "cuenv-config"
+version = "0.4.7"
+dependencies = [
+ "cuenv-core",
+ "cuenv-libcue-ffi-bridge",
+ "cuenv-utils",
+ "fs2",
+ "log",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "tempfile",
+]
+
+[[package]]
+name = "cuenv-core"
+version = "0.4.7"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "miette",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "uuid",
+ "zeroize",
+]
+
+[[package]]
+name = "cuenv-env"
+version = "0.4.7"
+dependencies = [
+ "anyhow",
+ "cuenv-config",
+ "cuenv-core",
+ "cuenv-security",
+ "cuenv-utils",
+ "dashmap",
+ "dirs 5.0.1",
+ "futures",
+ "log",
+ "notify",
+ "once_cell",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "sha2",
  "shell-words",
  "shellexpand",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "uuid",
+ "which",
+]
+
+[[package]]
+name = "cuenv-hooks"
+version = "0.4.7"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "cuenv-config",
+ "cuenv-core",
+ "cuenv-env",
+ "cuenv-security",
+ "cuenv-task",
+ "cuenv-utils",
+ "log",
+ "lru",
+ "reqwest",
+ "serde",
  "shlex",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "url",
+ "which",
+]
+
+[[package]]
+name = "cuenv-libcue-ffi-bridge"
+version = "0.4.7"
+dependencies = [
+ "cc",
+ "cuenv-core",
+ "libc",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "cuenv-security"
+version = "0.4.7"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "cuenv-config",
+ "cuenv-core",
+ "dashmap",
+ "globset",
+ "hostname",
+ "landlock",
+ "libc",
+ "log",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "uuid",
+ "walkdir",
+ "whoami",
+]
+
+[[package]]
+name = "cuenv-shell"
+version = "0.4.7"
+dependencies = [
+ "cuenv-core",
+ "cuenv-env",
+ "log",
+ "serde",
+ "shlex",
+ "tempfile",
+ "users",
+ "which",
+]
+
+[[package]]
+name = "cuenv-task"
+version = "0.4.7"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "crossterm 0.27.0",
+ "cuenv-cache",
+ "cuenv-config",
+ "cuenv-core",
+ "cuenv-env",
+ "cuenv-security",
+ "cuenv-utils",
+ "dashmap",
+ "log",
+ "serde",
+ "serde_json",
+ "shlex",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "uuid",
+ "walkdir",
+]
+
+[[package]]
+name = "cuenv-tui"
+version = "0.4.7"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "crossterm 0.27.0",
+ "cuenv-config",
+ "cuenv-core",
+ "cuenv-task",
+ "dashmap",
+ "log",
+ "once_cell",
+ "ratatui",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "unicode-width",
+]
+
+[[package]]
+name = "cuenv-utils"
+version = "0.4.7"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "chrono",
+ "crossbeam",
+ "crossterm 0.27.0",
+ "cuenv-core",
+ "dashmap",
+ "dirs 5.0.1",
+ "flate2",
+ "fs2",
+ "futures",
+ "lazy_static",
+ "libc",
+ "log",
+ "memmap2",
+ "once_cell",
+ "parking_lot",
+ "rand 0.8.5",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2",
+ "shellexpand",
  "signal-hook",
  "sysinfo",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
- "tokio-stream",
  "tracing",
- "tracing-flame",
  "tracing-subscriber",
  "unicode-width",
- "url",
  "users",
  "uuid",
  "walkdir",
- "which",
- "whoami",
- "xxhash-rust",
- "zeroize",
  "zstd",
 ]
 
@@ -855,12 +1095,6 @@ dependencies = [
  "quote",
  "syn",
 ]
-
-[[package]]
-name = "dotenv"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
 
 [[package]]
 name = "ed25519"
@@ -3074,17 +3308,6 @@ checksum = "b9d12581f227e93f094d3af2ae690a574abb8a2b9b7a96e7cfe9647b2b617678"
 dependencies = [
  "once_cell",
  "valuable",
-]
-
-[[package]]
-name = "tracing-flame"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0bae117ee14789185e129aaee5d93750abe67fdc5a9a62650452bfe4e122a3a9"
-dependencies = [
- "lazy_static",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

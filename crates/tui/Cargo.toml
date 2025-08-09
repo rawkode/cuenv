@@ -1,0 +1,49 @@
+[package]
+name = "cuenv-tui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+
+[dependencies]
+# Workspace crates
+cuenv-core.workspace = true
+cuenv-task.workspace = true
+cuenv-config.workspace = true
+
+# Terminal UI
+ratatui.workspace = true
+crossterm.workspace = true
+unicode-width.workspace = true
+
+# Async runtime
+tokio.workspace = true
+tokio-stream.workspace = true
+async-trait.workspace = true
+
+# Data structures
+dashmap.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Time
+chrono.workspace = true
+
+# Others
+once_cell.workspace = true
+
+# Error handling
+anyhow.workspace = true
+log.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[features]
+default = []

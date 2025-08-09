@@ -1,0 +1,52 @@
+[package]
+name = "cuenv-security"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+
+[dependencies]
+# Workspace crates
+cuenv-core.workspace = true
+cuenv-config.workspace = true
+
+# System programming
+libc.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Data structures
+dashmap.workspace = true
+
+# File system
+walkdir.workspace = true
+globset.workspace = true
+
+# Error handling
+anyhow.workspace = true
+log.workspace = true
+tracing.workspace = true
+
+# Linux-specific security features
+# Additional dependencies
+once_cell.workspace = true
+hostname.workspace = true
+whoami.workspace = true
+uuid.workspace = true
+tokio.workspace = true
+chrono.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+serial_test = "3.0"
+
+[features]
+default = []

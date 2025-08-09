@@ -1,0 +1,50 @@
+[package]
+name = "cuenv-hooks"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+
+[dependencies]
+# Workspace crates
+cuenv-core.workspace = true
+cuenv-config.workspace = true
+cuenv-env.workspace = true
+cuenv-security.workspace = true
+cuenv-utils.workspace = true
+cuenv-task.workspace = true
+
+# Process management
+shlex.workspace = true
+which.workspace = true
+
+# Async runtime
+tokio.workspace = true
+
+# Serialization
+serde.workspace = true
+
+# Error handling
+anyhow.workspace = true
+log.workspace = true
+tracing.workspace = true
+
+# File system
+tempfile.workspace = true
+
+# Networking
+reqwest.workspace = true
+url.workspace = true
+
+# Data structures
+lru.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+async-trait.workspace = true
+
+[features]
+default = []

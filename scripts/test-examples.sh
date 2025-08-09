@@ -8,9 +8,9 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Build cuenv first
+# Build cuenv first (using nix develop)
 echo -e "${YELLOW}Building cuenv...${NC}"
-cargo build || {
+nix develop -c cargo build --bin cuenv || {
     echo -e "${RED}Failed to build cuenv${NC}"
     exit 1
 }

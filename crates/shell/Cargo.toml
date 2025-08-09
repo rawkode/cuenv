@@ -1,0 +1,33 @@
+[package]
+name = "cuenv-shell"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+
+[dependencies]
+# Workspace crates
+cuenv-core.workspace = true
+cuenv-env.workspace = true
+
+# Shell utilities
+which.workspace = true
+shlex.workspace = true
+
+# Serialization
+serde.workspace = true
+
+# Process management
+users.workspace = true
+
+# Error handling
+log.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[features]
+default = []

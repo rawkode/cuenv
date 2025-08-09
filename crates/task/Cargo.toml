@@ -1,0 +1,51 @@
+[package]
+name = "cuenv-task"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+
+[dependencies]
+# Workspace crates
+cuenv-core.workspace = true
+cuenv-cache.workspace = true
+cuenv-config.workspace = true
+cuenv-env.workspace = true
+cuenv-security.workspace = true
+cuenv-utils.workspace = true
+
+# Async runtime
+tokio.workspace = true
+async-trait.workspace = true
+
+# Data structures
+dashmap.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+
+# Process management
+shlex.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Error handling
+anyhow.workspace = true
+log.workspace = true
+tracing.workspace = true
+
+# File system
+walkdir.workspace = true
+
+# Terminal UI
+crossterm.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[features]
+default = []
