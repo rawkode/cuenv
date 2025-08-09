@@ -2,10 +2,6 @@
 # Documentation: https://release-plz.dev/docs/config
 
 [workspace]
-# Enable shared versioning across all workspace crates
-# All crates will use the same version number from workspace.package.version
-shared_version = true
-
 # Enable changelog generation using git-cliff
 changelog_update = true
 
@@ -37,19 +33,6 @@ semver_check = true
 # - feat: minor version bump
 # - fix: patch version bump  
 # - feat!: or BREAKING CHANGE: major version bump
-# 
-# Changelog groups commits by type
-changelog_include = [
-  "feat",
-  "fix",
-  "perf",
-  "refactor",
-  "build",
-  "chore",
-  "docs",
-  "style",
-  "test",
-]
 
 # Package-specific configuration - only publish the main CLI crate
 [[package]]

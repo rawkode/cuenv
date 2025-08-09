@@ -39,7 +39,8 @@ fn main() {
     println!("cargo:rustc-link-lib=static=cue_bridge");
 
     // Link system libraries that Go runtime needs
-    let target = env::var("TARGET").expect("TARGET not set by cargo");
+    let target = env::var("TARGET")
+        .unwrap_or_else(|_| env::var("HOST").expect("Neither TARGET nor HOST set by cargo"));
 
     if target.contains("windows") {
         // Windows-specific libraries
@@ -53,9 +54,11 @@ fn main() {
         println!("cargo:rustc-link-lib=m");
         println!("cargo:rustc-link-lib=dl");
 
-        if target.contains("apple-darwin") {
+        if target.contains("apple") || target.contains("darwin") {
+            // macOS requires Security framework for certificate validation
             println!("cargo:rustc-link-lib=framework=Security");
             println!("cargo:rustc-link-lib=framework=CoreFoundation");
+            println!("cargo:rustc-link-lib=framework=SystemConfiguration");
         }
     }
 }
