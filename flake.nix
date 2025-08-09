@@ -42,6 +42,7 @@
             [
               darwin.apple_sdk.frameworks.Security
               darwin.apple_sdk.frameworks.CoreFoundation
+              darwin.apple_sdk.frameworks.SystemConfiguration
             ]
           else if stdenv.isLinux then
             [
@@ -190,7 +191,7 @@
           # Platform-specific linker flags
           RUSTFLAGS =
             if pkgs.stdenv.isDarwin then
-              "-C link-arg=-framework -C link-arg=Security -C link-arg=-framework -C link-arg=CoreFoundation"
+              "-C link-arg=-framework -C link-arg=Security -C link-arg=-framework -C link-arg=CoreFoundation -C link-arg=-framework -C link-arg=SystemConfiguration"
             else
               "";
 
@@ -395,7 +396,7 @@
             ${
               if pkgs.stdenv.isDarwin then
                 ''
-                  export RUSTFLAGS="-C link-arg=-framework -C link-arg=Security -C link-arg=-framework -C link-arg=CoreFoundation"
+                  export RUSTFLAGS="-C link-arg=-framework -C link-arg=Security -C link-arg=-framework -C link-arg=CoreFoundation -C link-arg=-framework -C link-arg=SystemConfiguration"
                 ''
               else
                 ""

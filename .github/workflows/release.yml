@@ -34,7 +34,7 @@ jobs:
       - name: Install and run release-plz PR
         run: |
           nix develop -c cargo install release-plz --locked
-          nix develop -c release-plz release-pr
+          nix develop -c release-plz release-pr --git-token "$GITHUB_TOKEN"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   # Release packages when release PR is merged
@@ -66,7 +66,7 @@ jobs:
       - name: Install and run release-plz release
         run: |
           nix develop -c cargo install release-plz --locked
-          nix develop -c release-plz release
+          nix develop -c release-plz release --git-token "$GITHUB_TOKEN"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
