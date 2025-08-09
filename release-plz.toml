@@ -2,6 +2,10 @@
 # Documentation: https://release-plz.dev/docs/config
 
 [workspace]
+# Enable shared versioning across all workspace crates
+# All crates will use the same version number from workspace.package.version
+shared_version = true
+
 # Enable changelog generation using git-cliff
 changelog_update = true
 
@@ -16,6 +20,7 @@ allow_dirty = false
 
 # Git configuration
 git_tag_enable = true
+# NO 'v' prefix - project convention
 git_tag_name = "{{ version }}"
 
 # Git release configuration
@@ -27,10 +32,6 @@ pr_name = "chore: release {{ version }}"
 
 # Semver check configuration (requires cargo-semver-checks)
 semver_check = true
-
-# Package-specific configuration
-[[package]]
-name = "cuenv"
 
 # Use conventional commits to determine version bumps
 # - feat: minor version bump
@@ -50,6 +51,53 @@ changelog_include = [
   "test",
 ]
 
-# Don't update these dependencies automatically
-# (add package names you want to exclude from automatic updates)
-# changelog_exclude = ["internal-*"]
+# Package-specific configuration - only publish the main CLI crate
+[[package]]
+name = "cuenv"
+# This is the main binary - publish to crates.io
+publish = true
+
+# Don't publish internal workspace crates to crates.io
+[[package]]
+name = "cuenv-core"
+publish = false
+
+[[package]]
+name = "cuenv-libcue-ffi-bridge"
+publish = false
+
+[[package]]
+name = "cuenv-config"
+publish = false
+
+[[package]]
+name = "cuenv-env"
+publish = false
+
+[[package]]
+name = "cuenv-shell"
+publish = false
+
+[[package]]
+name = "cuenv-task"
+publish = false
+
+[[package]]
+name = "cuenv-cache"
+publish = false
+
+[[package]]
+name = "cuenv-security"
+publish = false
+
+[[package]]
+name = "cuenv-tui"
+publish = false
+
+[[package]]
+name = "cuenv-hooks"
+publish = false
+
+[[package]]
+name = "cuenv-utils"
+publish = false

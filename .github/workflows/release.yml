@@ -37,6 +37,7 @@ jobs:
         uses: release-plz/action@v0.5
         with:
           command: release-pr
+          # Workspace mode - will manage all crates with shared versioning
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   # Release packages when release PR is merged
@@ -71,6 +72,7 @@ jobs:
         uses: release-plz/action@v0.5
         with:
           command: release
+          # Workspace mode - only publishes crates marked with publish = true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
@@ -94,9 +96,10 @@ jobs:
       - name: Get version from tag
         id: get_version
         run: |
-          # Extract version from tag like "cuenv-v0.4.7" or "v0.4.7"
+          # Extract version from tag (NO 'v' prefix - project convention)
+          # Tag format is just "0.4.7" (no 'v' prefix)
           TAG="${{ github.ref_name }}"
-          VERSION="${TAG#*v}"  # Remove everything up to and including 'v'
+          VERSION="$TAG"  # Use tag directly as it has no prefix
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "Building version: $VERSION"
       - name: Install Rust
@@ -120,8 +123,8 @@ jobs:
           brew install protobuf
       - name: Run tests
         run: |
-          # Run tests but allow failures to not block the release
-          cargo nextest run --target ${{ matrix.target }} --profile ci --no-fail-fast || true
+          # Run tests for workspace but allow failures to not block the release
+          cargo nextest run --target ${{ matrix.target }} --profile ci --no-fail-fast --workspace || true
         continue-on-error: true
       - name: Build binary
         run: |
@@ -131,8 +134,8 @@ jobs:
           fi
           export CGO_ENABLED=1
 
-          # Build the binary
-          cargo build --release --target ${{ matrix.target }}
+          # Build the binary from workspace - explicitly target the CLI crate
+          cargo build --release --target ${{ matrix.target }} --package cuenv
 
           # Create artifacts directory
           mkdir -p artifacts
