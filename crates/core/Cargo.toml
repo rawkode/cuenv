@@ -9,6 +9,9 @@ homepage.workspace = true
 documentation.workspace = true
 description = "Core types and errors for cuenv"
 
+[lints]
+workspace = true
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }

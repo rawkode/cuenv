@@ -9,6 +9,9 @@ homepage.workspace = true
 documentation.workspace = true
 description = "Go-Rust FFI bridge for CUE evaluation"
 
+[lints]
+workspace = true
+
 [dependencies]
 cuenv-core = { workspace = true }
 libc = { workspace = true }

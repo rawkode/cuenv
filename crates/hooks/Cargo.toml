@@ -8,6 +8,9 @@ repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 # Workspace crates
 cuenv-core.workspace = true

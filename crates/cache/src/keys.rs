@@ -746,9 +746,11 @@ mod tests {
 
     #[test]
     fn test_exclude_patterns() {
-        let mut config = CacheKeyFilterConfig::default();
-        config.include = vec![".*".to_string()]; // Include all using regex
-        config.exclude = vec!["PS.*".to_string(), "TERM".to_string()];
+        let config = CacheKeyFilterConfig {
+            include: vec![".*".to_string()], // Include all using regex
+            exclude: vec!["PS.*".to_string(), "TERM".to_string()],
+            ..Default::default()
+        };
 
         let generator = CacheKeyGenerator::with_config(config).unwrap();
 

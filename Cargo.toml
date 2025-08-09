@@ -145,6 +145,9 @@ cuenv-utils = { path = "crates/utils" }
 
 
 [workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
+unexpected_cfgs = { level = "warn", check-cfg = [
+  'cfg(coverage)',
+  'cfg(feature, values("nix-build"))',
+] }
 
 # The main CLI package will be created later

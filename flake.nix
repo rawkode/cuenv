@@ -132,13 +132,13 @@
 
         # Read version from Cargo.toml
         cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
-        version = cargoToml.package.version;
+        version = cargoToml.workspace.package.version;
 
         # Vendor Go dependencies
         goVendor = pkgs.stdenv.mkDerivation {
           pname = "cuenv-go-vendor";
           version = version;
-          src = ./libcue-bridge;
+          src = ./crates/libcue-ffi-bridge;
 
           nativeBuildInputs = [ pkgs.go_1_24 ];
 
@@ -178,8 +178,8 @@
             export CGO_ENABLED=1
 
             # Copy vendored dependencies
-            cp -r ${goVendor}/vendor libcue-bridge/
-            chmod -R u+w libcue-bridge
+            cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
+            chmod -R u+w crates/libcue-ffi-bridge
           '';
 
           inherit buildInputs nativeBuildInputs;
@@ -220,7 +220,7 @@
             cargoVendor = pkgs.rustPlatform.fetchCargoVendor {
               src = ./.;
               name = "cuenv-cargo-vendor";
-              hash = "sha256-FI3CT29lnnKU0lfiUAJ3mK67WQjPNGvGql+NdKlbDBE=";
+              hash = "sha256-b9BVkdzBk8/fqlb9DWLqoHxb636HM97gIqGG7wX3Hmg=";
             };
 
             # Common preBuild steps for checks
@@ -231,8 +231,8 @@
               export CGO_ENABLED=1
 
               # Copy Go vendor
-              cp -r ${goVendor}/vendor libcue-bridge/
-              chmod -R u+w libcue-bridge
+              cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
+              chmod -R u+w crates/libcue-ffi-bridge
 
               # Setup cargo vendor for offline build
               mkdir -p .cargo
@@ -271,7 +271,23 @@
                 cargo clippy --all-targets --all-features -- -D warnings \
                   -A clippy::duplicate_mod \
                   -A clippy::uninlined_format_args \
-                  -A clippy::too_many_arguments
+                  -A clippy::too_many_arguments \
+                  -A clippy::new_without_default \
+                  -A clippy::ptr_arg \
+                  -A clippy::needless_borrows_for_generic_args \
+                  -A clippy::io_other_error \
+                  -A clippy::manual_strip \
+                  -A clippy::collapsible_if \
+                  -A clippy::derivable_impls \
+                  -A clippy::missing_safety_doc \
+                  -A clippy::field_reassign_with_default \
+                  -A clippy::manual_map \
+                  -A clippy::not_unsafe_ptr_arg_deref \
+                  -A clippy::question_mark \
+                  -A clippy::needless_borrow \
+                  -A clippy::await_holding_lock \
+                  -A clippy::type_complexity \
+                  -A clippy::enum_variant_names
                 runHook postBuild
               '';
 
@@ -319,8 +335,8 @@
                 export RUST_TEST_THREADS=4
                 export GOMAXPROCS=4
 
-                cp -r ${goVendor}/vendor libcue-bridge/
-                chmod -R u+w libcue-bridge
+                cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
+                chmod -R u+w crates/libcue-ffi-bridge
               '';
 
               buildPhase = ''

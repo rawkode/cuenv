@@ -750,8 +750,10 @@ mod tests {
         let authority = CapabilityAuthority::new("test-authority".to_string());
         let mut checker = CapabilityChecker::new(authority);
 
-        let mut metadata = TokenMetadata::default();
-        metadata.rate_limit = Some(2.0); // 2 operations per second
+        let metadata = TokenMetadata {
+            rate_limit: Some(2.0), // 2 operations per second
+            ..Default::default()
+        };
 
         let token = checker
             .authority

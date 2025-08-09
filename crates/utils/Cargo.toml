@@ -9,6 +9,9 @@ homepage.workspace = true
 documentation.workspace = true
 description = "Shared utilities and pure functions for cuenv"
 
+[lints]
+workspace = true
+
 [dependencies]
 cuenv-core = { workspace = true }
 anyhow = { workspace = true }

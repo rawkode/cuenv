@@ -12,6 +12,9 @@ keywords = ["environment", "cue", "direnv", "env", "shell"]
 categories = ["command-line-utilities", "development-tools", "config"]
 description = "A direnv alternative that uses CUE files for environment configuration"
 
+[lints]
+workspace = true
+
 [[bin]]
 name = "cuenv"
 path = "src/main.rs"
