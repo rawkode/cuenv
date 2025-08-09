@@ -1233,7 +1233,7 @@ tasks: env.#Tasks & {
 
             let shell_impl = shell_type.as_shell();
 
-            // Output current cuenv state as exports
+            // Try to get current state, or load environment if not available
             if let Ok(Some(diff)) = StateManager::get_diff() {
                 for (key, value) in &diff.next {
                     if !diff.prev.contains_key(key) || diff.prev.get(key) != Some(value) {
@@ -1241,7 +1241,41 @@ tasks: env.#Tasks & {
                     }
                 }
             } else {
-                eprintln!("# No cuenv environment loaded");
+                // No state loaded, try to load environment for current directory
+                let current_dir = match env::current_dir() {
+                    Ok(d) => d,
+                    Err(e) => {
+                        return Err(Error::file_system(
+                            PathBuf::from("."),
+                            "get current directory",
+                            e,
+                        ));
+                    }
+                };
+
+                // Check if env.cue exists
+                if current_dir.join(ENV_CUE_FILENAME).exists() {
+                    let mut env_manager = EnvManager::new();
+                    match env_manager.load_env(&current_dir).await {
+                        Ok(()) => {
+                            // Now try to get the diff again
+                            if let Ok(Some(diff)) = StateManager::get_diff() {
+                                for (key, value) in &diff.next {
+                                    if !diff.prev.contains_key(key) || diff.prev.get(key) != Some(value) {
+                                        println!("{}", shell_impl.export(key, value));
+                                    }
+                                }
+                            } else {
+                                eprintln!("# Failed to load cuenv environment state");
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("# Failed to load cuenv environment: {}", e);
+                        }
+                    }
+                } else {
+                    eprintln!("# No env.cue file found in current directory");
+                }
             }
         }
         Some(Commands::Dump { shell }) => {
