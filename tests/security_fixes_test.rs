@@ -186,7 +186,7 @@ fn test_lock_file_permissions() {
 async fn test_cache_manager_lock_permissions() {
     let temp_dir = TempDir::new().unwrap();
     std::env::set_var("XDG_CACHE_HOME", temp_dir.path());
-    
+
     // Create cache manager using async constructor
     let engine = std::sync::Arc::new(cuenv::cache::CacheEngine::new().unwrap());
     let config = cuenv::cache::CacheConfig {

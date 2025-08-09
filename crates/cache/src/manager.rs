@@ -79,7 +79,7 @@ impl CacheManager {
             .enable_all()
             .build()
             .map_err(|e| Error::configuration(format!("Failed to create tokio runtime: {e}")))?;
-            
+
         rt.block_on(Self::new_internal(config))
     }
 
