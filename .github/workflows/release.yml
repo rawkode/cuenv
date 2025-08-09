@@ -8,13 +8,15 @@ on:
       - main
   workflow_dispatch: # Allow manual triggering
 jobs:
-  # Create or update release PR with version bumps and changelog
-  release-plz-pr:
-    name: Release-plz PR
+  # Run release-plz to update versions and changelog
+  release-plz:
+    name: Release-plz
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: write
       pull-requests: write
+      id-token: write # Required for Trusted Publishing OIDC
     concurrency:
       group: release-plz-${{ github.ref }}
       cancel-in-progress: false
@@ -23,50 +25,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Install Nix
-        uses: cachix/install-nix-action@v30
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Setup dependencies via Nix
-        run: |
-          # Use Nix development shell which includes all required dependencies
-          # No need for separate Rust/Go/protobuf installation
-      - name: Install and run release-plz PR
-        run: |
-          nix develop -c cargo install release-plz --locked
-          nix develop -c release-plz release-pr --git-token "$GITHUB_TOKEN"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  # Release packages when release PR is merged
-  release-plz-release:
-    name: Release-plz release
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    permissions:
-      contents: write
-      id-token: write # Required for Trusted Publishing OIDC
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Install Nix
-        uses: cachix/install-nix-action@v30
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Setup dependencies via Nix
-        run: |
-          # Use Nix development shell which includes all required dependencies
-          # No need for separate Rust/Go/protobuf installation
       # Setup Trusted Publishing authentication for crates.io
       # After first manual release, configure this repo as trusted publisher on crates.io
       - name: Authenticate with crates.io (Trusted Publishing)
         uses: rust-lang/crates-io-auth-action@v1
         id: auth
-      - name: Install and run release-plz release
-        run: |
-          nix develop -c cargo install release-plz --locked
-          nix develop -c release-plz release --git-token "$GITHUB_TOKEN"
+      # Use the official release-plz action - no build required!
+      - name: Run release-plz
+        uses: release-plz/action@v0.5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
