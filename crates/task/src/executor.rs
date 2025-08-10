@@ -693,7 +693,7 @@ impl TaskExecutor {
             .get(task_name)
             .ok_or_else(|| Error::configuration(format!("Task '{task_name}' not found")))?;
 
-        let dependencies = task_definition.dependency_names();
+        let dependencies = task_definition.dependencies.clone().unwrap_or_default();
 
         // Validate and collect dependencies
         for dep_name in &dependencies {
@@ -738,7 +738,7 @@ impl TaskExecutor {
             .get(task_name)
             .ok_or_else(|| Error::configuration(format!("Task '{task_name}' not found")))?;
 
-        let dependencies = task_definition.dependency_names();
+        let dependencies = task_definition.dependencies.clone().unwrap_or_default();
 
         // Validate and collect dependencies
         for dep_name in &dependencies {
@@ -1027,8 +1027,18 @@ impl TaskExecutor {
         // Apply security restrictions if configured
         if let Some(security) = &task_definition.security {
             use cuenv_security::AccessRestrictions;
-            let mut restrictions =
-                AccessRestrictions::from_security_config_with_task(security, task_definition);
+            let mut restrictions = AccessRestrictions::new(
+                security.restrict_disk,
+                security.restrict_network,
+            );
+            
+            // Add allowed paths
+            for path in &security.read_only_paths {
+                restrictions.add_read_only_path(path);
+            }
+            for path in &security.write_only_paths {
+                restrictions.add_read_write_path(path);
+            }
 
             if audit_mode {
                 restrictions.enable_audit_mode();
