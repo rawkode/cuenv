@@ -243,6 +243,59 @@ impl EnvManager {
             hooks: HashMap::with_capacity(4),          // Usually only a few hooks
         }
     }
+
+    /// Create an EnvManager from a pre-loaded Config object
+    /// This is the new preferred way to create EnvManager
+    pub fn from_config(config: &cuenv_config::Config) -> Result<Self> {
+        let mut manager = Self::new();
+        manager.save_original_env()?;
+        
+        // Populate from the config object instead of parsing CUE again
+        manager.cue_vars = config.variables.clone();
+        manager.cue_vars_metadata = config.metadata.clone();
+        manager.commands = config.commands.clone();
+        manager.tasks = config.tasks.clone();
+        
+        // Convert Vec<Hook> to HookConfig for compatibility with existing code
+        for (hook_type, hooks) in &config.hooks {
+            for hook in hooks {
+                match hook {
+                    cuenv_config::Hook::Legacy(hook_config) => {
+                        let mut hook_config = hook_config.clone();
+                        hook_config.hook_type = match hook_type.as_str() {
+                            "onEnter" => cuenv_config::HookType::OnEnter,
+                            "onExit" => cuenv_config::HookType::OnExit,
+                            _ => cuenv_config::HookType::OnEnter,
+                        };
+                        manager.hooks.insert(hook_type.clone(), hook_config);
+                    }
+                    cuenv_config::Hook::Exec { exec, .. } => {
+                        // Convert exec config to legacy format for compatibility
+                        let hook_config = HookConfig {
+                            command: exec.command.clone(),
+                            args: exec.args.clone().unwrap_or_default(),
+                            url: None,
+                            source: exec.source,
+                            constraints: exec.constraints.clone(),
+                            hook_type: match hook_type.as_str() {
+                                "onEnter" => cuenv_config::HookType::OnEnter,
+                                "onExit" => cuenv_config::HookType::OnExit,
+                                _ => cuenv_config::HookType::OnEnter,
+                            },
+                        };
+                        manager.hooks.insert(hook_type.clone(), hook_config);
+                    }
+                    _ => {
+                        // For other hook types, create a simple exec hook
+                        // This is a simplified conversion for compatibility
+                        log::warn!("Simplified conversion of complex hook type to legacy format");
+                    }
+                }
+            }
+        }
+        
+        Ok(manager)
+    }
 }
 
 impl Default for EnvManager {

@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 
 use crate::directory::DirectoryManager;
 use crate::platform::{PlatformOps, Shell};
-use cuenv_config::{CliOptions, Config, ConfigLoader};
+use cuenv_config::{CliOptions, ConfigLoader};
 use cuenv_core::{CacheMode, Error, Result};
 use cuenv_core::{CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR, ENV_CUE_FILENAME};
 use cuenv_env::EnvManager;
@@ -1067,21 +1067,20 @@ tasks: env.#Tasks & {
                     return Ok(());
                 }
 
-                // Only parse the CUE file to get task definitions
-                let options = ParseOptions {
-                    environment: environment.or_else(|| env::var(CUENV_ENV_VAR).ok()),
-                    capabilities: Vec::new(),
-                };
+                // Use centralized configuration loading
+                cli_options.environment = environment.or_else(|| env::var(CUENV_ENV_VAR).ok());
+                cli_options.capabilities = capabilities;
+                
+                let config = ConfigLoader::new(&current_dir)
+                    .with_cli_options(cli_options)
+                    .load()?;
 
-                let parse_result =
-                    CueParser::eval_package_with_options(&current_dir, "env", &options)?;
-
-                if parse_result.tasks.is_empty() {
+                if config.tasks.is_empty() {
                     println!("No tasks defined in the CUE package");
                 } else {
                     println!("Available tasks:");
-                    for (name, task) in parse_result.tasks {
-                        match task.description {
+                    for (name, task) in &config.tasks {
+                        match &task.description {
                             Some(desc) => println!("  {name}: {desc}"),
                             None => println!("  {name}"),
                         }
@@ -1090,28 +1089,27 @@ tasks: env.#Tasks & {
                 return Ok(());
             }
 
-            // For actual task execution, load the full environment
-            let mut env_manager = EnvManager::new();
+            // For actual task execution, load the full environment using centralized config
+            cli_options.environment = environment.or_else(|| env::var(CUENV_ENV_VAR).ok());
+            cli_options.capabilities = if !capabilities.is_empty() {
+                capabilities
+            } else if let Ok(env_caps) = env::var(CUENV_CAPABILITIES_VAR) {
+                env_caps
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            cli_options.audit = audit;
+            
+            let config = ConfigLoader::new(&current_dir)
+                .with_cli_options(cli_options)
+                .load()?;
 
-            // Use environment variables as fallback if CLI args not provided
-            let env_name = environment.or_else(|| env::var(CUENV_ENV_VAR).ok());
-
-            let mut caps = capabilities;
-            if caps.is_empty() {
-                // Check for CUENV_CAPABILITIES env var (comma-separated)
-                if let Ok(env_caps) = env::var(CUENV_CAPABILITIES_VAR) {
-                    caps = env_caps
-                        .split(',')
-                        .map(|s| s.trim().to_string())
-                        .filter(|s| !s.is_empty())
-                        .collect();
-                }
-            }
-
-            // Load environment with options
-            env_manager
-                .load_env_with_options(&current_dir, env_name, caps, None)
-                .await?;
+            // Create EnvManager from the config
+            let env_manager = EnvManager::from_config(&config)?;
 
             match task_name {
                 Some(name) => {
