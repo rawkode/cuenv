@@ -557,8 +557,8 @@ impl TaskServerProvider {
 
     /// Handle stdio communication for MCP mode
     async fn handle_stdio(&mut self) -> Result<()> {
-        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
         use tokio::io::{stdin, stdout};
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
         let stdin = stdin();
         let mut stdout = stdout();
@@ -588,9 +588,10 @@ impl TaskServerProvider {
                 .await
                 .map_err(|e| Error::configuration(format!("Failed to write response: {}", e)))?;
 
-            stdout.flush().await.map_err(|e| {
-                Error::configuration(format!("Failed to flush stdout: {}", e))
-            })?;
+            stdout
+                .flush()
+                .await
+                .map_err(|e| Error::configuration(format!("Failed to flush stdout: {}", e)))?;
 
             line.clear();
         }
@@ -679,7 +680,10 @@ impl TaskServerProvider {
             .cloned()
             .unwrap_or(serde_json::Value::Null);
 
-        let params = request.get("params").cloned().unwrap_or(serde_json::Value::Null);
+        let params = request
+            .get("params")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
 
         match method {
             // TSP Methods (devenv compatibility)
@@ -756,9 +760,7 @@ impl TaskServerProvider {
                     "id": id
                 })
             }
-            "tools/call" => {
-                Self::handle_mcp_tool_call(params, tasks, allow_exec, id).await
-            }
+            "tools/call" => Self::handle_mcp_tool_call(params, tasks, allow_exec, id).await,
 
             _ => serde_json::json!({
                 "jsonrpc": "2.0",
@@ -789,18 +791,10 @@ impl TaskServerProvider {
             .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
 
         match tool_name {
-            "cuenv.list_env_vars" => {
-                Self::handle_list_env_vars(arguments, id).await
-            }
-            "cuenv.get_env_var" => {
-                Self::handle_get_env_var(arguments, id).await
-            }
-            "cuenv.list_tasks" => {
-                Self::handle_list_tasks(arguments, id).await
-            }
-            "cuenv.get_task" => {
-                Self::handle_get_task(arguments, id).await
-            }
+            "cuenv.list_env_vars" => Self::handle_list_env_vars(arguments, id).await,
+            "cuenv.get_env_var" => Self::handle_get_env_var(arguments, id).await,
+            "cuenv.list_tasks" => Self::handle_list_tasks(arguments, id).await,
+            "cuenv.get_task" => Self::handle_get_task(arguments, id).await,
             "cuenv.run_task" => {
                 if allow_exec {
                     Self::handle_run_task(arguments, id).await
@@ -815,9 +809,7 @@ impl TaskServerProvider {
                     })
                 }
             }
-            "cuenv.check_directory" => {
-                Self::handle_check_directory(arguments, id).await
-            }
+            "cuenv.check_directory" => Self::handle_check_directory(arguments, id).await,
             _ => serde_json::json!({
                 "jsonrpc": "2.0",
                 "error": {
@@ -990,7 +982,7 @@ impl TaskServerProvider {
     /// Validate directory and check if it's allowed
     fn validate_directory(directory: &str) -> Result<std::path::PathBuf> {
         let path = std::path::PathBuf::from(directory);
-        
+
         // Canonicalize the path to resolve symlinks and remove '..' components
         let canonical = path.canonicalize().map_err(|e| {
             Error::configuration(format!(
@@ -998,7 +990,7 @@ impl TaskServerProvider {
                 directory, e
             ))
         })?;
-        
+
         // Basic path traversal protection: ensure the path is absolute
         if !canonical.is_absolute() {
             return Err(Error::configuration(format!(
@@ -1006,11 +998,11 @@ impl TaskServerProvider {
                 canonical.display()
             )));
         }
-        
+
         // SECURITY: Directory permission validation is done at CLI level.
         // For MCP/TSP mode, we now canonicalize the path and require it to be absolute.
         // If exposing this server to untrusted clients, consider restricting allowed directories further.
-        
+
         // Check if directory exists (after canonicalization)
         if !canonical.exists() {
             return Err(Error::configuration(format!(
@@ -1018,7 +1010,7 @@ impl TaskServerProvider {
                 canonical.display()
             )));
         }
-        
+
         Ok(canonical)
     }
 
@@ -1038,14 +1030,14 @@ impl TaskServerProvider {
         capabilities: Option<Vec<String>>,
     ) -> Result<cuenv_config::ParseResult> {
         use cuenv_config::{CueParser, ParseOptions};
-        
+
         let path = Self::validate_directory(directory)?;
-        
+
         let options = ParseOptions {
             environment,
             capabilities: capabilities.unwrap_or_default(),
         };
-        
+
         CueParser::eval_package_with_options(&path, "env", &options)
     }
 
@@ -1128,7 +1120,7 @@ impl TaskServerProvider {
                     Some(v) => format!("{}={}", var_name, v),
                     None => format!("{} not found", var_name),
                 };
-                
+
                 serde_json::json!({
                     "jsonrpc": "2.0",
                     "result": {
@@ -1188,7 +1180,7 @@ impl TaskServerProvider {
                         })
                     })
                     .collect();
-                
+
                 serde_json::json!({
                     "jsonrpc": "2.0",
                     "result": {
@@ -1247,7 +1239,7 @@ impl TaskServerProvider {
                         "dependencies": config.dependencies.clone().unwrap_or_default(),
                         "command": config.command.clone().map(|c| c.join(" ")).unwrap_or_default()
                     });
-                    
+
                     serde_json::json!({
                         "jsonrpc": "2.0",
                         "result": {
@@ -1321,20 +1313,22 @@ impl TaskServerProvider {
 
         let path = match Self::validate_directory(directory) {
             Ok(p) => p,
-            Err(e) => return serde_json::json!({
-                "jsonrpc": "2.0",
-                "error": {
-                    "code": -1,
-                    "message": format!("Directory validation failed: {}", e)
-                },
-                "id": id
-            }),
+            Err(e) => {
+                return serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -1,
+                        "message": format!("Directory validation failed: {}", e)
+                    },
+                    "id": id
+                })
+            }
         };
 
         // Load environment and create task executor
         use cuenv_env::EnvManager;
         use cuenv_task::TaskExecutor;
-        
+
         let mut env_manager = EnvManager::new();
         match env_manager
             .load_env_with_options(&path, environment, capabilities.unwrap_or_default(), None)
@@ -1343,28 +1337,26 @@ impl TaskServerProvider {
             Ok(()) => {
                 // Create task executor and run the task
                 match TaskExecutor::new(env_manager, path).await {
-                    Ok(executor) => {
-                        match executor.execute_task(task_name, &task_args).await {
-                            Ok(exit_code) => serde_json::json!({
-                                "jsonrpc": "2.0",
-                                "result": {
-                                    "content": [{
-                                        "type": "text",
-                                        "text": format!("Task '{}' completed with exit code: {}", task_name, exit_code)
-                                    }]
-                                },
-                                "id": id
-                            }),
-                            Err(e) => serde_json::json!({
-                                "jsonrpc": "2.0",
-                                "error": {
-                                    "code": -1,
-                                    "message": format!("Task execution failed: {}", e)
-                                },
-                                "id": id
-                            }),
-                        }
-                    }
+                    Ok(executor) => match executor.execute_task(task_name, &task_args).await {
+                        Ok(exit_code) => serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "result": {
+                                "content": [{
+                                    "type": "text",
+                                    "text": format!("Task '{}' completed with exit code: {}", task_name, exit_code)
+                                }]
+                            },
+                            "id": id
+                        }),
+                        Err(e) => serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -1,
+                                "message": format!("Task execution failed: {}", e)
+                            },
+                            "id": id
+                        }),
+                    },
                     Err(e) => serde_json::json!({
                         "jsonrpc": "2.0",
                         "error": {

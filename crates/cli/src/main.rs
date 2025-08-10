@@ -183,15 +183,15 @@ enum Commands {
         /// Transport type (stdio, tcp, unix)
         #[arg(long, default_value = "stdio")]
         transport: String,
-        
+
         /// TCP port (only for tcp transport)
         #[arg(long, default_value = "8765")]
         port: u16,
-        
+
         /// Unix socket path (only for unix transport, defaults to temp)
         #[arg(long)]
         socket: Option<PathBuf>,
-        
+
         /// Allow task execution (default: read-only)
         #[arg(long)]
         allow_exec: bool,
@@ -694,7 +694,7 @@ async fn handle_mcp_server(
     allow_exec: bool,
 ) -> Result<()> {
     use cuenv_task::TaskServerProvider;
-    
+
     // Get current directory and load environment tasks
     let current_dir = match DirectoryManager::get_current_directory() {
         Ok(d) => d,
@@ -716,9 +716,12 @@ async fn handle_mcp_server(
         "stdio" => {
             println!("Starting cuenv MCP server (stdio transport)");
             println!("Transport: stdio");
-            println!("Task execution: {}", if allow_exec { "enabled" } else { "read-only" });
+            println!(
+                "Task execution: {}",
+                if allow_exec { "enabled" } else { "read-only" }
+            );
             println!("Ready for MCP clients (like Claude Code)");
-            
+
             TaskServerProvider::new_stdio(internal_tasks, allow_exec)
         }
         "unix" => {
@@ -727,25 +730,43 @@ async fn handle_mcp_server(
                     .map(|d| d.path().join("cuenv-mcp.sock"))
                     .unwrap_or_else(|_| PathBuf::from("/tmp/cuenv-mcp.sock"))
             });
-            
+
             println!("Starting cuenv MCP server (Unix socket transport)");
             println!("Socket: {}", socket_path.display());
-            println!("Task execution: {}", if allow_exec { "enabled" } else { "read-only" });
-            
-            TaskServerProvider::new_with_options(Some(socket_path), internal_tasks, allow_exec, false)
+            println!(
+                "Task execution: {}",
+                if allow_exec { "enabled" } else { "read-only" }
+            );
+
+            TaskServerProvider::new_with_options(
+                Some(socket_path),
+                internal_tasks,
+                allow_exec,
+                false,
+            )
         }
         "tcp" => {
             println!("Starting cuenv MCP server (TCP transport)");
             println!("Port: {}", port);
-            println!("Task execution: {}", if allow_exec { "enabled" } else { "read-only" });
+            println!(
+                "Task execution: {}",
+                if allow_exec { "enabled" } else { "read-only" }
+            );
             println!("Note: TCP transport uses Unix socket internally - external TCP not implemented yet");
-            
+
             // For TCP, we'll create a temporary socket and note the limitation
             let temp_socket = tempfile::tempdir()
                 .map(|d| d.path().join("cuenv-mcp-tcp.sock"))
-                .map_err(|e| Error::configuration(format!("Failed to create temp socket: {}", e)))?;
-            
-            TaskServerProvider::new_with_options(Some(temp_socket), internal_tasks, allow_exec, false)
+                .map_err(|e| {
+                    Error::configuration(format!("Failed to create temp socket: {}", e))
+                })?;
+
+            TaskServerProvider::new_with_options(
+                Some(temp_socket),
+                internal_tasks,
+                allow_exec,
+                false,
+            )
         }
         _ => {
             return Err(Error::configuration(format!(
@@ -757,10 +778,10 @@ async fn handle_mcp_server(
 
     // Start the server (this will block until interrupted)
     println!("Press Ctrl+C to stop the server");
-    
+
     // Set up signal handling for graceful shutdown
     let ctrl_c = tokio::signal::ctrl_c();
-    
+
     tokio::select! {
         result = provider.start() => {
             match result {
@@ -1701,9 +1722,14 @@ tasks: env.#Tasks & {
                 .await?;
             }
         },
-        Some(Commands::Mcp { transport, port, socket, allow_exec }) => {
+        Some(Commands::Mcp {
+            transport,
+            port,
+            socket,
+            allow_exec,
+        }) => {
             handle_mcp_server(transport, port, socket, allow_exec).await?;
-        },
+        }
         None => {
             let current_dir = match DirectoryManager::get_current_directory() {
                 Ok(d) => d,
