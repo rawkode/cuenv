@@ -36,8 +36,10 @@ export class TaskCodeLensProvider implements vscode.CodeLensProvider {
 
         // Find task definitions in the document
         for (const task of tasks) {
+            // Escape special regex characters in task name
+            const escapedName = task.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const taskPattern = new RegExp(
-                `("${task.name}"|${task.name})\\s*:\\s*\\{`,
+                `("${escapedName}"|${escapedName})\\s*:\\s*\\{`,
                 'g'
             );
             

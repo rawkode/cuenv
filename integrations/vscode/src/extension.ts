@@ -214,7 +214,7 @@ class CuenvExtension {
     private handleConfigurationChange(config: any): void {
         // Update CLI adapter executable paths
         for (const manager of this.environmentManagers.values()) {
-            manager['cliAdapter'].updateExecutablePath(config.executablePath);
+            manager.updateExecutablePath(config.executablePath);
         }
 
         // Update debounce settings
