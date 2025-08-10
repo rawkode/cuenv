@@ -322,6 +322,6 @@ fn test_internal_task_protocol_help() {
     assert!(output.status.success());
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Task Server Protocol (TSP) client"));
-    assert!(stdout.contains("Usage:"));
+    assert!(stdout.contains("Task Server Protocol (TSP) - Dual-Modality Support"));
+    assert!(stdout.contains("Consumer Mode"));
 }
