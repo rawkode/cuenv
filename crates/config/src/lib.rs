@@ -50,7 +50,7 @@ pub mod parser;
 
 // Re-export main types for centralized configuration management
 pub use config::{Config, PackageInfo, RuntimeSettings, SecurityContext};
-pub use loader::{ConfigLoader, load_config_from_directory, load_config_with_capabilities};
+pub use loader::{load_config_from_directory, load_config_with_capabilities, ConfigLoader};
 
 // Re-export existing types for backward compatibility
 pub use cache::*;

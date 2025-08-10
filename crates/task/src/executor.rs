@@ -60,22 +60,20 @@ impl TaskExecutor {
         // Create EnvManager with the pre-loaded configuration
         let mut env_manager = EnvManager::new(config.clone());
         env_manager.apply_config().await?;
-        
+
         let working_dir = config.working_directory.clone();
 
         // Setup cache configuration from the Config
         let mut cache_config = CacheConfiguration::default();
         cache_config.global.enabled = config.runtime_settings.cache_enabled;
-        
+
         let cache_config_struct = Self::create_cache_config_struct(&cache_config)?;
         let mut cache_manager = CacheManager::new(cache_config_struct).await?;
 
         // Apply task-specific cache environment configurations from Config
         let tasks_ref = config.filter_tasks_by_capabilities();
-        let tasks: HashMap<String, TaskConfig> = tasks_ref
-            .into_iter()
-            .map(|(k, v)| (k, v.clone()))
-            .collect();
+        let tasks: HashMap<String, TaskConfig> =
+            tasks_ref.into_iter().map(|(k, v)| (k, v.clone())).collect();
         cache_manager.apply_task_configs(&tasks)?;
 
         let cache_manager = Arc::new(cache_manager);
@@ -98,17 +96,20 @@ impl TaskExecutor {
     }
 
     /// Create a new task executor with monorepo registry for cross-package execution
-    pub async fn new_with_registry(config: Arc<Config>, registry: MonorepoTaskRegistry) -> Result<Self> {
+    pub async fn new_with_registry(
+        config: Arc<Config>,
+        registry: MonorepoTaskRegistry,
+    ) -> Result<Self> {
         // Create EnvManager with the pre-loaded configuration
         let mut env_manager = EnvManager::new(config.clone());
         env_manager.apply_config().await?;
-        
+
         let working_dir = config.working_directory.clone();
 
         // Setup cache configuration from the Config
         let mut cache_config = CacheConfiguration::default();
         cache_config.global.enabled = config.runtime_settings.cache_enabled;
-        
+
         let cache_config_struct = Self::create_cache_config_struct(&cache_config)?;
         let cache_manager = CacheManager::new(cache_config_struct).await?;
 
@@ -140,17 +141,15 @@ impl TaskExecutor {
         // Create EnvManager with the pre-loaded configuration
         let mut env_manager = EnvManager::new(config.clone());
         env_manager.apply_config().await?;
-        
+
         let working_dir = config.working_directory.clone();
         let cache_configuration = CacheConfiguration::default();
         let mut cache_manager = CacheManager::new(cache_config).await?;
 
         // Apply task-specific cache environment configurations from Config
         let tasks_ref = config.filter_tasks_by_capabilities();
-        let tasks: HashMap<String, TaskConfig> = tasks_ref
-            .into_iter()
-            .map(|(k, v)| (k, v.clone()))
-            .collect();
+        let tasks: HashMap<String, TaskConfig> =
+            tasks_ref.into_iter().map(|(k, v)| (k, v.clone())).collect();
         cache_manager.apply_task_configs(&tasks)?;
 
         let cache_manager = Arc::new(cache_manager);
@@ -1293,7 +1292,7 @@ mod tests {
         let env_file = temp_dir.path().join("env.cue");
         fs::write(&env_file, tasks_cue).unwrap();
 
-        use cuenv_config::{ConfigLoader, RuntimeSettings, SecurityContext, PackageInfo};
+        use cuenv_config::{ConfigLoader, PackageInfo, RuntimeSettings, SecurityContext};
         let mut loader = ConfigLoader::new();
         let config = loader
             .environment("dev".to_string())
@@ -1332,9 +1331,7 @@ tasks: {
 }"#;
 
         let (config, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let executor = TaskExecutor::new(config)
-                .await
-                .unwrap();
+        let executor = TaskExecutor::new(config).await.unwrap();
 
         let tasks = executor.list_tasks();
         assert_eq!(tasks.len(), 2);
@@ -1363,9 +1360,7 @@ tasks: {
 }"#;
 
         let (config, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let executor = TaskExecutor::new(config)
-                .await
-                .unwrap();
+        let executor = TaskExecutor::new(config).await.unwrap();
 
         let plan = executor
             .build_execution_plan(&["build".to_string()])
@@ -1395,9 +1390,7 @@ tasks: {
 }"#;
 
         let (config, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let executor = TaskExecutor::new(config)
-                .await
-                .unwrap();
+        let executor = TaskExecutor::new(config).await.unwrap();
 
         let result = executor.build_execution_plan(&["task1".to_string()]);
         assert!(result.is_err());
@@ -1420,9 +1413,7 @@ tasks: {
 }"#;
 
         let (config, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let executor = TaskExecutor::new(config)
-                .await
-                .unwrap();
+        let executor = TaskExecutor::new(config).await.unwrap();
 
         let result = executor.build_execution_plan(&["nonexistent".to_string()]);
         assert!(result.is_err());
@@ -1443,9 +1434,7 @@ tasks: {
 }"#;
 
         let (config, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let executor = TaskExecutor::new(config)
-                .await
-                .unwrap();
+        let executor = TaskExecutor::new(config).await.unwrap();
 
         let result = executor.build_execution_plan(&["build".to_string()]);
         assert!(result.is_err());
@@ -1477,9 +1466,7 @@ tasks: {
 }"#;
 
         let (config, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let executor = TaskExecutor::new(config)
-                .await
-                .unwrap();
+        let executor = TaskExecutor::new(config).await.unwrap();
 
         let plan = executor
             .build_execution_plan(&["deploy".to_string()])
