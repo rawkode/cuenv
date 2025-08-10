@@ -1,4 +1,5 @@
-use crate::{MonorepoTaskRegistry, TaskBuilder, TaskDefinition, TaskExecutionMode};
+use crate::{MonorepoTaskRegistry, TaskBuilder};
+use cuenv_core::{TaskDefinition, TaskExecutionMode};
 use ::tracing::Instrument;
 use cuenv_cache::config::CacheConfiguration;
 use cuenv_cache::{concurrent::action::ActionCache, CacheManager};

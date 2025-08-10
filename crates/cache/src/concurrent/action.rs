@@ -9,7 +9,7 @@ use crate::keys::CacheKeyGenerator;
 use crate::security::signing::{CacheSigner, SignedCacheEntry};
 use cuenv_config::TaskConfig;
 use cuenv_core::{Error, Result};
-use cuenv_task::definition::{TaskDefinition, TaskExecutionMode};
+use cuenv_core::{TaskDefinition, TaskExecutionMode};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
