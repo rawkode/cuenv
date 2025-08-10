@@ -29,6 +29,11 @@ pub mod types;
 pub use self::{
     constants::*,
     errors::{Error, Result, ResultExt},
-    events::{CacheEvent, EnvEvent, EventBus, SystemEvent, TaskEvent},
+    events::{
+        CacheEvent, DependencyEvent, EnhancedEvent, EnvEvent, EventBus, EventEmitter, 
+        EventStats, EventSubscriber, PipelineEvent, SystemEvent, TaskEvent,
+        global_event_bus, global_event_emitter, initialize_global_events,
+        publish_global_event, register_global_subscriber,
+    },
     types::*,
 };

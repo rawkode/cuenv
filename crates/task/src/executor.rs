@@ -1,4 +1,4 @@
-use crate::MonorepoTaskRegistry;
+use crate::{MonorepoTaskRegistry, TaskBuilder, TaskDefinition};
 use ::tracing::Instrument;
 use cuenv_cache::config::CacheConfiguration;
 use cuenv_cache::{concurrent::action::ActionCache, CacheManager};
@@ -27,8 +27,8 @@ struct TaskExecutionContext<'a> {
 pub struct TaskExecutionPlan {
     /// Tasks organized by execution level (level 0 = no dependencies, etc.)
     pub levels: Vec<Vec<String>>,
-    /// Original task configurations
-    pub tasks: HashMap<String, TaskConfig>,
+    /// Built and validated task definitions
+    pub tasks: HashMap<String, TaskDefinition>,
 }
 
 /// Main task executor that handles dependency resolution and execution
@@ -39,6 +39,8 @@ pub struct TaskExecutor {
     cache_manager: Arc<CacheManager>,
     action_cache: Arc<ActionCache>,
     cache_config: CacheConfiguration,
+    /// Task builder for Phase 3 architecture
+    task_builder: TaskBuilder,
     /// Optional registry for cross-package task execution in monorepos
     monorepo_registry: Option<Arc<MonorepoTaskRegistry>>,
     /// Track executed tasks to avoid re-execution in cross-package scenarios
@@ -60,12 +62,16 @@ impl TaskExecutor {
         let cache_manager = Arc::new(cache_manager);
         let action_cache = cache_manager.action_cache();
 
+        // Create TaskBuilder with current working directory and environment
+        let task_builder = TaskBuilder::new(working_dir.clone());
+
         Ok(Self {
             env_manager,
             working_dir,
             cache_manager,
             action_cache,
             cache_config,
+            task_builder,
             monorepo_registry: None,
             executed_tasks: Arc::new(Mutex::new(HashSet::new())),
         })
@@ -85,12 +91,16 @@ impl TaskExecutor {
         let cache_manager = Arc::new(cache_manager);
         let action_cache = cache_manager.action_cache();
 
+        // Create TaskBuilder with current working directory
+        let task_builder = TaskBuilder::new(working_dir.clone());
+
         Ok(Self {
             env_manager,
             working_dir,
             cache_manager,
             action_cache,
             cache_config,
+            task_builder,
             monorepo_registry: Some(Arc::new(registry)),
             executed_tasks: Arc::new(Mutex::new(HashSet::new())),
         })
@@ -113,12 +123,16 @@ impl TaskExecutor {
         let cache_manager = Arc::new(cache_manager);
         let action_cache = cache_manager.action_cache();
 
+        // Create TaskBuilder with current working directory
+        let task_builder = TaskBuilder::new(working_dir.clone());
+
         Ok(Self {
             env_manager,
             working_dir,
             cache_manager,
             action_cache,
             cache_config: cache_configuration,
+            task_builder,
             monorepo_registry: None,
             executed_tasks: Arc::new(Mutex::new(HashSet::new())),
         })
@@ -497,26 +511,29 @@ impl TaskExecutor {
             return self.build_monorepo_execution_plan(task_names, registry);
         }
 
-        let all_tasks = self.env_manager.get_tasks();
+        let all_task_configs = self.env_manager.get_tasks();
 
         // Validate that all requested tasks exist
         for task_name in task_names {
-            if !all_tasks.contains_key(task_name) {
+            if !all_task_configs.contains_key(task_name) {
                 return Err(Error::configuration(format!(
                     "Task '{task_name}' not found"
                 )));
             }
         }
 
-        // Build dependency graph
-        let mut task_dependencies = HashMap::with_capacity(all_tasks.len());
-        let mut visited = HashSet::with_capacity(all_tasks.len());
+        // Build task definitions using TaskBuilder
+        let task_definitions = self.task_builder.build_tasks(all_task_configs)?;
+
+        // Build dependency graph using task definitions
+        let mut task_dependencies = HashMap::with_capacity(task_definitions.len());
+        let mut visited = HashSet::with_capacity(task_definitions.len());
         let mut stack = HashSet::new();
 
         for task_name in task_names {
-            Self::collect_dependencies(
+            Self::collect_dependencies_from_definitions(
                 task_name,
-                all_tasks,
+                &task_definitions,
                 &mut task_dependencies,
                 &mut visited,
                 &mut stack,
@@ -529,8 +546,8 @@ impl TaskExecutor {
         // Build final execution plan
         let mut plan_tasks = HashMap::with_capacity(task_dependencies.len());
         for task_name in task_dependencies.keys() {
-            if let Some(config) = all_tasks.get(task_name) {
-                plan_tasks.insert(task_name.clone(), config.clone());
+            if let Some(definition) = task_definitions.get(task_name) {
+                plan_tasks.insert(task_name.clone(), definition.clone());
             }
         }
 
@@ -683,6 +700,51 @@ impl TaskExecutor {
             }
 
             Self::collect_dependencies(dep_name, all_tasks, task_dependencies, visited, stack)?;
+        }
+
+        task_dependencies.insert(task_name.to_owned(), dependencies);
+        visited.insert(task_name.to_owned());
+        stack.remove(task_name);
+
+        Ok(())
+    }
+
+    /// Recursively collect task dependencies from task definitions (Phase 3)
+    fn collect_dependencies_from_definitions(
+        task_name: &str,
+        all_tasks: &HashMap<String, TaskDefinition>,
+        task_dependencies: &mut HashMap<String, Vec<String>>,
+        visited: &mut HashSet<String>,
+        stack: &mut HashSet<String>,
+    ) -> Result<()> {
+        // Check for circular dependencies
+        if stack.contains(task_name) {
+            return Err(Error::configuration(format!(
+                "Circular dependency detected involving task '{task_name}'"
+            )));
+        }
+
+        if visited.contains(task_name) {
+            return Ok(());
+        }
+
+        stack.insert(task_name.to_owned());
+
+        let task_definition = all_tasks
+            .get(task_name)
+            .ok_or_else(|| Error::configuration(format!("Task '{task_name}' not found")))?;
+
+        let dependencies = task_definition.dependency_names();
+
+        // Validate and collect dependencies
+        for dep_name in &dependencies {
+            if !all_tasks.contains_key(dep_name) {
+                return Err(Error::configuration(format!(
+                    "Dependency '{dep_name}' of task '{task_name}' not found"
+                )));
+            }
+
+            Self::collect_dependencies_from_definitions(dep_name, all_tasks, task_dependencies, visited, stack)?;
         }
 
         task_dependencies.insert(task_name.to_owned(), dependencies);
