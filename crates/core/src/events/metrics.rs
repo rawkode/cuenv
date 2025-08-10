@@ -44,21 +44,28 @@ struct MetricsCounters {
     cache_misses: AtomicU64,
 }
 
-/// Detailed metrics storage
-#[derive(Debug, Default)]
+/// Configuration for metrics storage limits
+const MAX_TASK_DURATIONS_PER_TASK: usize = 1000; // Keep last 1000 measurements per task
+const MAX_PIPELINE_DURATIONS: usize = 500; // Keep last 500 pipeline executions
+const CLEANUP_THRESHOLD_WRITES: u64 = 10000; // Clean up every 10k metric writes
+
+/// Detailed metrics storage with bounded collections
+#[derive(Debug)]
 struct MetricsStore {
-    /// Task execution times (task_name -> durations in ms)
-    task_durations: HashMap<String, Vec<u64>>,
+    /// Task execution times (task_name -> durations in ms) - bounded sliding window
+    task_durations: HashMap<String, std::collections::VecDeque<u64>>,
     /// Task success rates (task_name -> (success_count, total_count))
     task_success_rates: HashMap<String, (u64, u64)>,
-    /// Pipeline execution times
-    pipeline_durations: Vec<u64>,
+    /// Pipeline execution times - bounded sliding window
+    pipeline_durations: std::collections::VecDeque<u64>,
     /// Cache operation types and their counts
     cache_operations: HashMap<String, u64>,
     /// System performance metrics
     system_metrics: SystemMetrics,
     /// Last metric update time
     last_update: Option<SystemTime>,
+    /// Write counter for periodic cleanup
+    write_counter: u64,
 }
 
 /// System-level performance metrics
@@ -178,11 +185,17 @@ impl MetricsSubscriber {
             TaskEvent::TaskCompleted { task_name, duration_ms, .. } => {
                 self.counters.tasks_completed_success.fetch_add(1, Ordering::Relaxed);
                 
-                // Record task duration
-                metrics.task_durations
+                // Record task duration with bounded storage
+                let durations = metrics.task_durations
                     .entry(task_name.clone())
-                    .or_insert_with(Vec::new)
-                    .push(*duration_ms);
+                    .or_insert_with(|| std::collections::VecDeque::with_capacity(MAX_TASK_DURATIONS_PER_TASK));
+                
+                durations.push_back(*duration_ms);
+                
+                // Remove oldest if we exceed limit
+                if durations.len() > MAX_TASK_DURATIONS_PER_TASK {
+                    durations.pop_front();
+                }
 
                 // Update success rate
                 let (success, total) = metrics.task_success_rates
@@ -216,8 +229,22 @@ impl MetricsSubscriber {
         
         if let PipelineEvent::PipelineCompleted { total_duration_ms, .. } = event {
             let mut metrics = self.metrics.write().await;
-            metrics.pipeline_durations.push(*total_duration_ms);
+            
+            // Add to bounded pipeline durations
+            metrics.pipeline_durations.push_back(*total_duration_ms);
+            
+            // Remove oldest if we exceed limit
+            if metrics.pipeline_durations.len() > MAX_PIPELINE_DURATIONS {
+                metrics.pipeline_durations.pop_front();
+            }
+            
             metrics.last_update = Some(SystemTime::now());
+            
+            // Perform periodic cleanup
+            metrics.write_counter += 1;
+            if metrics.write_counter % CLEANUP_THRESHOLD_WRITES == 0 {
+                self.cleanup_old_metrics(&mut metrics).await;
+            }
         }
     }
 
@@ -278,8 +305,46 @@ impl MetricsSubscriber {
             avg_duration_ms = metrics.system_metrics.avg_task_duration,
             cache_hit_ratio = metrics.system_metrics.cache_hit_ratio,
             events_total = events_total,
+            task_count = metrics.task_durations.len(),
+            pipeline_count = metrics.pipeline_durations.len(),
             "Updated system metrics"
         );
+    }
+    
+    /// Clean up old metrics to prevent unbounded growth
+    async fn cleanup_old_metrics(&self, metrics: &mut MetricsStore) {
+        let now = SystemTime::now();
+        let cleanup_threshold = Duration::from_secs(24 * 60 * 60 * 7); // 7 days
+        
+        // Clean up tasks that haven't been updated recently
+        // This is a simplified cleanup - in practice you might want more sophisticated retention policies
+        if let Some(last_update) = metrics.last_update {
+            if now.duration_since(last_update).unwrap_or(Duration::ZERO) > cleanup_threshold {
+                // Reset counters for very old data
+                metrics.cache_operations.retain(|_, count| *count > 0);
+                
+                debug!(
+                    tasks_retained = metrics.task_durations.len(),
+                    cache_ops_retained = metrics.cache_operations.len(),
+                    "Cleaned up old metrics"
+                );
+            }
+        }
+        
+        // Ensure all task duration collections stay within bounds
+        for (task_name, durations) in &mut metrics.task_durations {
+            if durations.len() > MAX_TASK_DURATIONS_PER_TASK {
+                let excess = durations.len() - MAX_TASK_DURATIONS_PER_TASK;
+                for _ in 0..excess {
+                    durations.pop_front();
+                }
+                debug!(
+                    task = task_name,
+                    retained_measurements = durations.len(),
+                    "Cleaned up excess task duration measurements"
+                );
+            }
+        }
     }
 
     /// Reset all metrics (useful for testing)
@@ -287,7 +352,7 @@ impl MetricsSubscriber {
         let mut metrics = self.metrics.write().await;
         *metrics = MetricsStore::default();
         
-        // Reset atomic counters
+        // Reset atomic counters  
         self.counters.events_total.store(0, Ordering::Relaxed);
         self.counters.task_events.store(0, Ordering::Relaxed);
         self.counters.pipeline_events.store(0, Ordering::Relaxed);
@@ -298,7 +363,7 @@ impl MetricsSubscriber {
         self.counters.cache_hits.store(0, Ordering::Relaxed);
         self.counters.cache_misses.store(0, Ordering::Relaxed);
         
-        debug!("Metrics reset");
+        debug!("All metrics reset");
     }
 }
 
@@ -314,6 +379,20 @@ impl MetricsCounters {
             tasks_skipped: AtomicU64::new(0),
             cache_hits: AtomicU64::new(0),
             cache_misses: AtomicU64::new(0),
+        }
+    }
+}
+
+impl Default for MetricsStore {
+    fn default() -> Self {
+        Self {
+            task_durations: HashMap::new(),
+            task_success_rates: HashMap::new(),
+            pipeline_durations: std::collections::VecDeque::with_capacity(MAX_PIPELINE_DURATIONS),
+            cache_operations: HashMap::new(),
+            system_metrics: SystemMetrics::default(),
+            last_update: None,
+            write_counter: 0,
         }
     }
 }

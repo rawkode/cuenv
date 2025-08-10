@@ -19,6 +19,8 @@ pub struct TaskBuilder {
     workspace_root: PathBuf,
     /// Global environment variables for expansion
     global_env: HashMap<String, String>,
+    /// Cached dependency validation results
+    dependency_cache: Arc<std::sync::RwLock<HashMap<Vec<String>, Result<(), String>>>>,
 }
 
 /// Task building context
@@ -44,6 +46,7 @@ impl TaskBuilder {
         Self {
             workspace_root,
             global_env,
+            dependency_cache: Arc::new(std::sync::RwLock::new(HashMap::new())),
         }
     }
 
@@ -196,8 +199,45 @@ impl TaskBuilder {
         Ok(())
     }
 
-    /// Validate task dependencies for circular references
+    /// Validate task dependencies for circular references with caching
     fn validate_dependencies(&self, context: &BuildContext) -> Result<()> {
+        // Create a stable cache key from dependency graph
+        let mut cache_key: Vec<String> = context.dependency_graph
+            .iter()
+            .map(|(k, v)| format!("{}:{}", k, v.join(",")))
+            .collect();
+        cache_key.sort(); // Ensure deterministic ordering
+
+        // Check cache first
+        if let Ok(cache) = self.dependency_cache.read() {
+            if let Some(cached_result) = cache.get(&cache_key) {
+                return match cached_result {
+                    Ok(()) => Ok(()),
+                    Err(err_msg) => Err(Error::configuration(err_msg.clone())),
+                };
+            }
+        }
+
+        // Perform validation if not cached
+        let result = self.perform_dependency_validation(context);
+        
+        // Cache the result
+        if let Ok(mut cache) = self.dependency_cache.write() {
+            match &result {
+                Ok(()) => {
+                    cache.insert(cache_key, Ok(()));
+                }
+                Err(err) => {
+                    cache.insert(cache_key, Err(err.to_string()));
+                }
+            }
+        }
+
+        result
+    }
+
+    /// Perform the actual dependency validation
+    fn perform_dependency_validation(&self, context: &BuildContext) -> Result<()> {
         let mut visited = HashSet::new();
         let mut rec_stack = HashSet::new();
 

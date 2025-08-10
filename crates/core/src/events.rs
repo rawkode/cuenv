@@ -161,9 +161,9 @@ pub trait EventSubscriber: Send + Sync {
     fn name(&self) -> &'static str;
     
     /// Check if this subscriber is interested in the event
+    #[allow(unused_variables)]
     fn is_interested(&self, event: &SystemEvent) -> bool {
         // Default: interested in all events
-        let _ = event;
         true
     }
 }
@@ -290,52 +290,69 @@ impl EventEmitter {
         self.stats.read().await.clone()
     }
 
-    /// Notify all registered subscribers
+    /// Notify all registered subscribers in parallel
     async fn notify_subscribers(&self, event: &EnhancedEvent) {
         let subscribers = self.subscribers.read().await;
         
-        for subscriber in subscribers.iter() {
-            // Check if subscriber is interested in this event
-            if !subscriber.is_interested(&event.event) {
-                continue;
-            }
-
-            let subscriber_name = subscriber.name();
-            
-            // Handle the event asynchronously
-            match subscriber.handle_event(event).await {
-                Ok(()) => {
-                    debug!(
-                        subscriber = subscriber_name,
-                        event_type = std::any::type_name::<SystemEvent>(),
-                        "Event handled successfully"
-                    );
-                    
-                    // Update success statistics
-                    if let Ok(mut stats) = self.stats.try_write() {
-                        stats.events_handled += 1;
-                    }
-                }
-                Err(e) => {
-                    error!(
-                        subscriber = subscriber_name,
-                        error = %e,
-                        "Failed to handle event"
-                    );
-                    
-                    // Update error statistics
-                    if let Ok(mut stats) = self.stats.try_write() {
-                        stats.events_failed += 1;
-                    }
-                }
-            }
+        // Filter interested subscribers and collect their handles
+        let interested_subscribers: Vec<_> = subscribers.iter()
+            .filter(|sub| sub.is_interested(&event.event))
+            .cloned()
+            .collect();
+        
+        // Release the read lock early
+        drop(subscribers);
+        
+        if interested_subscribers.is_empty() {
+            return;
         }
+        
+        // Process subscribers in parallel using join_all
+        let handles = interested_subscribers.into_iter().map(|subscriber| {
+            let event = event.clone();
+            let stats = self.stats.clone();
+            async move {
+                let subscriber_name = subscriber.name();
+                match subscriber.handle_event(&event).await {
+                    Ok(()) => {
+                        debug!(
+                            subscriber = subscriber_name,
+                            event_type = std::any::type_name::<SystemEvent>(),
+                            "Event handled successfully"
+                        );
+                        
+                        // Update success statistics
+                        if let Ok(mut stats) = stats.try_write() {
+                            stats.events_handled += 1;
+                        }
+                    }
+                    Err(e) => {
+                        error!(
+                            subscriber = subscriber_name,
+                            error = %e,
+                            "Failed to handle event"
+                        );
+                        
+                        // Update error statistics
+                        if let Ok(mut stats) = stats.try_write() {
+                            stats.events_failed += 1;
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Wait for all subscribers to complete in parallel
+        futures::future::join_all(handles).await;
     }
 }
 
+/// Default event buffer size for the global event emitter
+const DEFAULT_EVENT_BUFFER_SIZE: usize = 10000;
+
 impl Default for EventEmitter {
     fn default() -> Self {
-        Self::new(10000)
+        Self::new(DEFAULT_EVENT_BUFFER_SIZE)
     }
 }
 
@@ -378,9 +395,12 @@ impl EventBus {
     }
 }
 
+/// Default event buffer size for the legacy event bus
+const DEFAULT_LEGACY_BUFFER_SIZE: usize = 1000;
+
 impl Default for EventBus {
     fn default() -> Self {
-        Self::new(1000)
+        Self::new(DEFAULT_LEGACY_BUFFER_SIZE)
     }
 }
 
@@ -405,13 +425,22 @@ pub fn global_event_bus() -> Arc<EventBus> {
 }
 
 /// Initialize the global event system with custom configuration
-pub fn initialize_global_events(capacity: usize) -> Arc<EventEmitter> {
+/// 
+/// Returns an error if the global event system has already been initialized.
+/// Use `global_event_emitter()` to get the existing instance.
+pub fn initialize_global_events(capacity: usize) -> Result<Arc<EventEmitter>, Arc<EventEmitter>> {
     let emitter = Arc::new(EventEmitter::new(capacity));
-    if GLOBAL_EVENT_EMITTER.set(emitter.clone()).is_err() {
-        // Already initialized, return the existing one
-        return global_event_emitter();
+    match GLOBAL_EVENT_EMITTER.set(emitter.clone()) {
+        Ok(()) => {
+            debug!(capacity = capacity, "Global event system initialized");
+            Ok(emitter)
+        }
+        Err(_) => {
+            // Already initialized, return the existing one as an error
+            warn!("Global event system already initialized, returning existing instance");
+            Err(global_event_emitter())
+        }
     }
-    emitter
 }
 
 /// Convenience function to publish events globally
