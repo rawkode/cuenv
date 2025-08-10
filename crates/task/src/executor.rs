@@ -857,7 +857,7 @@ impl TaskExecutor {
     async fn execute_single_task_with_cache(
         ctx: &TaskExecutionContext<'_>,
         task_name: &str,
-        task_config: &TaskDefinition,
+        task_definition: &TaskDefinition,
         args: &[String],
     ) -> Result<i32> {
         // Check if caching is enabled for this task using the new configuration system
@@ -865,7 +865,7 @@ impl TaskExecutor {
         let cache_enabled = false;
         let _unused = (
             &ctx.cache_config.global,
-            task_config.cache.as_ref(),
+            &task_definition.cache,
             task_name,
         );
 
@@ -875,7 +875,7 @@ impl TaskExecutor {
             // task_progress(task_name, None, "Executing task (cache disabled)");
             return Self::execute_single_task(
                 task_name,
-                task_config,
+                task_definition,
                 ctx.working_dir,
                 args,
                 ctx.audit_mode,
@@ -888,7 +888,7 @@ impl TaskExecutor {
         let env_vars = std::env::vars().collect();
         let digest = ctx
             .action_cache
-            .compute_digest(task_name, task_config, ctx.working_dir, env_vars)
+            .compute_digest(task_name, task_definition, ctx.working_dir, env_vars)
             .await?;
 
         // Execute with ActionCache
@@ -902,7 +902,7 @@ impl TaskExecutor {
 
                 let exit_code = Self::execute_single_task(
                     task_name,
-                    task_config,
+                    task_definition,
                     ctx.working_dir,
                     args,
                     ctx.audit_mode,
@@ -942,45 +942,25 @@ impl TaskExecutor {
     /// Execute a single task
     async fn execute_single_task(
         task_name: &str,
-        task_config: &TaskConfig,
+        task_definition: &TaskDefinition,
         working_dir: &Path,
         args: &[String],
         audit_mode: bool,
         capture_output: bool,
     ) -> Result<i32> {
-        // Determine what to execute
-        let (shell, script_content) = match (&task_config.command, &task_config.script) {
-            (Some(command), None) => {
+        // Determine what to execute from TaskDefinition
+        let (shell, script_content) = match &task_definition.execution_mode {
+            TaskExecutionMode::Command { command } => {
                 // Add user args to the command
                 let full_command = if args.is_empty() {
                     command.clone()
                 } else {
                     format!("{} {}", command, args.join(" "))
                 };
-                (
-                    task_config
-                        .shell
-                        .clone()
-                        .unwrap_or_else(|| "sh".to_string()),
-                    full_command,
-                )
+                (task_definition.shell.clone(), full_command)
             }
-            (None, Some(script)) => (
-                task_config
-                    .shell
-                    .clone()
-                    .unwrap_or_else(|| "sh".to_string()),
-                script.clone(),
-            ),
-            (Some(_), Some(_)) => {
-                return Err(Error::configuration(
-                    "Task cannot have both 'command' and 'script' defined".to_string(),
-                ));
-            }
-            (None, None) => {
-                return Err(Error::configuration(
-                    "Task must have either 'command' or 'script' defined".to_string(),
-                ));
+            TaskExecutionMode::Script { content } => {
+                (task_definition.shell.clone(), content.clone())
             }
         };
 

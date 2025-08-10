@@ -19,6 +19,8 @@ pub struct MetricsSubscriber {
     expose_http: bool,
     /// HTTP server port (if enabled)
     http_port: Option<u16>,
+    /// Cleanup threshold for metric writes (configurable)
+    cleanup_threshold: u64,
 }
 
 /// Thread-safe atomic counters for high-frequency metrics
@@ -106,6 +108,7 @@ impl MetricsSubscriber {
             counters: MetricsCounters::new(),
             expose_http: false,
             http_port: None,
+            cleanup_threshold: CLEANUP_THRESHOLD_WRITES,
         }
     }
 
@@ -116,6 +119,18 @@ impl MetricsSubscriber {
             counters: MetricsCounters::new(),
             expose_http: true,
             http_port: Some(port),
+            cleanup_threshold: CLEANUP_THRESHOLD_WRITES,
+        }
+    }
+
+    /// Create a metrics subscriber with custom cleanup threshold
+    pub fn with_cleanup_threshold(cleanup_threshold: u64) -> Self {
+        Self {
+            metrics: Arc::new(RwLock::new(MetricsStore::default())),
+            counters: MetricsCounters::new(),
+            expose_http: false,
+            http_port: None,
+            cleanup_threshold,
         }
     }
 
@@ -242,7 +257,7 @@ impl MetricsSubscriber {
             
             // Perform periodic cleanup
             metrics.write_counter += 1;
-            if metrics.write_counter % CLEANUP_THRESHOLD_WRITES == 0 {
+            if metrics.write_counter % self.cleanup_threshold == 0 {
                 self.cleanup_old_metrics(&mut metrics).await;
             }
         }

@@ -12,6 +12,7 @@ use tracing::field::{Field, Visit};
 use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
+use uuid;
 
 /// Event bridge layer that converts tracing events to application events
 pub struct EventBridgeLayer {
@@ -112,7 +113,9 @@ impl EventBridgeLayer {
     fn create_task_progress_event(fields: &HashMap<String, String>) -> Option<SystemEvent> {
         let task_name = fields.get("task_name")?.clone();
         let message = fields.get("message").cloned().unwrap_or_default();
-        let task_id = fields.get("task_id").cloned().unwrap_or_else(|| format!("{}-default", task_name));
+        let task_id = fields.get("task_id").cloned().unwrap_or_else(|| {
+            format!("{}-{}", task_name, uuid::Uuid::new_v4().simple())
+        });
 
         Some(SystemEvent::Task(TaskEvent::TaskProgress {
             task_name,
@@ -127,7 +130,9 @@ impl EventBridgeLayer {
             .get("duration_ms")
             .and_then(|s| s.parse::<u64>().ok())
             .unwrap_or(0);
-        let task_id = fields.get("task_id").cloned().unwrap_or_else(|| format!("{}-default", task_name));
+        let task_id = fields.get("task_id").cloned().unwrap_or_else(|| {
+            format!("{}-{}", task_name, uuid::Uuid::new_v4().simple())
+        });
 
         Some(SystemEvent::Task(TaskEvent::TaskCompleted {
             task_name,
@@ -139,7 +144,9 @@ impl EventBridgeLayer {
     fn create_task_failed_event(fields: &HashMap<String, String>) -> Option<SystemEvent> {
         let task_name = fields.get("task_name")?.clone();
         let error = fields.get("error").cloned().unwrap_or_else(|| "Unknown error".to_string());
-        let task_id = fields.get("task_id").cloned().unwrap_or_else(|| format!("{}-default", task_name));
+        let task_id = fields.get("task_id").cloned().unwrap_or_else(|| {
+            format!("{}-{}", task_name, uuid::Uuid::new_v4().simple())
+        });
 
         Some(SystemEvent::Task(TaskEvent::TaskFailed {
             task_name,
@@ -150,7 +157,9 @@ impl EventBridgeLayer {
 
     fn create_task_started_event(fields: &HashMap<String, String>) -> Option<SystemEvent> {
         let task_name = fields.get("task_name")?.clone();
-        let task_id = fields.get("task_id").cloned().unwrap_or_else(|| format!("{}-default", task_name));
+        let task_id = fields.get("task_id").cloned().unwrap_or_else(|| {
+            format!("{}-{}", task_name, uuid::Uuid::new_v4().simple())
+        });
 
         Some(SystemEvent::Task(TaskEvent::TaskStarted {
             task_name,
@@ -161,7 +170,9 @@ impl EventBridgeLayer {
     fn create_task_skipped_event(fields: &HashMap<String, String>) -> Option<SystemEvent> {
         let task_name = fields.get("task_name")?.clone();
         let reason = fields.get("reason").cloned().unwrap_or_else(|| "Cache hit".to_string());
-        let task_id = fields.get("task_id").cloned().unwrap_or_else(|| format!("{}-default", task_name));
+        let task_id = fields.get("task_id").cloned().unwrap_or_else(|| {
+            format!("{}-{}", task_name, uuid::Uuid::new_v4().simple())
+        });
 
         Some(SystemEvent::Task(TaskEvent::TaskSkipped {
             task_name,
@@ -284,8 +295,15 @@ impl EventBridgeLayer {
     /// Emit the event to the global emitter asynchronously
     fn emit_event_async(event: SystemEvent) {
         // We need to spawn a task to handle the async emission
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             global_event_emitter().publish(event).await;
+        });
+        
+        // Spawn a task to log if the spawned task panics
+        tokio::spawn(async move {
+            if let Err(e) = handle.await {
+                tracing::error!("emit_event_async task panicked: {:?}", e);
+            }
         });
     }
 }

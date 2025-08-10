@@ -144,6 +144,11 @@ impl TaskBuilder {
                 ALLOWED_SHELLS.join(", ")
             )));
         }
+
+        // Check if shell is available on the system (best effort)
+        if let Err(_) = std::process::Command::new("which").arg(shell).output() {
+            tracing::warn!("Shell '{}' may not be available on this system", shell);
+        }
         
         Ok(())
     }
