@@ -3,11 +3,10 @@ use std::path::PathBuf;
 /// Result type alias for cuenv operations
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Core error type for cuenv operations
+/// Core error type for cuenv operations using thiserror
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// CUE file parsing errors
-    #[error("failed to parse CUE file '{path}': {message}")]
     CueParse {
         path: PathBuf,
         message: String,
@@ -16,11 +15,9 @@ pub enum Error {
     },
 
     /// Environment variable related errors
-    #[error("environment variable '{variable}' error: {message}")]
     Environment { variable: String, message: String },
 
     /// Secret resolution errors
-    #[error("failed to resolve secret '{reference}': {message}")]
     SecretResolution {
         reference: String,
         message: String,
@@ -29,7 +26,6 @@ pub enum Error {
     },
 
     /// Command execution errors
-    #[error("{}", format_command_error(.command, .args, .message, .exit_code))]
     CommandExecution {
         command: String,
         args: Vec<String>,
@@ -38,15 +34,12 @@ pub enum Error {
     },
 
     /// Configuration errors
-    #[error("configuration error: {message}")]
     Configuration { message: String },
 
     /// Shell expansion errors
-    #[error("failed to expand shell value '{value}': {message}")]
     ShellExpansion { value: String, message: String },
 
     /// File system operations
-    #[error("file system {operation} operation failed for '{path}': {source}")]
     FileSystem {
         path: PathBuf,
         operation: String,
@@ -55,7 +48,6 @@ pub enum Error {
     },
 
     /// JSON serialization/deserialization errors
-    #[error("JSON error: {message}")]
     Json {
         message: String,
         #[source]
@@ -63,54 +55,93 @@ pub enum Error {
     },
 
     /// FFI errors from CUE operations
-    #[error("FFI operation '{operation}' failed: {message}")]
     Ffi { operation: String, message: String },
 
     /// Permission denied errors
-    #[error("permission denied for {operation}: {message}")]
     PermissionDenied { operation: String, message: String },
 
     /// Unsupported operation errors
-    #[error("unsupported feature '{feature}': {message}")]
     Unsupported { feature: String, message: String },
 
     /// Security validation errors
-    #[error("security validation error: {message}")]
     Security { message: String },
 
     /// Network-related errors
-    #[error("network error for '{endpoint}': {message}")]
     Network { endpoint: String, message: String },
 
     /// Operation timeout errors
-    #[error("operation '{operation}' timed out after {duration:?}")]
     Timeout {
         operation: String,
         duration: std::time::Duration,
     },
 }
 
-fn format_command_error(command: &str, args: &[String], message: &str, exit_code: &Option<i32>) -> String {
-    let args_str = args.join(" ");
-    match exit_code {
-        Some(code) => {
-            if args_str.is_empty() {
-                format!("command '{command}' failed with exit code {code}: {message}")
-            } else {
-                format!("command '{command} {args_str}' failed with exit code {code}: {message}")
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::CueParse { path, message, .. } => {
+                write!(f, "failed to parse CUE file '{}': {}", path.display(), message)
             }
-        }
-        None => {
-            if args_str.is_empty() {
-                format!("command '{command}' failed: {message}")
-            } else {
-                format!("command '{command} {args_str}' failed: {message}")
+            Error::Environment { variable, message } => {
+                write!(f, "environment variable '{}' error: {}", variable, message)
+            }
+            Error::SecretResolution { reference, message, .. } => {
+                write!(f, "failed to resolve secret '{}': {}", reference, message)
+            }
+            Error::CommandExecution { command, args, message, exit_code } => {
+                let args_str = args.join(" ");
+                match exit_code {
+                    Some(code) => {
+                        if args_str.is_empty() {
+                            write!(f, "command '{command}' failed with exit code {code}: {message}")
+                        } else {
+                            write!(f, "command '{command} {args_str}' failed with exit code {code}: {message}")
+                        }
+                    }
+                    None => {
+                        if args_str.is_empty() {
+                            write!(f, "command '{command}' failed: {message}")
+                        } else {
+                            write!(f, "command '{command} {args_str}' failed: {message}")
+                        }
+                    }
+                }
+            }
+            Error::Configuration { message } => {
+                write!(f, "configuration error: {}", message)
+            }
+            Error::ShellExpansion { value, message } => {
+                write!(f, "failed to expand shell value '{}': {}", value, message)
+            }
+            Error::FileSystem { path, operation, source } => {
+                write!(f, "file system {} operation failed for '{}': {}", operation, path.display(), source)
+            }
+            Error::Json { message, .. } => {
+                write!(f, "JSON error: {}", message)
+            }
+            Error::Ffi { operation, message } => {
+                write!(f, "FFI operation '{}' failed: {}", operation, message)
+            }
+            Error::PermissionDenied { operation, message } => {
+                write!(f, "permission denied for {}: {}", operation, message)
+            }
+            Error::Unsupported { feature, message } => {
+                write!(f, "unsupported feature '{}': {}", feature, message)
+            }
+            Error::Security { message } => {
+                write!(f, "security validation error: {}", message)
+            }
+            Error::Network { endpoint, message } => {
+                write!(f, "network error for '{}': {}", endpoint, message)
+            }
+            Error::Timeout { operation, duration } => {
+                write!(f, "operation '{}' timed out after {:?}", operation, duration)
             }
         }
     }
 }
 
-// Conversion implementations
+// Conversion implementations (keeping these as they provide more context than thiserror's #[from])
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Self {
         Error::FileSystem {
