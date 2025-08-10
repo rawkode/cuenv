@@ -71,7 +71,11 @@ impl TaskExecutor {
         let mut cache_manager = CacheManager::new(cache_config_struct).await?;
 
         // Apply task-specific cache environment configurations from Config
-        let tasks = config.filter_tasks_by_capabilities();
+        let tasks_ref = config.filter_tasks_by_capabilities();
+        let tasks: HashMap<String, TaskConfig> = tasks_ref
+            .into_iter()
+            .map(|(k, v)| (k, v.clone()))
+            .collect();
         cache_manager.apply_task_configs(&tasks)?;
 
         let cache_manager = Arc::new(cache_manager);
@@ -142,7 +146,11 @@ impl TaskExecutor {
         let mut cache_manager = CacheManager::new(cache_config).await?;
 
         // Apply task-specific cache environment configurations from Config
-        let tasks = config.filter_tasks_by_capabilities();
+        let tasks_ref = config.filter_tasks_by_capabilities();
+        let tasks: HashMap<String, TaskConfig> = tasks_ref
+            .into_iter()
+            .map(|(k, v)| (k, v.clone()))
+            .collect();
         cache_manager.apply_task_configs(&tasks)?;
 
         let cache_manager = Arc::new(cache_manager);
@@ -1280,14 +1288,28 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    async fn create_test_env_manager_with_tasks(tasks_cue: &str) -> (EnvManager, TempDir) {
+    async fn create_test_env_manager_with_tasks(tasks_cue: &str) -> (Arc<Config>, TempDir) {
         let temp_dir = TempDir::new().unwrap();
         let env_file = temp_dir.path().join("env.cue");
         fs::write(&env_file, tasks_cue).unwrap();
 
-        let mut manager = EnvManager::new();
-        manager.load_env(temp_dir.path()).await.unwrap();
-        (manager, temp_dir)
+        use cuenv_config::{ConfigLoader, RuntimeSettings, SecurityContext, PackageInfo};
+        let mut loader = ConfigLoader::new();
+        let config = loader
+            .environment("dev".to_string())
+            .capabilities(vec![])
+            .working_directory(temp_dir.path().to_path_buf())
+            .original_environment(std::env::vars().collect())
+            .runtime_settings(RuntimeSettings {
+                cache_enabled: true,
+                ..Default::default()
+            })
+            .security_context(SecurityContext::default())
+            .package_info(None)
+            .load()
+            .await
+            .unwrap();
+        (config, temp_dir)
     }
 
     #[tokio::test]
@@ -1309,17 +1331,8 @@ tasks: {
     }
 }"#;
 
-        let (manager, temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let cache_config = cuenv_cache::CacheConfig {
-            base_dir: temp_dir.path().join(".cache"),
-            max_size: 1024 * 1024, // 1MB for tests
-            mode: cuenv_cache::CacheMode::ReadWrite,
-            inline_threshold: 4096,
-            env_filter: Default::default(),
-            task_env_filters: std::collections::HashMap::new(),
-        };
-        let executor =
-            TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)
+        let (config, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
+        let executor = TaskExecutor::new(config)
                 .await
                 .unwrap();
 
@@ -1349,17 +1362,8 @@ tasks: {
     }
 }"#;
 
-        let (manager, temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let cache_config = cuenv_cache::CacheConfig {
-            base_dir: temp_dir.path().join(".cache"),
-            max_size: 1024 * 1024, // 1MB for tests
-            mode: cuenv_cache::CacheMode::ReadWrite,
-            inline_threshold: 4096,
-            env_filter: Default::default(),
-            task_env_filters: std::collections::HashMap::new(),
-        };
-        let executor =
-            TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)
+        let (config, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
+        let executor = TaskExecutor::new(config)
                 .await
                 .unwrap();
 
@@ -1390,17 +1394,8 @@ tasks: {
     }
 }"#;
 
-        let (manager, temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let cache_config = cuenv_cache::CacheConfig {
-            base_dir: temp_dir.path().join(".cache"),
-            max_size: 1024 * 1024, // 1MB for tests
-            mode: cuenv_cache::CacheMode::ReadWrite,
-            inline_threshold: 4096,
-            env_filter: Default::default(),
-            task_env_filters: std::collections::HashMap::new(),
-        };
-        let executor =
-            TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)
+        let (config, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
+        let executor = TaskExecutor::new(config)
                 .await
                 .unwrap();
 
@@ -1424,17 +1419,8 @@ tasks: {
     }
 }"#;
 
-        let (manager, temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let cache_config = cuenv_cache::CacheConfig {
-            base_dir: temp_dir.path().join(".cache"),
-            max_size: 1024 * 1024, // 1MB for tests
-            mode: cuenv_cache::CacheMode::ReadWrite,
-            inline_threshold: 4096,
-            env_filter: Default::default(),
-            task_env_filters: std::collections::HashMap::new(),
-        };
-        let executor =
-            TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)
+        let (config, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
+        let executor = TaskExecutor::new(config)
                 .await
                 .unwrap();
 
@@ -1456,17 +1442,8 @@ tasks: {
     }
 }"#;
 
-        let (manager, temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let cache_config = cuenv_cache::CacheConfig {
-            base_dir: temp_dir.path().join(".cache"),
-            max_size: 1024 * 1024, // 1MB for tests
-            mode: cuenv_cache::CacheMode::ReadWrite,
-            inline_threshold: 4096,
-            env_filter: Default::default(),
-            task_env_filters: std::collections::HashMap::new(),
-        };
-        let executor =
-            TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)
+        let (config, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
+        let executor = TaskExecutor::new(config)
                 .await
                 .unwrap();
 
@@ -1499,17 +1476,8 @@ tasks: {
     }
 }"#;
 
-        let (manager, temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
-        let cache_config = cuenv_cache::CacheConfig {
-            base_dir: temp_dir.path().join(".cache"),
-            max_size: 1024 * 1024, // 1MB for tests
-            mode: cuenv_cache::CacheMode::ReadWrite,
-            inline_threshold: 4096,
-            env_filter: Default::default(),
-            task_env_filters: std::collections::HashMap::new(),
-        };
-        let executor =
-            TaskExecutor::new_with_config(manager, temp_dir.path().to_path_buf(), cache_config)
+        let (config, _temp_dir) = create_test_env_manager_with_tasks(tasks_cue).await;
+        let executor = TaskExecutor::new(config)
                 .await
                 .unwrap();
 

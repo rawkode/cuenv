@@ -221,13 +221,12 @@ impl ConfigLoader {
         }
         
         // Parse CUE file using the existing parser
-        let parser = CueParser::new();
         let parse_options = self.parse_options.clone().unwrap_or_default();
         
         let directory = cue_file.parent()
             .ok_or_else(|| cuenv_core::Error::configuration("Invalid CUE file path".to_string()))?;
         
-        let parsed_result = parser.eval_package_with_options(directory, "env", &parse_options)?;
+        let parsed_result = CueParser::eval_package_with_options(directory, "env", &parse_options)?;
         
         // Cache the result for future use (unless in dry run mode or caching disabled)
         if !self.dry_run && self.runtime_settings.cache_enabled {
