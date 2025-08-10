@@ -549,3 +549,47 @@ impl From<&str> for CapabilityName {
 
 /// Shared string type for immutable strings
 pub type SharedString = Arc<str>;
+
+/// Cache mode for controlling cache behavior
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CacheMode {
+    /// Cache is disabled completely
+    Off,
+    /// Only read from cache, never write
+    Read,
+    /// Read from and write to cache (default)
+    ReadWrite,
+    /// Only write to cache, never read
+    Write,
+}
+
+impl Default for CacheMode {
+    fn default() -> Self {
+        Self::ReadWrite
+    }
+}
+
+impl fmt::Display for CacheMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Off => write!(f, "off"),
+            Self::Read => write!(f, "read"),
+            Self::ReadWrite => write!(f, "read-write"),
+            Self::Write => write!(f, "write"),
+        }
+    }
+}
+
+impl std::str::FromStr for CacheMode {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s.to_lowercase().as_str() {
+            "off" => Ok(Self::Off),
+            "read" => Ok(Self::Read),
+            "read-write" | "readwrite" => Ok(Self::ReadWrite),
+            "write" => Ok(Self::Write),
+            _ => Err(Error::configuration(format!("Invalid cache mode: {s}"))),
+        }
+    }
+}

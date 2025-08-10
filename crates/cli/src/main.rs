@@ -2,9 +2,8 @@ use clap::{Parser, Subcommand};
 
 use crate::directory::DirectoryManager;
 use crate::platform::{PlatformOps, Shell};
-use cuenv_cache::CacheMode;
-use cuenv_config::{CueParser, ParseOptions};
-use cuenv_core::{Error, Result};
+use cuenv_config::{CliOptions, Config, ConfigLoader};
+use cuenv_core::{CacheMode, Error, Result};
 use cuenv_core::{CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR, ENV_CUE_FILENAME};
 use cuenv_env::EnvManager;
 use cuenv_env::StateManager;
@@ -229,6 +228,26 @@ fn generate_completion(shell: &str) -> Result<()> {
             std::process::exit(1);
         }
     }
+}
+
+/// Convert CLI arguments to CliOptions struct
+fn cli_to_options(cli: &Cli) -> Result<CliOptions> {
+    let cache_mode = if let Some(cache_str) = &cli.cache {
+        Some(cache_str.parse::<CacheMode>()?)
+    } else {
+        None
+    };
+
+    Ok(CliOptions {
+        cache_mode,
+        cache_enabled: cli.cache_enabled,
+        force: false, // Will be set per command
+        environment: None, // Will be set per command
+        capabilities: Vec::new(), // Will be set per command
+        audit: false, // Will be set per command
+        output_format: "tui".to_string(), // Default
+        trace_output: false, // Will be set per command
+    })
 }
 
 fn generate_bash_completion() -> Result<()> {
@@ -654,20 +673,11 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
+    // Convert CLI options to our configuration structure  
+    let mut cli_options = cli_to_options(&cli)?;
+
     // Apply CLI cache configuration if provided
     if let Some(cache_mode) = &cli.cache {
-        let _mode = match cache_mode.as_str() {
-            "off" => CacheMode::Off,
-            "read" => CacheMode::Read,
-            "read-write" => CacheMode::ReadWrite,
-            "write" => CacheMode::Write,
-            _ => {
-                return Err(Error::configuration(format!(
-                    "Invalid cache mode: {cache_mode}"
-                )))
-            }
-        };
-
         // Set environment variable for cache mode (highest precedence)
         std::env::set_var("CUENV_CACHE", cache_mode);
     }
@@ -682,6 +692,8 @@ async fn main() -> Result<()> {
             // Initialize a new env.cue file
             let current_dir = env::current_dir()?;
             let env_file = current_dir.join(ENV_CUE_FILENAME);
+
+            cli_options.force = force;
 
             if env_file.exists() && !force {
                 eprintln!("Error: {ENV_CUE_FILENAME} already exists. Use --force to overwrite.");
