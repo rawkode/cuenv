@@ -24,9 +24,11 @@ jobs:
       - name: namespacelabs-nix-cache
         uses: namespacelabs/nscloud-cache-action@v1
         with:
-          path: /nix
+          path: /tmp/nix
       - name: nix-install
         uses: DeterminateSystems/nix-installer-action@main
+        with:
+          mac-volume-label: "nix-cache"
       - name: nix-build-and-check
         run: |
           nix build .#cuenv --print-build-logs
@@ -50,7 +52,9 @@ jobs:
           # Run the example tests
           ./scripts/test-examples.sh
   coverage:
-    runs-on: namespace-profile-linux-caching
+    runs-on:
+      - namespace-profile-linux-caching
+      - nscloud-cache-tag-nix-cache
     needs: [test]
     if: always() && (needs.test.result == 'success')
     steps:
