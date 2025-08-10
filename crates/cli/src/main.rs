@@ -559,10 +559,9 @@ async fn complete_tasks() -> Result<()> {
         Err(_) => return Ok(()), // Silent fail for completion
     };
 
-    let mut env_manager = EnvManager::new();
-    if let Ok(()) = env_manager.load_env(&current_dir).await {
-        let tasks = env_manager.list_tasks();
-        for (name, _description) in tasks {
+    // Use centralized configuration for task completion
+    if let Ok(config) = ConfigLoader::new(&current_dir).load() {
+        for (name, _task) in &config.tasks {
             println!("{name}");
         }
     }
@@ -636,10 +635,9 @@ async fn complete_hosts() -> Result<()> {
         Err(_) => return Ok(()), // Silent fail for completion
     };
 
-    let mut env_manager = EnvManager::new();
-    if let Ok(()) = env_manager.load_env(&current_dir).await {
-        let tasks = env_manager.get_tasks();
-        for task in tasks.values() {
+    // Use centralized configuration for host completion
+    if let Ok(config) = ConfigLoader::new(&current_dir).load() {
+        for task in config.tasks.values() {
             if let Some(security) = &task.security {
                 if let Some(allowed_hosts) = &security.allowed_hosts {
                     for host in allowed_hosts {
@@ -1254,22 +1252,16 @@ tasks: env.#Tasks & {
                 }
             };
 
-            // Check if env.cue exists and load environment
+            // Check if env.cue exists and load environment using centralized config
             if current_dir.join(ENV_CUE_FILENAME).exists() {
-                let mut env_manager = EnvManager::new();
-                match env_manager.load_env(&current_dir).await {
-                    Ok(()) => {
-                        // Export the variables directly from the env manager
-                        // Get the CUE variables that were loaded
-                        let cue_vars = env_manager.get_cue_vars();
-                        for (key, value) in cue_vars {
-                            println!("{}", shell_impl.export(&key, &value));
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Error: Failed to load cuenv environment: {}", e);
-                        std::process::exit(1);
-                    }
+                // Use centralized configuration loading
+                let config = ConfigLoader::new(&current_dir)
+                    .with_cli_options(cli_options.clone())
+                    .load()?;
+
+                // Export variables directly from the config
+                for (key, value) in &config.variables {
+                    println!("{}", shell_impl.export(key, value));
                 }
             } else {
                 eprintln!("# No env.cue file found in current directory");

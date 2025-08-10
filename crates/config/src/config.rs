@@ -177,9 +177,6 @@ pub struct ConfigLoader {
     /// CLI options to apply to configuration
     cli_options: CliOptions,
     
-    /// Parse options for CUE evaluation
-    parse_options: ParseOptions,
-    
     /// Cache configuration
     cache_config: CacheConfig,
 }
@@ -190,7 +187,6 @@ impl ConfigLoader {
         Self {
             working_directory: working_directory.into(),
             cli_options: CliOptions::default(),
-            parse_options: ParseOptions::default(),
             cache_config: CacheConfig::default(),
         }
     }
