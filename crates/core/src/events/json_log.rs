@@ -45,7 +45,7 @@ impl JsonLogSubscriber {
         // Ensure parent directory exists
         if let Some(parent) = file_path.parent() {
             tokio::fs::create_dir_all(parent).await.map_err(|e| {
-                JsonLogError::IoError(format!("Failed to create log directory: {}", e))
+                JsonLogError::IoError(format!("Failed to create log directory: {e}"))
             })?;
         }
 
@@ -75,7 +75,7 @@ impl JsonLogSubscriber {
 
         if let Some(parent) = file_path.parent() {
             tokio::fs::create_dir_all(parent).await.map_err(|e| {
-                JsonLogError::IoError(format!("Failed to create log directory: {}", e))
+                JsonLogError::IoError(format!("Failed to create log directory: {e}"))
             })?;
         }
 
@@ -103,7 +103,7 @@ impl JsonLogSubscriber {
 
         if let Some(parent) = file_path.parent() {
             tokio::fs::create_dir_all(parent).await.map_err(|e| {
-                JsonLogError::IoError(format!("Failed to create log directory: {}", e))
+                JsonLogError::IoError(format!("Failed to create log directory: {e}"))
             })?;
         }
 
@@ -129,7 +129,7 @@ impl JsonLogSubscriber {
             .append(true)
             .open(&self.file_path)
             .await
-            .map_err(|e| JsonLogError::IoError(format!("Failed to open log file: {}", e)))?;
+            .map_err(|e| JsonLogError::IoError(format!("Failed to open log file: {e}")))?;
 
         let buf_writer = BufWriter::new(file);
         *self.writer.lock().await = Some(buf_writer);
@@ -418,8 +418,8 @@ mod tests {
         for i in 0..10 {
             let event = EnhancedEvent {
                 event: SystemEvent::Task(TaskEvent::TaskCompleted {
-                    task_name: format!("test-task-{}", i),
-                    task_id: format!("test-{}", i),
+                    task_name: format!("test-task-{i}"),
+                    task_id: format!("test-{i}"),
                     duration_ms: 1000,
                 }),
                 timestamp: SystemTime::now(),

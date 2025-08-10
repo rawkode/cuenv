@@ -74,10 +74,7 @@ impl<C: Cache + Clone> MonitoredCache<C> {
     /// Create a new monitored cache
     pub fn new(cache: C, service_name: impl Into<String>) -> Result<Self> {
         let service_name = service_name.into();
-        let monitor = match CacheMonitor::new(&service_name) {
-            Ok(m) => m,
-            Err(e) => return Err(e),
-        };
+        let monitor = CacheMonitor::new(&service_name)?;
 
         Ok(Self {
             cache,
@@ -501,10 +498,7 @@ impl<C: Cache + Clone> MonitoredCacheBuilder<C> {
 
     /// Build the monitored cache
     pub fn build(self) -> Result<MonitoredCache<C>> {
-        let cache = match MonitoredCache::new(self.cache, self.service_name) {
-            Ok(c) => c,
-            Err(e) => return Err(e),
-        };
+        let cache = MonitoredCache::new(self.cache, self.service_name)?;
 
         if self.enable_profiling {
             cache.enable_profiling();
@@ -565,9 +559,9 @@ mod tests {
         // Perform some operations
         for i in 0..10 {
             monitored
-                .put(&format!("key-{}", i), &format!("value-{}", i), None)
+                .put(&format!("key-{i}"), &format!("value-{i}"), None)
                 .await?;
-            let _: Option<String> = monitored.get(&format!("key-{}", i)).await?;
+            let _: Option<String> = monitored.get(&format!("key-{i}")).await?;
         }
 
         // Get flamegraph data

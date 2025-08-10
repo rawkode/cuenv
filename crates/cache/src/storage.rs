@@ -1232,7 +1232,7 @@ mod tests {
         match backend.read(&test_path).await {
             Ok(_) => panic!("Should have detected corruption"),
             Err(CacheError::Corruption { .. }) => {}
-            Err(e) => panic!("Wrong error type: {}", e),
+            Err(e) => panic!("Wrong error type: {e}"),
         }
 
         Ok(())

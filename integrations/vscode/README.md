@@ -189,8 +189,8 @@ Contributions are welcome! Please see the [cuenv repository](https://github.com/
 ### Development Setup
 
 1. Clone the cuenv repository
-2. Navigate to `vscode-extension/` directory
-3. Install dependencies: `npm install`
+2. Navigate to `integrations/vscode/` directory
+3. Install dependencies: `bun install`
 4. Open in VSCode and press F5 to launch extension development host
 
 ## 📄 License

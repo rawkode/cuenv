@@ -267,7 +267,7 @@ impl SpinnerFormatter {
 
         write!(stdout, "Running {}/{}", completed, self.total_tasks)?;
         if failed > 0 {
-            write!(stdout, " ({} failed)", failed)?;
+            write!(stdout, " ({failed} failed)")?;
         }
         stdout.execute(ResetColor)?;
         stdout.execute(SetAttribute(Attribute::Reset))?;
@@ -293,7 +293,7 @@ impl SpinnerFormatter {
 
             // Indentation based on depth
             let indent = " ".repeat(task.depth * 2);
-            write!(stdout, "{}", indent)?;
+            write!(stdout, "{indent}")?;
 
             // Status icon
             stdout.execute(SetForegroundColor(task.status_color()))?;
@@ -312,7 +312,7 @@ impl SpinnerFormatter {
             } else if task.is_skipped {
                 stdout.execute(SetForegroundColor(Color::Yellow))?;
                 let reason = task.skip_reason.as_deref().unwrap_or("Already cached");
-                write!(stdout, " Skipped - {}", reason)?;
+                write!(stdout, " Skipped - {reason}")?;
             } else if task.state == TaskState::Completed {
                 stdout.execute(SetForegroundColor(Color::Green))?;
                 write!(stdout, " Completed")?;
@@ -320,7 +320,7 @@ impl SpinnerFormatter {
                 stdout.execute(SetForegroundColor(Color::Red))?;
                 write!(stdout, " Failed")?;
                 if let Some(msg) = &task.message {
-                    write!(stdout, " - {}", msg)?;
+                    write!(stdout, " - {msg}")?;
                 }
             } else if task.state == TaskState::Queued {
                 stdout.execute(SetForegroundColor(Color::DarkGrey))?;

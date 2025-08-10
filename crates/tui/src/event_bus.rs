@@ -80,7 +80,7 @@ impl EventBus {
                     .add_log(
                         task_name,
                         crate::events::LogStream::System,
-                        format!("Task failed: {}", error),
+                        format!("Task failed: {error}"),
                     )
                     .await;
             }

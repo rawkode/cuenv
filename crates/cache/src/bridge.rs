@@ -295,7 +295,7 @@ mod tests {
 
         match result {
             Ok(inner_result) => inner_result,
-            Err(join_error) => panic!("Task panicked: {}", join_error),
+            Err(join_error) => panic!("Task panicked: {join_error}"),
         }
     }
 }

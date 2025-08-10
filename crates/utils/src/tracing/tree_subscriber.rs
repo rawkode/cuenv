@@ -56,7 +56,7 @@ impl TreeSubscriber {
         // Generate the new tree output
         let tree_output = self.formatter.format_tree(&task_map);
         let summary = self.formatter.format_summary(&task_map);
-        let full_output = format!("{}\n{}", summary, tree_output);
+        let full_output = format!("{summary}\n{tree_output}");
 
         // Check if output has changed
         let mut last_output = self.last_output.lock();
@@ -80,7 +80,7 @@ impl TreeSubscriber {
 
         for line in &lines {
             let truncated = self.formatter.truncate_line(line, terminal_width);
-            let _ = writeln!(stderr(), "{}", truncated);
+            let _ = writeln!(stderr(), "{truncated}");
         }
 
         // Update tracking variables
@@ -140,7 +140,7 @@ where
         if metadata.name() == "task" {
             let task_name = self
                 .extract_task_name(attrs)
-                .unwrap_or_else(|| format!("task-{}", span_id));
+                .unwrap_or_else(|| format!("task-{span_id}"));
 
             let task_span = TaskSpan::new(task_name, parent_id);
 

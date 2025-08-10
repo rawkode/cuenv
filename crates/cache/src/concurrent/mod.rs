@@ -413,7 +413,7 @@ mod tests {
         // Insert entries until eviction occurs
         for i in 0..20 {
             let result = CachedTaskResult {
-                cache_key: format!("key_{}", i),
+                cache_key: format!("key_{i}"),
                 executed_at: SystemTime::now(),
                 exit_code: 0,
                 stdout: None,
@@ -423,7 +423,7 @@ mod tests {
                     ("file2.txt".to_string(), "hash2".to_string()),
                 ]),
             };
-            cache.insert(format!("key_{}", i), result).unwrap();
+            cache.insert(format!("key_{i}"), result).unwrap();
         }
 
         // Cache should have evicted some entries
@@ -439,14 +439,14 @@ mod tests {
         // Insert some entries with specific ages
         for i in 0..5 {
             let result = CachedTaskResult {
-                cache_key: format!("key_{}", i),
+                cache_key: format!("key_{i}"),
                 executed_at: base_time - Duration::from_secs(3600 * (i + 1) as u64),
                 exit_code: 0,
                 stdout: None,
                 stderr: None,
                 output_files: HashMap::new(),
             };
-            cache.insert(format!("key_{}", i), result).unwrap();
+            cache.insert(format!("key_{i}"), result).unwrap();
         }
 
         // Clean up entries older than 2.5 hours to avoid edge cases

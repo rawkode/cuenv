@@ -109,13 +109,13 @@ impl CacheManager {
 
         // Initialize cache engine for legacy compatibility
         let engine = Arc::new(CacheEngine::new().map_err(|e| Error::Configuration {
-            message: format!("Failed to initialize cache engine: {}", e),
+            message: format!("Failed to initialize cache engine: {e}"),
         })?);
         let stats = Arc::new(RwLock::new(CacheStatistics::default()));
         let signer =
             Arc::new(
                 CacheSigner::new(&config.base_dir).map_err(|e| Error::Configuration {
-                    message: format!("Failed to initialize cache signer: {}", e),
+                    message: format!("Failed to initialize cache signer: {e}"),
                 })?,
             );
 
@@ -271,7 +271,7 @@ impl CacheManager {
             .signer
             .sign(&result)
             .map_err(|e| Error::Configuration {
-                message: format!("Failed to sign cache result: {}", e),
+                message: format!("Failed to sign cache result: {e}"),
             })?;
 
         // Only cache successful results (exit_code == 0)

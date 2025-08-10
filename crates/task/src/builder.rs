@@ -16,6 +16,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+/// Type alias for dependency validation cache
+type DependencyValidationCache =
+    Arc<std::sync::RwLock<HashMap<Vec<String>, std::result::Result<(), String>>>>;
+
 /// Task builder that validates and builds task definitions from configurations
 #[derive(Clone)]
 pub struct TaskBuilder {
@@ -24,7 +28,7 @@ pub struct TaskBuilder {
     /// Global environment variables for expansion
     global_env: HashMap<String, String>,
     /// Cached dependency validation results
-    dependency_cache: Arc<std::sync::RwLock<HashMap<Vec<String>, std::result::Result<(), String>>>>,
+    dependency_cache: DependencyValidationCache,
 }
 
 /// Task building context
@@ -107,14 +111,12 @@ impl TaskBuilder {
             match (&config.command, &config.script) {
                 (Some(_), Some(_)) => {
                     return Err(Error::configuration(format!(
-                        "Task '{}' cannot have both 'command' and 'script' defined",
-                        name
+                        "Task '{name}' cannot have both 'command' and 'script' defined"
                     )));
                 }
                 (None, None) => {
                     return Err(Error::configuration(format!(
-                        "Task '{}' must have either 'command' or 'script' defined",
-                        name
+                        "Task '{name}' must have either 'command' or 'script' defined"
                     )));
                 }
                 _ => {} // Valid
@@ -129,8 +131,7 @@ impl TaskBuilder {
             if let Some(timeout) = config.timeout {
                 if timeout == 0 {
                     return Err(Error::configuration(format!(
-                        "Task '{}' timeout must be greater than 0",
-                        name
+                        "Task '{name}' timeout must be greater than 0"
                     )));
                 }
             }
@@ -178,8 +179,7 @@ impl TaskBuilder {
                         let parts: Vec<&str> = dep_name.splitn(2, ':').collect();
                         if parts.len() != 2 {
                             return Err(Error::configuration(format!(
-                                "Invalid cross-package dependency '{}' in task '{}'",
-                                dep_name, task_name
+                                "Invalid cross-package dependency '{dep_name}' in task '{task_name}'"
                             )));
                         }
                         ResolvedDependency::with_package(parts[1].to_string(), parts[0].to_string())
@@ -187,8 +187,7 @@ impl TaskBuilder {
                         // Local dependency
                         if !context.task_configs.contains_key(dep_name) {
                             return Err(Error::configuration(format!(
-                                "Dependency '{}' of task '{}' not found",
-                                dep_name, task_name
+                                "Dependency '{dep_name}' of task '{task_name}' not found"
                             )));
                         }
                         ResolvedDependency::new(dep_name.clone())
@@ -286,8 +285,7 @@ impl TaskBuilder {
                     Self::detect_cycle(dep_name, dependency_graph, visited, rec_stack)?;
                 } else if rec_stack.contains(dep_name) {
                     return Err(Error::configuration(format!(
-                        "Circular dependency detected: task '{}' depends on '{}' which creates a cycle",
-                        task_name, dep_name
+                        "Circular dependency detected: task '{task_name}' depends on '{dep_name}' which creates a cycle"
                     )));
                 }
             }
@@ -436,16 +434,14 @@ impl TaskBuilder {
         for host in &security.allowed_hosts {
             if host.is_empty() {
                 return Err(Error::configuration(format!(
-                    "Empty host in allowed_hosts for task '{}'",
-                    task_name
+                    "Empty host in allowed_hosts for task '{task_name}'"
                 )));
             }
 
             // Basic validation - ensure it's not just whitespace and has reasonable format
             if host.trim() != host || host.contains(' ') {
                 return Err(Error::configuration(format!(
-                    "Invalid host '{}' in allowed_hosts for task '{}'. Hosts cannot contain spaces",
-                    host, task_name
+                    "Invalid host '{host}' in allowed_hosts for task '{task_name}'. Hosts cannot contain spaces"
                 )));
             }
         }

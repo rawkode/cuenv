@@ -24,6 +24,9 @@ repository = "https://github.com/rawkode/cuenv"
 homepage = "https://github.com/rawkode/cuenv"
 documentation = "https://github.com/rawkode/cuenv"
 
+[workspace.metadata.crane]
+name = "cuenv"
+
 [workspace.dependencies]
 # Core dependencies
 serde = { version = "1.0", features = ["derive"] }
@@ -45,6 +48,7 @@ tokio = { version = "1.35", features = [
   "fs",
   "test-util",
   "signal",
+  "io-util",
 ] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 async-trait = "0.1"

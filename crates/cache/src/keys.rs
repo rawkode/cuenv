@@ -322,7 +322,7 @@ impl CacheKeyGenerator {
             // Replace escaped glob characters with regex equivalents
             let regex_pattern = escaped.replace(r"\*", ".*").replace(r"\?", ".");
             // Anchor the pattern to match the entire string
-            format!("^{}$", regex_pattern)
+            format!("^{regex_pattern}$")
         } else {
             // Exact match for patterns without wildcards
             format!("^{}$", regex::escape(pattern))
@@ -535,11 +535,9 @@ impl CacheKeyGenerator {
 
     /// Check if a variable name matches a pattern (supports wildcards)
     fn matches_pattern(var_name: &str, pattern: &str) -> bool {
-        if pattern.ends_with('*') {
-            let prefix = &pattern[..pattern.len() - 1];
+        if let Some(prefix) = pattern.strip_suffix('*') {
             var_name.starts_with(prefix)
-        } else if pattern.starts_with('*') {
-            let suffix = &pattern[1..];
+        } else if let Some(suffix) = pattern.strip_prefix('*') {
             var_name.ends_with(suffix)
         } else if pattern.contains('*') {
             // Simple glob pattern matching
@@ -650,12 +648,12 @@ impl CacheKeyGenerator {
 
         // Convert relative paths to absolute-style paths for consistency
         if !resolved.starts_with('/') && !resolved.contains(':') {
-            format!("/{}", resolved)
+            format!("/{resolved}")
         } else if cfg!(windows) && resolved.len() > 1 && resolved.chars().nth(1) == Some(':') {
             // Convert Windows drive letters to forward-slash format (C: -> /c)
             let drive_letter = resolved.chars().next().unwrap().to_lowercase();
             let rest = &resolved[2..];
-            format!("/{}{}", drive_letter, rest)
+            format!("/{drive_letter}{rest}")
         } else {
             resolved
         }

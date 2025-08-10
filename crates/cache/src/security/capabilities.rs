@@ -98,7 +98,7 @@ impl CapabilityToken {
 }
 
 /// Token metadata for additional context
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TokenMetadata {
     /// Human-readable description
     pub description: String,
@@ -112,19 +112,6 @@ pub struct TokenMetadata {
     pub ip_restrictions: Vec<String>,
     /// Additional custom claims
     pub custom_claims: std::collections::HashMap<String, String>,
-}
-
-impl Default for TokenMetadata {
-    fn default() -> Self {
-        Self {
-            description: String::new(),
-            max_operations: None,
-            operation_count: 0,
-            rate_limit: None,
-            ip_restrictions: Vec::new(),
-            custom_claims: std::collections::HashMap::new(),
-        }
-    }
 }
 
 /// Cache operation permissions
@@ -332,10 +319,10 @@ impl CapabilityAuthority {
         getrandom::getrandom(&mut rng_bytes).expect("Failed to generate random bytes");
 
         let mut hasher = Sha256::new();
-        hasher.update(&rng_bytes);
+        hasher.update(rng_bytes);
         hasher.update(self.authority_id.as_bytes());
         hasher.update(
-            &SystemTime::now()
+            SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_nanos()

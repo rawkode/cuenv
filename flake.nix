@@ -425,31 +425,34 @@
             }
           );
 
-          # Integration tests - network-dependent functionality
-          integration-tests = craneLib.cargoNextest (
-            commonArgs
-            // {
-              inherit cargoArtifacts;
-              partitions = 1;
-              partitionType = "count";
-              cargoNextestExtraArgs = "--test '*integration*'";
-
-              preBuild = ''
-                export HOME=$(mktemp -d)
-                export GOPATH="$HOME/go"
-                export GOCACHE="$HOME/go-cache"
-                export CUE_ROOT="$PWD/cue"
-                export RUST_TEST_THREADS=1
-                export GOMAXPROCS=1
-
-                # Use pre-compiled Go bridge - fail fast if copy fails
-                mkdir -p crates/libcue-ffi-bridge/target/debug
-                mkdir -p crates/libcue-ffi-bridge/target/release
-                cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/
-                cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/
-              '';
-            }
-          );
+          # Integration tests - disabled in nix environment
+          # These tests require access to example files and aren't suitable
+          # for the sandboxed nix build environment. Use scripts/test-examples.sh
+          # for manual testing instead.
+          # integration-tests = craneLib.cargoNextest (
+          #   commonArgs
+          #   // {
+          #     inherit cargoArtifacts;
+          #     partitions = 1;
+          #     partitionType = "count";
+          #     cargoNextestExtraArgs = "--test test_examples";
+          #
+          #     preBuild = ''
+          #       export HOME=$(mktemp -d)
+          #       export GOPATH="$HOME/go"
+          #       export GOCACHE="$HOME/go-cache"
+          #       export CUE_ROOT="$PWD/cue"
+          #       export RUST_TEST_THREADS=1
+          #       export GOMAXPROCS=1
+          #
+          #       # Use pre-compiled Go bridge - fail fast if copy fails
+          #       mkdir -p crates/libcue-ffi-bridge/target/debug
+          #       mkdir -p crates/libcue-ffi-bridge/target/release
+          #       cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/
+          #       cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/
+          #     '';
+          #   }
+          # );
 
           # Per-crate clippy checks for parallel validation (pure Rust crates only)
           clippy-core = craneLib.cargoClippy (
@@ -459,7 +462,15 @@
               pname = "cuenv-core-clippy";
               cargoExtraArgs = "-p cuenv-core";
               cargoClippyExtraArgs = "-- -D warnings";
-              preBuild = "export CUE_ROOT=\"$PWD/cue\"";
+              preBuild = ''
+                export CUE_ROOT="$PWD/cue"
+                
+                # Use pre-compiled Go bridge to avoid build failures
+                mkdir -p crates/libcue-ffi-bridge/target/debug
+                mkdir -p crates/libcue-ffi-bridge/target/release
+                cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/
+                cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/
+              '';
             }
           );
 
@@ -470,7 +481,15 @@
               pname = "cuenv-cache-clippy";
               cargoExtraArgs = "-p cuenv-cache";
               cargoClippyExtraArgs = "-- -D warnings";
-              preBuild = "export CUE_ROOT=\"$PWD/cue\"";
+              preBuild = ''
+                export CUE_ROOT="$PWD/cue"
+                
+                # Use pre-compiled Go bridge to avoid build failures
+                mkdir -p crates/libcue-ffi-bridge/target/debug
+                mkdir -p crates/libcue-ffi-bridge/target/release
+                cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/
+                cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/
+              '';
             }
           );
 
@@ -481,7 +500,15 @@
               pname = "cuenv-env-clippy";
               cargoExtraArgs = "-p cuenv-env";
               cargoClippyExtraArgs = "-- -D warnings";
-              preBuild = "export CUE_ROOT=\"$PWD/cue\"";
+              preBuild = ''
+                export CUE_ROOT="$PWD/cue"
+                
+                # Use pre-compiled Go bridge to avoid build failures
+                mkdir -p crates/libcue-ffi-bridge/target/debug
+                mkdir -p crates/libcue-ffi-bridge/target/release
+                cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/
+                cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/
+              '';
             }
           );
 
@@ -492,7 +519,15 @@
               pname = "cuenv-utils-clippy";
               cargoExtraArgs = "-p cuenv-utils";
               cargoClippyExtraArgs = "-- -D warnings";
-              preBuild = "export CUE_ROOT=\"$PWD/cue\"";
+              preBuild = ''
+                export CUE_ROOT="$PWD/cue"
+                
+                # Use pre-compiled Go bridge to avoid build failures
+                mkdir -p crates/libcue-ffi-bridge/target/debug
+                mkdir -p crates/libcue-ffi-bridge/target/release
+                cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/
+                cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/
+              '';
             }
           );
         };

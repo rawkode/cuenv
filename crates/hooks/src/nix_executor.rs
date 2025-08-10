@@ -189,7 +189,7 @@ fn build_nix_develop_command(flake: &NixFlakeConfig) -> Result<Command> {
     let mut cmd = Command::new(nix_path);
 
     // Add standard nix flags
-    cmd.args(&[
+    cmd.args([
         "--extra-experimental-features",
         "nix-command flakes",
         "print-dev-env",
@@ -204,14 +204,14 @@ fn build_nix_develop_command(flake: &NixFlakeConfig) -> Result<Command> {
     let flake_ref = if let Some(reference) = &flake.reference {
         reference.clone()
     } else if let Some(dir) = &flake.dir {
-        format!("path:{}", dir)
+        format!("path:{dir}")
     } else {
         ".".to_string()
     };
 
     // Add shell selector if specified
     let full_ref = if let Some(shell) = &flake.shell {
-        format!("{}#{}", flake_ref, shell)
+        format!("{flake_ref}#{shell}")
     } else {
         flake_ref
     };
@@ -238,7 +238,7 @@ fn build_devenv_command(devenv: &DevenvConfig) -> Result<Command> {
 
     // Add profile if specified
     if let Some(profile) = &devenv.profile {
-        cmd.args(&["--profile", profile]);
+        cmd.args(["--profile", profile]);
     }
 
     // Add additional options

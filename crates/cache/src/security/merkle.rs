@@ -597,7 +597,7 @@ mod tests {
         let mut tree = MerkleTree::new();
 
         for i in 0..10 {
-            let key = format!("key_{}", i);
+            let key = format!("key_{i}");
             let hash = {
                 let mut h = [0u8; 32];
                 h[0] = i as u8;
@@ -618,7 +618,7 @@ mod tests {
 
         // Insert test entries
         for i in 0..8 {
-            let key = format!("key_{}", i);
+            let key = format!("key_{i}");
             let hash = {
                 let mut h = [0u8; 32];
                 h[0] = i as u8;
@@ -650,7 +650,7 @@ mod tests {
 
         // Insert entries
         for i in 0..5 {
-            let key = format!("key_{}", i);
+            let key = format!("key_{i}");
             let hash = {
                 let mut h = [0u8; 32];
                 h[0] = i as u8;
@@ -680,7 +680,7 @@ mod tests {
 
         // Insert test entries
         for i in 0..5 {
-            let key = format!("key_{}", i);
+            let key = format!("key_{i}");
             let hash = {
                 let mut h = [0u8; 32];
                 h[0] = i as u8;
@@ -704,7 +704,7 @@ mod tests {
 
         // Insert test entries
         for i in 0..3 {
-            let key = format!("key_{}", i);
+            let key = format!("key_{i}");
             let hash = {
                 let mut h = [0u8; 32];
                 h[0] = i as u8;
@@ -755,7 +755,7 @@ mod tests {
 
         // Verify integrity
         let report = tree.verify_integrity().unwrap();
-        println!("Integrity report: {:?}", report);
+        println!("Integrity report: {report:?}");
 
         assert!(report.tree_valid, "Tree should be valid");
         assert_eq!(report.verified_entries, 1);
@@ -787,20 +787,16 @@ mod tests {
 
         // Test proof generation and verification for each key
         for key in &keys {
-            println!("\nTesting proof for key: {}", key);
+            println!("\nTesting proof for key: {key}");
 
             let proof = tree.generate_proof(key).unwrap();
-            assert!(
-                proof.is_some(),
-                "Proof should be generated for key: {}",
-                key
-            );
+            assert!(proof.is_some(), "Proof should be generated for key: {key}");
 
             let proof = proof.unwrap();
             println!("Proof path length: {}", proof.proof_path.len());
 
             let is_valid = tree.verify_proof(&proof).unwrap();
-            assert!(is_valid, "Proof should be valid for key: {}", key);
+            assert!(is_valid, "Proof should be valid for key: {key}");
         }
     }
 

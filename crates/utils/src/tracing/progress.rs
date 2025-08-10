@@ -152,13 +152,13 @@ pub fn format_duration(duration: Duration) -> String {
     let millis = duration.subsec_millis();
 
     if total_secs == 0 {
-        format!("{}ms", millis)
+        format!("{millis}ms")
     } else if total_secs < 60 {
         format!("{}.{}s", total_secs, millis / 100)
     } else {
         let mins = total_secs / 60;
         let secs = total_secs % 60;
-        format!("{}m{}s", mins, secs)
+        format!("{mins}m{secs}s")
     }
 }
 

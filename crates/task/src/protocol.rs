@@ -141,7 +141,7 @@ impl TaskServerClient {
             Error::command_execution(
                 executable,
                 vec![self.socket_path.to_string_lossy().to_string()],
-                format!("Failed to launch task server: {}", e),
+                format!("Failed to launch task server: {e}"),
                 None,
             )
         })?;
@@ -167,7 +167,7 @@ impl TaskServerClient {
 
         // Connect to socket
         let stream = UnixStream::connect(&self.socket_path).await.map_err(|e| {
-            Error::configuration(format!("Failed to connect to task server socket: {}", e))
+            Error::configuration(format!("Failed to connect to task server socket: {e}"))
         })?;
 
         self.server_process = Some(child);
@@ -247,13 +247,13 @@ impl TaskServerClient {
 
         // Serialize request
         let request_json = serde_json::to_string(&request)
-            .map_err(|e| Error::configuration(format!("Failed to serialize request: {}", e)))?;
+            .map_err(|e| Error::configuration(format!("Failed to serialize request: {e}")))?;
 
         // Send request
         stream
-            .write_all(format!("{}\n", request_json).as_bytes())
+            .write_all(format!("{request_json}\n").as_bytes())
             .await
-            .map_err(|e| Error::configuration(format!("Failed to send request: {}", e)))?;
+            .map_err(|e| Error::configuration(format!("Failed to send request: {e}")))?;
 
         // Read response
         let mut buf_reader = BufReader::new(stream);
@@ -261,13 +261,12 @@ impl TaskServerClient {
         buf_reader
             .read_line(&mut response_line)
             .await
-            .map_err(|e| Error::configuration(format!("Failed to read response: {}", e)))?;
+            .map_err(|e| Error::configuration(format!("Failed to read response: {e}")))?;
 
         // Parse response
         let response: JsonRpcResponse<R> = serde_json::from_str(&response_line).map_err(|e| {
             Error::configuration(format!(
-                "Failed to parse response: {} - Response: {}",
-                e, response_line
+                "Failed to parse response: {e} - Response: {response_line}"
             ))
         })?;
 
@@ -346,7 +345,7 @@ impl TaskServerManager {
         server_name: &str,
     ) -> Result<Vec<TaskDefinition>> {
         // Create socket path
-        let socket_path = self.socket_dir.join(format!("{}.sock", server_name));
+        let socket_path = self.socket_dir.join(format!("{server_name}.sock"));
 
         let mut client = TaskServerClient::new(socket_path);
 
@@ -441,8 +440,7 @@ impl TaskServerManager {
                 Ok(result.exit_code)
             } else {
                 Err(Error::configuration(format!(
-                    "No task server found for prefix '{}'",
-                    prefix
+                    "No task server found for prefix '{prefix}'"
                 )))
             }
         } else if let Some(server) = self.servers.first_mut() {
@@ -572,30 +570,29 @@ impl TaskServerProvider {
         while buf_reader
             .read_line(&mut line)
             .await
-            .map_err(|e| Error::configuration(format!("Failed to read from stdin: {}", e)))?
+            .map_err(|e| Error::configuration(format!("Failed to read from stdin: {e}")))?
             > 0
         {
             // Parse JSON-RPC request
-            let request: serde_json::Value = serde_json::from_str(&line.trim())
-                .map_err(|e| Error::configuration(format!("Invalid JSON-RPC request: {}", e)))?;
+            let request: serde_json::Value = serde_json::from_str(line.trim())
+                .map_err(|e| Error::configuration(format!("Invalid JSON-RPC request: {e}")))?;
 
             // Handle the request
             let response = Self::handle_request(request, &self.tasks, self.allow_exec).await;
 
             // Send response
-            let response_json = serde_json::to_string(&response).map_err(|e| {
-                Error::configuration(format!("Failed to serialize response: {}", e))
-            })?;
+            let response_json = serde_json::to_string(&response)
+                .map_err(|e| Error::configuration(format!("Failed to serialize response: {e}")))?;
 
             stdout
-                .write_all(format!("{}\n", response_json).as_bytes())
+                .write_all(format!("{response_json}\n").as_bytes())
                 .await
-                .map_err(|e| Error::configuration(format!("Failed to write response: {}", e)))?;
+                .map_err(|e| Error::configuration(format!("Failed to write response: {e}")))?;
 
             stdout
                 .flush()
                 .await
-                .map_err(|e| Error::configuration(format!("Failed to flush stdout: {}", e)))?;
+                .map_err(|e| Error::configuration(format!("Failed to flush stdout: {e}")))?;
 
             line.clear();
         }
@@ -642,25 +639,24 @@ impl TaskServerProvider {
         while buf_reader
             .read_line(&mut line)
             .await
-            .map_err(|e| Error::configuration(format!("Failed to read from client: {}", e)))?
+            .map_err(|e| Error::configuration(format!("Failed to read from client: {e}")))?
             > 0
         {
             // Parse JSON-RPC request
-            let request: serde_json::Value = serde_json::from_str(&line.trim())
-                .map_err(|e| Error::configuration(format!("Invalid JSON-RPC request: {}", e)))?;
+            let request: serde_json::Value = serde_json::from_str(line.trim())
+                .map_err(|e| Error::configuration(format!("Invalid JSON-RPC request: {e}")))?;
 
             // Handle the request
             let response = Self::handle_request(request, &tasks, allow_exec).await;
 
             // Send response
-            let response_json = serde_json::to_string(&response).map_err(|e| {
-                Error::configuration(format!("Failed to serialize response: {}", e))
-            })?;
+            let response_json = serde_json::to_string(&response)
+                .map_err(|e| Error::configuration(format!("Failed to serialize response: {e}")))?;
 
             write_half
-                .write_all(format!("{}\n", response_json).as_bytes())
+                .write_all(format!("{response_json}\n").as_bytes())
                 .await
-                .map_err(|e| Error::configuration(format!("Failed to write response: {}", e)))?;
+                .map_err(|e| Error::configuration(format!("Failed to write response: {e}")))?;
 
             line.clear();
         }
@@ -990,8 +986,7 @@ impl TaskServerProvider {
         // Canonicalize the path to resolve symlinks and remove '..' components
         let canonical = path.canonicalize().map_err(|e| {
             Error::configuration(format!(
-                "Failed to canonicalize directory '{}': {}",
-                directory, e
+                "Failed to canonicalize directory '{directory}': {e}"
             ))
         })?;
 
@@ -1121,8 +1116,8 @@ impl TaskServerProvider {
             Ok(parse_result) => {
                 let value = parse_result.variables.get(var_name);
                 let result = match value {
-                    Some(v) => format!("{}={}", var_name, v),
-                    None => format!("{} not found", var_name),
+                    Some(v) => format!("{var_name}={v}"),
+                    None => format!("{var_name} not found"),
                 };
 
                 serde_json::json!({
@@ -1433,7 +1428,7 @@ impl TaskServerProvider {
                 Error::command_execution(
                     "sh",
                     vec!["-c".to_string(), command.clone()],
-                    format!("Failed to execute task: {}", e),
+                    format!("Failed to execute task: {e}"),
                     None,
                 )
             })?;
@@ -1462,7 +1457,7 @@ impl TaskServerProvider {
         });
 
         serde_json::to_string_pretty(&export)
-            .map_err(|e| Error::configuration(format!("Failed to serialize tasks to JSON: {}", e)))
+            .map_err(|e| Error::configuration(format!("Failed to serialize tasks to JSON: {e}")))
     }
 
     /// Shutdown the server
@@ -1533,7 +1528,7 @@ impl UnifiedTaskManager {
         // Add internal tasks
         for (name, config) in &self.internal_tasks {
             all_tasks.push(TaskDefinition {
-                name: format!("cuenv:{}", name),
+                name: format!("cuenv:{name}"),
                 after: config.dependencies.clone().unwrap_or_default(),
                 description: config.description.clone(),
             });
@@ -1565,7 +1560,7 @@ impl UnifiedTaskManager {
         });
 
         serde_json::to_string_pretty(&export)
-            .map_err(|e| Error::configuration(format!("Failed to serialize tasks to JSON: {}", e)))
+            .map_err(|e| Error::configuration(format!("Failed to serialize tasks to JSON: {e}")))
     }
 
     /// Shutdown all components

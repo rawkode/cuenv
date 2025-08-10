@@ -66,7 +66,7 @@ impl MonorepoTaskRegistry {
                 // Register all tasks from this package
                 for (task_name, task_config) in parse_result.tasks {
                     let full_name = if package.name == "root" {
-                        format!("root:{}", task_name)
+                        format!("root:{task_name}")
                     } else {
                         format!("{}:{}", package.name, task_name)
                     };
@@ -120,7 +120,7 @@ impl MonorepoTaskRegistry {
         let task = self
             .get_task(task_ref)
             .ok_or_else(|| Error::Configuration {
-                message: format!("Task '{}' not found", task_ref),
+                message: format!("Task '{task_ref}' not found"),
             })?;
 
         // Check if the task declares this output
@@ -130,15 +130,12 @@ impl MonorepoTaskRegistry {
                 .any(|o| o == output_name || o.ends_with(output_name))
             {
                 return Err(Error::Configuration {
-                    message: format!(
-                        "Task '{}' does not declare output '{}'",
-                        task_ref, output_name
-                    ),
+                    message: format!("Task '{task_ref}' does not declare output '{output_name}'"),
                 });
             }
         } else {
             return Err(Error::Configuration {
-                message: format!("Task '{}' does not declare any outputs", task_ref),
+                message: format!("Task '{task_ref}' does not declare any outputs"),
             });
         }
 
@@ -172,10 +169,10 @@ impl MonorepoTaskRegistry {
                     if dep_ref.is_cross_package() {
                         let full_dep_name = match dep_ref {
                             CrossPackageReference::PackageTask { package, task } => {
-                                format!("{}:{}", package, task)
+                                format!("{package}:{task}")
                             }
                             CrossPackageReference::PackageTaskOutput { package, task, .. } => {
-                                format!("{}:{}", package, task)
+                                format!("{package}:{task}")
                             }
                             _ => dep.clone(),
                         };
@@ -183,8 +180,7 @@ impl MonorepoTaskRegistry {
                         if !self.tasks.contains_key(&full_dep_name) {
                             return Err(Error::Configuration {
                                 message: format!(
-                                    "Task '{}' depends on non-existent task '{}'",
-                                    task_name, full_dep_name
+                                    "Task '{task_name}' depends on non-existent task '{full_dep_name}'"
                                 ),
                             });
                         }
@@ -194,8 +190,7 @@ impl MonorepoTaskRegistry {
                         if !self.tasks.contains_key(&local_task_name) {
                             return Err(Error::Configuration {
                                 message: format!(
-                                    "Task '{}' depends on non-existent local task '{}'",
-                                    task_name, dep
+                                    "Task '{task_name}' depends on non-existent local task '{dep}'"
                                 ),
                             });
                         }
@@ -213,7 +208,7 @@ impl MonorepoTaskRegistry {
                         // This is a reference to a specific output
                         let task_ref = match &input_ref {
                             CrossPackageReference::PackageTaskOutput { package, task, .. } => {
-                                format!("{}:{}", package, task)
+                                format!("{package}:{task}")
                             }
                             _ => continue,
                         };
@@ -223,8 +218,7 @@ impl MonorepoTaskRegistry {
                             if let Some(ref outputs) = ref_task.config.outputs {
                                 if !outputs.iter().any(|o| o == output) {
                                     return Err(Error::Configuration { message: format!(
-                                        "Task '{}' references non-existent output '{}' from task '{}'",
-                                        task_name, output, task_ref
+                                        "Task '{task_name}' references non-existent output '{output}' from task '{task_ref}'"
                                     ) });
                                 }
                             }
@@ -254,13 +248,13 @@ impl MonorepoTaskRegistry {
                                     local_full_name == task_name
                                 }
                                 CrossPackageReference::PackageTask { package, task } => {
-                                    let full_name = format!("{}:{}", package, task);
+                                    let full_name = format!("{package}:{task}");
                                     full_name == task_name
                                 }
                                 CrossPackageReference::PackageTaskOutput {
                                     package, task, ..
                                 } => {
-                                    let full_name = format!("{}:{}", package, task);
+                                    let full_name = format!("{package}:{task}");
                                     full_name == task_name
                                 }
                             }

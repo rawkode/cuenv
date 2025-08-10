@@ -8,7 +8,7 @@ impl PlatformOps for WindowsPlatform {
     fn get_current_shell() -> Result<Shell, String> {
         // Check if we're in PowerShell
         if env::var("PSModulePath").is_ok() {
-            return Ok(Shell::PowerShell);
+            return Ok(Shell::Pwsh);
         }
 
         // Check parent process name
@@ -16,7 +16,7 @@ impl PlatformOps for WindowsPlatform {
             if parent.to_lowercase().contains("powershell")
                 || parent.to_lowercase().contains("pwsh")
             {
-                return Ok(Shell::PowerShell);
+                return Ok(Shell::Pwsh);
             }
         }
 
@@ -26,7 +26,7 @@ impl PlatformOps for WindowsPlatform {
 
     fn get_export_format(shell: Shell) -> ExportFormat {
         match shell {
-            Shell::PowerShell => ExportFormat {
+            Shell::Pwsh => ExportFormat {
                 prefix: "$env:",
                 separator: " = ",
                 suffix: "",
@@ -74,7 +74,7 @@ mod tests {
     #[test]
     fn test_windows_shell_detection() {
         // Test export formats
-        let format = WindowsPlatform::get_export_format(Shell::PowerShell);
+        let format = WindowsPlatform::get_export_format(Shell::Pwsh);
         assert_eq!(format.prefix, "$env:");
         assert_eq!(format.separator, " = ");
 
@@ -85,7 +85,7 @@ mod tests {
 
     #[test]
     fn test_powershell_export_format() {
-        let format = WindowsPlatform::get_export_format(Shell::PowerShell);
+        let format = WindowsPlatform::get_export_format(Shell::Pwsh);
         let export = format.format_export("KEY", "value with spaces");
         assert_eq!(export, "$env:KEY = 'value with spaces'");
 

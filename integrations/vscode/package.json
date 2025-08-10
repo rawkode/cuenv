@@ -1,6 +1,6 @@
 {
   "name": "cuenv",
-  "displayName": "cuenv Environment Manager",
+  "displayName": "cuenv",
   "description": "VSCode integration for cuenv - Environment variable management and task execution",
   "version": "0.1.0",
   "publisher": "rawkode",
@@ -197,7 +197,7 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "bun run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./"
   },
