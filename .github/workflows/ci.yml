@@ -13,36 +13,98 @@ permissions:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    # Skip beta Rust builds on non-main branches
+    if: matrix.rust == 'stable' || github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        rust: [stable, beta]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        rust: [stable]
+        include:
+          # Only run beta Rust on main branch
+          - os: ubuntu-latest
+            rust: beta
+          - os: macos-latest
+            rust: beta
     steps:
       - uses: actions/checkout@v4
+      - name: cache-cargo-target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.rust }}-cargo-
+            ${{ runner.os }}-cargo-
       - name: nix-install
+        if: runner.os != 'Windows'
         uses: cachix/install-nix-action@v27
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: magic-nix-cache
+        if: runner.os != 'Windows'
+        uses: DeterminateSystems/magic-nix-cache-action@main
       - name: nix-cache
+        if: runner.os != 'Windows'
         uses: cachix/cachix-action@v15
         with:
           name: cuenv
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           skipPush: ${{ matrix.rust != 'stable' }}
-      # Build once - Nix will cache this
+      
+      # Windows-specific setup
+      - name: setup-rust-windows
+        if: runner.os == 'Windows'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust }}
+      - name: setup-go-windows
+        if: runner.os == 'Windows'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      
+      # Build once - Nix will cache this (Unix only)
       - name: nix-build
+        if: runner.os != 'Windows'
         run: nix build .#cuenv --print-build-logs
-      # Run flake checks - uses cached build from above
+      # Run flake checks - uses cached build from above (Unix only)
       - name: nix-flake-checks
+        if: runner.os != 'Windows'
         run: nix flake check --print-build-logs -L
-      # Run tests using Nix's cached dependencies
-      - name: cuenv-test-all
+      
+      # Windows build
+      - name: windows-build
+        if: runner.os == 'Windows'
         run: |
-          # Tests will use Nix's cached build dependencies
+          # Set up Go vendor for Windows
+          cd crates/libcue-ffi-bridge
+          go mod vendor
+          cd ../..
+          # Build with cargo
+          cargo build --release
+      # Run tests using cached Nix environment (Unix only)
+      - name: cuenv-test-all
+        if: runner.os != 'Windows'
+        run: |
+          # Use cached dependencies but run tests directly for cross-platform compatibility
           nix develop --command cargo nextest run --profile ci --no-fail-fast
-        continue-on-error: true
+      
+      # Run tests on Windows
+      - name: cuenv-test-all-windows
+        if: runner.os == 'Windows'
+        run: |
+          # Install nextest for Windows
+          cargo install cargo-nextest --locked
+          # Run tests
+          cargo nextest run --profile ci --no-fail-fast
+      
       - name: cuenv-test-examples
+        if: runner.os != 'Windows'
         run: |
           # Use the binary from Nix build (already cached)
           mkdir -p target/debug
@@ -59,16 +121,29 @@ jobs:
 
           # Run the example tests
           ./scripts/test-examples.sh
-        continue-on-error: true
   coverage:
     runs-on: ubuntu-latest
     needs: test
     steps:
       - uses: actions/checkout@v4
+      - name: cache-cargo-target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ubuntu-latest-stable-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ubuntu-latest-stable-cargo-
+            ubuntu-latest-cargo-
       - name: nix-install
         uses: cachix/install-nix-action@v27
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: magic-nix-cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
       - name: nix-cache
         uses: cachix/cachix-action@v15
         with:
