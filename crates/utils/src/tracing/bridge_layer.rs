@@ -4,12 +4,10 @@
 //! It converts tracing events to application events without requiring changes to existing
 //! tracing code.
 
-use cuenv_core::events::{
-    CacheEvent, PipelineEvent, SystemEvent, TaskEvent, global_event_emitter,
-};
+use cuenv_core::events::{global_event_emitter, CacheEvent, PipelineEvent, SystemEvent, TaskEvent};
 use std::collections::HashMap;
 use tracing::field::{Field, Visit};
-use tracing::{Event, Level, Subscriber};
+use tracing::{Event, Subscriber};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
 use uuid;
@@ -53,57 +51,31 @@ impl EventBridgeLayer {
     /// Convert a tracing event to a system event
     fn convert_event(event: &Event<'_>, fields: &HashMap<String, String>) -> Option<SystemEvent> {
         let target = event.metadata().target();
-        let level = event.metadata().level();
-        
+        let _level = event.metadata().level();
+
         // Extract the message if it exists
         let message = fields.get("message").cloned().unwrap_or_default();
 
         // Match on event patterns based on target and message content
         match (target, message.as_str()) {
             // Task events
-            (_, msg) if msg == "task_progress" => {
-                Self::create_task_progress_event(fields)
-            }
-            (_, msg) if msg == "task_completed" => {
-                Self::create_task_completed_event(fields)
-            }
-            (_, msg) if msg == "task_failed" => {
-                Self::create_task_failed_event(fields)
-            }
-            (_, msg) if msg == "task_started" => {
-                Self::create_task_started_event(fields)
-            }
-            (_, msg) if msg == "task_skipped" => {
-                Self::create_task_skipped_event(fields)
-            }
+            (_, "task_progress") => Self::create_task_progress_event(fields),
+            (_, "task_completed") => Self::create_task_completed_event(fields),
+            (_, "task_failed") => Self::create_task_failed_event(fields),
+            (_, "task_started") => Self::create_task_started_event(fields),
+            (_, "task_skipped") => Self::create_task_skipped_event(fields),
 
             // Cache events
-            (_, msg) if msg == "cache_hit" => {
-                Self::create_cache_hit_event(fields)
-            }
-            (_, msg) if msg == "cache_miss" => {
-                Self::create_cache_miss_event(fields)
-            }
-            (_, msg) if msg == "cache_write" => {
-                Self::create_cache_write_event(fields)
-            }
-            (_, msg) if msg == "cache_evict" => {
-                Self::create_cache_evict_event(fields)
-            }
+            (_, "cache_hit") => Self::create_cache_hit_event(fields),
+            (_, "cache_miss") => Self::create_cache_miss_event(fields),
+            (_, "cache_write") => Self::create_cache_write_event(fields),
+            (_, "cache_evict") => Self::create_cache_evict_event(fields),
 
             // Pipeline events
-            (_, msg) if msg == "pipeline_started" => {
-                Self::create_pipeline_started_event(fields)
-            }
-            (_, msg) if msg == "pipeline_completed" => {
-                Self::create_pipeline_completed_event(fields)
-            }
-            (_, msg) if msg == "level_started" => {
-                Self::create_level_started_event(fields)
-            }
-            (_, msg) if msg == "level_completed" => {
-                Self::create_level_completed_event(fields)
-            }
+            (_, "pipeline_started") => Self::create_pipeline_started_event(fields),
+            (_, "pipeline_completed") => Self::create_pipeline_completed_event(fields),
+            (_, "level_started") => Self::create_level_started_event(fields),
+            (_, "level_completed") => Self::create_level_completed_event(fields),
 
             // Ignore other events
             _ => None,
@@ -113,9 +85,10 @@ impl EventBridgeLayer {
     fn create_task_progress_event(fields: &HashMap<String, String>) -> Option<SystemEvent> {
         let task_name = fields.get("task_name")?.clone();
         let message = fields.get("message").cloned().unwrap_or_default();
-        let task_id = fields.get("task_id").cloned().unwrap_or_else(|| {
-            format!("{}-{}", task_name, uuid::Uuid::new_v4().simple())
-        });
+        let task_id = fields
+            .get("task_id")
+            .cloned()
+            .unwrap_or_else(|| format!("{}-{}", task_name, uuid::Uuid::new_v4().simple()));
 
         Some(SystemEvent::Task(TaskEvent::TaskProgress {
             task_name,
@@ -130,9 +103,10 @@ impl EventBridgeLayer {
             .get("duration_ms")
             .and_then(|s| s.parse::<u64>().ok())
             .unwrap_or(0);
-        let task_id = fields.get("task_id").cloned().unwrap_or_else(|| {
-            format!("{}-{}", task_name, uuid::Uuid::new_v4().simple())
-        });
+        let task_id = fields
+            .get("task_id")
+            .cloned()
+            .unwrap_or_else(|| format!("{}-{}", task_name, uuid::Uuid::new_v4().simple()));
 
         Some(SystemEvent::Task(TaskEvent::TaskCompleted {
             task_name,
@@ -143,10 +117,14 @@ impl EventBridgeLayer {
 
     fn create_task_failed_event(fields: &HashMap<String, String>) -> Option<SystemEvent> {
         let task_name = fields.get("task_name")?.clone();
-        let error = fields.get("error").cloned().unwrap_or_else(|| "Unknown error".to_string());
-        let task_id = fields.get("task_id").cloned().unwrap_or_else(|| {
-            format!("{}-{}", task_name, uuid::Uuid::new_v4().simple())
-        });
+        let error = fields
+            .get("error")
+            .cloned()
+            .unwrap_or_else(|| "Unknown error".to_string());
+        let task_id = fields
+            .get("task_id")
+            .cloned()
+            .unwrap_or_else(|| format!("{}-{}", task_name, uuid::Uuid::new_v4().simple()));
 
         Some(SystemEvent::Task(TaskEvent::TaskFailed {
             task_name,
@@ -157,9 +135,10 @@ impl EventBridgeLayer {
 
     fn create_task_started_event(fields: &HashMap<String, String>) -> Option<SystemEvent> {
         let task_name = fields.get("task_name")?.clone();
-        let task_id = fields.get("task_id").cloned().unwrap_or_else(|| {
-            format!("{}-{}", task_name, uuid::Uuid::new_v4().simple())
-        });
+        let task_id = fields
+            .get("task_id")
+            .cloned()
+            .unwrap_or_else(|| format!("{}-{}", task_name, uuid::Uuid::new_v4().simple()));
 
         Some(SystemEvent::Task(TaskEvent::TaskStarted {
             task_name,
@@ -169,10 +148,14 @@ impl EventBridgeLayer {
 
     fn create_task_skipped_event(fields: &HashMap<String, String>) -> Option<SystemEvent> {
         let task_name = fields.get("task_name")?.clone();
-        let reason = fields.get("reason").cloned().unwrap_or_else(|| "Cache hit".to_string());
-        let task_id = fields.get("task_id").cloned().unwrap_or_else(|| {
-            format!("{}-{}", task_name, uuid::Uuid::new_v4().simple())
-        });
+        let reason = fields
+            .get("reason")
+            .cloned()
+            .unwrap_or_else(|| "Cache hit".to_string());
+        let task_id = fields
+            .get("task_id")
+            .cloned()
+            .unwrap_or_else(|| format!("{}-{}", task_name, uuid::Uuid::new_v4().simple()));
 
         Some(SystemEvent::Task(TaskEvent::TaskSkipped {
             task_name,
@@ -183,7 +166,10 @@ impl EventBridgeLayer {
 
     fn create_cache_hit_event(fields: &HashMap<String, String>) -> Option<SystemEvent> {
         let key = fields.get("key").cloned().unwrap_or_else(|| {
-            fields.get("task_name").cloned().unwrap_or_else(|| "unknown".to_string())
+            fields
+                .get("task_name")
+                .cloned()
+                .unwrap_or_else(|| "unknown".to_string())
         });
 
         Some(SystemEvent::Cache(CacheEvent::CacheHit { key }))
@@ -191,7 +177,10 @@ impl EventBridgeLayer {
 
     fn create_cache_miss_event(fields: &HashMap<String, String>) -> Option<SystemEvent> {
         let key = fields.get("key").cloned().unwrap_or_else(|| {
-            fields.get("task_name").cloned().unwrap_or_else(|| "unknown".to_string())
+            fields
+                .get("task_name")
+                .cloned()
+                .unwrap_or_else(|| "unknown".to_string())
         });
 
         Some(SystemEvent::Cache(CacheEvent::CacheMiss { key }))
@@ -199,21 +188,33 @@ impl EventBridgeLayer {
 
     fn create_cache_write_event(fields: &HashMap<String, String>) -> Option<SystemEvent> {
         let key = fields.get("key").cloned().unwrap_or_else(|| {
-            fields.get("task_name").cloned().unwrap_or_else(|| "unknown".to_string())
+            fields
+                .get("task_name")
+                .cloned()
+                .unwrap_or_else(|| "unknown".to_string())
         });
         let size_bytes = fields
             .get("size_bytes")
             .and_then(|s| s.parse::<u64>().ok())
             .unwrap_or(0);
 
-        Some(SystemEvent::Cache(CacheEvent::CacheWrite { key, size_bytes }))
+        Some(SystemEvent::Cache(CacheEvent::CacheWrite {
+            key,
+            size_bytes,
+        }))
     }
 
     fn create_cache_evict_event(fields: &HashMap<String, String>) -> Option<SystemEvent> {
         let key = fields.get("key").cloned().unwrap_or_else(|| {
-            fields.get("task_name").cloned().unwrap_or_else(|| "unknown".to_string())
+            fields
+                .get("task_name")
+                .cloned()
+                .unwrap_or_else(|| "unknown".to_string())
         });
-        let reason = fields.get("reason").cloned().unwrap_or_else(|| "Unknown".to_string());
+        let reason = fields
+            .get("reason")
+            .cloned()
+            .unwrap_or_else(|| "Unknown".to_string());
 
         Some(SystemEvent::Cache(CacheEvent::CacheEvict { key, reason }))
     }
@@ -298,7 +299,7 @@ impl EventBridgeLayer {
         let handle = tokio::spawn(async move {
             global_event_emitter().publish(event).await;
         });
-        
+
         // Spawn a task to log if the spawned task panics
         tokio::spawn(async move {
             if let Err(e) = handle.await {
@@ -336,34 +337,40 @@ where
 
 impl Visit for EventFieldVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
-        self.fields.insert(field.name().to_string(), format!("{:?}", value));
+        self.fields
+            .insert(field.name().to_string(), format!("{:?}", value));
     }
 
     fn record_str(&mut self, field: &Field, value: &str) {
-        self.fields.insert(field.name().to_string(), value.to_string());
+        self.fields
+            .insert(field.name().to_string(), value.to_string());
     }
 
     fn record_i64(&mut self, field: &Field, value: i64) {
-        self.fields.insert(field.name().to_string(), value.to_string());
+        self.fields
+            .insert(field.name().to_string(), value.to_string());
     }
 
     fn record_u64(&mut self, field: &Field, value: u64) {
-        self.fields.insert(field.name().to_string(), value.to_string());
+        self.fields
+            .insert(field.name().to_string(), value.to_string());
     }
 
     fn record_f64(&mut self, field: &Field, value: f64) {
-        self.fields.insert(field.name().to_string(), value.to_string());
+        self.fields
+            .insert(field.name().to_string(), value.to_string());
     }
 
     fn record_bool(&mut self, field: &Field, value: bool) {
-        self.fields.insert(field.name().to_string(), value.to_string());
+        self.fields
+            .insert(field.name().to_string(), value.to_string());
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracing::{info, span, Level};
+    use tracing::info;
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::Registry;
 
@@ -383,9 +390,13 @@ mod tests {
         fields.insert("duration_ms".to_string(), "1500".to_string());
 
         let event = EventBridgeLayer::create_task_completed_event(&fields);
-        
+
         match event {
-            Some(SystemEvent::Task(TaskEvent::TaskCompleted { task_name, duration_ms, .. })) => {
+            Some(SystemEvent::Task(TaskEvent::TaskCompleted {
+                task_name,
+                duration_ms,
+                ..
+            })) => {
                 assert_eq!(task_name, "test_task");
                 assert_eq!(duration_ms, 1500);
             }
@@ -415,7 +426,10 @@ mod tests {
 
         let event = EventBridgeLayer::create_pipeline_started_event(&fields);
         match event {
-            Some(SystemEvent::Pipeline(PipelineEvent::PipelineStarted { total_tasks, total_levels })) => {
+            Some(SystemEvent::Pipeline(PipelineEvent::PipelineStarted {
+                total_tasks,
+                total_levels,
+            })) => {
                 assert_eq!(total_tasks, 5);
                 assert_eq!(total_levels, 3);
             }
@@ -432,7 +446,7 @@ mod tests {
         tracing::subscriber::with_default(subscriber, || {
             // This would normally trigger event emission
             info!(
-                task_name = "test_integration", 
+                task_name = "test_integration",
                 duration_ms = 2000,
                 "task_completed"
             );

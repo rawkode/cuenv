@@ -7,8 +7,8 @@ pub mod tree_formatter;
 pub mod tree_subscriber;
 
 // Re-export tracing macros for convenience
-pub use tracing::{debug, error, info, instrument, span, trace, warn, Level, Span};
 pub use bridge_layer::EventBridgeLayer;
+pub use tracing::{debug, error, info, instrument, span, trace, warn, Level, Span};
 
 /// Initialize the tracing system
 ///

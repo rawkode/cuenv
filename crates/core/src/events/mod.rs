@@ -11,7 +11,7 @@ pub mod metrics;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{SystemTime};
+use std::time::SystemTime;
 use tokio::sync::{broadcast, RwLock};
 use tracing::{debug, error};
 
@@ -72,10 +72,7 @@ pub enum PipelineEvent {
         total_levels: usize,
     },
     /// A level of tasks started
-    LevelStarted {
-        level: usize,
-        tasks_in_level: usize,
-    },
+    LevelStarted { level: usize, tasks_in_level: usize },
     /// A level of tasks completed
     LevelCompleted {
         level: usize,
@@ -160,11 +157,14 @@ pub struct EnhancedEvent {
 #[async_trait::async_trait]
 pub trait EventSubscriber: Send + Sync {
     /// Handle an event
-    async fn handle_event(&self, event: &EnhancedEvent) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
-    
+    async fn handle_event(
+        &self,
+        event: &EnhancedEvent,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+
     /// Subscriber name for debugging
     fn name(&self) -> &'static str;
-    
+
     /// Check if subscriber is interested in this event type
     fn is_interested(&self, event: &SystemEvent) -> bool;
 }
@@ -194,7 +194,10 @@ impl EventEmitter {
     pub async fn add_subscriber(&self, subscriber: Arc<dyn EventSubscriber>) {
         let mut subscribers = self.subscribers.write().await;
         subscribers.push(subscriber);
-        debug!("Event subscriber added: {}", subscribers.last().unwrap().name());
+        debug!(
+            "Event subscriber added: {}",
+            subscribers.last().unwrap().name()
+        );
     }
 
     /// Remove a subscriber by name
@@ -230,7 +233,7 @@ impl EventEmitter {
     pub async fn emit_with_metadata(&self, event: SystemEvent, metadata: HashMap<String, String>) {
         let correlation_context = self.correlation_context.read().await;
         let correlation_id = correlation_context.get("correlation_id").cloned();
-        
+
         let mut combined_metadata = correlation_context.clone();
         combined_metadata.extend(metadata);
 
@@ -253,18 +256,20 @@ impl EventEmitter {
     /// Notify all interested subscribers in parallel
     async fn notify_subscribers(&self, event: &EnhancedEvent) {
         let subscribers = self.subscribers.read().await;
-        
+
         // Filter interested subscribers
-        let interested_subscribers: Vec<_> = subscribers.iter()
+        let interested_subscribers: Vec<_> = subscribers
+            .iter()
             .filter(|subscriber| subscriber.is_interested(&event.event))
             .collect();
-        
+
         if interested_subscribers.is_empty() {
             return;
         }
 
         // Process subscribers in parallel using join_all
-        let handles: Vec<_> = interested_subscribers.iter()
+        let handles: Vec<_> = interested_subscribers
+            .iter()
             .map(|subscriber| {
                 let subscriber = Arc::clone(subscriber);
                 let event = event.clone();
@@ -279,9 +284,9 @@ impl EventEmitter {
                 }
             })
             .collect();
-        
+
         futures::future::join_all(handles).await;
-        
+
         debug!(
             event_type = std::any::type_name_of_val(&event.event),
             subscribers_notified = interested_subscribers.len(),
@@ -312,20 +317,23 @@ static GLOBAL_EVENT_EMITTER: std::sync::OnceLock<Arc<EventEmitter>> = std::sync:
 /// Initialize global event system with custom capacity
 pub fn initialize_global_events(capacity: usize) -> Result<Arc<EventEmitter>, EventSystemError> {
     let emitter = Arc::new(EventEmitter::new(capacity));
-    
-    GLOBAL_EVENT_EMITTER.set(emitter.clone())
+
+    GLOBAL_EVENT_EMITTER
+        .set(emitter.clone())
         .map_err(|_| EventSystemError::AlreadyInitialized)?;
-    
+
     debug!("Global event system initialized with capacity {}", capacity);
     Ok(emitter)
 }
 
 /// Get the global event emitter (initializing with default capacity if needed)
 pub fn global_event_emitter() -> Arc<EventEmitter> {
-    GLOBAL_EVENT_EMITTER.get_or_init(|| {
-        debug!("Auto-initializing global event system with default capacity");
-        Arc::new(EventEmitter::new(10000))
-    }).clone()
+    GLOBAL_EVENT_EMITTER
+        .get_or_init(|| {
+            debug!("Auto-initializing global event system with default capacity");
+            Arc::new(EventEmitter::new(10000))
+        })
+        .clone()
 }
 
 /// Emit a global event
@@ -374,7 +382,7 @@ pub enum EventSystemError {
 /// Utility functions for common event patterns
 pub mod utils {
     use super::*;
-    
+
     /// Create a task started event
     pub fn task_started(task_name: &str, task_id: &str) -> SystemEvent {
         SystemEvent::Task(TaskEvent::TaskStarted {
@@ -382,7 +390,7 @@ pub mod utils {
             task_id: task_id.to_string(),
         })
     }
-    
+
     /// Create a task completed event
     pub fn task_completed(task_name: &str, task_id: &str, duration_ms: u64) -> SystemEvent {
         SystemEvent::Task(TaskEvent::TaskCompleted {
@@ -391,7 +399,7 @@ pub mod utils {
             duration_ms,
         })
     }
-    
+
     /// Create a task failed event
     pub fn task_failed(task_name: &str, task_id: &str, error: &str) -> SystemEvent {
         SystemEvent::Task(TaskEvent::TaskFailed {
@@ -400,14 +408,14 @@ pub mod utils {
             error: error.to_string(),
         })
     }
-    
+
     /// Create a cache hit event
     pub fn cache_hit(key: &str) -> SystemEvent {
         SystemEvent::Cache(CacheEvent::CacheHit {
             key: key.to_string(),
         })
     }
-    
+
     /// Create a cache miss event
     pub fn cache_miss(key: &str) -> SystemEvent {
         SystemEvent::Cache(CacheEvent::CacheMiss {
@@ -419,7 +427,7 @@ pub mod utils {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_event_emitter_creation() {
         let emitter = EventEmitter::new(100);
@@ -430,7 +438,7 @@ mod tests {
     async fn test_event_emission_without_subscribers() {
         let emitter = EventEmitter::new(100);
         let event = utils::task_started("test", "test-1");
-        
+
         // Should not panic with no subscribers
         emitter.emit(event).await;
     }
@@ -438,13 +446,13 @@ mod tests {
     #[tokio::test]
     async fn test_correlation_context() {
         let emitter = EventEmitter::new(100);
-        
+
         let mut context = HashMap::new();
         context.insert("correlation_id".to_string(), "test-123".to_string());
         context.insert("user_id".to_string(), "user-456".to_string());
-        
+
         emitter.set_correlation_context(context).await;
-        
+
         // The correlation context would be included in emitted events
         // This is tested implicitly through subscriber tests
     }

@@ -127,7 +127,7 @@ impl ActionCache {
             config_hash: hash_task_definition(task_definition)?,
         };
 
-        // Hash input files  
+        // Hash input files
         if !task_definition.inputs.is_empty() {
             for pattern in &task_definition.inputs {
                 let files = crate::hashing::expand_glob_pattern(pattern, working_dir)?;
@@ -448,6 +448,8 @@ async fn compute_file_hash(file_path: &Path) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cuenv_core::{TaskCache, TaskDefinition, TaskExecutionMode};
+    use std::time::Duration;
     use tempfile::TempDir;
 
     #[tokio::test]
@@ -457,24 +459,28 @@ mod tests {
             Arc::new(ContentAddressedStore::new(temp_dir.path().to_path_buf(), 4096).unwrap());
         let cache = ActionCache::new(cas, 0, temp_dir.path()).unwrap();
 
-        let task_config = TaskConfig {
+        let task_definition = TaskDefinition {
+            name: "test".to_string(),
             description: Some("Test task".to_string()),
-            command: Some("echo hello".to_string()),
-            script: None,
-            dependencies: None,
-            working_dir: None,
-            shell: None,
-            inputs: None,
-            outputs: None,
-            cache: Some(cuenv_config::TaskCacheConfig::Simple(true)),
-            cache_key: None,
-            cache_env: None,
-            timeout: None,
+            execution_mode: TaskExecutionMode::Command {
+                command: "echo hello".to_string(),
+            },
+            dependencies: vec![],
+            working_directory: temp_dir.path().to_path_buf(),
+            shell: "sh".to_string(),
+            inputs: vec![],
+            outputs: vec![],
             security: None,
+            cache: TaskCache {
+                enabled: true,
+                key: None,
+                env_filter: None,
+            },
+            timeout: Duration::from_secs(30),
         };
 
         let digest = cache
-            .compute_digest("test", &task_config, temp_dir.path(), HashMap::new())
+            .compute_digest("test", &task_definition, temp_dir.path(), HashMap::new())
             .await
             .unwrap();
 
@@ -490,24 +496,28 @@ mod tests {
             Arc::new(ContentAddressedStore::new(temp_dir.path().to_path_buf(), 4096).unwrap());
         let cache = ActionCache::new(cas, 0, temp_dir.path()).unwrap();
 
-        let task_config = TaskConfig {
+        let task_definition = TaskDefinition {
+            name: "test".to_string(),
             description: Some("Test task".to_string()),
-            command: Some("echo hello".to_string()),
-            script: None,
-            dependencies: None,
-            working_dir: None,
-            shell: None,
-            inputs: None,
-            outputs: None,
-            cache: Some(cuenv_config::TaskCacheConfig::Simple(true)),
-            cache_key: None,
-            cache_env: None,
-            timeout: None,
+            execution_mode: TaskExecutionMode::Command {
+                command: "echo hello".to_string(),
+            },
+            dependencies: vec![],
+            working_directory: temp_dir.path().to_path_buf(),
+            shell: "sh".to_string(),
+            inputs: vec![],
+            outputs: vec![],
             security: None,
+            cache: TaskCache {
+                enabled: true,
+                key: None,
+                env_filter: None,
+            },
+            timeout: Duration::from_secs(30),
         };
 
         let digest = cache
-            .compute_digest("test", &task_config, temp_dir.path(), HashMap::new())
+            .compute_digest("test", &task_definition, temp_dir.path(), HashMap::new())
             .await
             .unwrap();
 
@@ -545,24 +555,28 @@ mod tests {
             Arc::new(ContentAddressedStore::new(temp_dir.path().to_path_buf(), 4096).unwrap());
         let cache = Arc::new(ActionCache::new(cas, 0, temp_dir.path()).unwrap());
 
-        let task_config = TaskConfig {
+        let task_definition = TaskDefinition {
+            name: "test".to_string(),
             description: Some("Test task".to_string()),
-            command: Some("echo hello".to_string()),
-            script: None,
-            dependencies: None,
-            working_dir: None,
-            shell: None,
-            inputs: None,
-            outputs: None,
-            cache: Some(cuenv_config::TaskCacheConfig::Simple(true)),
-            cache_key: None,
-            cache_env: None,
-            timeout: None,
+            execution_mode: TaskExecutionMode::Command {
+                command: "echo hello".to_string(),
+            },
+            dependencies: vec![],
+            working_directory: temp_dir.path().to_path_buf(),
+            shell: "sh".to_string(),
+            inputs: vec![],
+            outputs: vec![],
             security: None,
+            cache: TaskCache {
+                enabled: true,
+                key: None,
+                env_filter: None,
+            },
+            timeout: Duration::from_secs(30),
         };
 
         let digest = cache
-            .compute_digest("test", &task_config, temp_dir.path(), HashMap::new())
+            .compute_digest("test", &task_definition, temp_dir.path(), HashMap::new())
             .await
             .unwrap();
 

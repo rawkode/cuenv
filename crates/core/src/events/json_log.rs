@@ -41,7 +41,7 @@ impl JsonLogSubscriber {
     /// Create a new JSON log subscriber
     pub async fn new<P: AsRef<Path>>(file_path: P) -> Result<Self, JsonLogError> {
         let file_path = file_path.as_ref().to_path_buf();
-        
+
         // Ensure parent directory exists
         if let Some(parent) = file_path.parent() {
             tokio::fs::create_dir_all(parent).await.map_err(|e| {
@@ -72,7 +72,7 @@ impl JsonLogSubscriber {
         backup_count: usize,
     ) -> Result<Self, JsonLogError> {
         let file_path = file_path.as_ref().to_path_buf();
-        
+
         if let Some(parent) = file_path.parent() {
             tokio::fs::create_dir_all(parent).await.map_err(|e| {
                 JsonLogError::IoError(format!("Failed to create log directory: {}", e))
@@ -100,7 +100,7 @@ impl JsonLogSubscriber {
         size_check_interval: u64,
     ) -> Result<Self, JsonLogError> {
         let file_path = file_path.as_ref().to_path_buf();
-        
+
         if let Some(parent) = file_path.parent() {
             tokio::fs::create_dir_all(parent).await.map_err(|e| {
                 JsonLogError::IoError(format!("Failed to create log directory: {}", e))
@@ -143,25 +143,32 @@ impl JsonLogSubscriber {
         };
 
         // Check every size_check_interval writes or when cached size exceeds threshold
-        let write_count = self.write_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let cached_size = self.cached_file_size.load(std::sync::atomic::Ordering::Relaxed);
-        
-        let should_check_size = write_count % self.size_check_interval == 0 || cached_size > max_size;
-        
+        let write_count = self
+            .write_counter
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let cached_size = self
+            .cached_file_size
+            .load(std::sync::atomic::Ordering::Relaxed);
+
+        let should_check_size =
+            write_count % self.size_check_interval == 0 || cached_size > max_size;
+
         if should_check_size {
             // Check actual file size
             let actual_size = match tokio::fs::metadata(&self.file_path).await {
                 Ok(meta) => meta.len(),
                 Err(_) => {
                     // File doesn't exist yet, reset cache
-                    self.cached_file_size.store(0, std::sync::atomic::Ordering::Relaxed);
+                    self.cached_file_size
+                        .store(0, std::sync::atomic::Ordering::Relaxed);
                     return Ok(());
                 }
             };
-            
+
             // Update cached size
-            self.cached_file_size.store(actual_size, std::sync::atomic::Ordering::Relaxed);
-            
+            self.cached_file_size
+                .store(actual_size, std::sync::atomic::Ordering::Relaxed);
+
             if actual_size > max_size {
                 self.rotate_logs().await?;
             }
@@ -188,10 +195,13 @@ impl JsonLogSubscriber {
         for i in (1..self.backup_count).rev() {
             let old_path = format!("{}.{}", self.file_path.display(), i);
             let new_path = format!("{}.{}", self.file_path.display(), i + 1);
-            
+
             if tokio::fs::metadata(&old_path).await.is_ok() {
                 if let Err(e) = tokio::fs::rename(&old_path, &new_path).await {
-                    warn!("Failed to rotate log file {} to {}: {}", old_path, new_path, e);
+                    warn!(
+                        "Failed to rotate log file {} to {}: {}",
+                        old_path, new_path, e
+                    );
                 }
             }
         }
@@ -204,10 +214,12 @@ impl JsonLogSubscriber {
 
         // Recreate writer with new file
         self.initialize_writer().await?;
-        
+
         // Reset cached file size after rotation
-        self.cached_file_size.store(0, std::sync::atomic::Ordering::Relaxed);
-        self.write_counter.store(0, std::sync::atomic::Ordering::Relaxed);
+        self.cached_file_size
+            .store(0, std::sync::atomic::Ordering::Relaxed);
+        self.write_counter
+            .store(0, std::sync::atomic::Ordering::Relaxed);
 
         debug!("Log rotation completed");
         Ok(())
@@ -229,9 +241,11 @@ impl JsonLogSubscriber {
 
             if !event.metadata.is_empty() {
                 json_obj["metadata"] = serde_json::Value::Object(
-                    event.metadata.iter()
+                    event
+                        .metadata
+                        .iter()
                         .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
-                        .collect()
+                        .collect(),
                 );
             }
         }
@@ -248,16 +262,23 @@ impl JsonLogSubscriber {
         let mut writer_guard = self.writer.lock().await;
         if let Some(writer) = writer_guard.as_mut() {
             let content_bytes = content.as_bytes();
-            writer.write_all(content_bytes).await
+            writer
+                .write_all(content_bytes)
+                .await
                 .map_err(|e| JsonLogError::IoError(e.to_string()))?;
-            writer.write_all(b"\n").await
+            writer
+                .write_all(b"\n")
+                .await
                 .map_err(|e| JsonLogError::IoError(e.to_string()))?;
-            writer.flush().await
+            writer
+                .flush()
+                .await
                 .map_err(|e| JsonLogError::IoError(e.to_string()))?;
-            
+
             // Update cached file size estimate
             let bytes_written = content_bytes.len() + 1; // +1 for newline
-            self.cached_file_size.fetch_add(bytes_written as u64, std::sync::atomic::Ordering::Relaxed);
+            self.cached_file_size
+                .fetch_add(bytes_written as u64, std::sync::atomic::Ordering::Relaxed);
         }
 
         Ok(())
@@ -267,7 +288,9 @@ impl JsonLogSubscriber {
     pub async fn flush(&self) -> Result<(), JsonLogError> {
         let mut writer_guard = self.writer.lock().await;
         if let Some(writer) = writer_guard.as_mut() {
-            writer.flush().await
+            writer
+                .flush()
+                .await
                 .map_err(|e| JsonLogError::IoError(e.to_string()))?;
         }
         Ok(())
@@ -276,10 +299,13 @@ impl JsonLogSubscriber {
 
 #[async_trait]
 impl EventSubscriber for JsonLogSubscriber {
-    async fn handle_event(&self, event: &EnhancedEvent) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn handle_event(
+        &self,
+        event: &EnhancedEvent,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let formatted = self.format_event(event).await?;
         self.write_log_entry(&formatted).await?;
-        
+
         debug!(
             event_type = std::any::type_name_of_val(&event.event),
             log_file = %self.file_path.display(),
@@ -329,7 +355,7 @@ mod tests {
     async fn test_json_log_subscriber_creation() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test.jsonl");
-        
+
         let subscriber = JsonLogSubscriber::new(&log_path).await;
         assert!(subscriber.is_ok());
     }
@@ -338,9 +364,9 @@ mod tests {
     async fn test_json_log_event_writing() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test.jsonl");
-        
+
         let subscriber = JsonLogSubscriber::new(&log_path).await.unwrap();
-        
+
         let event = EnhancedEvent {
             event: SystemEvent::Task(TaskEvent::TaskCompleted {
                 task_name: "test".to_string(),
@@ -365,7 +391,7 @@ mod tests {
         // Verify file exists and has content
         let content = fs::read_to_string(&log_path).await.unwrap();
         assert!(!content.is_empty());
-        
+
         // Verify it's valid JSON
         let json_value: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
         assert!(json_value.is_object());
@@ -377,15 +403,17 @@ mod tests {
     async fn test_json_log_rotation() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test.jsonl");
-        
+
         // Create subscriber with very small max file size
         let subscriber = JsonLogSubscriber::with_config(
             &log_path,
             true,
             Some(100), // 100 bytes
             3,
-        ).await.unwrap();
-        
+        )
+        .await
+        .unwrap();
+
         // Write multiple events to trigger rotation
         for i in 0..10 {
             let event = EnhancedEvent {
@@ -398,19 +426,19 @@ mod tests {
                 correlation_id: None,
                 metadata: HashMap::new(),
             };
-            
+
             subscriber.handle_event(&event).await.unwrap();
         }
-        
+
         subscriber.flush().await.unwrap();
-        
+
         // Check that backup files were created
         let backup_path = format!("{}.1", log_path.display());
         let backup_exists = fs::metadata(&backup_path).await.is_ok();
-        
+
         // At least the main file should exist
         assert!(fs::metadata(&log_path).await.is_ok());
-        
+
         // Backup file should exist if rotation occurred
         // Note: This test might be flaky depending on timing and exact sizes
         if backup_exists {
@@ -422,9 +450,9 @@ mod tests {
     async fn test_json_log_format_event() {
         let temp_dir = TempDir::new().unwrap();
         let log_path = temp_dir.path().join("test.jsonl");
-        
+
         let subscriber = JsonLogSubscriber::new(&log_path).await.unwrap();
-        
+
         let event = EnhancedEvent {
             event: SystemEvent::Task(TaskEvent::TaskFailed {
                 task_name: "failing_task".to_string(),
@@ -441,7 +469,7 @@ mod tests {
         };
 
         let formatted = subscriber.format_event(&event).await.unwrap();
-        
+
         // Should be valid JSON
         let parsed: serde_json::Value = serde_json::from_str(&formatted).unwrap();
         assert!(parsed["timestamp"].is_number());

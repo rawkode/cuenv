@@ -771,12 +771,16 @@ name = "cuenv-core"
 version = "0.4.7"
 dependencies = [
  "anyhow",
+ "async-trait",
  "chrono",
+ "futures",
  "miette",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
+ "tracing",
  "uuid",
  "zeroize",
 ]
