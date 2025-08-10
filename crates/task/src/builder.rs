@@ -411,7 +411,7 @@ impl TaskBuilder {
                         } else {
                             path.clone()
                         };
-                        
+
                         if !normalized_path.starts_with(&canonical_workspace) {
                             return Err(Error::configuration(format!(
                                 "Security path '{}' in task '{}' must be within workspace",
