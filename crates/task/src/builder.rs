@@ -400,7 +400,19 @@ impl TaskBuilder {
                     // Path doesn't exist - that's OK for security restrictions
                     // but ensure it's at least under workspace
                     if let Ok(canonical_workspace) = workspace_root.canonicalize() {
-                        if !path.starts_with(&canonical_workspace) {
+                        // Try to get the canonical parent and join the filename back
+                        // This handles cases where the path contains "./" components
+                        let normalized_path = if let Some(parent) = path.parent() {
+                            if let Ok(canonical_parent) = parent.canonicalize() {
+                                canonical_parent.join(path.file_name().unwrap_or_default())
+                            } else {
+                                path.clone()
+                            }
+                        } else {
+                            path.clone()
+                        };
+                        
+                        if !normalized_path.starts_with(&canonical_workspace) {
                             return Err(Error::configuration(format!(
                                 "Security path '{}' in task '{}' must be within workspace",
                                 path.display(),
