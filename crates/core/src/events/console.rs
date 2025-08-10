@@ -132,10 +132,7 @@ impl ConsoleSubscriber {
                     self.verbosity,
                     ConsoleVerbosity::Verbose | ConsoleVerbosity::Debug
                 ) {
-                    Some(self.colorize(
-                        &format!("⏭ Task '{task_name}' skipped: {reason}"),
-                        "cyan",
-                    ))
+                    Some(self.colorize(&format!("⏭ Task '{task_name}' skipped: {reason}"), "cyan"))
                 } else {
                     None
                 }
@@ -279,9 +276,7 @@ impl ConsoleSubscriber {
                         "Task '{task_name}' resolved dependency '{dependency_name}' from package '{pkg}'"
                     )
                 } else {
-                    format!(
-                        "Task '{task_name}' resolved dependency '{dependency_name}'"
-                    )
+                    format!("Task '{task_name}' resolved dependency '{dependency_name}'")
                 }
             }
             crate::events::DependencyEvent::DependencyResolutionFailed {
