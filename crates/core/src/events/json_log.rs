@@ -4,10 +4,18 @@ use crate::events::{EnhancedEvent, EventSubscriber, SystemEvent};
 use async_trait::async_trait;
 use serde_json;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tokio::fs::{File, OpenOptions};
 use tokio::io::{AsyncWriteExt, BufWriter};
 use tokio::sync::Mutex;
 use tracing::{debug, error, warn};
+
+/// Default maximum log file size before rotation (10MB)
+const DEFAULT_MAX_FILE_SIZE: u64 = 10 * 1024 * 1024;
+/// Default number of backup files to keep
+const DEFAULT_BACKUP_COUNT: usize = 5;
+/// Check file size every N writes to reduce filesystem calls
+const SIZE_CHECK_INTERVAL: u64 = 100;
 
 /// JSON log subscriber for structured logging to files
 pub struct JsonLogSubscriber {
@@ -21,6 +29,10 @@ pub struct JsonLogSubscriber {
     max_file_size: Option<u64>,
     /// Number of backup files to keep
     backup_count: usize,
+    /// Cached file size to reduce filesystem calls
+    cached_file_size: Arc<std::sync::atomic::AtomicU64>,
+    /// Write counter for periodic size checks
+    write_counter: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl JsonLogSubscriber {
@@ -39,8 +51,10 @@ impl JsonLogSubscriber {
             writer: Mutex::new(None),
             file_path,
             include_metadata: true,
-            max_file_size: Some(10 * 1024 * 1024), // 10MB default
-            backup_count: 5,
+            max_file_size: Some(DEFAULT_MAX_FILE_SIZE)
+            backup_count: DEFAULT_BACKUP_COUNT,
+            cached_file_size: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            write_counter: Arc::new(std::sync::atomic::AtomicU64::new(0)),
         };
 
         subscriber.initialize_writer().await?;
@@ -68,6 +82,8 @@ impl JsonLogSubscriber {
             include_metadata,
             max_file_size,
             backup_count,
+            cached_file_size: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            write_counter: Arc::new(std::sync::atomic::AtomicU64::new(0)),
         };
 
         subscriber.initialize_writer().await?;
@@ -88,20 +104,35 @@ impl JsonLogSubscriber {
         Ok(())
     }
 
-    /// Check if log rotation is needed and perform it
+    /// Check if log rotation is needed and perform it (optimized with caching)
     async fn check_rotation(&self) -> Result<(), JsonLogError> {
         let Some(max_size) = self.max_file_size else {
             return Ok(());
         };
 
-        // Check current file size
-        let metadata = match tokio::fs::metadata(&self.file_path).await {
-            Ok(meta) => meta,
-            Err(_) => return Ok(()), // File doesn't exist yet
-        };
-
-        if metadata.len() > max_size {
-            self.rotate_logs().await?;
+        // Check every SIZE_CHECK_INTERVAL writes or when cached size exceeds threshold
+        let write_count = self.write_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let cached_size = self.cached_file_size.load(std::sync::atomic::Ordering::Relaxed);
+        
+        let should_check_size = write_count % SIZE_CHECK_INTERVAL == 0 || cached_size > max_size;
+        
+        if should_check_size {
+            // Check actual file size
+            let actual_size = match tokio::fs::metadata(&self.file_path).await {
+                Ok(meta) => meta.len(),
+                Err(_) => {
+                    // File doesn't exist yet, reset cache
+                    self.cached_file_size.store(0, std::sync::atomic::Ordering::Relaxed);
+                    return Ok(());
+                }
+            };
+            
+            // Update cached size
+            self.cached_file_size.store(actual_size, std::sync::atomic::Ordering::Relaxed);
+            
+            if actual_size > max_size {
+                self.rotate_logs().await?;
+            }
         }
 
         Ok(())
@@ -141,6 +172,10 @@ impl JsonLogSubscriber {
 
         // Recreate writer with new file
         self.initialize_writer().await?;
+        
+        // Reset cached file size after rotation
+        self.cached_file_size.store(0, std::sync::atomic::Ordering::Relaxed);
+        self.write_counter.store(0, std::sync::atomic::Ordering::Relaxed);
 
         debug!("Log rotation completed");
         Ok(())
@@ -180,12 +215,17 @@ impl JsonLogSubscriber {
 
         let mut writer_guard = self.writer.lock().await;
         if let Some(writer) = writer_guard.as_mut() {
-            writer.write_all(content.as_bytes()).await
+            let content_bytes = content.as_bytes();
+            writer.write_all(content_bytes).await
                 .map_err(|e| JsonLogError::IoError(e.to_string()))?;
             writer.write_all(b"\n").await
                 .map_err(|e| JsonLogError::IoError(e.to_string()))?;
             writer.flush().await
                 .map_err(|e| JsonLogError::IoError(e.to_string()))?;
+            
+            // Update cached file size estimate
+            let bytes_written = content_bytes.len() + 1; // +1 for newline
+            self.cached_file_size.fetch_add(bytes_written as u64, std::sync::atomic::Ordering::Relaxed);
         }
 
         Ok(())
