@@ -27,12 +27,6 @@ jobs:
         uses: namespacelabs/nscloud-cache-action@v1
         with:
           path: /nix
-      - name: nix-cache
-        uses: cachix/cachix-action@v15
-        with:
-          name: cuenv
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          skipPush: ${{ matrix.rust != 'stable' }}
       - name: nix-build-and-check
         run: |
           nix build .#cuenv --print-build-logs
