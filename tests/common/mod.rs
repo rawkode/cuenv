@@ -3,10 +3,10 @@
 //! This module provides shared utilities for testing across the cuenv codebase,
 //! reducing code duplication and improving test reliability.
 
-use cuenv::cache::{ProductionCache, CacheConfig};
+use cuenv::cache::{CacheConfig, ProductionCache};
+use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
-use std::fs;
 
 /// Builder pattern for creating test cache instances with custom configurations
 pub struct TestCacheBuilder {
@@ -43,14 +43,19 @@ impl TestCacheBuilder {
 
     /// Build the cache instance, returning both cache and temp directory
     /// The temp directory must be kept alive for the cache to function
-    pub async fn build(self) -> Result<(ProductionCache, TempDir), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn build(
+        self,
+    ) -> Result<(ProductionCache, TempDir), Box<dyn std::error::Error + Send + Sync>> {
         let temp_dir = TempDir::new()?;
         let cache = ProductionCache::new(temp_dir.path().to_path_buf(), self.config).await?;
         Ok((cache, temp_dir))
     }
 
     /// Build the cache with a specific directory path
-    pub async fn build_at_path(self, path: PathBuf) -> Result<ProductionCache, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn build_at_path(
+        self,
+        path: PathBuf,
+    ) -> Result<ProductionCache, Box<dyn std::error::Error + Send + Sync>> {
         let cache = ProductionCache::new(path, self.config).await?;
         Ok(cache)
     }
@@ -72,17 +77,23 @@ pub fn setup_test_env_with_cue(cue_content: &str) -> Result<TempDir, std::io::Er
 /// Create a test directory structure with multiple files
 pub fn setup_test_project_structure() -> Result<TempDir, std::io::Error> {
     let temp_dir = TempDir::new()?;
-    
+
     // Create basic project structure
     fs::create_dir_all(temp_dir.path().join("src"))?;
     fs::create_dir_all(temp_dir.path().join("tests"))?;
     fs::create_dir_all(temp_dir.path().join("build"))?;
-    
+
     // Create some test files
-    fs::write(temp_dir.path().join("src/main.rs"), "fn main() { println!(\"Hello\"); }")?;
-    fs::write(temp_dir.path().join("tests/test.rs"), "#[test] fn test_example() { assert!(true); }")?;
+    fs::write(
+        temp_dir.path().join("src/main.rs"),
+        "fn main() { println!(\"Hello\"); }",
+    )?;
+    fs::write(
+        temp_dir.path().join("tests/test.rs"),
+        "#[test] fn test_example() { assert!(true); }",
+    )?;
     fs::write(temp_dir.path().join("README.md"), "# Test Project")?;
-    
+
     // Create env.cue with basic configuration
     let cue_content = r#"package env
 
@@ -104,18 +115,18 @@ tasks: {
 }
 "#;
     fs::write(temp_dir.path().join("env.cue"), cue_content)?;
-    
+
     Ok(temp_dir)
 }
 
 /// Helper to create a CUE file with environment variables
 pub fn create_env_cue_with_vars(vars: &[(&str, &str)]) -> String {
     let mut content = String::from("package env\n\nenv: {\n");
-    
+
     for (key, value) in vars {
         content.push_str(&format!("    {}: \"{}\"\n", key, value));
     }
-    
+
     content.push_str("}\n");
     content
 }
@@ -123,14 +134,14 @@ pub fn create_env_cue_with_vars(vars: &[(&str, &str)]) -> String {
 /// Helper to create a CUE file with tasks
 pub fn create_env_cue_with_tasks(tasks: &[(&str, &str)]) -> String {
     let mut content = String::from("package env\n\ntasks: {\n");
-    
+
     for (name, command) in tasks {
         content.push_str(&format!(
-            "    {}: {{\n        command: \"{}\"\n    }}\n", 
+            "    {}: {{\n        command: \"{}\"\n    }}\n",
             name, command
         ));
     }
-    
+
     content.push_str("}\n");
     content
 }
@@ -144,10 +155,7 @@ pub fn expect_ok<T, E: std::fmt::Display>(result: Result<T, E>, context: &str) -
 }
 
 /// Error handling helper for async operations
-pub async fn expect_ok_async<T, E: std::fmt::Display>(
-    result: Result<T, E>, 
-    context: &str
-) -> T {
+pub async fn expect_ok_async<T, E: std::fmt::Display>(result: Result<T, E>, context: &str) -> T {
     match result {
         Ok(value) => value,
         Err(e) => panic!("Expected Ok but got Err in {}: {}", context, e),
@@ -156,12 +164,15 @@ pub async fn expect_ok_async<T, E: std::fmt::Display>(
 
 /// Helper to assert that a result is an error with a specific message pattern
 pub fn assert_error_contains<T, E: std::fmt::Display>(
-    result: Result<T, E>, 
-    expected_message: &str, 
-    context: &str
+    result: Result<T, E>,
+    expected_message: &str,
+    context: &str,
 ) {
     match result {
-        Ok(_) => panic!("Expected error containing '{}' but got Ok in {}", expected_message, context),
+        Ok(_) => panic!(
+            "Expected error containing '{}' but got Ok in {}",
+            expected_message, context
+        ),
         Err(e) => {
             let error_msg = e.to_string();
             assert!(
@@ -191,12 +202,12 @@ impl MockFileSystem {
     /// Create a file with given content
     pub fn create_file(&self, path: &str, content: &str) -> Result<PathBuf, std::io::Error> {
         let file_path = self.temp_dir.path().join(path);
-        
+
         // Create parent directories if needed
         if let Some(parent) = file_path.parent() {
             fs::create_dir_all(parent)?;
         }
-        
+
         fs::write(&file_path, content)?;
         Ok(file_path)
     }
@@ -226,19 +237,19 @@ pub mod test_constants {
 
     /// Standard timeout for async operations in tests
     pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
-    
+
     /// Shorter timeout for operations that should be fast
     pub const FAST_TIMEOUT: Duration = Duration::from_secs(5);
-    
+
     /// Timeout for operations that might be slow (e.g., network)
     pub const SLOW_TIMEOUT: Duration = Duration::from_secs(60);
-    
+
     /// Small test data size
     pub const SMALL_DATA_SIZE: usize = 1024;
-    
+
     /// Medium test data size
     pub const MEDIUM_DATA_SIZE: usize = 64 * 1024;
-    
+
     /// Large test data size (for stress testing)
     pub const LARGE_DATA_SIZE: usize = 1024 * 1024;
 }
@@ -254,7 +265,7 @@ where
     E: std::fmt::Display,
 {
     let mut last_error = None;
-    
+
     for attempt in 1..=max_attempts {
         match operation().await {
             Ok(result) => return Ok(result),
@@ -269,7 +280,7 @@ where
             }
         }
     }
-    
+
     Err(last_error.unwrap())
 }
 
@@ -287,7 +298,10 @@ mod tests {
             .expect("Failed to build test cache");
 
         // Test that cache works
-        cache.put("test_key", "test_value", None).await.expect("Put should work");
+        cache
+            .put("test_key", "test_value", None)
+            .await
+            .expect("Put should work");
         let value: Option<String> = cache.get("test_key").await.expect("Get should work");
         assert_eq!(value, Some("test_value".to_string()));
     }
@@ -296,10 +310,10 @@ mod tests {
     fn test_setup_test_env_with_cue() {
         let cue_content = "package env\nenv: { TEST: \"value\" }";
         let temp_dir = setup_test_env_with_cue(cue_content).expect("Should create test env");
-        
+
         let env_file = temp_dir.path().join("env.cue");
         assert!(env_file.exists());
-        
+
         let content = fs::read_to_string(env_file).expect("Should read file");
         assert!(content.contains("TEST"));
     }
@@ -307,13 +321,17 @@ mod tests {
     #[test]
     fn test_mock_filesystem() {
         let mock_fs = MockFileSystem::new().expect("Should create mock fs");
-        
-        mock_fs.create_file("test.txt", "hello world").expect("Should create file");
-        mock_fs.create_dir("subdir").expect("Should create directory");
-        
+
+        mock_fs
+            .create_file("test.txt", "hello world")
+            .expect("Should create file");
+        mock_fs
+            .create_dir("subdir")
+            .expect("Should create directory");
+
         let file_path = mock_fs.root_path().join("test.txt");
         assert!(file_path.exists());
-        
+
         let content = fs::read_to_string(file_path).expect("Should read file");
         assert_eq!(content, "hello world");
     }
@@ -334,14 +352,14 @@ mod tests {
     fn test_cue_generators() {
         let vars = [("KEY1", "value1"), ("KEY2", "value2")];
         let cue_content = create_env_cue_with_vars(&vars);
-        
+
         assert!(cue_content.contains("KEY1: \"value1\""));
         assert!(cue_content.contains("KEY2: \"value2\""));
         assert!(cue_content.contains("package env"));
 
         let tasks = [("build", "cargo build"), ("test", "cargo test")];
         let task_cue = create_env_cue_with_tasks(&tasks);
-        
+
         assert!(task_cue.contains("build: {"));
         assert!(task_cue.contains("command: \"cargo build\""));
     }

@@ -14,14 +14,17 @@ fn test_main_commands_are_functional() {
         .expect("Failed to execute cuenv init");
 
     assert!(init_output.status.success(), "init command should succeed");
-    
+
     // Verify init actually created the file
     let env_file = temp_dir.path().join("env.cue");
     assert!(env_file.exists(), "init should create env.cue file");
-    
+
     let content = std::fs::read_to_string(&env_file).expect("Should be able to read created file");
     assert!(!content.is_empty(), "Created file should have content");
-    assert!(content.contains("package"), "Created file should be valid CUE");
+    assert!(
+        content.contains("package"),
+        "Created file should be valid CUE"
+    );
 
     // Test status command functionality
     let status_output = Command::new("./target/debug/cuenv")
@@ -33,10 +36,12 @@ fn test_main_commands_are_functional() {
     // Status should work (success or meaningful failure)
     let status_stdout = String::from_utf8_lossy(&status_output.stdout);
     let status_stderr = String::from_utf8_lossy(&status_output.stderr);
-    
+
     // Should produce some meaningful output
-    assert!(!status_stdout.is_empty() || !status_stderr.is_empty(), 
-           "status command should produce output");
+    assert!(
+        !status_stdout.is_empty() || !status_stderr.is_empty(),
+        "status command should produce output"
+    );
 }
 
 #[test]
@@ -250,7 +255,7 @@ fn test_init_force_overwrites_existing_file() {
     );
 }
 
-#[test] 
+#[test]
 fn test_commands_execute_functionally() {
     // Test actual command functionality rather than just help text parsing
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
@@ -265,10 +270,12 @@ fn test_commands_execute_functionally() {
     // Allow command should execute (may succeed or fail with meaningful error)
     let allow_stdout = String::from_utf8_lossy(&allow_output.stdout);
     let allow_stderr = String::from_utf8_lossy(&allow_output.stderr);
-    
+
     // Should produce meaningful output or error message
-    assert!(!allow_stdout.is_empty() || !allow_stderr.is_empty(), 
-           "allow command should produce output");
+    assert!(
+        !allow_stdout.is_empty() || !allow_stderr.is_empty(),
+        "allow command should produce output"
+    );
 
     // Test shell command functionality
     let shell_output = Command::new("./target/debug/cuenv")
@@ -280,12 +287,14 @@ fn test_commands_execute_functionally() {
     // Shell command should handle bash shell type
     let shell_stdout = String::from_utf8_lossy(&shell_output.stdout);
     let shell_stderr = String::from_utf8_lossy(&shell_output.stderr);
-    
-    // Should produce shell hook output or meaningful error
-    assert!(!shell_stdout.is_empty() || !shell_stderr.is_empty(),
-           "shell command should produce output");
 
-    // Test cache command functionality 
+    // Should produce shell hook output or meaningful error
+    assert!(
+        !shell_stdout.is_empty() || !shell_stderr.is_empty(),
+        "shell command should produce output"
+    );
+
+    // Test cache command functionality
     let cache_output = Command::new("./target/debug/cuenv")
         .current_dir(temp_dir.path())
         .args(["cache", "--help"])
@@ -293,9 +302,10 @@ fn test_commands_execute_functionally() {
         .expect("Failed to execute cuenv cache");
 
     // Cache command should show subcommands help
-    assert!(cache_output.status.success() || 
-           !String::from_utf8_lossy(&cache_output.stderr).is_empty(),
-           "cache command should provide help or meaningful error");
+    assert!(
+        cache_output.status.success() || !String::from_utf8_lossy(&cache_output.stderr).is_empty(),
+        "cache command should provide help or meaningful error"
+    );
 
     // Test completion command functionality
     let completion_output = Command::new("./target/debug/cuenv")
@@ -306,11 +316,17 @@ fn test_commands_execute_functionally() {
     // Completion should generate bash completions or meaningful error
     let completion_stdout = String::from_utf8_lossy(&completion_output.stdout);
     let completion_stderr = String::from_utf8_lossy(&completion_output.stderr);
-    
+
     if completion_output.status.success() {
-        assert!(!completion_stdout.is_empty(), "completion should generate completion script");
+        assert!(
+            !completion_stdout.is_empty(),
+            "completion should generate completion script"
+        );
     } else {
-        assert!(!completion_stderr.is_empty(), "completion should provide error message");
+        assert!(
+            !completion_stderr.is_empty(),
+            "completion should provide error message"
+        );
     }
 }
 
