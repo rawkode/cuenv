@@ -17,42 +17,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [namespace-profile-linux-caching, namespace-profile-macos-caching]
         rust: [stable]
     steps:
       - uses: actions/checkout@v4
-      # Cargo cache - for fast Rust builds
-      - name: cache-cargo-target
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.rust }}-cargo-
-            ${{ runner.os }}-cargo-
-      # Nix setup with all caching layers
       - name: nix-install
         uses: DeterminateSystems/nix-installer-action@main
-      - name: magic-nix-cache
-        uses: DeterminateSystems/magic-nix-cache-action@main
-      - name: cache-nix-store
-        uses: nix-community/cache-nix-action@v5
+      - name: namespacelabs-nix-cache
+        uses: namespacelabs/nscloud-cache-action@v1
         with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
-          gc-max-store-size-linux: 1073741824
-          gc-max-store-size-macos: 1073741824
+          path: /nix
       - name: nix-cache
         uses: cachix/cachix-action@v15
         with:
           name: cuenv
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           skipPush: ${{ matrix.rust != 'stable' }}
-      # Build, check, and test
       - name: nix-build-and-check
         run: |
           nix build .#cuenv --print-build-logs
@@ -75,93 +55,18 @@ jobs:
 
           # Run the example tests
           ./scripts/test-examples.sh
-  test-beta:
-    runs-on: ${{ matrix.os }}
-    # Only run beta on main branch
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        rust: [beta]
-    steps:
-      - uses: actions/checkout@v4
-      # Cargo cache - for fast Rust builds
-      - name: cache-cargo-target
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.rust }}-cargo-
-            ${{ runner.os }}-cargo-
-      # Nix setup with all caching layers
-      - name: nix-install
-        uses: DeterminateSystems/nix-installer-action@main
-      - name: magic-nix-cache
-        uses: DeterminateSystems/magic-nix-cache-action@main
-      - name: cache-nix-store
-        uses: nix-community/cache-nix-action@v5
-        with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
-          gc-max-store-size-linux: 1073741824
-          gc-max-store-size-macos: 1073741824
-      - name: nix-cache
-        uses: cachix/cachix-action@v15
-        with:
-          name: cuenv
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          skipPush: true # Don't push beta builds to cache
-      # Build and test with beta
-      - name: nix-build-and-check
-        run: |
-          nix build .#cuenv --print-build-logs
-          nix flake check --print-build-logs -L
-      - name: cuenv-test-all
-        run: |
-          nix develop --command cargo nextest run --profile ci --no-fail-fast
   coverage:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-linux-caching
     needs: [test]
     if: always() && (needs.test.result == 'success')
     steps:
       - uses: actions/checkout@v4
-      # Cargo cache - for fast Rust builds
-      - name: cache-cargo-target
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ubuntu-latest-stable-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ubuntu-latest-stable-cargo-
-            ubuntu-latest-cargo-
-      # Nix setup with all caching layers
       - name: nix-install
         uses: DeterminateSystems/nix-installer-action@main
-      - name: magic-nix-cache
-        uses: DeterminateSystems/magic-nix-cache-action@main
-      - name: cache-nix-store
-        uses: nix-community/cache-nix-action@v5
+      - name: namespacelabs-nix-cache
+        uses: namespacelabs/nscloud-cache-action@v1
         with:
-          primary-key: nix-ubuntu-latest-${{ hashFiles('**/*.nix', '**/flake.lock') }}
-          restore-prefixes-first-match: nix-ubuntu-latest-
-          gc-max-store-size-linux: 1073741824
-      - name: nix-cache
-        uses: cachix/cachix-action@v15
-        with:
-          name: cuenv
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          skipPush: false
-      # Generate and upload coverage
+          path: /nix
       - name: generate-coverage
         run: |
           # Use Nix cache - build will be instant if already cached

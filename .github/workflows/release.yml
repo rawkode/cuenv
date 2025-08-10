@@ -44,10 +44,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: namespace-profile-linux-caching
             target: x86_64-unknown-linux-gnu
             suffix: x86_64-unknown-linux-gnu
-          - os: macos-latest
+          - os: namespace-profile-macos-caching
             target: aarch64-apple-darwin
             suffix: aarch64-apple-darwin
     steps:
@@ -76,15 +76,10 @@ jobs:
           echo "Building version: $VERSION"
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
-      - name: Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@main
-      - name: Cache Nix Store
-        uses: nix-community/cache-nix-action@v5
+      - name: Namespace Labs Nix Cache
+        uses: namespacelabs/nscloud-cache-action@v1
         with:
-          primary-key: nix-${{ runner.os }}-release-${{ hashFiles('**/*.nix', '**/flake.lock') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
-          gc-max-store-size-linux: 1073741824
-          gc-max-store-size-macos: 1073741824
+          path: /nix
       - name: Cachix Setup
         uses: cachix/cachix-action@v15
         with:

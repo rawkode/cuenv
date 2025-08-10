@@ -1,7 +1,5 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) and other AI agents when working with the cuenv codebase.
-
 ## Project Overview
 
 cuenv is a direnv alternative that uses CUE (Configure, Unify, Execute) files for type-safe environment configuration. It integrates Go (for CUE evaluation) with Rust (for the main application) through FFI.
@@ -62,11 +60,6 @@ nix develop -c cargo build --release          # Build release version
 nix develop -c cargo watch                    # Watch and rebuild on changes
 nix build .#cuenv                            # Nix build (all platforms)
 
-# Testing
-nix develop -c cargo test                     # Run all tests
-nix develop -c cargo test <test_name>         # Run specific test
-nix develop -c cargo test --lib               # Run unit tests only
-nix develop -c cargo test --test <test_file>  # Run specific integration test
 nix develop -c ./scripts/test-examples.sh     # Test all examples
 
 # Testing with Nextest (faster, better output)
@@ -133,6 +126,7 @@ cuenv is a direnv alternative that uses CUE (Configure, Unify, Execute) files fo
 
 ### Important Patterns
 
+- **Group by Function, Not Type**: Code that is modified together, lives together.
 - **Platform Abstraction**: Unix/Windows implementations behind trait (`src/platform/`)
 - **RAII Resource Management**: Automatic cleanup for FFI strings, processes, and locks
 - **Error Recovery**: All errors include helpful suggestions via custom error type (`src/error.rs`)

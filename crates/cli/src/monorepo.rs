@@ -1,4 +1,4 @@
-use crate::discovery::PackageDiscovery;
+use crate::commands::discover::PackageDiscovery;
 use cuenv_core::{Error, Result};
 use cuenv_env::EnvManager;
 use cuenv_task::{
