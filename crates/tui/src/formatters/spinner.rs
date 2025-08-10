@@ -234,11 +234,10 @@ impl SpinnerFormatter {
 
         // Find tasks that depend on this one
         for (other_name, other_config) in &plan.tasks {
-            if let Some(deps) = &other_config.dependencies {
-                if deps.contains(&task_name.to_string()) && !processed.contains(other_name) {
-                    // This task depends on the current one, add it next (with indentation)
-                    self.add_task_and_dependents(other_name, plan, _depths, order, processed);
-                }
+            let deps = other_config.dependency_names();
+            if deps.contains(&task_name.to_string()) && !processed.contains(other_name) {
+                // This task depends on the current one, add it next (with indentation)
+                self.add_task_and_dependents(other_name, plan, _depths, order, processed);
             }
         }
     }

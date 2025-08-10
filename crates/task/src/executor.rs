@@ -277,7 +277,7 @@ impl TaskExecutor {
                         // Publish task started event
                         {
                             let event_bus = cuenv_core::events::global_event_bus();
-                            event_bus.publish(cuenv_core::SystemEvent::Task(
+                            let _ = event_bus.publish(cuenv_core::SystemEvent::Task(
                                 cuenv_core::TaskEvent::TaskStarted {
                                     task_name: task_name_owned.clone(),
                                     task_id: task_name_owned.clone(),
@@ -400,7 +400,7 @@ impl TaskExecutor {
                                     {
                                         let event_bus = cuenv_core::events::global_event_bus();
                                         let _duration_ms = start_time.elapsed().as_millis() as u64;
-                                        event_bus.publish(cuenv_core::SystemEvent::Task(
+                                        let _ = event_bus.publish(cuenv_core::SystemEvent::Task(
                                             cuenv_core::TaskEvent::TaskFailed {
                                                 task_name: task_name_owned.clone(),
                                                 task_id: task_name_owned.clone(),
@@ -421,7 +421,7 @@ impl TaskExecutor {
                                     {
                                         let event_bus = cuenv_core::events::global_event_bus();
                                         let _duration_ms = start_time.elapsed().as_millis() as u64;
-                                        event_bus.publish(cuenv_core::SystemEvent::Task(
+                                        let _ = event_bus.publish(cuenv_core::SystemEvent::Task(
                                             cuenv_core::TaskEvent::TaskCompleted {
                                                 task_name: task_name_owned.clone(),
                                                 task_id: task_name_owned.clone(),
@@ -453,7 +453,7 @@ impl TaskExecutor {
                                 {
                                     let event_bus = cuenv_core::events::global_event_bus();
                                     let _duration_ms = start_time.elapsed().as_millis() as u64;
-                                    event_bus.publish(cuenv_core::SystemEvent::Task(
+                                    let _ = event_bus.publish(cuenv_core::SystemEvent::Task(
                                         cuenv_core::TaskEvent::TaskFailed {
                                             task_name: task_name_owned.clone(),
                                             task_id: task_name_owned.clone(),
@@ -669,6 +669,7 @@ impl TaskExecutor {
     }
 
     /// Recursively collect all dependencies for a task
+    #[allow(dead_code)]
     fn collect_dependencies(
         task_name: &str,
         all_tasks: &HashMap<String, TaskConfig>,
@@ -947,7 +948,7 @@ impl TaskExecutor {
     async fn execute_single_task(
         task_name: &str,
         task_definition: &TaskDefinition,
-        working_dir: &Path,
+        _working_dir: &Path,
         args: &[String],
         audit_mode: bool,
         capture_output: bool,
