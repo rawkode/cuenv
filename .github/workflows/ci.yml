@@ -13,8 +13,8 @@ permissions:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
-    # Skip beta Rust builds on non-main branches
-    if: matrix.rust == 'stable' || github.ref == 'refs/heads/main'
+    # Skip beta Rust builds on PRs, only run them on main branch pushes
+    if: matrix.rust == 'stable' || github.event_name == 'push'
     strategy:
       fail-fast: false
       matrix:
