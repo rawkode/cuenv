@@ -17,9 +17,11 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::UnixStream;
+use tokio::net::{UnixStream, UnixListener};
 use tokio::process::Child;
 use tokio::time::timeout;
+use cuenv_config::TaskConfig;
+use std::sync::Arc;
 
 /// JSON-RPC 2.0 request structure
 #[derive(Debug, Serialize)]
@@ -58,13 +60,13 @@ struct InitializeResult {
 }
 
 /// Task definition from server
-#[derive(Debug, Deserialize)]
-struct TaskDefinition {
-    name: String,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskDefinition {
+    pub name: String,
     #[serde(default)]
-    after: Vec<String>,
+    pub after: Vec<String>,
     #[serde(default)]
-    description: Option<String>,
+    pub description: Option<String>,
 }
 
 /// Run task request parameters
@@ -438,6 +440,359 @@ impl TaskServerManager {
     }
 }
 
+/// Task server provider that exposes cuenv tasks to external tools
+pub struct TaskServerProvider {
+    socket_path: PathBuf,
+    listener: Option<UnixListener>,
+    tasks: Arc<HashMap<String, TaskConfig>>,
+}
+
+impl TaskServerProvider {
+    /// Create a new task server provider
+    pub fn new(socket_path: PathBuf, tasks: HashMap<String, TaskConfig>) -> Self {
+        Self {
+            socket_path,
+            listener: None,
+            tasks: Arc::new(tasks),
+        }
+    }
+
+    /// Start the server and listen for connections
+    pub async fn start(&mut self) -> Result<()> {
+        // Remove socket if it exists
+        if self.socket_path.exists() {
+            std::fs::remove_file(&self.socket_path).map_err(|e| {
+                Error::file_system(
+                    self.socket_path.clone(),
+                    "remove existing socket",
+                    e,
+                )
+            })?;
+        }
+
+        // Ensure parent directory exists
+        if let Some(parent) = self.socket_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                Error::file_system(
+                    parent.to_path_buf(),
+                    "create socket parent directory",
+                    e,
+                )
+            })?;
+        }
+
+        // Start Unix domain socket listener
+        let listener = UnixListener::bind(&self.socket_path).map_err(|e| {
+            Error::configuration(format!(
+                "Failed to bind to socket {}: {}",
+                self.socket_path.display(),
+                e
+            ))
+        })?;
+
+        self.listener = Some(listener);
+        tracing::info!(
+            socket_path = %self.socket_path.display(),
+            "Task server provider started"
+        );
+
+        // Accept connections
+        self.handle_connections().await
+    }
+
+    /// Handle incoming client connections
+    async fn handle_connections(&mut self) -> Result<()> {
+        let listener = self.listener.as_ref().ok_or_else(|| {
+            Error::configuration("Task server provider not started".to_string())
+        })?;
+
+        loop {
+            match listener.accept().await {
+                Ok((stream, _)) => {
+                    let tasks = Arc::clone(&self.tasks);
+                    tokio::spawn(async move {
+                        if let Err(e) = Self::handle_client(stream, tasks).await {
+                            tracing::error!(error = %e, "Client connection error");
+                        }
+                    });
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to accept connection");
+                    // Continue accepting other connections
+                }
+            }
+        }
+    }
+
+    /// Handle a single client connection
+    async fn handle_client(mut stream: UnixStream, tasks: Arc<HashMap<String, TaskConfig>>) -> Result<()> {
+        let mut buf_reader = BufReader::new(&mut stream);
+        let mut line = String::new();
+
+        while buf_reader.read_line(&mut line).await.map_err(|e| {
+            Error::configuration(format!("Failed to read from client: {}", e))
+        })? > 0 {
+            // Parse JSON-RPC request
+            let request: serde_json::Value = serde_json::from_str(&line.trim()).map_err(|e| {
+                Error::configuration(format!("Invalid JSON-RPC request: {}", e))
+            })?;
+
+            // Handle the request
+            let response = Self::handle_request(request, &tasks).await;
+
+            // Send response
+            let response_json = serde_json::to_string(&response).map_err(|e| {
+                Error::configuration(format!("Failed to serialize response: {}", e))
+            })?;
+
+            stream.write_all(format!("{}\n", response_json).as_bytes()).await.map_err(|e| {
+                Error::configuration(format!("Failed to write response: {}", e))
+            })?;
+
+            line.clear();
+        }
+
+        Ok(())
+    }
+
+    /// Handle a JSON-RPC request
+    async fn handle_request(
+        request: serde_json::Value,
+        tasks: &HashMap<String, TaskConfig>,
+    ) -> serde_json::Value {
+        let method = request.get("method")
+            .and_then(|m| m.as_str())
+            .unwrap_or_default();
+
+        let id = request.get("id").cloned().unwrap_or(serde_json::Value::Null);
+
+        match method {
+            "initialize" => {
+                // Convert cuenv TaskConfigs to TaskDefinitions
+                let task_definitions: Vec<TaskDefinition> = tasks
+                    .iter()
+                    .map(|(name, config)| TaskDefinition {
+                        name: name.clone(),
+                        after: config.dependencies.clone().unwrap_or_default(),
+                        description: config.description.clone(),
+                    })
+                    .collect();
+
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "result": {
+                        "tasks": task_definitions
+                    },
+                    "id": id
+                })
+            }
+            "run" => {
+                // Extract task name from parameters
+                let task_name = request
+                    .get("params")
+                    .and_then(|p| p.get("task"))
+                    .and_then(|t| t.as_str())
+                    .unwrap_or_default();
+
+                if let Some(task_config) = tasks.get(task_name) {
+                    // Execute the task (simplified for now)
+                    // In a real implementation, this would use the task executor
+                    match Self::execute_task(task_config).await {
+                        Ok(exit_code) => serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "result": {
+                                "exit_code": exit_code,
+                                "outputs": {}
+                            },
+                            "id": id
+                        }),
+                        Err(e) => serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -1,
+                                "message": format!("Task execution failed: {}", e)
+                            },
+                            "id": id
+                        }),
+                    }
+                } else {
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -1,
+                            "message": format!("Task not found: {}", task_name)
+                        },
+                        "id": id
+                    })
+                }
+            }
+            _ => serde_json::json!({
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -32601,
+                    "message": format!("Method not found: {}", method)
+                },
+                "id": id
+            }),
+        }
+    }
+
+    /// Simple task execution (placeholder implementation)
+    async fn execute_task(task_config: &TaskConfig) -> Result<i32> {
+        // This is a simplified implementation
+        // In practice, this would integrate with the full task executor
+        if let Some(command) = &task_config.command {
+            let mut cmd = tokio::process::Command::new("sh");
+            cmd.arg("-c").arg(command);
+
+            let output = cmd.output().await.map_err(|e| {
+                Error::command_execution(
+                    "sh",
+                    vec!["-c".to_string(), command.clone()],
+                    format!("Failed to execute task: {}", e),
+                    None,
+                )
+            })?;
+
+            Ok(output.status.code().unwrap_or(-1))
+        } else {
+            // No command specified, consider it successful
+            Ok(0)
+        }
+    }
+
+    /// Export tasks to JSON format for static consumption
+    pub fn export_tasks_to_json(&self) -> Result<String> {
+        let task_definitions: Vec<TaskDefinition> = self.tasks
+            .iter()
+            .map(|(name, config)| TaskDefinition {
+                name: name.clone(),
+                after: config.dependencies.clone().unwrap_or_default(),
+                description: config.description.clone(),
+            })
+            .collect();
+
+        let export = serde_json::json!({
+            "tasks": task_definitions
+        });
+
+        serde_json::to_string_pretty(&export).map_err(|e| {
+            Error::configuration(format!("Failed to serialize tasks to JSON: {}", e))
+        })
+    }
+
+    /// Shutdown the server
+    pub async fn shutdown(&mut self) -> Result<()> {
+        if let Some(listener) = self.listener.take() {
+            drop(listener);
+        }
+
+        // Remove socket file
+        if self.socket_path.exists() {
+            std::fs::remove_file(&self.socket_path).map_err(|e| {
+                Error::file_system(
+                    self.socket_path.clone(),
+                    "remove socket file",
+                    e,
+                )
+            })?;
+        }
+
+        Ok(())
+    }
+}
+
+impl Drop for TaskServerProvider {
+    fn drop(&mut self) {
+        // Best effort cleanup
+        if self.socket_path.exists() {
+            let _ = std::fs::remove_file(&self.socket_path);
+        }
+    }
+}
+
+/// Unified task manager that supports both consuming external tasks and providing cuenv tasks
+pub struct UnifiedTaskManager {
+    /// Manager for consuming external task servers
+    pub server_manager: TaskServerManager,
+    /// Provider for exposing cuenv tasks (optional)
+    pub server_provider: Option<TaskServerProvider>,
+    /// Internal task registry
+    pub internal_tasks: HashMap<String, TaskConfig>,
+}
+
+impl UnifiedTaskManager {
+    /// Create a new unified task manager
+    pub fn new(socket_dir: PathBuf, internal_tasks: HashMap<String, TaskConfig>) -> Self {
+        Self {
+            server_manager: TaskServerManager::new(socket_dir),
+            server_provider: None,
+            internal_tasks,
+        }
+    }
+
+    /// Start as a task provider server
+    pub async fn start_as_provider(&mut self, socket_path: PathBuf) -> Result<()> {
+        let mut provider = TaskServerProvider::new(socket_path, self.internal_tasks.clone());
+        provider.start().await?;
+        self.server_provider = Some(provider);
+        Ok(())
+    }
+
+    /// Discover and combine both internal and external tasks
+    pub async fn discover_all_tasks(&mut self) -> Result<Vec<TaskDefinition>> {
+        let mut all_tasks = Vec::new();
+
+        // Add internal tasks
+        for (name, config) in &self.internal_tasks {
+            all_tasks.push(TaskDefinition {
+                name: format!("cuenv:{}", name),
+                after: config.dependencies.clone().unwrap_or_default(),
+                description: config.description.clone(),
+            });
+        }
+
+        // Add external tasks from discovery
+        let external_tasks = self.server_manager.discover_servers(Path::new(".")).await?;
+        all_tasks.extend(external_tasks);
+
+        Ok(all_tasks)
+    }
+
+    /// Export internal tasks as JSON
+    pub fn export_tasks_to_json(&self) -> Result<String> {
+        let task_definitions: Vec<TaskDefinition> = self.internal_tasks
+            .iter()
+            .map(|(name, config)| TaskDefinition {
+                name: name.clone(),
+                after: config.dependencies.clone().unwrap_or_default(),
+                description: config.description.clone(),
+            })
+            .collect();
+
+        let export = serde_json::json!({
+            "tasks": task_definitions
+        });
+
+        serde_json::to_string_pretty(&export).map_err(|e| {
+            Error::configuration(format!("Failed to serialize tasks to JSON: {}", e))
+        })
+    }
+
+    /// Shutdown all components
+    pub async fn shutdown(&mut self) -> Result<()> {
+        // Shutdown external server manager
+        self.server_manager.shutdown().await?;
+
+        // Shutdown task provider if running
+        if let Some(provider) = self.server_provider.as_mut() {
+            provider.shutdown().await?;
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -473,5 +828,55 @@ mod tests {
         let mut manager = TaskServerManager::new(socket_dir);
         let tasks = manager.discover_servers(temp_dir.path()).await.unwrap();
         assert!(tasks.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_task_server_provider_creation() {
+        let temp_dir = TempDir::new().unwrap();
+        let socket_path = temp_dir.path().join("provider.sock");
+        let mut tasks = HashMap::new();
+        tasks.insert("test".to_string(), cuenv_config::TaskConfig {
+            description: Some("Test task".to_string()),
+            command: Some("echo hello".to_string()),
+            ..Default::default()
+        });
+        
+        let provider = TaskServerProvider::new(socket_path.clone(), tasks);
+        assert_eq!(provider.socket_path, socket_path);
+        assert!(provider.listener.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_unified_task_manager_creation() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut tasks = HashMap::new();
+        tasks.insert("test".to_string(), cuenv_config::TaskConfig {
+            description: Some("Test task".to_string()),
+            ..Default::default()
+        });
+        
+        let manager = UnifiedTaskManager::new(temp_dir.path().to_path_buf(), tasks.clone());
+        assert_eq!(manager.internal_tasks, tasks);
+        assert!(manager.server_provider.is_none());
+    }
+
+    #[test]
+    fn test_export_tasks_to_json() {
+        let temp_dir = TempDir::new().unwrap();
+        let mut tasks = HashMap::new();
+        tasks.insert("build".to_string(), cuenv_config::TaskConfig {
+            description: Some("Build the project".to_string()),
+            dependencies: Some(vec!["deps".to_string()]),
+            ..Default::default()
+        });
+        
+        let manager = UnifiedTaskManager::new(temp_dir.path().to_path_buf(), tasks);
+        let json = manager.export_tasks_to_json().unwrap();
+        
+        // Verify JSON contains expected structure
+        assert!(json.contains("tasks"));
+        assert!(json.contains("build"));
+        assert!(json.contains("Build the project"));
+        assert!(json.contains("deps"));
     }
 }

@@ -239,6 +239,15 @@ enum InternalCommands {
         /// List available tasks from servers
         #[arg(long)]
         list_tasks: bool,
+        /// Start as a task server provider (expose cuenv tasks to external tools)
+        #[arg(long)]
+        serve: bool,
+        /// Socket path for server mode
+        #[arg(long)]
+        socket: Option<PathBuf>,
+        /// Export cuenv tasks as JSON for static consumption
+        #[arg(long)]
+        export_json: bool,
     },
 }
 
@@ -666,6 +675,9 @@ async fn handle_task_protocol(
     discovery_dir: &Option<PathBuf>,
     run_task: &Option<String>,
     list_tasks: bool,
+    serve: bool,
+    socket: &Option<PathBuf>,
+    export_json: bool,
 ) -> Result<()> {
     use cuenv_task::TaskServerManager;
     use std::collections::HashMap;
@@ -758,13 +770,85 @@ async fn handle_task_protocol(
         }
     }
 
-    // If no action specified, just list tasks
-    if server.is_none() && discovery_dir.is_none() && run_task.is_none() && !list_tasks {
-        println!("Task Server Protocol (TSP) client");
-        println!("Usage:");
+    // Handle new server/export modes
+    if serve {
+        // Start cuenv as a task server provider
+        let socket_path = socket.clone().unwrap_or_else(|| {
+            socket_dir.path().join("cuenv.sock")
+        });
+
+        // Load current environment tasks
+        let current_dir = match DirectoryManager::get_current_directory() {
+            Ok(d) => d,
+            Err(e) => {
+                eyre::bail!("Failed to get current directory: {e}")
+            }
+        };
+
+        let mut env_manager = EnvManager::new();
+        env_manager.load_env(&current_dir).await?;
+        
+        // Extract tasks from environment manager 
+        let internal_tasks = env_manager.get_tasks().clone();
+        
+        use cuenv_task::{TaskServerProvider, UnifiedTaskManager};
+        let mut unified_manager = UnifiedTaskManager::new(socket_dir.path().to_path_buf(), internal_tasks);
+        
+        println!("Starting cuenv task server provider at: {}", socket_path.display());
+        println!("Press Ctrl+C to stop the server");
+        
+        // Start the provider (this will block)
+        match unified_manager.start_as_provider(socket_path).await {
+            Ok(()) => println!("Task server provider started successfully"),
+            Err(e) => {
+                eprintln!("Failed to start task server provider: {}", e);
+                return Err(e);
+            }
+        }
+    }
+
+    if export_json {
+        // Export cuenv tasks as JSON
+        let current_dir = match DirectoryManager::get_current_directory() {
+            Ok(d) => d,
+            Err(e) => {
+                eyre::bail!("Failed to get current directory: {e}")
+            }
+        };
+
+        let mut env_manager = EnvManager::new();
+        env_manager.load_env(&current_dir).await?;
+        
+        // Extract tasks from environment manager 
+        let internal_tasks = env_manager.get_tasks().clone();
+        
+        use cuenv_task::UnifiedTaskManager;
+        let unified_manager = UnifiedTaskManager::new(socket_dir.path().to_path_buf(), internal_tasks);
+        
+        match unified_manager.export_tasks_to_json() {
+            Ok(json) => println!("{}", json),
+            Err(e) => {
+                eprintln!("Failed to export tasks as JSON: {}", e);
+                return Err(e);
+            }
+        }
+    }
+
+    // If no action specified, show usage
+    if !serve && !export_json && server.is_none() && discovery_dir.is_none() && run_task.is_none() && !list_tasks {
+        println!("Task Server Protocol (TSP) - Dual-Modality Support");
+        println!();
+        println!("Consumer Mode (use external task servers):");
         println!("  cuenv internal task-protocol --server <executable> --list-tasks");
         println!("  cuenv internal task-protocol --discovery-dir <path> --list-tasks");
         println!("  cuenv internal task-protocol --server <executable> --run-task <task>");
+        println!();
+        println!("Provider Mode (expose cuenv tasks to external tools):");
+        println!("  cuenv internal task-protocol --serve [--socket <path>]");
+        println!("  cuenv internal task-protocol --export-json");
+        println!();
+        println!("Hybrid Mode (both consume and provide):");
+        println!("  cuenv internal task-protocol --serve --discovery-dir <path>");
     }
 
     // Shutdown servers
@@ -1448,8 +1532,20 @@ tasks: env.#Tasks & {
                     discovery_dir,
                     run_task,
                     list_tasks,
+                    serve,
+                    socket,
+                    export_json,
                 } => {
-                    handle_task_protocol(server, discovery_dir, run_task, *list_tasks).await?;
+                    handle_task_protocol(
+                        server,
+                        discovery_dir,
+                        run_task,
+                        *list_tasks,
+                        *serve,
+                        socket,
+                        *export_json,
+                    )
+                    .await?;
                 }
             }
         }
