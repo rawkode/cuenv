@@ -36,9 +36,7 @@ jobs:
             ${{ runner.os }}-cargo-
       # Nix setup with all caching layers
       - name: nix-install
-        uses: cachix/install-nix-action@v27
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+        uses: DeterminateSystems/nix-installer-action@main
       - name: magic-nix-cache
         uses: DeterminateSystems/magic-nix-cache-action@main
       - name: cache-nix-store
@@ -103,9 +101,7 @@ jobs:
             ${{ runner.os }}-cargo-
       # Nix setup with all caching layers
       - name: nix-install
-        uses: cachix/install-nix-action@v27
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+        uses: DeterminateSystems/nix-installer-action@main
       - name: magic-nix-cache
         uses: DeterminateSystems/magic-nix-cache-action@main
       - name: cache-nix-store
@@ -150,9 +146,7 @@ jobs:
             ubuntu-latest-cargo-
       # Nix setup with all caching layers
       - name: nix-install
-        uses: cachix/install-nix-action@v27
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+        uses: DeterminateSystems/nix-installer-action@main
       - name: magic-nix-cache
         uses: DeterminateSystems/magic-nix-cache-action@main
       - name: cache-nix-store

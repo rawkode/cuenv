@@ -16,9 +16,7 @@ jobs:
         with:
           fetch-depth: 1
       - name: Install Nix
-        uses: cachix/install-nix-action@v27
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+        uses: DeterminateSystems/nix-installer-action@main
       - name: Setup Nix cache
         uses: cachix/cachix-action@v15
         with:
