@@ -237,8 +237,8 @@ impl TaskExecutor {
 
             // Launch all tasks in this level concurrently
             for task_name in level {
-                let task_config = match plan.tasks.get(task_name) {
-                    Some(config) => config.clone(),
+                let task_definition = match plan.tasks.get(task_name) {
+                    Some(definition) => definition.clone(),
                     None => {
                         return Err(Error::configuration(format!(
                             "Task '{task_name}' not found in execution plan"
@@ -295,7 +295,7 @@ impl TaskExecutor {
 
                             // Send task configuration info as progress messages
                             // Show capabilities for this task's command
-                            if let TaskExecutionMode::Command { command } = &task_config.execution_mode {
+                            if let TaskExecutionMode::Command { command } = &task_definition.execution_mode {
                                 let capabilities = env_manager_clone.get_command_capabilities(command);
                                 if !capabilities.is_empty() {
                                     // event_bus
@@ -310,7 +310,7 @@ impl TaskExecutor {
                                 }
                             }
 
-                            if !task_config.shell.is_empty() {
+                            if !task_definition.shell.is_empty() {
                                 // event_bus
                                 //     .publish(TaskEvent::Progress {
                                 //         task_name: task_name_owned.clone(),
@@ -319,7 +319,7 @@ impl TaskExecutor {
                                 //     .await;
                             }
 
-                            if task_config.timeout.as_millis() > 0 {
+                            if task_definition.timeout.as_millis() > 0 {
                                 // event_bus
                                 //     .publish(TaskEvent::Progress {
                                 //         task_name: task_name_owned.clone(),
@@ -338,7 +338,7 @@ impl TaskExecutor {
                                 //     .await;
                             }
 
-                            if !task_config.working_directory.as_os_str().is_empty() {
+                            if !task_definition.working_directory.as_os_str().is_empty() {
                                 // event_bus
                                 //     .publish(TaskEvent::Progress {
                                 //         task_name: task_name_owned.clone(),
@@ -347,7 +347,7 @@ impl TaskExecutor {
                                 //     .await;
                             }
 
-                            if let Some(security) = &task_config.security {
+                            if let Some(security) = &task_definition.security {
                                 let mut restrictions = Vec::new();
                                 if security.restrict_disk {
                                     restrictions.push("disk");
@@ -379,7 +379,7 @@ impl TaskExecutor {
                         match Self::execute_single_task_with_cache(
                             &ctx,
                             &task_name_owned,
-                            &task_config,
+                            &task_definition,
                             &task_args,
                         )
                         .await
@@ -583,6 +583,9 @@ impl TaskExecutor {
                 &mut stack,
             )?;
         }
+
+        // Build task definitions using TaskBuilder
+        let task_definitions = self.task_builder.build_tasks(all_tasks)?;
 
         // Topological sort to determine execution order
         let levels = self.topological_sort(&task_dependencies)?;
