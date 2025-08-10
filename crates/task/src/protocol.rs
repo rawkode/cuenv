@@ -123,9 +123,11 @@ impl TaskServerClient {
     pub async fn launch_and_connect(&mut self, executable: &str) -> Result<()> {
         // Remove socket if it exists
         if self.socket_path.exists() {
-            std::fs::remove_file(&self.socket_path).map_err(|e| {
-                Error::file_system(self.socket_path.clone(), "remove existing socket", e)
-            })?;
+            tokio::fs::remove_file(&self.socket_path)
+                .await
+                .map_err(|e| {
+                    Error::file_system(self.socket_path.clone(), "remove existing socket", e)
+                })?;
         }
 
         // Launch server process
@@ -294,9 +296,11 @@ impl TaskServerClient {
 
         // Remove socket file
         if self.socket_path.exists() {
-            std::fs::remove_file(&self.socket_path).map_err(|e| {
-                Error::file_system(self.socket_path.clone(), "remove socket file", e)
-            })?;
+            tokio::fs::remove_file(&self.socket_path)
+                .await
+                .map_err(|e| {
+                    Error::file_system(self.socket_path.clone(), "remove socket file", e)
+                })?;
         }
 
         Ok(())
@@ -519,7 +523,7 @@ impl TaskServerProvider {
         } else if let Some(socket_path) = &self.socket_path {
             // Remove socket if it exists
             if socket_path.exists() {
-                std::fs::remove_file(socket_path).map_err(|e| {
+                tokio::fs::remove_file(socket_path).await.map_err(|e| {
                     Error::file_system(socket_path.clone(), "remove existing socket", e)
                 })?;
             }
@@ -1061,7 +1065,7 @@ impl TaskServerProvider {
                 arr.iter()
                     .filter_map(|v| v.as_str())
                     .map(|s| s.to_string())
-                    .collect()
+                    .collect::<Vec<String>>()
             });
 
         match Self::parse_env_readonly(directory, environment, capabilities).await {
@@ -1110,7 +1114,7 @@ impl TaskServerProvider {
                 arr.iter()
                     .filter_map(|v| v.as_str())
                     .map(|s| s.to_string())
-                    .collect()
+                    .collect::<Vec<String>>()
             });
 
         match Self::parse_env_readonly(directory, environment, capabilities).await {
@@ -1163,7 +1167,7 @@ impl TaskServerProvider {
                 arr.iter()
                     .filter_map(|v| v.as_str())
                     .map(|s| s.to_string())
-                    .collect()
+                    .collect::<Vec<String>>()
             });
 
         match Self::parse_env_readonly(directory, environment, capabilities).await {
@@ -1176,7 +1180,7 @@ impl TaskServerProvider {
                             "name": name,
                             "description": config.description.unwrap_or_default(),
                             "dependencies": config.dependencies.unwrap_or_default(),
-                            "command": config.command.map(|c| c.join(" ")).unwrap_or_default()
+                            "command": config.command.unwrap_or_default()
                         })
                     })
                     .collect();
@@ -1227,7 +1231,7 @@ impl TaskServerProvider {
                 arr.iter()
                     .filter_map(|v| v.as_str())
                     .map(|s| s.to_string())
-                    .collect()
+                    .collect::<Vec<String>>()
             });
 
         match Self::parse_env_readonly(directory, environment, capabilities).await {
@@ -1237,7 +1241,7 @@ impl TaskServerProvider {
                         "name": task_name,
                         "description": config.description.clone().unwrap_or_default(),
                         "dependencies": config.dependencies.clone().unwrap_or_default(),
-                        "command": config.command.clone().map(|c| c.join(" ")).unwrap_or_default()
+                        "command": config.command.clone().unwrap_or_default()
                     });
 
                     serde_json::json!({
@@ -1294,7 +1298,7 @@ impl TaskServerProvider {
                 arr.iter()
                     .filter_map(|v| v.as_str())
                     .map(|s| s.to_string())
-                    .collect()
+                    .collect::<Vec<String>>()
             })
             .unwrap_or_default();
         let environment = arguments
@@ -1308,7 +1312,7 @@ impl TaskServerProvider {
                 arr.iter()
                     .filter_map(|v| v.as_str())
                     .map(|s| s.to_string())
-                    .collect()
+                    .collect::<Vec<String>>()
             });
 
         let path = match Self::validate_directory(directory) {
@@ -1326,8 +1330,8 @@ impl TaskServerProvider {
         };
 
         // Load environment and create task executor
+        use crate::TaskExecutor;
         use cuenv_env::EnvManager;
-        use cuenv_task::TaskExecutor;
 
         let mut env_manager = EnvManager::new();
         match env_manager
@@ -1468,10 +1472,12 @@ impl TaskServerProvider {
         }
 
         // Remove socket file
-        if self.socket_path.exists() {
-            std::fs::remove_file(&self.socket_path).map_err(|e| {
-                Error::file_system(self.socket_path.clone(), "remove socket file", e)
-            })?;
+        if let Some(socket_path) = &self.socket_path {
+            if socket_path.exists() {
+                tokio::fs::remove_file(socket_path).await.map_err(|e| {
+                    Error::file_system(socket_path.clone(), "remove socket file", e)
+                })?;
+            }
         }
 
         Ok(())
@@ -1480,9 +1486,11 @@ impl TaskServerProvider {
 
 impl Drop for TaskServerProvider {
     fn drop(&mut self) {
-        // Best effort cleanup
-        if self.socket_path.exists() {
-            let _ = std::fs::remove_file(&self.socket_path);
+        // Best effort cleanup - synchronous only in Drop
+        if let Some(socket_path) = &self.socket_path {
+            if socket_path.exists() {
+                let _ = std::fs::remove_file(socket_path);
+            }
         }
     }
 }
@@ -1626,7 +1634,7 @@ mod tests {
         );
 
         let provider = TaskServerProvider::new(socket_path.clone(), tasks);
-        assert_eq!(provider.socket_path, socket_path);
+        assert_eq!(provider.socket_path, Some(socket_path));
         assert!(provider.listener.is_none());
     }
 
