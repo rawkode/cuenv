@@ -712,6 +712,9 @@ impl TaskDefinition {
 
     /// Get the names of all dependencies
     pub fn dependency_names(&self) -> Vec<String> {
-        self.dependencies.iter().map(|dep| dep.name.clone()).collect()
+        self.dependencies
+            .iter()
+            .map(|dep| dep.name.clone())
+            .collect()
     }
 }

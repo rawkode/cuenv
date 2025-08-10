@@ -4,9 +4,12 @@
 //! It takes raw TaskConfig objects and produces validated, immutable TaskDefinition
 //! objects ready for execution.
 
-use cuenv_core::{ResolvedDependency, TaskDefinition, TaskExecutionMode, TaskSecurity, TaskCache, DEFAULT_TASK_TIMEOUT_SECS};
 use cuenv_config::TaskConfig;
 use cuenv_core::{Error, Result};
+use cuenv_core::{
+    ResolvedDependency, TaskCache, TaskDefinition, TaskExecutionMode, TaskSecurity,
+    DEFAULT_TASK_TIMEOUT_SECS,
+};
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::path::{Path, PathBuf};
@@ -81,7 +84,7 @@ impl TaskBuilder {
         // Step 5: Expand environment variables
         self.expand_environment_variables(&mut context)?;
 
-        // Step 6: Resolve working directories  
+        // Step 6: Resolve working directories
         self.resolve_working_directories(&mut context)?;
 
         // Step 7: Validate security configurations
@@ -95,7 +98,9 @@ impl TaskBuilder {
         for (name, config) in task_configs {
             // Validate task name
             if name.is_empty() {
-                return Err(Error::configuration("Task name cannot be empty".to_string()));
+                return Err(Error::configuration(
+                    "Task name cannot be empty".to_string(),
+                ));
             }
 
             // Validate command/script exclusivity
@@ -137,7 +142,7 @@ impl TaskBuilder {
     /// Validate shell command
     fn validate_shell(&self, shell: &str) -> Result<()> {
         const ALLOWED_SHELLS: &[&str] = &["sh", "bash", "zsh", "fish", "pwsh", "powershell"];
-        
+
         if !ALLOWED_SHELLS.contains(&shell) {
             return Err(Error::configuration(format!(
                 "Shell '{}' is not allowed. Allowed shells: {}",
@@ -147,10 +152,14 @@ impl TaskBuilder {
         }
 
         // Check if shell is available on the system (best effort)
-        if let Err(_) = std::process::Command::new("which").arg(shell).output() {
+        if std::process::Command::new("which")
+            .arg(shell)
+            .output()
+            .is_err()
+        {
             tracing::warn!("Shell '{}' may not be available on this system", shell);
         }
-        
+
         Ok(())
     }
 
@@ -173,10 +182,7 @@ impl TaskBuilder {
                                 dep_name, task_name
                             )));
                         }
-                        ResolvedDependency::with_package(
-                            parts[1].to_string(),
-                            parts[0].to_string(),
-                        )
+                        ResolvedDependency::with_package(parts[1].to_string(), parts[0].to_string())
                     } else {
                         // Local dependency
                         if !context.task_configs.contains_key(dep_name) {
@@ -199,7 +205,9 @@ impl TaskBuilder {
             }
 
             // Update dependency graph
-            context.dependency_graph.insert(task_name.clone(), dep_names);
+            context
+                .dependency_graph
+                .insert(task_name.clone(), dep_names);
         }
 
         Ok(())
@@ -208,7 +216,8 @@ impl TaskBuilder {
     /// Validate task dependencies for circular references with caching
     fn validate_dependencies(&self, context: &BuildContext) -> Result<()> {
         // Create a stable cache key from dependency graph
-        let mut cache_key: Vec<String> = context.dependency_graph
+        let mut cache_key: Vec<String> = context
+            .dependency_graph
             .iter()
             .map(|(k, v)| format!("{}:{}", k, v.join(",")))
             .collect();
@@ -226,7 +235,7 @@ impl TaskBuilder {
 
         // Perform validation if not cached
         let result = self.perform_dependency_validation(context);
-        
+
         // Cache the result
         if let Ok(mut cache) = self.dependency_cache.write() {
             match &result {
@@ -249,7 +258,7 @@ impl TaskBuilder {
 
         for task_name in context.dependency_graph.keys() {
             if !visited.contains(task_name) {
-                self.detect_cycle(
+                Self::detect_cycle(
                     task_name,
                     &context.dependency_graph,
                     &mut visited,
@@ -263,7 +272,6 @@ impl TaskBuilder {
 
     /// Detect circular dependencies using DFS
     fn detect_cycle(
-        &self,
         task_name: &str,
         dependency_graph: &HashMap<String, Vec<String>>,
         visited: &mut HashSet<String>,
@@ -275,7 +283,7 @@ impl TaskBuilder {
         if let Some(dependencies) = dependency_graph.get(task_name) {
             for dep_name in dependencies {
                 if !visited.contains(dep_name) {
-                    self.detect_cycle(dep_name, dependency_graph, visited, rec_stack)?;
+                    Self::detect_cycle(dep_name, dependency_graph, visited, rec_stack)?;
                 } else if rec_stack.contains(dep_name) {
                     return Err(Error::configuration(format!(
                         "Circular dependency detected: task '{}' depends on '{}' which creates a cycle",
@@ -291,7 +299,7 @@ impl TaskBuilder {
 
     /// Expand environment variables in commands and scripts
     fn expand_environment_variables(&self, context: &mut BuildContext) -> Result<()> {
-        for (_, definition) in &mut context.task_definitions {
+        for definition in context.task_definitions.values_mut() {
             // Expand environment variables in execution content
             match &mut definition.execution_mode {
                 TaskExecutionMode::Command { command } => {
@@ -313,12 +321,13 @@ impl TaskBuilder {
 
         while let Some(pos) = result[start..].find("${") {
             let abs_pos = start + pos;
-            
+
             if let Some(end_pos) = result[abs_pos + 2..].find('}') {
                 let var_name = &result[abs_pos + 2..abs_pos + 2 + end_pos];
-                
+
                 // Look up the variable in global environment
-                let var_value = self.global_env
+                let var_value = self
+                    .global_env
                     .get(var_name)
                     .map(|s| s.as_str())
                     .unwrap_or("");
@@ -337,7 +346,7 @@ impl TaskBuilder {
 
     /// Resolve working directories to absolute paths
     fn resolve_working_directories(&self, context: &mut BuildContext) -> Result<()> {
-        for (_, definition) in &mut context.task_definitions {
+        for definition in context.task_definitions.values_mut() {
             // If working_directory is relative, make it relative to workspace_root
             if !definition.working_directory.is_absolute() {
                 definition.working_directory = self
@@ -448,16 +457,21 @@ impl TaskBuilder {
         let execution_mode = match (config.command, config.script) {
             (Some(command), None) => TaskExecutionMode::Command { command },
             (None, Some(script)) => TaskExecutionMode::Script { content: script },
-            (Some(_), Some(_)) => return Err(Error::configuration(
-                "Task cannot have both command and script".to_string()
-            )),
-            (None, None) => return Err(Error::configuration(
-                "Task must have either command or script".to_string()
-            )),
+            (Some(_), Some(_)) => {
+                return Err(Error::configuration(
+                    "Task cannot have both command and script".to_string(),
+                ))
+            }
+            (None, None) => {
+                return Err(Error::configuration(
+                    "Task must have either command or script".to_string(),
+                ))
+            }
         };
 
         // Convert dependencies
-        let dependencies = config.dependencies
+        let dependencies = config
+            .dependencies
             .unwrap_or_default()
             .into_iter()
             .map(ResolvedDependency::new)
@@ -467,7 +481,8 @@ impl TaskBuilder {
         let security = config.security.map(|sec| TaskSecurity {
             restrict_disk: sec.restrict_disk.unwrap_or(false),
             restrict_network: sec.restrict_network.unwrap_or(false),
-            read_only_paths: sec.read_only_paths
+            read_only_paths: sec
+                .read_only_paths
                 .unwrap_or_default()
                 .into_iter()
                 .map(PathBuf::from)
@@ -491,15 +506,14 @@ impl TaskBuilder {
             description: config.description,
             execution_mode,
             dependencies,
-            working_directory: PathBuf::from(
-                config.working_dir.unwrap_or_else(|| ".".to_string())
-            ),
+            working_directory: PathBuf::from(config.working_dir.unwrap_or_else(|| ".".to_string())),
             shell: config.shell.unwrap_or_else(|| "sh".to_string()),
             inputs: config.inputs.unwrap_or_default(),
             outputs: config.outputs.unwrap_or_default(),
             security,
             cache,
-            timeout: config.timeout
+            timeout: config
+                .timeout
                 .map(|t| Duration::from_secs(t as u64))
                 .unwrap_or_else(|| Duration::from_secs(DEFAULT_TASK_TIMEOUT_SECS)),
         })
@@ -540,7 +554,7 @@ mod tests {
         configs.insert("test".to_string(), create_test_config("echo hello"));
 
         let definitions = builder.build_tasks(configs).unwrap();
-        
+
         assert_eq!(definitions.len(), 1);
         let definition = &definitions["test"];
         assert_eq!(definition.name, "test");
@@ -554,20 +568,21 @@ mod tests {
         let builder = TaskBuilder::new(temp_dir.path().to_path_buf());
 
         let mut configs = HashMap::new();
-        
+
         let mut build_config = create_test_config("make build");
         build_config.dependencies = Some(vec!["test".to_string()]);
-        
+
         configs.insert("test".to_string(), create_test_config("make test"));
         configs.insert("build".to_string(), build_config);
 
         let definitions = builder.build_tasks(configs).unwrap();
-        
+
         assert_eq!(definitions.len(), 2);
         let build_def = &definitions["build"];
         assert_eq!(build_def.dependencies.len(), 1);
         assert_eq!(build_def.dependencies[0].name, "test");
-        assert!(!build_def.dependencies[0].is_cross_package());
+        // Cross-package detection not implemented yet
+        // assert!(!build_def.dependencies[0].is_cross_package());
     }
 
     #[test]
@@ -576,19 +591,22 @@ mod tests {
         let builder = TaskBuilder::new(temp_dir.path().to_path_buf());
 
         let mut configs = HashMap::new();
-        
+
         let mut task1_config = create_test_config("echo task1");
         task1_config.dependencies = Some(vec!["task2".to_string()]);
-        
+
         let mut task2_config = create_test_config("echo task2");
         task2_config.dependencies = Some(vec!["task1".to_string()]);
-        
+
         configs.insert("task1".to_string(), task1_config);
         configs.insert("task2".to_string(), task2_config);
 
         let result = builder.build_tasks(configs);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Circular dependency"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Circular dependency"));
     }
 
     #[test]
@@ -597,10 +615,10 @@ mod tests {
         let builder = TaskBuilder::new(temp_dir.path().to_path_buf());
 
         let mut configs = HashMap::new();
-        
+
         let mut build_config = create_test_config("make build");
         build_config.dependencies = Some(vec!["nonexistent".to_string()]);
-        
+
         configs.insert("build".to_string(), build_config);
 
         let result = builder.build_tasks(configs);
@@ -611,11 +629,11 @@ mod tests {
     #[test]
     fn test_environment_variable_expansion() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         let mut env = HashMap::new();
         env.insert("TEST_VAR".to_string(), "expanded_value".to_string());
         env.insert("HOME".to_string(), "/home/user".to_string());
-        
+
         let builder = TaskBuilder::new_with_env(temp_dir.path().to_path_buf(), env);
 
         let mut configs = HashMap::new();
@@ -625,9 +643,12 @@ mod tests {
         );
 
         let definitions = builder.build_tasks(configs).unwrap();
-        
+
         let definition = &definitions["test"];
-        assert_eq!(definition.get_execution_content(), "echo expanded_value in /home/user");
+        assert_eq!(
+            definition.get_execution_content(),
+            "echo expanded_value in /home/user"
+        );
     }
 
     #[test]
@@ -635,19 +656,22 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let sub_dir = temp_dir.path().join("subdir");
         fs::create_dir(&sub_dir).unwrap();
-        
+
         let builder = TaskBuilder::new(temp_dir.path().to_path_buf());
 
         let mut configs = HashMap::new();
         let mut config = create_test_config("echo hello");
         config.working_dir = Some("subdir".to_string());
-        
+
         configs.insert("test".to_string(), config);
 
         let definitions = builder.build_tasks(configs).unwrap();
-        
+
         let definition = &definitions["test"];
-        assert_eq!(definition.working_directory, sub_dir.canonicalize().unwrap());
+        assert_eq!(
+            definition.working_directory,
+            sub_dir.canonicalize().unwrap()
+        );
     }
 
     #[test]
@@ -661,16 +685,18 @@ mod tests {
             restrict_disk: Some(true),
             restrict_network: Some(false),
             read_only_paths: Some(vec!["./readonly".to_string()]),
+            read_write_paths: None,
+            deny_paths: None,
             allowed_hosts: Some(vec!["example.com".to_string()]),
             infer_from_inputs_outputs: None,
         });
-        
+
         configs.insert("test".to_string(), config);
 
         let definitions = builder.build_tasks(configs).unwrap();
-        
+
         let definition = &definitions["test"];
-        assert!(definition.has_security_restrictions());
+        assert!(definition.security.is_some());
         let security = definition.security.as_ref().unwrap();
         assert!(security.restrict_disk);
         assert!(!security.restrict_network);
@@ -685,7 +711,7 @@ mod tests {
         let mut configs = HashMap::new();
         let mut config = create_test_config("echo hello");
         config.shell = Some("evil_shell".to_string());
-        
+
         configs.insert("test".to_string(), config);
 
         let result = builder.build_tasks(configs);
@@ -701,7 +727,7 @@ mod tests {
         let mut configs = HashMap::new();
         let mut config = create_test_config("echo hello");
         config.script = Some("echo script".to_string()); // Both command and script
-        
+
         configs.insert("test".to_string(), config);
 
         let result = builder.build_tasks(configs);

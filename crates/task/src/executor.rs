@@ -1,10 +1,10 @@
 use crate::{MonorepoTaskRegistry, TaskBuilder};
-use cuenv_core::{TaskDefinition, TaskExecutionMode};
 use ::tracing::Instrument;
 use cuenv_cache::config::CacheConfiguration;
 use cuenv_cache::{concurrent::action::ActionCache, CacheManager};
 use cuenv_config::TaskConfig;
 use cuenv_core::{Error, Result};
+use cuenv_core::{TaskDefinition, TaskExecutionMode};
 use cuenv_env::manager::EnvManager;
 use cuenv_utils::cleanup::handler::ProcessGuard;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -277,12 +277,14 @@ impl TaskExecutor {
                         // Publish task started event
                         {
                             let event_bus = cuenv_core::events::global_event_bus();
-                            let _ = event_bus.publish(cuenv_core::SystemEvent::Task(
-                                cuenv_core::TaskEvent::TaskStarted {
-                                    task_name: task_name_owned.clone(),
-                                    task_id: task_name_owned.clone(),
-                                },
-                            ));
+                            let _ = event_bus
+                                .publish(cuenv_core::SystemEvent::Task(
+                                    cuenv_core::TaskEvent::TaskStarted {
+                                        task_name: task_name_owned.clone(),
+                                        task_id: task_name_owned.clone(),
+                                    },
+                                ))
+                                .await;
                         }
 
                         // Disabled: Detailed task configuration events (not essential for now)
@@ -296,8 +298,11 @@ impl TaskExecutor {
 
                             // Send task configuration info as progress messages
                             // Show capabilities for this task's command
-                            if let TaskExecutionMode::Command { command } = &task_definition.execution_mode {
-                                let capabilities = env_manager_clone.get_command_capabilities(command);
+                            if let TaskExecutionMode::Command { command } =
+                                &task_definition.execution_mode
+                            {
+                                let capabilities =
+                                    env_manager_clone.get_command_capabilities(command);
                                 if !capabilities.is_empty() {
                                     // event_bus
                                     //     .publish(TaskEvent::Progress {
@@ -400,13 +405,18 @@ impl TaskExecutor {
                                     {
                                         let event_bus = cuenv_core::events::global_event_bus();
                                         let _duration_ms = start_time.elapsed().as_millis() as u64;
-                                        let _ = event_bus.publish(cuenv_core::SystemEvent::Task(
-                                            cuenv_core::TaskEvent::TaskFailed {
-                                                task_name: task_name_owned.clone(),
-                                                task_id: task_name_owned.clone(),
-                                                error: format!("Task exited with code {}", status),
-                                            },
-                                        ));
+                                        let _ = event_bus
+                                            .publish(cuenv_core::SystemEvent::Task(
+                                                cuenv_core::TaskEvent::TaskFailed {
+                                                    task_name: task_name_owned.clone(),
+                                                    task_id: task_name_owned.clone(),
+                                                    error: format!(
+                                                        "Task exited with code {}",
+                                                        status
+                                                    ),
+                                                },
+                                            ))
+                                            .await;
                                     }
 
                                     // TODO: Add tracing when moved to workspace
@@ -421,13 +431,15 @@ impl TaskExecutor {
                                     {
                                         let event_bus = cuenv_core::events::global_event_bus();
                                         let _duration_ms = start_time.elapsed().as_millis() as u64;
-                                        let _ = event_bus.publish(cuenv_core::SystemEvent::Task(
-                                            cuenv_core::TaskEvent::TaskCompleted {
-                                                task_name: task_name_owned.clone(),
-                                                task_id: task_name_owned.clone(),
-                                                duration_ms: _duration_ms,
-                                            },
-                                        ));
+                                        let _ = event_bus
+                                            .publish(cuenv_core::SystemEvent::Task(
+                                                cuenv_core::TaskEvent::TaskCompleted {
+                                                    task_name: task_name_owned.clone(),
+                                                    task_id: task_name_owned.clone(),
+                                                    duration_ms: _duration_ms,
+                                                },
+                                            ))
+                                            .await;
                                     }
 
                                     // TODO: Add tracing when moved to workspace
@@ -453,13 +465,15 @@ impl TaskExecutor {
                                 {
                                     let event_bus = cuenv_core::events::global_event_bus();
                                     let _duration_ms = start_time.elapsed().as_millis() as u64;
-                                    let _ = event_bus.publish(cuenv_core::SystemEvent::Task(
-                                        cuenv_core::TaskEvent::TaskFailed {
-                                            task_name: task_name_owned.clone(),
-                                            task_id: task_name_owned.clone(),
-                                            error: e.to_string(),
-                                        },
-                                    ));
+                                    let _ = event_bus
+                                        .publish(cuenv_core::SystemEvent::Task(
+                                            cuenv_core::TaskEvent::TaskFailed {
+                                                task_name: task_name_owned.clone(),
+                                                task_id: task_name_owned.clone(),
+                                                error: e.to_string(),
+                                            },
+                                        ))
+                                        .await;
                                 }
 
                                 tracing::error!(
@@ -749,7 +763,13 @@ impl TaskExecutor {
                 )));
             }
 
-            Self::collect_dependencies_from_definitions(dep_name, all_tasks, task_dependencies, visited, stack)?;
+            Self::collect_dependencies_from_definitions(
+                dep_name,
+                all_tasks,
+                task_dependencies,
+                visited,
+                stack,
+            )?;
         }
 
         task_dependencies.insert(task_name.to_owned(), dependencies);
@@ -868,11 +888,7 @@ impl TaskExecutor {
         // Check if caching is enabled for this task using the new configuration system
         // TODO: Add CacheConfigResolver when moved to workspace
         let cache_enabled = false;
-        let _unused = (
-            &ctx.cache_config.global,
-            &task_definition.cache,
-            task_name,
-        );
+        let _unused = (&ctx.cache_config.global, &task_definition.cache, task_name);
 
         if !cache_enabled {
             // Execute without caching
@@ -1028,11 +1044,9 @@ impl TaskExecutor {
         // Apply security restrictions if configured
         if let Some(security) = &task_definition.security {
             use cuenv_security::AccessRestrictions;
-            let mut restrictions = AccessRestrictions::new(
-                security.restrict_disk,
-                security.restrict_network,
-            );
-            
+            let mut restrictions =
+                AccessRestrictions::new(security.restrict_disk, security.restrict_network);
+
             // Add allowed paths
             for path in &security.read_only_paths {
                 restrictions.add_read_only_path(path);

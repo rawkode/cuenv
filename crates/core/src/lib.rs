@@ -30,11 +30,10 @@ pub use self::{
     constants::*,
     errors::{Error, Result, ResultExt},
     events::{
-        CacheEvent, DependencyEvent, EnhancedEvent, EnvEvent, EventBus, EventEmitter, 
-        EventSubscriber, PipelineEvent, SystemEvent, TaskEvent,
-        global_event_bus, global_event_emitter, initialize_global_events,
-        emit_global_event, emit_global_event_with_metadata, publish_global_event, 
-        register_global_subscriber,
+        emit_global_event, emit_global_event_with_metadata, global_event_bus, global_event_emitter,
+        initialize_global_events, publish_global_event, register_global_subscriber, CacheEvent,
+        DependencyEvent, EnhancedEvent, EnvEvent, EventBus, EventEmitter, EventSubscriber,
+        PipelineEvent, SystemEvent, TaskEvent,
     },
     types::*,
 };

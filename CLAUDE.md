@@ -19,6 +19,35 @@ This applies to:
 - GitHub releases
 - Cargo.toml version field
 
+## Critical Development Rules
+
+### No Warnings Policy
+
+**IMPORTANT**: This project has a strict no-warnings policy. All clippy warnings are treated as errors and will cause the build to fail.
+
+**Why**: Warnings often indicate potential bugs, performance issues, or code that doesn't follow Rust best practices. By treating warnings as errors, we ensure:
+
+- Code quality remains consistently high
+- Technical debt doesn't accumulate
+- CI/CD pipelines remain stable
+- The codebase follows idiomatic Rust patterns
+
+Always run `nix develop -c cargo clippy` before committing to catch any warnings.
+
+### Nix-Only Dependencies
+
+**IMPORTANT**: Only use software and tools that are provided by the Nix flake. Do not rely on system-installed tools.
+
+**Why**: The Nix flake provides a reproducible development environment that ensures:
+
+- All developers and CI systems use exactly the same tool versions
+- Builds are reproducible across different machines and operating systems
+- Dependencies are explicitly declared and version-controlled
+- No "works on my machine" issues
+- The development environment is self-contained and doesn't pollute the system
+
+Always use `nix develop -c <command>` to run commands, or enter the development shell with `nix develop` first.
+
 ## Development Commands
 
 All commands should be run within the Nix development shell:

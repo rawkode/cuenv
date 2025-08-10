@@ -1,9 +1,11 @@
 //! Console event subscriber for terminal output
 
-use crate::events::{EnhancedEvent, EventSubscriber, SystemEvent, TaskEvent, PipelineEvent, CacheEvent};
+use crate::events::{
+    CacheEvent, EnhancedEvent, EventSubscriber, PipelineEvent, SystemEvent, TaskEvent,
+};
 use async_trait::async_trait;
 use std::io::{self, IsTerminal};
-use tracing::{debug};
+use tracing::debug;
 
 /// Console subscriber for terminal output
 pub struct ConsoleSubscriber {
@@ -69,7 +71,10 @@ impl ConsoleSubscriber {
             SystemEvent::Pipeline(pipeline_event) => self.format_pipeline_event(pipeline_event),
             SystemEvent::Cache(cache_event) => self.format_cache_event(cache_event),
             SystemEvent::Env(env_event) => {
-                if matches!(self.verbosity, ConsoleVerbosity::Verbose | ConsoleVerbosity::Debug) {
+                if matches!(
+                    self.verbosity,
+                    ConsoleVerbosity::Verbose | ConsoleVerbosity::Debug
+                ) {
                     Some(format!("🌍 {}", self.format_env_event(env_event)))
                 } else {
                     None
@@ -107,11 +112,10 @@ impl ConsoleSubscriber {
             )),
             TaskEvent::TaskFailed {
                 task_name, error, ..
-            } => Some(self.colorize(
-                &format!("❌ Task '{}' failed: {}", task_name, error),
-                "red",
-            )),
-            TaskEvent::TaskProgress { task_name, message, .. } => {
+            } => Some(self.colorize(&format!("❌ Task '{}' failed: {}", task_name, error), "red")),
+            TaskEvent::TaskProgress {
+                task_name, message, ..
+            } => {
                 if matches!(
                     self.verbosity,
                     ConsoleVerbosity::Verbose | ConsoleVerbosity::Debug
@@ -136,16 +140,18 @@ impl ConsoleSubscriber {
                     None
                 }
             }
-            TaskEvent::TaskOutput { task_name, output, .. } => {
+            TaskEvent::TaskOutput {
+                task_name, output, ..
+            } => {
                 if matches!(self.verbosity, ConsoleVerbosity::Debug) {
                     Some(format!("📤 {}: {}", task_name, output))
                 } else {
                     None
                 }
             }
-            TaskEvent::TaskError { task_name, error, .. } => {
-                Some(self.colorize(&format!("🚨 {}: {}", task_name, error), "red"))
-            }
+            TaskEvent::TaskError {
+                task_name, error, ..
+            } => Some(self.colorize(&format!("🚨 {}: {}", task_name, error), "red")),
         }
     }
 
@@ -195,7 +201,10 @@ impl ConsoleSubscriber {
                     ConsoleVerbosity::Verbose | ConsoleVerbosity::Debug
                 ) {
                     Some(self.colorize(
-                        &format!("📊 Level {} completed: {} tasks successful", level, successful_tasks),
+                        &format!(
+                            "📊 Level {} completed: {} tasks successful",
+                            level, successful_tasks
+                        ),
                         "green",
                     ))
                 } else {
@@ -231,17 +240,12 @@ impl ConsoleSubscriber {
             CacheEvent::CacheMiss { key } => {
                 Some(self.colorize(&format!("💿 Cache miss: {}", key), "yellow"))
             }
-            CacheEvent::CacheWrite { key, size_bytes } => {
-                Some(self.colorize(
-                    &format!("💾 Cache write: {} ({} bytes)", key, size_bytes),
-                    "cyan",
-                ))
-            }
+            CacheEvent::CacheWrite { key, size_bytes } => Some(self.colorize(
+                &format!("💾 Cache write: {} ({} bytes)", key, size_bytes),
+                "cyan",
+            )),
             CacheEvent::CacheEvict { key, reason } => {
-                Some(self.colorize(
-                    &format!("🗑 Cache evict: {} ({})", key, reason),
-                    "red",
-                ))
+                Some(self.colorize(&format!("🗑 Cache evict: {} ({})", key, reason), "red"))
             }
         }
     }
@@ -341,20 +345,26 @@ impl Default for ConsoleSubscriber {
 
 #[async_trait]
 impl EventSubscriber for ConsoleSubscriber {
-    async fn handle_event(&self, event: &EnhancedEvent) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn handle_event(
+        &self,
+        event: &EnhancedEvent,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Check verbosity level for early filtering
         match (&event.event, self.verbosity) {
             // Always show errors and completed tasks
             (SystemEvent::Task(TaskEvent::TaskFailed { .. }), _) => {}
             (SystemEvent::Task(TaskEvent::TaskCompleted { .. }), _) => {}
             (SystemEvent::Pipeline(PipelineEvent::PipelineCompleted { .. }), _) => {}
-            
+
             // Show pipeline start in normal mode
-            (SystemEvent::Pipeline(PipelineEvent::PipelineStarted { .. }), ConsoleVerbosity::Normal | ConsoleVerbosity::Verbose | ConsoleVerbosity::Debug) => {}
-            
+            (
+                SystemEvent::Pipeline(PipelineEvent::PipelineStarted { .. }),
+                ConsoleVerbosity::Normal | ConsoleVerbosity::Verbose | ConsoleVerbosity::Debug,
+            ) => {}
+
             // Skip most events in quiet mode
             (_, ConsoleVerbosity::Quiet) => return Ok(()),
-            
+
             // Continue with normal filtering for other cases
             _ => {}
         }
@@ -382,10 +392,10 @@ impl EventSubscriber for ConsoleSubscriber {
             (SystemEvent::Task(TaskEvent::TaskCompleted { .. }), _) => true,
             (SystemEvent::Task(TaskEvent::TaskError { .. }), _) => true,
             (SystemEvent::Pipeline(PipelineEvent::PipelineCompleted { .. }), _) => true,
-            
+
             // In quiet mode, only show critical events
             (_, ConsoleVerbosity::Quiet) => false,
-            
+
             // Otherwise, all events are potentially interesting
             _ => true,
         }
@@ -401,7 +411,7 @@ mod tests {
     #[tokio::test]
     async fn test_console_subscriber_task_events() {
         let subscriber = ConsoleSubscriber::with_config(false, ConsoleVerbosity::Verbose);
-        
+
         let event = EnhancedEvent {
             event: SystemEvent::Task(TaskEvent::TaskStarted {
                 task_name: "test".to_string(),
@@ -421,13 +431,13 @@ mod tests {
     fn test_console_subscriber_interest_filter() {
         let quiet_subscriber = ConsoleSubscriber::with_config(false, ConsoleVerbosity::Quiet);
         let verbose_subscriber = ConsoleSubscriber::with_config(false, ConsoleVerbosity::Verbose);
-        
+
         let failed_event = SystemEvent::Task(TaskEvent::TaskFailed {
             task_name: "test".to_string(),
             task_id: "test-1".to_string(),
             error: "failed".to_string(),
         });
-        
+
         let progress_event = SystemEvent::Task(TaskEvent::TaskProgress {
             task_name: "test".to_string(),
             task_id: "test-1".to_string(),
@@ -437,7 +447,7 @@ mod tests {
         // Quiet subscriber should only be interested in failed events
         assert!(quiet_subscriber.is_interested(&failed_event));
         assert!(!quiet_subscriber.is_interested(&progress_event));
-        
+
         // Verbose subscriber should be interested in all events
         assert!(verbose_subscriber.is_interested(&failed_event));
         assert!(verbose_subscriber.is_interested(&progress_event));
@@ -447,13 +457,13 @@ mod tests {
     fn test_colorize() {
         let color_subscriber = ConsoleSubscriber::with_config(true, ConsoleVerbosity::Normal);
         let no_color_subscriber = ConsoleSubscriber::with_config(false, ConsoleVerbosity::Normal);
-        
+
         let text = "test text";
-        
+
         let colored = color_subscriber.colorize(text, "red");
         assert!(colored.contains("\x1b[31m"));
         assert!(colored.contains("\x1b[0m"));
-        
+
         let uncolored = no_color_subscriber.colorize(text, "red");
         assert_eq!(uncolored, text);
     }
