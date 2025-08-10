@@ -12,10 +12,21 @@ mod cache_property_tests {
     };
     use proptest::prelude::*;
     use std::collections::HashMap;
-    use std::sync::Arc;
+    use std::sync::{Arc, Once};
     use std::time::{Duration, SystemTime};
     use tempfile::TempDir;
     use tokio::runtime::Runtime;
+
+    static INIT: Once = Once::new();
+
+    /// Initialize test environment with conservative limits to avoid TLS exhaustion
+    fn init_test_runtime() {
+        INIT.call_once(|| {
+            // Set conservative test limits
+            std::env::set_var("PROPTEST_MAX_SHRINK_ITERS", "100");
+            std::env::set_var("PROPTEST_CASES", "50"); // Reduce from default 256
+        });
+    }
 
     /// Generate valid cache keys
     fn arb_cache_key() -> impl Strategy<Value = String> {
@@ -33,6 +44,8 @@ mod cache_property_tests {
 
     /// Helper to create a sync cache for property tests
     fn create_sync_cache(config: UnifiedCacheConfig) -> Result<SyncCache, CacheError> {
+        init_test_runtime();
+        
         let temp_dir = TempDir::new().map_err(|e| CacheError::Io {
             path: std::path::PathBuf::from("/tmp"),
             operation: "create temp dir",
@@ -42,14 +55,14 @@ mod cache_property_tests {
             },
         })?;
 
-        // Create a single runtime for the cache initialization
+        // Use single-threaded runtime to avoid TLS exhaustion
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .map_err(|e| CacheError::Configuration {
                 message: format!("Failed to create runtime: {e}"),
                 recovery_hint: RecoveryHint::Manual {
-                    instructions: "Check system resources".to_string(),
+                    instructions: "Check system resources and test configuration".to_string(),
                 },
             })?;
 
@@ -57,7 +70,7 @@ mod cache_property_tests {
         let async_cache =
             rt.block_on(ProductionCache::new(temp_dir.path().to_path_buf(), config))?;
 
-        // Wrap in sync cache which has its own runtime
+        // Wrap in sync cache which will use its own single-threaded runtime
         SyncCache::new(async_cache)
     }
 
@@ -103,7 +116,6 @@ mod cache_property_tests {
     /// For any key-value pair, putting and then getting should return the same value
     proptest! {
         #[test]
-        #[ignore] // Proptest + tokio runtime can hang
         fn prop_cache_roundtrip_consistency(
             key in arb_cache_key(),
             value in arb_cache_value(),
@@ -136,7 +148,6 @@ mod cache_property_tests {
         }
 
         #[test]
-        #[ignore] // Proptest + tokio runtime can hang
         fn prop_cache_key_uniqueness(
             keys_and_values in prop::collection::vec(
                 (arb_cache_key(), arb_cache_value()),
@@ -188,7 +199,6 @@ mod cache_property_tests {
         }
 
         #[test]
-        #[ignore] // Proptest + tokio runtime can hang
         fn prop_cache_metadata_consistency(
             key in arb_cache_key(),
             value in arb_cache_value(),
@@ -223,7 +233,6 @@ mod cache_property_tests {
         }
 
         #[test]
-        #[ignore] // Proptest + tokio runtime can hang
         fn prop_cache_ttl_behavior(
             key in arb_cache_key(),
             value in arb_cache_value().prop_filter("Limit size for TTL test", |v| v.len() < 10000),
@@ -258,7 +267,6 @@ mod cache_property_tests {
         }
 
         #[test]
-        #[ignore] // Proptest + tokio runtime can hang
         fn prop_cache_eviction_under_pressure(
             entries in prop::collection::vec(
                 (arb_cache_key(), prop::collection::vec(any::<u8>(), 1000..2000)),
@@ -328,7 +336,6 @@ mod cache_property_tests {
         }
 
         #[test]
-        #[ignore] // Proptest + tokio runtime can hang
         fn prop_cache_concurrent_safety(
             shared_keys in prop::collection::vec(arb_cache_key(), 5..20),
             values_per_key in prop::collection::vec(arb_cache_value(), 5..20),
@@ -419,7 +426,6 @@ mod cache_property_tests {
         }
 
         #[test]
-        #[ignore] // Proptest + tokio runtime can hang
         fn prop_cache_clear_removes_all_entries(
             entries in prop::collection::vec(
                 (arb_cache_key(), arb_cache_value().prop_filter("Limit size", |v| v.len() < 1000)),
@@ -494,7 +500,6 @@ mod cache_property_tests {
         }
 
         #[test]
-        #[ignore] // Proptest + tokio runtime can hang
         fn prop_cache_statistics_monotonic(
             operations in prop::collection::vec(
                 prop_oneof![
@@ -549,7 +554,6 @@ mod cache_property_tests {
         }
 
         #[test]
-        #[ignore] // Proptest + tokio runtime can hang
         fn prop_cache_error_handling_robustness(
             invalid_operations in prop::collection::vec(
                 prop_oneof![
@@ -612,13 +616,18 @@ mod cache_property_tests {
     /// Sync cache property tests
     proptest! {
         #[test]
-        #[ignore] // Proptest + tokio runtime can hang
         fn prop_sync_cache_roundtrip(
             key in arb_cache_key(),
             value in arb_cache_value().prop_filter("Limit size", |v| v.len() < 10000),
         ) {
+            init_test_runtime();
+            
             let temp_dir = TempDir::new().unwrap();
-            let rt = tokio::runtime::Runtime::new().unwrap();
+            // Use single-threaded runtime to avoid TLS exhaustion
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
             let unified_cache = match rt.block_on(ProductionCache::new(temp_dir.path().to_path_buf(), Default::default())) {
                 Ok(cache) => cache,
                 Err(_) => return Ok(()), // Skip if setup fails
