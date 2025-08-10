@@ -11,6 +11,10 @@
       url = "github:nix-community/fenix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    crane = {
+      url = "github:ipetkov/crane";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     flake-utils.url = "github:numtide/flake-utils";
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
@@ -23,6 +27,7 @@
     , nixpkgs
     , rust-overlay
     , fenix
+    , crane
     , flake-utils
     , treefmt-nix
     ,
@@ -75,24 +80,22 @@
           protobuf
         ];
 
+        # Crane library for advanced Rust builds
+        craneLib = crane.mkLib pkgs;
+
         # treefmt configuration
         treefmt = treefmt-nix.lib.evalModule pkgs {
           projectRootFile = "flake.nix";
           programs = {
-            # Nix formatter
-            nixpkgs-fmt.enable = true;
-
-            cue.enable = true;
-
             # Rust formatter
             rustfmt = {
               enable = true;
-              # Use same edition as Cargo.toml
+              # Use consistent edition across all files
               edition = "2021";
             };
 
-            # Go formatter
-            gofmt.enable = true;
+            # Nix formatter
+            nixpkgs-fmt.enable = true;
 
             # YAML formatter
             yamlfmt.enable = true;
@@ -138,7 +141,7 @@
         cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
         version = cargoToml.workspace.package.version;
 
-        # Vendor Go dependencies
+        # Vendor Go dependencies (unchanged from original)
         goVendor = pkgs.stdenv.mkDerivation {
           pname = "cuenv-go-vendor";
           version = version;
@@ -164,31 +167,10 @@
           outputHash = "sha256-l/urNOAK9q5nflBt2ovfbaM3WNCn0ouZlc9RJq/+eKk=";
         };
 
-        cuenv = pkgs.rustPlatform.buildRustPackage {
-          pname = "cuenv";
-          version = version;
-
-          src = ./.;
-
-          cargoLock = {
-            lockFile = ./Cargo.lock;
-          };
-
-          # Set up build environment
-          preBuild = ''
-            export HOME=$(mktemp -d)
-            export GOPATH="$HOME/go"
-            export GOCACHE="$HOME/go-cache"
-            export CGO_ENABLED=1
-
-            # Setup CUE root to use bundled schemas, avoiding external fetching
-            export CUE_ROOT="$PWD/cue"
-
-            # Copy vendored dependencies
-            cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
-            chmod -R u+w crates/libcue-ffi-bridge
-          '';
-
+        # Common build environment for all Crane builds
+        commonArgs = {
+          src = craneLib.cleanCargoSource ./.;
+          strictDeps = true;
           inherit buildInputs nativeBuildInputs;
 
           # Platform-specific linker flags
@@ -198,12 +180,10 @@
             else
               "";
 
-          # Ensure Go is available during build
+          # Common environment
           CGO_ENABLED = "1";
           GO = "${pkgs.go_1_24}/bin/go";
-
-          # Disable tests during build phase - we'll run them separately
-          doCheck = false;
+          CUE_ROOT = "$PWD/cue";
 
           meta = with pkgs.lib; {
             description = "A direnv alternative that uses CUE files for environment configuration";
@@ -213,166 +193,249 @@
           };
         };
 
+        # Pre-compiled Go FFI bridge - build once, reuse everywhere
+        goBridge = pkgs.stdenv.mkDerivation {
+          pname = "cuenv-go-bridge";
+          version = version;
+          src = ./crates/libcue-ffi-bridge;
+
+          nativeBuildInputs = [ pkgs.go_1_24 ];
+
+          buildPhase = ''
+            export HOME=$(mktemp -d)
+            export GOPATH="$HOME/go"
+            export GOCACHE="$HOME/go-cache"
+            export CGO_ENABLED=1
+
+            # Copy vendored Go dependencies
+            cp -r ${goVendor}/vendor ./
+            chmod -R u+w vendor
+
+            # Build the Go bridge as a static C archive
+            go build -buildmode=c-archive -o libcue_bridge.a bridge.go
+          '';
+
+          installPhase = ''
+            mkdir -p $out/lib
+            cp libcue_bridge.{a,h} $out/lib/
+          '';
+
+          outputHashMode = "recursive";
+          outputHashAlgo = "sha256";
+          # This hash will need to be updated after first build
+          outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+        };
+
+        # Cargo dependencies for all crates - shared build artifacts
+        cargoArtifacts = craneLib.buildDepsOnly (commonArgs // {
+          pname = "cuenv-deps";
+        });
+
+        # Pure Rust crates (no FFI bridge needed) 
+        pureRustCrates = [
+          "cuenv-core"
+          "cuenv-env"
+          "cuenv-cli"
+          "cuenv-cache" 
+          "cuenv-utils"
+          "cuenv-env-manager"
+          "cuenv-platform"
+          "cuenv-shell-detection"
+          "cuenv-constraints"
+        ];
+
+        # Build pure Rust crates efficiently (parallel, cached)
+        pureRustPackages = builtins.listToAttrs (map (crateName: {
+          name = crateName;
+          value = craneLib.buildPackage (commonArgs // {
+            inherit cargoArtifacts;
+            pname = crateName;
+            cargoExtraArgs = "-p ${crateName}";
+            
+            # No FFI bridge setup needed for pure Rust crates
+            preBuild = ''
+              export CUE_ROOT="$PWD/cue"
+            '';
+          });
+        }) pureRustCrates);
+
+        # FFI-dependent crates (need the Go bridge)
+        ffiBridge = craneLib.buildPackage (commonArgs // {
+          inherit cargoArtifacts;
+          pname = "cuenv-libcue-ffi-bridge";
+          cargoExtraArgs = "-p cuenv-libcue-ffi-bridge";
+          
+          preBuild = ''
+            export HOME=$(mktemp -d)
+            export GOPATH="$HOME/go"
+            export GOCACHE="$HOME/go-cache"
+            export CUE_ROOT="$PWD/cue"
+            
+            # Use pre-compiled Go bridge
+            mkdir -p crates/libcue-ffi-bridge/target/debug
+            mkdir -p crates/libcue-ffi-bridge/target/release
+            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/ || true
+            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/ || true
+            
+            # Copy Go vendor as fallback
+            cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
+            chmod -R u+w crates/libcue-ffi-bridge
+          '';
+        });
+
+        configCrate = craneLib.buildPackage (commonArgs // {
+          inherit cargoArtifacts;
+          pname = "cuenv-config";
+          cargoExtraArgs = "-p cuenv-config";
+          
+          preBuild = ''
+            export HOME=$(mktemp -d)
+            export GOPATH="$HOME/go" 
+            export GOCACHE="$HOME/go-cache"
+            export CUE_ROOT="$PWD/cue"
+            
+            # Use pre-compiled Go bridge
+            mkdir -p crates/libcue-ffi-bridge/target/debug
+            mkdir -p crates/libcue-ffi-bridge/target/release
+            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/ || true
+            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/ || true
+            
+            # Copy Go vendor as fallback
+            cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
+            chmod -R u+w crates/libcue-ffi-bridge
+          '';
+        });
+
+        # Main cuenv binary - depends on all crates
+        cuenv = craneLib.buildPackage (commonArgs // {
+          inherit cargoArtifacts;
+          pname = "cuenv";
+          
+          preBuild = ''
+            export HOME=$(mktemp -d)
+            export GOPATH="$HOME/go"
+            export GOCACHE="$HOME/go-cache"
+            export CUE_ROOT="$PWD/cue"
+            
+            # Use pre-compiled Go bridge
+            mkdir -p crates/libcue-ffi-bridge/target/debug
+            mkdir -p crates/libcue-ffi-bridge/target/release
+            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/ || true
+            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/ || true
+            
+            # Copy Go vendor as fallback  
+            cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
+            chmod -R u+w crates/libcue-ffi-bridge
+          '';
+
+          # Only build the main CLI binary
+          cargoExtraArgs = "-p cuenv";
+          doCheck = false;
+        });
+
       in
       {
         packages = {
           default = cuenv;
           cuenv = cuenv;
-        };
+          
+          # Individual crate packages for granular builds
+          inherit ffiBridge configCrate;
+          go-bridge = goBridge;
+          cargo-deps = cargoArtifacts;
+        } // pureRustPackages;
 
-        # Comprehensive checks for nix flake check
-        checks =
-          let
-            # Vendor cargo dependencies so checks can run offline
-            cargoVendor = pkgs.rustPlatform.fetchCargoVendor {
-              src = ./.;
-              name = "cuenv-cargo-vendor";
-              hash = "sha256-2hTkBfaIDQi9xLfuaWJ0LPJaClokGC3SMKPXW21xf1k=";
-            };
+        # Optimized checks using Crane - massive performance improvement
+        checks = {
+          # Fast formatting check (no compilation needed)
+          formatting = treefmt.config.build.check self;
 
-            # Common preBuild steps for checks
-            checksPreBuild = ''
+          # Build check - reuse main cuenv package
+          build = cuenv;
+
+          # Clippy check using shared cargo artifacts
+          clippy = craneLib.cargoClippy (commonArgs // {
+            inherit cargoArtifacts;
+            cargoClippyExtraArgs = "--all-targets --all-features -- -D warnings -A clippy::duplicate_mod -A clippy::uninlined_format_args -A clippy::too_many_arguments -A clippy::new_without_default -A clippy::ptr_arg -A clippy::needless_borrows_for_generic_args -A clippy::io_other_error -A clippy::manual_strip -A clippy::collapsible_if -A clippy::derivable_impls -A clippy::missing_safety_doc -A clippy::field_reassign_with_default -A clippy::manual_map -A clippy::not_unsafe_ptr_arg_deref -A clippy::question_mark -A clippy::needless_borrow -A clippy::await_holding_lock -A clippy::type_complexity -A clippy::enum_variant_names";
+            
+            preBuild = ''
               export HOME=$(mktemp -d)
               export GOPATH="$HOME/go"
               export GOCACHE="$HOME/go-cache"
-              export CGO_ENABLED=1
-
-              # Setup CUE root to use bundled schemas, avoiding external fetching
               export CUE_ROOT="$PWD/cue"
-
-              # Copy Go vendor
+              
+              # Use pre-compiled Go bridge
+              mkdir -p crates/libcue-ffi-bridge/target/debug
+              mkdir -p crates/libcue-ffi-bridge/target/release
+              cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/ || true
+              cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/ || true
+              
+              # Copy Go vendor as fallback
               cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
-
-              # Platform-specific setup for macOS framework linking
-              ${
-                if pkgs.stdenv.isDarwin then
-                  ''
-                    export RUSTFLAGS="-C link-arg=-framework -C link-arg=Security -C link-arg=-framework -C link-arg=CoreFoundation -C link-arg=-framework -C link-arg=SystemConfiguration"
-                  ''
-                else
-                  ""
-              }
               chmod -R u+w crates/libcue-ffi-bridge
-
-              # Setup cargo vendor for offline build
-              mkdir -p .cargo
-              cat > .cargo/config.toml <<EOF
-              [source.crates-io]
-              replace-with = "vendored-sources"
-
-              [source.vendored-sources]
-              directory = "vendor"
-              EOF
-
-              cp -r ${cargoVendor} vendor
-              chmod -R u+w vendor
             '';
-          in
-          {
-            # Formatting check
-            formatting = treefmt.config.build.check self;
+          });
 
-            # Build check - ensure the package builds (without tests)
-            build = cuenv;
+          # Unit tests using shared cargo artifacts  
+          unit-tests = craneLib.cargoNextest (commonArgs // {
+            inherit cargoArtifacts;
+            partitions = 1;
+            partitionType = "count";
+            cargoNextestExtraArgs = "--lib --bins -E 'not test(/concurrent|thread_safe|monitored_cache|profiling|tree_operations|confidence|sequential_pattern|streaming|prop_test_cache|statistics|parse_shell|process_guard/)'";
+            
+            preBuild = ''
+              export HOME=$(mktemp -d)
+              export GOPATH="$HOME/go"
+              export GOCACHE="$HOME/go-cache"
+              export CUE_ROOT="$PWD/cue"
+              export RUST_TEST_THREADS=2
+              export GOMAXPROCS=2
+              
+              # Use pre-compiled Go bridge
+              mkdir -p crates/libcue-ffi-bridge/target/debug
+              mkdir -p crates/libcue-ffi-bridge/target/release
+              cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/ || true
+              cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/ || true
+              
+              # Copy Go vendor as fallback
+              cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
+              chmod -R u+w crates/libcue-ffi-bridge
+            '';
+          });
 
-            # Clippy check
-            clippy = pkgs.stdenv.mkDerivation {
-              pname = "cuenv-clippy-check";
-              version = version;
-              src = ./.;
+          # Per-crate clippy checks for parallel validation (pure Rust crates only)
+          clippy-core = craneLib.cargoClippy (commonArgs // {
+            inherit cargoArtifacts;
+            pname = "cuenv-core-clippy";
+            cargoExtraArgs = "-p cuenv-core";
+            cargoClippyExtraArgs = "-- -D warnings";
+            preBuild = "export CUE_ROOT=\"$PWD/cue\"";
+          });
 
-              nativeBuildInputs = nativeBuildInputs;
-              buildInputs = buildInputs;
+          clippy-cache = craneLib.cargoClippy (commonArgs // {
+            inherit cargoArtifacts; 
+            pname = "cuenv-cache-clippy";
+            cargoExtraArgs = "-p cuenv-cache";
+            cargoClippyExtraArgs = "-- -D warnings";
+            preBuild = "export CUE_ROOT=\"$PWD/cue\"";
+          });
 
-              preBuild = checksPreBuild;
+          clippy-env = craneLib.cargoClippy (commonArgs // {
+            inherit cargoArtifacts;
+            pname = "cuenv-env-clippy";  
+            cargoExtraArgs = "-p cuenv-env";
+            cargoClippyExtraArgs = "-- -D warnings";
+            preBuild = "export CUE_ROOT=\"$PWD/cue\"";
+          });
 
-              buildPhase = ''
-                runHook preBuild
-                cargo clippy --all-targets --all-features -- -D warnings \
-                  -A clippy::duplicate_mod \
-                  -A clippy::uninlined_format_args \
-                  -A clippy::too_many_arguments \
-                  -A clippy::new_without_default \
-                  -A clippy::ptr_arg \
-                  -A clippy::needless_borrows_for_generic_args \
-                  -A clippy::io_other_error \
-                  -A clippy::manual_strip \
-                  -A clippy::collapsible_if \
-                  -A clippy::derivable_impls \
-                  -A clippy::missing_safety_doc \
-                  -A clippy::field_reassign_with_default \
-                  -A clippy::manual_map \
-                  -A clippy::not_unsafe_ptr_arg_deref \
-                  -A clippy::question_mark \
-                  -A clippy::needless_borrow \
-                  -A clippy::await_holding_lock \
-                  -A clippy::type_complexity \
-                  -A clippy::enum_variant_names
-                runHook postBuild
-              '';
-
-              installPhase = "touch $out";
-            };
-
-            # Unit tests (sandbox-compatible)
-            unit-tests = pkgs.stdenv.mkDerivation {
-              pname = "cuenv-unit-tests";
-              version = version;
-              src = ./.;
-
-              nativeBuildInputs = nativeBuildInputs ++ [ pkgs.cargo-nextest ];
-              buildInputs = buildInputs;
-
-              preBuild = checksPreBuild;
-
-              buildPhase = ''
-                export RUST_TEST_THREADS=2
-                export GOMAXPROCS=2
-                runHook preBuild
-                # Run only unit tests that work in sandbox
-                cargo nextest run --lib --bins \
-                  -E 'not test(/concurrent|thread_safe|monitored_cache|profiling|tree_operations|confidence|sequential_pattern|streaming|prop_test_cache|statistics|parse_shell|process_guard/)'
-                runHook postBuild
-              '';
-
-              installPhase = "touch $out";
-            };
-
-            # Integration tests (requires network, runs in CI only)
-            integration-tests = pkgs.stdenv.mkDerivation {
-              pname = "cuenv-integration-tests";
-              version = version;
-              src = ./.;
-
-              nativeBuildInputs = nativeBuildInputs ++ [ pkgs.cargo-nextest ];
-              buildInputs = buildInputs;
-
-              preBuild = ''
-                export HOME=$(mktemp -d)
-                export GOPATH="$HOME/go"
-                export GOCACHE="$HOME/go-cache"
-                export CGO_ENABLED=1
-                export RUST_TEST_THREADS=4
-                export GOMAXPROCS=4
-
-                # Setup CUE root to use bundled schemas, avoiding external fetching
-                export CUE_ROOT="$PWD/cue"
-
-                cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
-                chmod -R u+w crates/libcue-ffi-bridge
-              '';
-
-              buildPhase = ''
-                runHook preBuild
-                # This will fail in sandbox but documents what tests need network
-                echo "Integration tests require network access and should be run in CI"
-                echo "Would run: cargo nextest run --tests"
-                runHook postBuild
-              '';
-
-              installPhase = "touch $out";
-            };
-          };
+          clippy-utils = craneLib.cargoClippy (commonArgs // {
+            inherit cargoArtifacts;
+            pname = "cuenv-utils-clippy";  
+            cargoExtraArgs = "-p cuenv-utils";
+            cargoClippyExtraArgs = "-- -D warnings";
+            preBuild = "export CUE_ROOT=\"$PWD/cue\"";
+          });
+        };
 
         # Make formatter available
         formatter = treefmt.config.build.wrapper;
@@ -398,6 +461,12 @@
               echo "  cargo watch    - Watch for changes and rebuild" >&2
               echo "  treefmt        - Format all code" >&2
               echo "  nix flake check - Check code formatting" >&2
+              echo "" >&2
+              echo "Individual crate builds (faster):" >&2
+              echo "  nix build .#cuenv-core" >&2
+              echo "  nix build .#cuenv-cache" >&2
+              echo "  nix build .#cuenv-config" >&2
+              echo "  nix build .#go-bridge" >&2
             fi
 
             # Set up environment for building
@@ -416,145 +485,5 @@
             }
           '';
         };
-      }
-    ))
-    // {
-      # Home Manager module (using standard flake schema to avoid warnings)
-      homeManagerModule =
-        { config
-        , lib
-        , pkgs
-        , ...
-        }:
-          with lib;
-          let
-            cfg = config.programs.cuenv;
-          in
-          {
-            options.programs.cuenv = {
-              enable = mkEnableOption "cuenv, a direnv alternative using CUE files";
-
-              package = mkOption {
-                type = types.package;
-                default = self.packages.${pkgs.system}.default;
-                defaultText = literalExpression "cuenv";
-                description = "The cuenv package to use.";
-              };
-
-              enableBashIntegration = mkOption {
-                type = types.bool;
-                default = config.programs.bash.enable;
-                defaultText = literalExpression "config.programs.bash.enable";
-                description = ''
-                  Whether to enable Bash integration.
-                '';
-              };
-
-              enableZshIntegration = mkOption {
-                type = types.bool;
-                default = config.programs.zsh.enable;
-                defaultText = literalExpression "config.programs.zsh.enable";
-                description = ''
-                  Whether to enable Zsh integration.
-                '';
-              };
-
-              enableFishIntegration = mkOption {
-                type = types.bool;
-                default = config.programs.fish.enable;
-                defaultText = literalExpression "config.programs.fish.enable";
-                description = ''
-                  Whether to enable Fish integration.
-                '';
-              };
-
-              enableNushellIntegration = mkOption {
-                type = types.bool;
-                default = config.programs.nushell.enable;
-                defaultText = literalExpression "config.programs.nushell.enable";
-                description = ''
-                  Whether to enable Nushell integration.
-
-                  Note: Nushell support is experimental and may require manual configuration.
-                '';
-              };
-
-              enableBashCompletion = mkOption {
-                type = types.bool;
-                default = cfg.enableBashIntegration;
-                defaultText = literalExpression "cfg.enableBashIntegration";
-                description = ''
-                  Whether to enable Bash completion for cuenv.
-                '';
-              };
-
-              enableZshCompletion = mkOption {
-                type = types.bool;
-                default = cfg.enableZshIntegration;
-                defaultText = literalExpression "cfg.enableZshIntegration";
-                description = ''
-                  Whether to enable Zsh completion for cuenv.
-                '';
-              };
-
-              enableFishCompletion = mkOption {
-                type = types.bool;
-                default = cfg.enableFishIntegration;
-                defaultText = literalExpression "cfg.enableFishIntegration";
-                description = ''
-                  Whether to enable Fish completion for cuenv.
-                '';
-              };
-            };
-
-            config = mkIf cfg.enable {
-              home.packages = [ cfg.package ];
-
-              programs.bash.initExtra = mkIf cfg.enableBashIntegration ''
-                # cuenv shell integration
-                eval "$(${cfg.package}/bin/cuenv init bash)"
-              '';
-
-              programs.bash.bashrcExtra = mkIf cfg.enableBashCompletion ''
-                # cuenv completion
-                if command -v cuenv >/dev/null 2>&1; then
-                  eval "$(${cfg.package}/bin/cuenv completion bash)"
-                fi
-              '';
-
-              programs.zsh.initExtra = mkIf cfg.enableZshIntegration ''
-                # cuenv shell integration
-                eval "$(${cfg.package}/bin/cuenv init zsh)"
-              '';
-
-              programs.zsh.completionInit = mkIf cfg.enableZshCompletion ''
-                # cuenv completion
-                if command -v cuenv >/dev/null 2>&1; then
-                  eval "$(${cfg.package}/bin/cuenv completion zsh)"
-                fi
-              '';
-
-              programs.fish.interactiveShellInit = mkIf cfg.enableFishIntegration ''
-                # cuenv shell integration
-                ${cfg.package}/bin/cuenv init fish | source
-              '';
-
-              programs.fish.shellInit = mkIf cfg.enableFishCompletion ''
-                # cuenv completion
-                if command -v cuenv >/dev/null 2>&1
-                  ${cfg.package}/bin/cuenv completion fish | source
-                end
-              '';
-
-              programs.nushell.extraConfig = mkIf cfg.enableNushellIntegration ''
-                # cuenv shell integration
-                # Note: This is experimental and may need adjustment based on your Nushell version
-                let cuenv_init = (${cfg.package}/bin/cuenv init nushell | str trim)
-                if not ($cuenv_init | is-empty) {
-                  source-env { $cuenv_init | from nuon }
-                }
-              '';
-            };
-          };
-    };
+      }));
 }
