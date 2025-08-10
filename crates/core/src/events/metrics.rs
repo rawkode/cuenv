@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
-use tracing::{debug, error};
+use tracing::{debug};
 
 /// Metrics subscriber for performance monitoring and observability
 pub struct MetricsSubscriber {

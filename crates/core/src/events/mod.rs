@@ -11,9 +11,9 @@ pub mod metrics;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::{SystemTime};
 use tokio::sync::{broadcast, RwLock};
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 
 // Re-export subscriber implementations
 pub use console::ConsoleSubscriber;
@@ -299,6 +299,11 @@ impl EventEmitter {
     pub fn subscribe(&self) -> broadcast::Receiver<EnhancedEvent> {
         self.sender.subscribe()
     }
+
+    /// Publish method alias for backward compatibility
+    pub async fn publish(&self, event: SystemEvent) {
+        self.emit(event).await;
+    }
 }
 
 /// Global event emitter instance
@@ -337,6 +342,23 @@ pub async fn emit_global_event_with_metadata(
     let emitter = global_event_emitter();
     emitter.emit_with_metadata(event, metadata).await;
 }
+
+/// Backward compatibility aliases
+pub fn global_event_bus() -> Arc<EventEmitter> {
+    global_event_emitter()
+}
+
+pub async fn publish_global_event(event: SystemEvent) {
+    emit_global_event(event).await;
+}
+
+pub async fn register_global_subscriber(subscriber: Arc<dyn EventSubscriber>) {
+    let emitter = global_event_emitter();
+    emitter.add_subscriber(subscriber).await;
+}
+
+/// EventBus alias for backward compatibility  
+pub type EventBus = EventEmitter;
 
 /// Event system errors
 #[derive(Debug, thiserror::Error)]

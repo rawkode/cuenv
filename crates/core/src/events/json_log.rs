@@ -47,7 +47,7 @@ impl JsonLogSubscriber {
             })?;
         }
 
-        let mut subscriber = Self {
+        let subscriber = Self {
             writer: Mutex::new(None),
             file_path,
             include_metadata: true,
@@ -76,7 +76,7 @@ impl JsonLogSubscriber {
             })?;
         }
 
-        let mut subscriber = Self {
+        let subscriber = Self {
             writer: Mutex::new(None),
             file_path,
             include_metadata,
