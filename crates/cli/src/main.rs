@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use eyre::{Context, Result as EyreResult, WrapErr};
 
 use crate::directory::DirectoryManager;
 use crate::platform::{PlatformOps, Shell};
@@ -635,7 +636,10 @@ async fn complete_hosts() -> Result<()> {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> eyre::Result<()> {
+    // Install color-eyre for better error reporting
+    color_eyre::install()?;
+    
     // Check if --output=tui is present before initializing tracing
     let args: Vec<String> = env::args().collect();
     let use_tui = args.windows(2).any(|w| w[0] == "--output" && w[1] == "tui")
@@ -643,10 +647,8 @@ async fn main() -> Result<()> {
 
     // Only initialize tracing if not using TUI
     if !use_tui {
-        if let Err(e) = cuenv_utils::tracing::init() {
-            eprintln!("Failed to initialize tracing: {e}");
-            std::process::exit(1);
-        }
+        cuenv_utils::tracing::init()
+            .wrap_err("Failed to initialize tracing")?;
     }
 
     // Initialize cleanup handling for proper resource management
@@ -662,9 +664,7 @@ async fn main() -> Result<()> {
             "read-write" => CacheMode::ReadWrite,
             "write" => CacheMode::Write,
             _ => {
-                return Err(Error::configuration(format!(
-                    "Invalid cache mode: {cache_mode}"
-                )))
+                eyre::bail!("Invalid cache mode: {cache_mode}")
             }
         };
 
@@ -764,27 +764,13 @@ tasks: env.#Tasks & {
                     capabilities,
                 } => {
                     // Same as Commands::Load
-                    let _lock = match InstanceLock::acquire() {
-                        Ok(lock) => lock,
-                        Err(e) => {
-                            return Err(Error::Configuration {
-                                message: e.to_string(),
-                            })
-                        }
-                    };
+                    let _lock = InstanceLock::acquire()
+                        .wrap_err("Failed to acquire instance lock")?;
 
                     let dir = match directory {
                         Some(d) => d,
-                        None => match env::current_dir() {
-                            Ok(d) => d,
-                            Err(e) => {
-                                return Err(Error::file_system(
-                                    PathBuf::from("."),
-                                    "get current directory",
-                                    e,
-                                ));
-                            }
-                        },
+                        None => env::current_dir()
+                            .wrap_err("Failed to get current directory")?,
                     };
                     let mut env_manager = EnvManager::new();
 
@@ -816,14 +802,8 @@ tasks: env.#Tasks & {
                 }
                 ShellCommands::Unload => {
                     // Same as Commands::Unload
-                    let _lock = match InstanceLock::acquire() {
-                        Ok(lock) => lock,
-                        Err(e) => {
-                            return Err(Error::Configuration {
-                                message: e.to_string(),
-                            })
-                        }
-                    };
+                    let _lock = InstanceLock::acquire()
+                        .wrap_err("Failed to acquire instance lock")?;
 
                     let mut env_manager = EnvManager::new();
                     env_manager.unload_env()?;
@@ -875,9 +855,7 @@ tasks: env.#Tasks & {
                                 }
                             }
                         }
-                        StateManager::unload().await.map_err(|e| {
-                            Error::configuration(format!("Failed to unload state: {e}"))
-                        })?;
+                        StateManager::unload().await.wrap_err("Failed to unload state")?;
                     } else if current_dir.join(ENV_CUE_FILENAME).exists() {
                         let dir_manager = DirectoryManager::new();
                         if dir_manager
@@ -920,9 +898,8 @@ tasks: env.#Tasks & {
         }) => {
             use crate::discovery::PackageDiscovery;
 
-            let current_dir = std::env::current_dir().map_err(|e| Error::Configuration {
-                message: format!("Failed to get current directory: {e}"),
-            })?;
+            let current_dir = std::env::current_dir()
+                .wrap_err("Failed to get current directory")?;
 
             let mut discovery = PackageDiscovery::new(max_depth);
 
@@ -1035,16 +1012,8 @@ tasks: env.#Tasks & {
             output: _,
             trace_output: _,
         }) => {
-            let current_dir = match env::current_dir() {
-                Ok(d) => d,
-                Err(e) => {
-                    return Err(Error::file_system(
-                        PathBuf::from("."),
-                        "get current directory",
-                        e,
-                    ));
-                }
-            };
+            let current_dir = env::current_dir()
+                .wrap_err("Failed to get current directory")?;
 
             // Special case: if no task name is provided, just list available tasks
             // without loading the full environment (skip onEnter hooks)
@@ -1143,7 +1112,7 @@ tasks: env.#Tasks & {
 
                         // For direct command execution, use the first argument as command
                         if args.is_empty() {
-                            return Err(Error::configuration("No command provided".to_string()));
+                            eyre::bail!("No command provided");
                         }
 
                         let command = &args[0];
@@ -1164,16 +1133,8 @@ tasks: env.#Tasks & {
             args,
             audit,
         }) => {
-            let current_dir = match env::current_dir() {
-                Ok(d) => d,
-                Err(e) => {
-                    return Err(Error::file_system(
-                        PathBuf::from("."),
-                        "get current directory",
-                        e,
-                    ));
-                }
-            };
+            let current_dir = env::current_dir()
+                .wrap_err("Failed to get current directory")?;
             let mut env_manager = EnvManager::new();
 
             // Use environment variables as fallback if CLI args not provided
@@ -1233,16 +1194,8 @@ tasks: env.#Tasks & {
             let shell_impl = shell_type.as_shell();
 
             // Get current directory
-            let current_dir = match env::current_dir() {
-                Ok(d) => d,
-                Err(e) => {
-                    return Err(Error::file_system(
-                        PathBuf::from("."),
-                        "get current directory",
-                        e,
-                    ));
-                }
-            };
+            let current_dir = env::current_dir()
+                .wrap_err("Failed to get current directory")?;
 
             // Check if env.cue exists and load environment
             if current_dir.join(ENV_CUE_FILENAME).exists() {
@@ -1290,7 +1243,7 @@ tasks: env.#Tasks & {
             if StateManager::is_loaded() {
                 StateManager::unload()
                     .await
-                    .map_err(|e| Error::configuration(format!("Failed to unload state: {e}")))?;
+                    .wrap_err("Failed to unload state")?;
                 println!("Pruned cuenv state");
             } else {
                 println!("No cuenv state to prune");
@@ -1354,9 +1307,7 @@ tasks: env.#Tasks & {
             let current_dir = match DirectoryManager::get_current_directory() {
                 Ok(d) => d,
                 Err(e) => {
-                    return Err(Error::configuration(format!(
-                        "failed to get current directory: {e}"
-                    )));
+                    eyre::bail!("failed to get current directory: {e}")
                 }
             };
 
