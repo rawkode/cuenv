@@ -5,23 +5,27 @@ A powerful VSCode extension that provides seamless integration with [cuenv](http
 ## 🚀 Features
 
 ### Environment Management
+
 - **Auto Environment Loading**: Automatically detects and loads `env.cue` files when opening workspace folders
 - **Smart Status Bar**: Real-time environment status with quick actions (✓ Loaded, ↺ Pending Reload, ⚠ Error)
 - **Environment Panel**: Browse all environment variables with smart masking for sensitive data
 - **Change Detection**: Automatic detection of `env.cue` file changes with reload prompts
 
 ### Task Integration
+
 - **Tasks Panel**: View all available tasks with descriptions and dependencies
 - **CodeLens Integration**: Inline "Run Task" buttons directly in `env.cue` files
 - **Terminal Integration**: Execute tasks in shared or new terminals
 - **Task Dependencies**: Visual representation of task dependencies and execution order
 
 ### Multi-Root Workspace Support
+
 - **Independent Management**: Each workspace folder has its own environment and task state
 - **Context Awareness**: Status and panels adapt based on the active editor's workspace folder
 - **Scalable**: Handles monorepo setups with multiple `env.cue` files
 
 ### Security & Privacy
+
 - **Smart Masking**: Configurable regex patterns automatically hide sensitive variables
 - **Safe Logging**: Sensitive values are masked in output logs
 - **Copy Protection**: Copy operations always use unmasked values
@@ -39,26 +43,26 @@ Visit the [cuenv releases page](https://github.com/rawkode/cuenv/releases) to do
 
 ### Extension Settings
 
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `cuenv.executablePath` | string | `"cuenv"` | Path to the cuenv executable |
-| `cuenv.autoLoad.enabled` | boolean | `true` | Automatically load environment on workspace open |
-| `cuenv.env.maskPatterns` | string[] | `["(?i)(secret\\|token\\|password\\|key\\|api_key)"]` | Regex patterns for masking sensitive variables |
-| `cuenv.tasks.terminal.strategy` | enum | `"shared"` | Terminal strategy: `"shared"` or `"new"` |
-| `cuenv.watch.debounceMs` | number | `300` | File watch debounce time in milliseconds |
+| Setting                         | Type     | Default          | Description                                      |
+| ------------------------------- | -------- | ---------------- | ------------------------------------------------ | ---------- | ----- | ----------- | ---------------------------------------------- |
+| `cuenv.executablePath`          | string   | `"cuenv"`        | Path to the cuenv executable                     |
+| `cuenv.autoLoad.enabled`        | boolean  | `true`           | Automatically load environment on workspace open |
+| `cuenv.env.maskPatterns`        | string[] | `["(?i)(secret\\ | token\\                                          | password\\ | key\\ | api_key)"]` | Regex patterns for masking sensitive variables |
+| `cuenv.tasks.terminal.strategy` | enum     | `"shared"`       | Terminal strategy: `"shared"` or `"new"`         |
+| `cuenv.watch.debounceMs`        | number   | `300`            | File watch debounce time in milliseconds         |
 
 ### Example Settings
 
 ```json
 {
-  "cuenv.executablePath": "/usr/local/bin/cuenv",
-  "cuenv.autoLoad.enabled": true,
-  "cuenv.env.maskPatterns": [
-    "(?i)(secret|token|password|key)",
-    "(?i).*_SECRET$",
-    "(?i).*_TOKEN$"
-  ],
-  "cuenv.tasks.terminal.strategy": "shared"
+	"cuenv.executablePath": "/usr/local/bin/cuenv",
+	"cuenv.autoLoad.enabled": true,
+	"cuenv.env.maskPatterns": [
+		"(?i)(secret|token|password|key)",
+		"(?i).*_SECRET$",
+		"(?i).*_TOKEN$"
+	],
+	"cuenv.tasks.terminal.strategy": "shared"
 }
 ```
 
@@ -107,49 +111,57 @@ The status bar provides quick access to common actions:
 
 ## 🔧 Commands
 
-| Command | Description |
-|---------|-------------|
-| `cuenv.reload` | Reload the current environment |
-| `cuenv.viewOutput` | Open the cuenv output channel |
-| `cuenv.toggleAutoLoad` | Toggle automatic environment loading |
-| `cuenv.runTask` | Run a specific task |
-| `cuenv.refreshEnvPanel` | Refresh the environment panel |
-| `cuenv.refreshTasksPanel` | Refresh the tasks panel |
+| Command                   | Description                          |
+| ------------------------- | ------------------------------------ |
+| `cuenv.reload`            | Reload the current environment       |
+| `cuenv.viewOutput`        | Open the cuenv output channel        |
+| `cuenv.toggleAutoLoad`    | Toggle automatic environment loading |
+| `cuenv.runTask`           | Run a specific task                  |
+| `cuenv.refreshEnvPanel`   | Refresh the environment panel        |
+| `cuenv.refreshTasksPanel` | Refresh the tasks panel              |
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
 #### cuenv Binary Not Found
+
 **Error**: "cuenv binary not found at path: cuenv"
 
 **Solutions**:
+
 1. Install cuenv and ensure it's in your PATH
 2. Set the full path in `cuenv.executablePath` setting
 3. Restart VSCode after installing cuenv
 
 #### Environment Not Loading
+
 **Symptoms**: Status bar shows "No env.cue file found"
 
 **Solutions**:
+
 1. Ensure `env.cue` exists in workspace root
 2. Check file permissions and syntax
 3. Enable auto-load in settings: `cuenv.autoLoad.enabled: true`
 4. Try manual reload: Command Palette → "cuenv: Reload Environment"
 
 #### Tasks Not Appearing
+
 **Symptoms**: Tasks panel is empty
 
 **Solutions**:
+
 1. Verify tasks are defined in `env.cue` under `tasks` field
 2. Check cuenv version supports Task Server Protocol
 3. Run `cuenv internal task-protocol --export-json` in terminal to verify
 4. Refresh tasks panel manually
 
 #### Masking Not Working
+
 **Symptoms**: Sensitive variables are visible
 
 **Solutions**:
+
 1. Check `cuenv.env.maskPatterns` configuration
 2. Verify regex patterns are valid
 3. Use case-insensitive patterns: `(?i)secret`
