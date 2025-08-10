@@ -381,6 +381,7 @@ impl ActionCache {
 }
 
 /// Compute hash of task configuration
+#[allow(dead_code)]
 fn hash_task_config(config: &TaskConfig) -> Result<String> {
     let serialized = serde_json::to_string(config).map_err(|e| Error::Json {
         message: "Failed to serialize task config for hashing".to_string(),
