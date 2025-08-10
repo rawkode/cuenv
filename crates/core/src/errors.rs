@@ -80,20 +80,35 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::CueParse { path, message, .. } => {
-                write!(f, "failed to parse CUE file '{}': {}", path.display(), message)
+                write!(
+                    f,
+                    "failed to parse CUE file '{}': {}",
+                    path.display(),
+                    message
+                )
             }
             Error::Environment { variable, message } => {
                 write!(f, "environment variable '{}' error: {}", variable, message)
             }
-            Error::SecretResolution { reference, message, .. } => {
+            Error::SecretResolution {
+                reference, message, ..
+            } => {
                 write!(f, "failed to resolve secret '{}': {}", reference, message)
             }
-            Error::CommandExecution { command, args, message, exit_code } => {
+            Error::CommandExecution {
+                command,
+                args,
+                message,
+                exit_code,
+            } => {
                 let args_str = args.join(" ");
                 match exit_code {
                     Some(code) => {
                         if args_str.is_empty() {
-                            write!(f, "command '{command}' failed with exit code {code}: {message}")
+                            write!(
+                                f,
+                                "command '{command}' failed with exit code {code}: {message}"
+                            )
                         } else {
                             write!(f, "command '{command} {args_str}' failed with exit code {code}: {message}")
                         }
@@ -113,8 +128,18 @@ impl std::fmt::Display for Error {
             Error::ShellExpansion { value, message } => {
                 write!(f, "failed to expand shell value '{}': {}", value, message)
             }
-            Error::FileSystem { path, operation, source } => {
-                write!(f, "file system {} operation failed for '{}': {}", operation, path.display(), source)
+            Error::FileSystem {
+                path,
+                operation,
+                source,
+            } => {
+                write!(
+                    f,
+                    "file system {} operation failed for '{}': {}",
+                    operation,
+                    path.display(),
+                    source
+                )
             }
             Error::Json { message, .. } => {
                 write!(f, "JSON error: {}", message)
@@ -134,8 +159,15 @@ impl std::fmt::Display for Error {
             Error::Network { endpoint, message } => {
                 write!(f, "network error for '{}': {}", endpoint, message)
             }
-            Error::Timeout { operation, duration } => {
-                write!(f, "operation '{}' timed out after {:?}", operation, duration)
+            Error::Timeout {
+                operation,
+                duration,
+            } => {
+                write!(
+                    f,
+                    "operation '{}' timed out after {:?}",
+                    operation, duration
+                )
             }
         }
     }
