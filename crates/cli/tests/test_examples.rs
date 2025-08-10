@@ -305,3 +305,221 @@ PORT: "8080"
     // Clean up
     std::env::remove_var("TEST_PARENT_VAR");
 }
+
+#[test]
+fn test_list_command() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create an env.cue file with environments and tasks
+    let env_content = r#"package main
+
+import "cuenv.io/env"
+
+environment: env.#Environment & {
+    dev: {
+        variables: {
+            NODE_ENV: {
+                value: "development"
+                description: "Node environment"
+            }
+            DEBUG: {
+                value: "true"
+                description: "Enable debug mode"
+            }
+        }
+    }
+    
+    production: {
+        variables: {
+            NODE_ENV: {
+                value: "production"
+                description: "Node environment"
+            }
+            DEBUG: {
+                value: "false"
+                description: "Disable debug mode"
+            }
+        }
+    }
+}
+
+tasks: env.#Tasks & {
+    dev: {
+        description: "Start development server"
+        command: ["npm", "run", "dev"]
+    }
+    
+    build: {
+        description: "Build for production"
+        command: ["npm", "run", "build"]
+    }
+    
+    test: {
+        description: "Run tests"
+        command: ["npm", "test"]
+    }
+}
+"#;
+    std::fs::write(temp_dir.path().join("env.cue"), env_content).unwrap();
+
+    // Test list command with no subcommand (should list environments and tasks)
+    let output = Command::new(get_cuenv_binary())
+        .current_dir(temp_dir.path())
+        .arg("list")
+        .env_clear()
+        .env("PATH", std::env::var("PATH").unwrap_or_default())
+        .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string()))
+        .output()
+        .expect("Failed to execute command");
+
+    if !output.status.success() {
+        eprintln!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+        eprintln!("stdout: {}", String::from_utf8_lossy(&output.stdout));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    
+    // Should contain environments section
+    assert!(stdout.contains("Available environments:"));
+    assert!(stdout.contains("dev"));
+    assert!(stdout.contains("production"));
+    
+    // Should contain tasks section
+    assert!(stdout.contains("Available tasks:"));
+    assert!(stdout.contains("dev: Start development server"));
+    assert!(stdout.contains("build: Build for production"));
+    assert!(stdout.contains("test: Run tests"));
+}
+
+#[test] 
+fn test_list_environments_only() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create an env.cue file with environments
+    let env_content = r#"package main
+
+import "cuenv.io/env"
+
+environment: env.#Environment & {
+    dev: {
+        variables: {
+            NODE_ENV: {
+                value: "development"
+                description: "Node environment"
+            }
+        }
+    }
+    
+    staging: {
+        variables: {
+            NODE_ENV: {
+                value: "staging"
+                description: "Node environment"
+            }
+        }
+    }
+}
+"#;
+    std::fs::write(temp_dir.path().join("env.cue"), env_content).unwrap();
+
+    // Test list environments command
+    let output = Command::new(get_cuenv_binary())
+        .current_dir(temp_dir.path())
+        .arg("list")
+        .arg("environments")
+        .env_clear()
+        .env("PATH", std::env::var("PATH").unwrap_or_default())
+        .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string()))
+        .output()
+        .expect("Failed to execute command");
+
+    if !output.status.success() {
+        eprintln!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+        eprintln!("stdout: {}", String::from_utf8_lossy(&output.stdout));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    
+    // Should contain environments section only
+    assert!(stdout.contains("Available environments:"));
+    assert!(stdout.contains("dev"));
+    assert!(stdout.contains("staging"));
+    
+    // Should NOT contain tasks section
+    assert!(!stdout.contains("Available tasks:"));
+}
+
+#[test]
+fn test_list_tasks_only() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create an env.cue file with tasks
+    let env_content = r#"package main
+
+import "cuenv.io/env"
+
+tasks: env.#Tasks & {
+    lint: {
+        description: "Run code linter"
+        command: ["eslint", "."]
+    }
+    
+    format: {
+        description: "Format code"
+        command: ["prettier", "--write", "."]
+    }
+}
+"#;
+    std::fs::write(temp_dir.path().join("env.cue"), env_content).unwrap();
+
+    // Test list tasks command
+    let output = Command::new(get_cuenv_binary())
+        .current_dir(temp_dir.path())
+        .arg("list")
+        .arg("tasks")
+        .env_clear()
+        .env("PATH", std::env::var("PATH").unwrap_or_default())
+        .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string()))
+        .output()
+        .expect("Failed to execute command");
+
+    if !output.status.success() {
+        eprintln!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+        eprintln!("stdout: {}", String::from_utf8_lossy(&output.stdout));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    
+    // Should contain tasks section
+    assert!(stdout.contains("Available tasks:"));
+    assert!(stdout.contains("lint: Run code linter"));
+    assert!(stdout.contains("format: Format code"));
+    
+    // Should NOT contain environments section
+    assert!(!stdout.contains("Available environments:"));
+}
+
+#[test]
+fn test_list_no_env_cue_file() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Test list command without env.cue file
+    let output = Command::new(get_cuenv_binary())
+        .current_dir(temp_dir.path())
+        .arg("list")
+        .env_clear()
+        .env("PATH", std::env::var("PATH").unwrap_or_default())
+        .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string()))
+        .output()
+        .expect("Failed to execute command");
+
+    // Should still succeed but indicate no file found
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    
+    // Should contain appropriate messages for missing file
+    assert!(stdout.contains("Available environments:"));
+    assert!(stdout.contains("(no env.cue file found)"));
+    assert!(stdout.contains("Available tasks:"));
+}
