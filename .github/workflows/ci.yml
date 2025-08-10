@@ -17,10 +17,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
         rust: [stable]
     steps:
       - uses: actions/checkout@v4
+      # Cargo cache - for fast Rust builds
       - name: cache-cargo-target
         uses: actions/cache@v4
         with:
@@ -33,16 +34,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.rust }}-cargo-
             ${{ runner.os }}-cargo-
+      # Nix setup with all caching layers
       - name: nix-install
-        if: runner.os != 'Windows'
         uses: cachix/install-nix-action@v27
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
       - name: magic-nix-cache
-        if: runner.os != 'Windows'
         uses: DeterminateSystems/magic-nix-cache-action@main
       - name: cache-nix-store
-        if: runner.os != 'Windows'
         uses: nix-community/cache-nix-action@v5
         with:
           primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
@@ -50,66 +49,27 @@ jobs:
           gc-max-store-size-linux: 1073741824
           gc-max-store-size-macos: 1073741824
       - name: nix-cache
-        if: runner.os != 'Windows'
         uses: cachix/cachix-action@v15
         with:
           name: cuenv
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           skipPush: ${{ matrix.rust != 'stable' }}
-      # Windows-specific setup
-      - name: setup-rust-windows
-        if: runner.os == 'Windows'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: ${{ matrix.rust }}
-      - name: setup-go-windows
-        if: runner.os == 'Windows'
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
-      # Build once - Nix will cache this (Unix only)
-      - name: nix-build
-        if: runner.os != 'Windows'
-        run: nix build .#cuenv --print-build-logs
-      # Run flake checks - uses cached build from above (Unix only)
-      - name: nix-flake-checks
-        if: runner.os != 'Windows'
-        run: nix flake check --print-build-logs -L
-      # Windows build
-      - name: windows-build
-        if: runner.os == 'Windows'
+      # Build, check, and test
+      - name: nix-build-and-check
         run: |
-          # Set up Go vendor for Windows
-          cd crates/libcue-ffi-bridge
-          go mod vendor
-          cd ../..
-          # Build with cargo
-          cargo build --release
-      # Run tests using cached Nix environment (Unix only)
+          nix build .#cuenv --print-build-logs
+          nix flake check --print-build-logs -L
       - name: cuenv-test-all
-        if: runner.os != 'Windows'
         run: |
-          # Use cached dependencies but run tests directly for cross-platform compatibility
           nix develop --command cargo nextest run --profile ci --no-fail-fast
-      # Run tests on Windows
-      - name: cuenv-test-all-windows
-        if: runner.os == 'Windows'
-        run: |
-          # Install nextest for Windows
-          cargo install cargo-nextest --locked
-          # Run tests
-          cargo nextest run --profile ci --no-fail-fast
       - name: cuenv-test-examples
-        if: runner.os != 'Windows'
         run: |
           # Use the binary from Nix build (already cached)
           mkdir -p target/debug
           cp result/bin/cuenv target/debug/
 
           # To ensure we test the local CUE schema, not a remote one,
-          # we manually populate the CUE module cache. This avoids
-          # running `cue mod get`.
-          # CUE's cache path is cue/cue.mod/pkg/
+          # we manually populate the CUE module cache
           export CUE_CACHE_DIR="examples/cue.mod/pkg"
           export SCHEMA_PATH="$CUE_CACHE_DIR/github.com/rawkode/cuenv@v0"
           mkdir -p "$SCHEMA_PATH"
@@ -119,6 +79,7 @@ jobs:
           ./scripts/test-examples.sh
   test-beta:
     runs-on: ${{ matrix.os }}
+    # Only run beta on main branch
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
@@ -127,6 +88,7 @@ jobs:
         rust: [beta]
     steps:
       - uses: actions/checkout@v4
+      # Cargo cache - for fast Rust builds
       - name: cache-cargo-target
         uses: actions/cache@v4
         with:
@@ -139,6 +101,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.rust }}-cargo-
             ${{ runner.os }}-cargo-
+      # Nix setup with all caching layers
       - name: nix-install
         uses: cachix/install-nix-action@v27
         with:
@@ -157,17 +120,14 @@ jobs:
         with:
           name: cuenv
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-          skipPush: ${{ matrix.rust != 'stable' }}
-      # Build once - Nix will cache this
-      - name: nix-build
-        run: nix build .#cuenv --print-build-logs
-      # Run flake checks - uses cached build from above
-      - name: nix-flake-checks
-        run: nix flake check --print-build-logs -L
-      # Run tests using cached Nix environment
+          skipPush: true # Don't push beta builds to cache
+      # Build and test with beta
+      - name: nix-build-and-check
+        run: |
+          nix build .#cuenv --print-build-logs
+          nix flake check --print-build-logs -L
       - name: cuenv-test-all
         run: |
-          # Use cached dependencies but run tests directly for cross-platform compatibility
           nix develop --command cargo nextest run --profile ci --no-fail-fast
   coverage:
     runs-on: ubuntu-latest
@@ -175,6 +135,7 @@ jobs:
     if: always() && (needs.test.result == 'success')
     steps:
       - uses: actions/checkout@v4
+      # Cargo cache - for fast Rust builds
       - name: cache-cargo-target
         uses: actions/cache@v4
         with:
@@ -187,6 +148,7 @@ jobs:
           restore-keys: |
             ubuntu-latest-stable-cargo-
             ubuntu-latest-cargo-
+      # Nix setup with all caching layers
       - name: nix-install
         uses: cachix/install-nix-action@v27
         with:
@@ -205,6 +167,7 @@ jobs:
           name: cuenv
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           skipPush: false
+      # Generate and upload coverage
       - name: generate-coverage
         run: |
           # Use Nix cache - build will be instant if already cached
