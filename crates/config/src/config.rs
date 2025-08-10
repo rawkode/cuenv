@@ -205,11 +205,20 @@ impl Config {
     /// Filter tasks by capabilities
     pub fn filter_tasks_by_capabilities(&self) -> HashMap<String, &TaskConfig> {
         if self.capabilities.is_empty() {
-            return self.parsed_data.tasks.iter().map(|(k, v)| (k.clone(), v)).collect();
+            return self
+                .parsed_data
+                .tasks
+                .iter()
+                .map(|(k, v)| (k.clone(), v))
+                .collect();
         }
 
         // Tasks don't have capability filtering, return all tasks
-        self.parsed_data.tasks.iter().map(|(k, v)| (k.clone(), v)).collect()
+        self.parsed_data
+            .tasks
+            .iter()
+            .map(|(k, v)| (k.clone(), v))
+            .collect()
     }
 
     /// Check if a variable is marked as sensitive

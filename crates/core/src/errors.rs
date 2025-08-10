@@ -163,10 +163,7 @@ impl std::fmt::Display for Error {
                 operation,
                 duration,
             } => {
-                write!(
-                    f,
-                    "operation '{operation}' timed out after {duration:?}"
-                )
+                write!(f, "operation '{operation}' timed out after {duration:?}")
             }
         }
     }

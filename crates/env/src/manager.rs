@@ -158,6 +158,7 @@ pub struct EnvManager {
     original_env: HashMap<String, String>,
 
     /// Environment variables sourced from hooks (nix, devenv, etc.)
+    #[allow(dead_code)]
     sourced_env: HashMap<String, String>,
 
     /// Current environment diff for shell exports
@@ -428,7 +429,7 @@ impl EnvManager {
     }
 
     /// Update the environment diff for tracking changes
-    fn update_environment_diff(&mut self, new_vars: HashMap<String, String>) -> Result<()> {
+    fn update_environment_diff(&mut self, _new_vars: HashMap<String, String>) -> Result<()> {
         let current_env: HashMap<String, String> = std::env::vars().collect();
         self.current_diff = Some(EnvDiff::new(self.original_env.clone(), current_env));
         Ok(())

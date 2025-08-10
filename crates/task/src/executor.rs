@@ -1222,7 +1222,7 @@ impl TaskExecutor {
     }
 
     /// Get CUE environment variables
-    pub fn get_env_vars(&self) -> &HashMap<String, String> {
+    pub fn get_env_vars(&self) -> HashMap<String, String> {
         self.env_manager.get_cue_vars()
     }
 

@@ -199,7 +199,7 @@ impl ConfigLoader {
 
         // If in monorepo, also check parent directories
         if let Some(ref package_info) = self.package_info {
-            for (_, package_dir) in &package_info.packages {
+            for package_dir in package_info.packages.values() {
                 for filename in &cue_filenames {
                     let cue_file = package_dir.join(filename);
                     if cue_file.exists() {
