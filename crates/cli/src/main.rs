@@ -69,12 +69,6 @@ enum Commands {
 
     /// Display current environment status and changes
     Status,
-
-    /// List various cuenv resources (environments, tasks, etc.)
-    List {
-        #[command(subcommand)]
-        command: Option<ListCommands>,
-    },
     /// Discover all CUE packages in the repository
     Discover {
         /// Maximum depth to search for env.cue files
@@ -178,6 +172,12 @@ enum Commands {
     /// Internal completion helper - complete allowed hosts
     #[command(name = "_complete_hosts", hide = true)]
     CompleteHosts,
+    /// Internal task server protocol implementation (experimental)
+    #[command(name = "internal", hide = true)]
+    Internal {
+        #[command(subcommand)]
+        command: InternalCommands,
+    },
 }
 
 #[derive(Subcommand)]
@@ -224,13 +224,22 @@ enum CacheCommands {
 }
 
 #[derive(Subcommand)]
-enum ListCommands {
-    /// List available environments
-    Environments,
-    /// List available tasks
-    Tasks,
-    /// List everything (environments, tasks, etc.)
-    All,
+enum InternalCommands {
+    /// Task Server Protocol implementation for devenv integration
+    TaskProtocol {
+        /// Task server executable to launch
+        #[arg(long)]
+        server: Option<String>,
+        /// Directory to discover task servers
+        #[arg(long)]
+        discovery_dir: Option<PathBuf>,
+        /// Task to run on external server
+        #[arg(long)]
+        run_task: Option<String>,
+        /// List available tasks from servers
+        #[arg(long)]
+        list_tasks: bool,
+    },
 }
 
 fn generate_completion(shell: &str) -> Result<()> {
@@ -257,7 +266,7 @@ _cuenv_completion() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     # Main commands
-    local commands="init status list allow deny run exec export dump prune cache shell completion help"
+    local commands="init status allow deny run exec export dump prune cache shell completion help"
     
     # Flags that take arguments
     case "${prev}" in
@@ -338,10 +347,6 @@ _cuenv() {
                     _arguments \
                         '1: :(bash zsh fish powershell)'
                     ;;
-                list)
-                    _arguments \
-                        '1: :(environments tasks all)'
-                    ;;
             esac
             ;;
     esac
@@ -352,7 +357,6 @@ _cuenv_commands() {
     commands=(
         'init:Initialize a new env.cue file'
         'status:Display current environment status'
-        'list:List various cuenv resources'
         'allow:Allow cuenv in a directory'
         'deny:Deny cuenv in a directory'
         'run:Run a task or command with the environment'
@@ -404,7 +408,6 @@ fn generate_fish_completion() -> Result<()> {
 complete -c cuenv -f
 complete -c cuenv -n '__fish_use_subcommand' -a 'init' -d 'Initialize a new env.cue file'
 complete -c cuenv -n '__fish_use_subcommand' -a 'status' -d 'Display current environment status'
-complete -c cuenv -n '__fish_use_subcommand' -a 'list' -d 'List various cuenv resources'
 complete -c cuenv -n '__fish_use_subcommand' -a 'allow' -d 'Allow cuenv in a directory'
 complete -c cuenv -n '__fish_use_subcommand' -a 'deny' -d 'Deny cuenv in a directory'
 complete -c cuenv -n '__fish_use_subcommand' -a 'run' -d 'Run a task or command with the environment'
@@ -432,9 +435,6 @@ complete -c cuenv -n '__fish_seen_subcommand_from completion' -xa 'bash zsh fish
 
 # Cache subcommands
 complete -c cuenv -n '__fish_seen_subcommand_from cache' -xa 'clear stats cleanup'
-
-# List subcommands  
-complete -c cuenv -n '__fish_seen_subcommand_from list' -xa 'environments tasks all'
 "#;
     print!("{script}");
     Ok(())
@@ -446,7 +446,7 @@ fn generate_elvish_completion() -> Result<()> {
 
 edit:complete:arg-completer[cuenv] = {|@words|
     fn complete-commands {
-        put init status list allow deny run exec export dump prune cache shell completion help
+        put init status allow deny run exec export dump prune cache shell completion help
     }
     
     fn complete-tasks {
@@ -507,7 +507,7 @@ Register-ArgumentCompleter -Native -CommandName cuenv -ScriptBlock {
     param($commandName, $wordToComplete, $cursorPosition)
     
     $commands = @(
-        'init', 'status', 'list', 'allow', 'deny', 'run', 'exec',
+        'init', 'status', 'allow', 'deny', 'run', 'exec',
         'export', 'dump', 'prune', 'cache', 'shell',
         'completion', 'help'
     )
@@ -660,123 +660,119 @@ async fn complete_hosts() -> Result<()> {
     Ok(())
 }
 
-async fn list_environments(current_dir: &PathBuf) -> Result<()> {
-    println!("Available environments:");
+
+async fn handle_task_protocol(
+    server: &Option<String>,
+    discovery_dir: &Option<PathBuf>,
+    run_task: &Option<String>,
+    list_tasks: bool,
+) -> Result<()> {
+    use cuenv_task::TaskServerManager;
+    use std::collections::HashMap;
     
-    // Check if env.cue exists
-    if !current_dir.join("env.cue").exists() {
-        println!("  (no env.cue file found)");
-        return Ok(());
-    }
+    // Create socket directory in temp
+    let socket_dir = tempfile::tempdir().map_err(|e| {
+        Error::configuration(format!("Failed to create temp socket directory: {}", e))
+    })?;
 
-    // Try to extract environment names from env.cue file content
-    if let Ok(content) = std::fs::read_to_string(current_dir.join("env.cue")) {
-        let lines: Vec<&str> = content.lines().collect();
-        let mut in_environment_section = false;
-        let mut brace_count = 0;
-        let mut found_environments = Vec::new();
+    let mut manager = TaskServerManager::new(socket_dir.path().to_path_buf());
 
-        for line in lines {
-            let trimmed = line.trim();
-
-            // Look for "environment:" line (with or without opening brace)
-            if trimmed.starts_with("environment:") {
-                in_environment_section = true;
-                // Count opening braces on this line
-                brace_count += trimmed.matches('{').count() as i32;
-                brace_count -= trimmed.matches('}').count() as i32;
-                continue;
+    // Add servers based on command line options
+    let mut all_tasks = Vec::new();
+    
+    if let Some(server_executable) = server {
+        // Launch a single server
+        let server_name = std::path::Path::new(server_executable)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("server");
+            
+        match manager.add_server(server_executable, server_name).await {
+            Ok(tasks) => {
+                all_tasks.extend(tasks);
+                println!("Connected to task server: {}", server_executable);
             }
-
-            if in_environment_section {
-                // Look for environment names BEFORE updating brace count
-                // We want to catch "dev: {" when brace_count is still 1
-                if brace_count == 1 && trimmed.contains(':') && trimmed.contains('{') {
-                    if let Some(colon_pos) = trimmed.find(':') {
-                        let env_name = trimmed[..colon_pos].trim();
-                        // Only accept valid identifiers that don't start with uppercase (not types)
-                        if !env_name.is_empty()
-                            && env_name
-                                .chars()
-                                .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
-                            && !env_name.chars().next().unwrap_or('A').is_uppercase()
-                        {
-                            found_environments.push(env_name.to_string());
-                        }
-                    }
-                }
-
-                // Count braces to track nesting
-                brace_count += trimmed.matches('{').count() as i32;
-                brace_count -= trimmed.matches('}').count() as i32;
-
-                // If we're back to 0 braces, we've exited the environment section
-                if brace_count <= 0 {
-                    in_environment_section = false;
-                    continue;
-                }
+            Err(e) => {
+                eprintln!("Failed to connect to task server {}: {}", server_executable, e);
+                return Err(e);
             }
         }
+    }
 
-        if found_environments.is_empty() {
-            println!("  (no environments defined)");
+    if let Some(discovery_path) = discovery_dir {
+        // Discover servers from directory
+        match manager.discover_servers(discovery_path).await {
+            Ok(tasks) => {
+                all_tasks.extend(tasks);
+                println!("Discovered {} task servers from {}", 
+                    tasks.len(), discovery_path.display());
+            }
+            Err(e) => {
+                eprintln!("Failed to discover task servers: {}", e);
+                return Err(e);
+            }
+        }
+    }
+
+    if list_tasks {
+        // List all available tasks from servers
+        if all_tasks.is_empty() {
+            println!("No tasks available from task servers");
         } else {
-            for env_name in found_environments {
-                println!("  {env_name}");
-            }
-        }
-    } else {
-        println!("  (could not read env.cue file)");
-    }
-
-    Ok(())
-}
-
-async fn list_tasks(current_dir: &PathBuf) -> Result<()> {
-    println!("Available tasks:");
-
-    // Check if env.cue exists
-    if !current_dir.join("env.cue").exists() {
-        println!("  (no env.cue file found)");
-        return Ok(());
-    }
-
-    // Check if we're in a monorepo context
-    if crate::monorepo::is_monorepo(current_dir) {
-        // For monorepos, we should list tasks from all packages
-        // This reuses the existing monorepo task listing logic
-        if let Err(_) = crate::monorepo::list_monorepo_tasks(current_dir).await {
-            println!("  (failed to list monorepo tasks)");
-        }
-        return Ok(());
-    }
-
-    // Parse the CUE file to get task definitions (without loading full environment)
-    let options = ParseOptions {
-        environment: env::var(CUENV_ENV_VAR).ok(),
-        capabilities: Vec::new(),
-    };
-
-    match CueParser::eval_package_with_options(current_dir, "env", &options) {
-        Ok(parse_result) => {
-            if parse_result.tasks.is_empty() {
-                println!("  (no tasks defined)");
-            } else {
-                for (name, task) in parse_result.tasks {
-                    match task.description {
-                        Some(desc) => println!("  {name}: {desc}"),
-                        None => println!("  {name}"),
-                    }
+            println!("Available tasks from external servers:");
+            for task in &all_tasks {
+                if let Some(description) = &task.description {
+                    println!("  {}: {}", task.name, description);
+                } else {
+                    println!("  {}", task.name);
                 }
             }
         }
-        Err(e) => {
-            println!("  (failed to parse CUE file: {e})");
+    }
+
+    if let Some(task_name) = run_task {
+        // Run a specific task
+        if all_tasks.iter().any(|t| t.name == *task_name) {
+            println!("Running task: {}", task_name);
+            
+            let inputs = HashMap::new();  // TODO: Accept inputs from CLI
+            let outputs = HashMap::new(); // TODO: Accept outputs from CLI
+            
+            match manager.run_task(task_name, inputs, outputs).await {
+                Ok(exit_code) => {
+                    if exit_code == 0 {
+                        println!("Task '{}' completed successfully", task_name);
+                    } else {
+                        println!("Task '{}' failed with exit code {}", task_name, exit_code);
+                        std::process::exit(exit_code);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Failed to run task '{}': {}", task_name, e);
+                    return Err(e);
+                }
+            }
+        } else {
+            eprintln!("Task '{}' not found in available servers", task_name);
+            return Err(Error::configuration(format!("Task '{}' not found", task_name)));
         }
     }
 
+    // If no action specified, just list tasks
+    if server.is_none() && discovery_dir.is_none() && run_task.is_none() && !list_tasks {
+        println!("Task Server Protocol (TSP) client");
+        println!("Usage:");
+        println!("  cuenv internal task-protocol --server <executable> --list-tasks");
+        println!("  cuenv internal task-protocol --discovery-dir <path> --list-tasks");
+        println!("  cuenv internal task-protocol --server <executable> --run-task <task>");
+    }
+
+    // Shutdown servers
+    manager.shutdown().await?;
+
     Ok(())
 }
+
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
@@ -1033,36 +1029,6 @@ tasks: env.#Tasks & {
             match env_manager.print_env_diff() {
                 Ok(()) => {}
                 Err(e) => return Err(e.into()),
-            }
-        }
-        Some(Commands::List { command }) => {
-            let current_dir = match env::current_dir() {
-                Ok(d) => d,
-                Err(e) => {
-                    return Err(Error::file_system(
-                        PathBuf::from("."),
-                        "get current directory",
-                        e,
-                    ));
-                }
-            };
-
-            match command {
-                Some(ListCommands::Environments) | None => {
-                    list_environments(&current_dir).await?;
-                    if command.is_none() {
-                        println!();
-                        list_tasks(&current_dir).await?;
-                    }
-                }
-                Some(ListCommands::Tasks) => {
-                    list_tasks(&current_dir).await?;
-                }
-                Some(ListCommands::All) => {
-                    list_environments(&current_dir).await?;
-                    println!();
-                    list_tasks(&current_dir).await?;
-                }
             }
         }
         Some(Commands::Discover {
@@ -1474,6 +1440,18 @@ tasks: env.#Tasks & {
         }
         Some(Commands::CompleteHosts) => {
             complete_hosts().await?;
+        }
+        Some(Commands::Internal { command }) => {
+            match command {
+                InternalCommands::TaskProtocol {
+                    server,
+                    discovery_dir,
+                    run_task,
+                    list_tasks,
+                } => {
+                    handle_task_protocol(server, discovery_dir, run_task, *list_tasks).await?;
+                }
+            }
         }
         None => {
             let current_dir = match DirectoryManager::get_current_directory() {
