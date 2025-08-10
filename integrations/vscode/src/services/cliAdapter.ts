@@ -20,9 +20,18 @@ export class CLIAdapter {
         this.timeout = timeout;
     }
 
+    private sanitizeArgs(args: string[]): string[] {
+        // Basic sanitization - remove null bytes and control characters
+        return args.map(arg => 
+            arg.replace(/[\x00-\x1f\x7f-\x9f]/g, '')
+               .trim()
+        ).filter(arg => arg.length > 0);
+    }
+
     private async execCuenv(args: string[], cwd: string): Promise<CLIResult> {
+        const sanitizedArgs = this.sanitizeArgs(args);
         try {
-            const result = await execFileAsync(this.executablePath, args, {
+            const result = await execFileAsync(this.executablePath, sanitizedArgs, {
                 cwd,
                 timeout: this.timeout,
                 encoding: 'utf8'
@@ -54,7 +63,7 @@ export class CLIAdapter {
             const trimmed = line.trim();
             if (trimmed.startsWith('export ')) {
                 // Parse: export VAR_NAME="value" or export VAR_NAME=value
-                const match = trimmed.match(/^export\s+([A-Z_][A-Z0-9_]*)=(.*)$/);
+                const match = trimmed.match(/^export\s+([A-Za-z_][A-Za-z0-9_]*)=(.*)$/i);
                 if (match) {
                     const [, name, value] = match;
                     // Remove quotes if present

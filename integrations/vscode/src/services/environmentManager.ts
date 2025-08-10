@@ -147,6 +147,10 @@ export class EnvironmentManager {
         this.debounceMs = newDebounceMs;
     }
 
+    updateExecutablePath(newPath: string): void {
+        this.cliAdapter.updateExecutablePath(newPath);
+    }
+
     dispose(): void {
         if (this._debounceTimer) {
             clearTimeout(this._debounceTimer);

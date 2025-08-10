@@ -1,10 +1,22 @@
+const MAX_MASK_LENGTH = 8;
+
+export function validateRegexPattern(pattern: string): boolean {
+    try {
+        new RegExp(pattern);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 export function maskValue(name: string, value: string, patterns: string[]): { masked: string; shouldMask: boolean } {
     const shouldMask = patterns.some(pattern => {
         try {
             const regex = new RegExp(pattern);
             return regex.test(name);
-        } catch {
-            // If pattern is invalid, skip it
+        } catch (error) {
+            // Log invalid regex patterns for debugging
+            console.warn(`Invalid regex pattern skipped: ${pattern}`, error);
             return false;
         }
     });
@@ -14,7 +26,7 @@ export function maskValue(name: string, value: string, patterns: string[]): { ma
     }
 
     // Preserve length for better UX
-    const masked = '•'.repeat(Math.min(value.length, 8));
+    const masked = '•'.repeat(Math.min(value.length, MAX_MASK_LENGTH));
     return { masked, shouldMask: true };
 }
 
