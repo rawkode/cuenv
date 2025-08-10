@@ -9,6 +9,7 @@ use crate::keys::CacheKeyGenerator;
 use crate::security::signing::{CacheSigner, SignedCacheEntry};
 use cuenv_config::TaskConfig;
 use cuenv_core::{Error, Result};
+use cuenv_task::definition::{TaskDefinition, TaskExecutionMode};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -105,25 +106,30 @@ impl ActionCache {
     pub async fn compute_digest(
         &self,
         task_name: &str,
-        task_config: &TaskConfig,
+        task_definition: &TaskDefinition,
         working_dir: &Path,
         env_vars: HashMap<String, String>,
     ) -> Result<ActionDigest> {
         // Filter environment variables using selective filtering
         let filtered_env_vars = self.key_generator.filter_env_vars(task_name, &env_vars);
 
+        let command = match &task_definition.execution_mode {
+            TaskExecutionMode::Command { command } => Some(command.clone()),
+            TaskExecutionMode::Script { content } => Some(content.clone()),
+        };
+
         let mut components = ActionComponents {
             task_name: task_name.to_string(),
-            command: task_config.command.clone().or(task_config.script.clone()),
+            command,
             working_dir: working_dir.to_path_buf(),
             env_vars: filtered_env_vars,
             input_files: HashMap::new(),
-            config_hash: hash_task_config(task_config)?,
+            config_hash: hash_task_definition(task_definition)?,
         };
 
-        // Hash input files
-        if let Some(inputs) = &task_config.inputs {
-            for pattern in inputs {
+        // Hash input files  
+        if !task_definition.inputs.is_empty() {
+            for pattern in &task_definition.inputs {
                 let files = crate::hashing::expand_glob_pattern(pattern, working_dir)?;
                 for file in files {
                     // Use streaming hash computation for large files
@@ -378,6 +384,16 @@ impl ActionCache {
 fn hash_task_config(config: &TaskConfig) -> Result<String> {
     let serialized = serde_json::to_string(config).map_err(|e| Error::Json {
         message: "Failed to serialize task config for hashing".to_string(),
+        source: e,
+    })?;
+
+    Ok(compute_hash(serialized.as_bytes()))
+}
+
+/// Compute hash of task definition for cache key
+fn hash_task_definition(definition: &TaskDefinition) -> Result<String> {
+    let serialized = serde_json::to_string(definition).map_err(|e| Error::Json {
+        message: "Failed to serialize task definition for hashing".to_string(),
         source: e,
     })?;
 
