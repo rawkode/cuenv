@@ -16,7 +16,6 @@ workspace = true
 cuenv-core.workspace = true
 cuenv-utils.workspace = true
 cuenv-config.workspace = true
-cuenv-task.workspace = true
 
 # Async runtime
 tokio.workspace = true

@@ -4,7 +4,7 @@
 //! It takes raw TaskConfig objects and produces validated, immutable TaskDefinition
 //! objects ready for execution.
 
-use crate::definition::{ResolvedDependency, TaskDefinition, TaskExecutionMode, TaskSecurity};
+use cuenv_core::{ResolvedDependency, TaskDefinition, TaskExecutionMode, TaskSecurity, TaskCache, DEFAULT_TASK_TIMEOUT_SECS};
 use cuenv_config::TaskConfig;
 use cuenv_core::{Error, Result};
 use std::collections::{HashMap, HashSet};
