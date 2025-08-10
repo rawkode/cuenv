@@ -1292,10 +1292,10 @@ mod tests {
         let env_file = temp_dir.path().join("env.cue");
         fs::write(&env_file, tasks_cue).unwrap();
 
-        use cuenv_config::{ConfigLoader, PackageInfo, RuntimeSettings, SecurityContext};
+        use cuenv_config::{ConfigLoader, PackageInfo, RuntimeSettings};
         let mut loader = ConfigLoader::new();
         let config = loader
-            .environment("dev".to_string())
+            .with_environment("dev".to_string())
             .capabilities(vec![])
             .working_directory(temp_dir.path().to_path_buf())
             .original_environment(std::env::vars().collect())
