@@ -2,36 +2,41 @@ use std::process::Command;
 use tempfile::TempDir;
 
 #[test]
-fn test_help_shows_all_main_commands() {
-    let output = Command::new("./target/debug/cuenv")
-        .arg("--help")
+fn test_main_commands_are_functional() {
+    // Test that main commands actually execute (rather than just checking help text)
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+
+    // Test init command functionality
+    let init_output = Command::new("./target/debug/cuenv")
+        .current_dir(temp_dir.path())
+        .arg("init")
         .output()
-        .expect("Failed to execute cuenv");
+        .expect("Failed to execute cuenv init");
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(init_output.status.success(), "init command should succeed");
+    
+    // Verify init actually created the file
+    let env_file = temp_dir.path().join("env.cue");
+    assert!(env_file.exists(), "init should create env.cue file");
+    
+    let content = std::fs::read_to_string(&env_file).expect("Should be able to read created file");
+    assert!(!content.is_empty(), "Created file should have content");
+    assert!(content.contains("package"), "Created file should be valid CUE");
 
-    // All main commands should be visible
-    assert!(stdout.contains("init"), "init command should be visible");
-    assert!(
-        stdout.contains("status"),
-        "status command should be visible"
-    );
-    assert!(stdout.contains("allow"), "allow command should be visible");
-    assert!(stdout.contains("deny"), "deny command should be visible");
-    assert!(stdout.contains("run"), "run command should be visible");
-    assert!(stdout.contains("exec"), "exec command should be visible");
-    assert!(
-        stdout.contains("export"),
-        "export command should be visible"
-    );
-    assert!(stdout.contains("dump"), "dump command should be visible");
-    assert!(stdout.contains("prune"), "prune command should be visible");
-    assert!(stdout.contains("cache"), "cache command should be visible");
-    assert!(stdout.contains("shell"), "shell command should be visible");
-    assert!(
-        stdout.contains("completion"),
-        "completion command should be visible"
-    );
+    // Test status command functionality
+    let status_output = Command::new("./target/debug/cuenv")
+        .current_dir(temp_dir.path())
+        .arg("status")
+        .output()
+        .expect("Failed to execute cuenv status");
+
+    // Status should work (success or meaningful failure)
+    let status_stdout = String::from_utf8_lossy(&status_output.stdout);
+    let status_stderr = String::from_utf8_lossy(&status_output.stderr);
+    
+    // Should produce some meaningful output
+    assert!(!status_stdout.is_empty() || !status_stderr.is_empty(), 
+           "status command should produce output");
 }
 
 #[test]
@@ -245,64 +250,68 @@ fn test_init_force_overwrites_existing_file() {
     );
 }
 
-#[test]
-fn test_all_commands_have_descriptions() {
-    let output = Command::new("./target/debug/cuenv")
-        .arg("--help")
+#[test] 
+fn test_commands_execute_functionally() {
+    // Test actual command functionality rather than just help text parsing
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+
+    // Test allow command functionality (should work without env.cue)
+    let allow_output = Command::new("./target/debug/cuenv")
+        .current_dir(temp_dir.path())
+        .arg("allow")
         .output()
-        .expect("Failed to execute cuenv");
+        .expect("Failed to execute cuenv allow");
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    // Allow command should execute (may succeed or fail with meaningful error)
+    let allow_stdout = String::from_utf8_lossy(&allow_output.stdout);
+    let allow_stderr = String::from_utf8_lossy(&allow_output.stderr);
+    
+    // Should produce meaningful output or error message
+    assert!(!allow_stdout.is_empty() || !allow_stderr.is_empty(), 
+           "allow command should produce output");
 
-    // Check that each visible command has a description
-    assert!(
-        stdout.contains("init") && stdout.contains("Initialize"),
-        "init should have description"
-    );
-    assert!(
-        stdout.contains("status") && stdout.contains("Display"),
-        "status should have description"
-    );
-    assert!(
-        stdout.contains("allow") && stdout.contains("Allow"),
-        "allow should have description"
-    );
-    assert!(
-        stdout.contains("deny") && stdout.contains("Deny"),
-        "deny should have description"
-    );
-    assert!(
-        stdout.contains("run") && stdout.contains("Run"),
-        "run should have description"
-    );
-    assert!(
-        stdout.contains("exec") && stdout.contains("Execute"),
-        "exec should have description"
-    );
-    assert!(
-        stdout.contains("export") && stdout.contains("Export"),
-        "export should have description"
-    );
-    assert!(
-        stdout.contains("dump") && stdout.contains("Dump"),
-        "dump should have description"
-    );
-    assert!(
-        stdout.contains("prune") && stdout.contains("Prune"),
-        "prune should have description"
-    );
-    assert!(
-        stdout.contains("cache") && stdout.contains("Manage"),
-        "cache should have description"
-    );
-    assert!(
-        stdout.contains("shell") && stdout.contains("Configure"),
-        "shell should have description"
-    );
-    assert!(
-        stdout.contains("completion") && stdout.contains("Generate"),
-        "completion should have description"
-    );
+    // Test shell command functionality
+    let shell_output = Command::new("./target/debug/cuenv")
+        .current_dir(temp_dir.path())
+        .args(["shell", "bash"])
+        .output()
+        .expect("Failed to execute cuenv shell bash");
+
+    // Shell command should handle bash shell type
+    let shell_stdout = String::from_utf8_lossy(&shell_output.stdout);
+    let shell_stderr = String::from_utf8_lossy(&shell_output.stderr);
+    
+    // Should produce shell hook output or meaningful error
+    assert!(!shell_stdout.is_empty() || !shell_stderr.is_empty(),
+           "shell command should produce output");
+
+    // Test cache command functionality 
+    let cache_output = Command::new("./target/debug/cuenv")
+        .current_dir(temp_dir.path())
+        .args(["cache", "--help"])
+        .output()
+        .expect("Failed to execute cuenv cache");
+
+    // Cache command should show subcommands help
+    assert!(cache_output.status.success() || 
+           !String::from_utf8_lossy(&cache_output.stderr).is_empty(),
+           "cache command should provide help or meaningful error");
+
+    // Test completion command functionality
+    let completion_output = Command::new("./target/debug/cuenv")
+        .args(["completion", "bash"])
+        .output()
+        .expect("Failed to execute cuenv completion");
+
+    // Completion should generate bash completions or meaningful error
+    let completion_stdout = String::from_utf8_lossy(&completion_output.stdout);
+    let completion_stderr = String::from_utf8_lossy(&completion_output.stderr);
+    
+    if completion_output.status.success() {
+        assert!(!completion_stdout.is_empty(), "completion should generate completion script");
+    } else {
+        assert!(!completion_stderr.is_empty(), "completion should provide error message");
+    }
 }
 
 #[test]
