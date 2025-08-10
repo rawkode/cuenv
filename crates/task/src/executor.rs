@@ -689,11 +689,11 @@ impl TaskExecutor {
 
         stack.insert(task_name.to_owned());
 
-        let task_config = all_tasks
+        let task_definition = all_tasks
             .get(task_name)
             .ok_or_else(|| Error::configuration(format!("Task '{task_name}' not found")))?;
 
-        let dependencies = task_config.dependencies.clone().unwrap_or_default();
+        let dependencies = task_definition.dependency_names();
 
         // Validate and collect dependencies
         for dep_name in &dependencies {
@@ -984,18 +984,8 @@ impl TaskExecutor {
             cuenv_security::SecurityValidator::validate_command_args(args)?;
         }
 
-        // Determine working directory
-        let exec_dir = if let Some(task_wd) = &task_config.working_dir {
-            let mut dir = working_dir.to_path_buf();
-            dir.push(task_wd);
-
-            // Validate the working directory path
-            cuenv_security::SecurityValidator::validate_path(&dir, &[working_dir.to_path_buf()])?;
-
-            dir
-        } else {
-            working_dir.to_path_buf()
-        };
+        // Use the working directory from task definition
+        let exec_dir = task_definition.working_directory.clone();
 
         // Configure process group for better cleanup
         let mut cmd = Command::new(&shell);
@@ -1035,10 +1025,10 @@ impl TaskExecutor {
         }
 
         // Apply security restrictions if configured
-        if let Some(security) = &task_config.security {
+        if let Some(security) = &task_definition.security {
             use cuenv_security::AccessRestrictions;
             let mut restrictions =
-                AccessRestrictions::from_security_config_with_task(security, task_config);
+                AccessRestrictions::from_security_config_with_task(security, task_definition);
 
             if audit_mode {
                 restrictions.enable_audit_mode();
@@ -1144,10 +1134,7 @@ impl TaskExecutor {
         };
 
         // Use ProcessGuard for automatic cleanup
-        let timeout = match task_config.timeout {
-            Some(timeout_secs) => Duration::from_secs(timeout_secs as u64),
-            None => Duration::from_secs(3600), // Default 1 hour timeout
-        };
+        let timeout = task_definition.timeout;
 
         let mut guard = ProcessGuard::new(child, timeout);
 
