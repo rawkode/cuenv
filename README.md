@@ -204,18 +204,19 @@ cuenv mcp --allow-exec
 
 ```json
 {
-  "servers": {
-    "cuenv": {
-      "command": "cuenv",
-      "args": ["mcp", "--allow-exec"],
-      "type": "stdio",
-      "description": "cuenv environment and task management"
-    }
-  }
+	"servers": {
+		"cuenv": {
+			"command": "cuenv",
+			"args": ["mcp", "--allow-exec"],
+			"type": "stdio",
+			"description": "cuenv environment and task management"
+		}
+	}
 }
 ```
 
 **Available MCP tools:**
+
 - `cuenv.list_env_vars` - List environment variables
 - `cuenv.get_env_var` - Get specific variable value
 - `cuenv.list_tasks` - List available tasks

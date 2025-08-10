@@ -17,7 +17,7 @@ use tokio::net::UnixStream;
 async fn test_mcp_tools_list() -> Result<()> {
     let temp_dir = TempDir::new().unwrap();
     let socket_path = temp_dir.path().join("test_mcp.sock");
-    
+
     // Create some test tasks
     let mut tasks = HashMap::new();
     tasks.insert(
@@ -40,26 +40,27 @@ async fn test_mcp_tools_list() -> Result<()> {
     });
 
     let response = TaskServerProvider::handle_request(request, &HashMap::new(), true).await;
-    
+
     // Verify response structure
     assert_eq!(response["jsonrpc"], "2.0");
     assert_eq!(response["id"], 1);
     assert!(response["result"]["tools"].is_array());
-    
+
     let tools = response["result"]["tools"].as_array().unwrap();
-    
+
     // Check that MCP tools are present
-    let tool_names: Vec<String> = tools.iter()
+    let tool_names: Vec<String> = tools
+        .iter()
         .map(|tool| tool["name"].as_str().unwrap().to_string())
         .collect();
-        
+
     assert!(tool_names.contains(&"cuenv.list_env_vars".to_string()));
     assert!(tool_names.contains(&"cuenv.get_env_var".to_string()));
     assert!(tool_names.contains(&"cuenv.list_tasks".to_string()));
     assert!(tool_names.contains(&"cuenv.get_task".to_string()));
     assert!(tool_names.contains(&"cuenv.check_directory".to_string()));
     assert!(tool_names.contains(&"cuenv.run_task".to_string())); // Should be present with allow_exec=true
-    
+
     Ok(())
 }
 
@@ -73,14 +74,15 @@ async fn test_mcp_tools_list_no_exec() -> Result<()> {
     });
 
     let response = TaskServerProvider::handle_request(request, &HashMap::new(), false).await;
-    
+
     let tools = response["result"]["tools"].as_array().unwrap();
-    let tool_names: Vec<String> = tools.iter()
+    let tool_names: Vec<String> = tools
+        .iter()
         .map(|tool| tool["name"].as_str().unwrap().to_string())
         .collect();
-        
+
     assert!(!tool_names.contains(&"cuenv.run_task".to_string())); // Should be absent with allow_exec=false
-    
+
     Ok(())
 }
 
@@ -88,11 +90,11 @@ async fn test_mcp_tools_list_no_exec() -> Result<()> {
 #[tokio::test]
 async fn test_mcp_check_directory() -> Result<()> {
     let temp_dir = TempDir::new().unwrap();
-    
+
     // Create an env.cue file in the temp directory
     let env_cue_path = temp_dir.path().join("env.cue");
     std::fs::write(&env_cue_path, "package main\nenvironment: dev: {}")?;
-    
+
     let request = json!({
         "jsonrpc": "2.0",
         "method": "tools/call",
@@ -106,17 +108,17 @@ async fn test_mcp_check_directory() -> Result<()> {
     });
 
     let response = TaskServerProvider::handle_request(request, &HashMap::new(), false).await;
-    
+
     assert_eq!(response["jsonrpc"], "2.0");
     assert_eq!(response["id"], 1);
     assert!(response["result"]["content"].is_array());
-    
+
     let content = response["result"]["content"][0]["text"].as_str().unwrap();
     let result: serde_json::Value = serde_json::from_str(content).unwrap();
-    
+
     assert_eq!(result["allowed"], true); // In MCP mode, directories are assumed allowed
     assert_eq!(result["has_env_cue"], true);
-    
+
     Ok(())
 }
 
@@ -141,17 +143,17 @@ async fn test_tsp_initialize_compatibility() -> Result<()> {
     });
 
     let response = TaskServerProvider::handle_request(request, &tasks, false).await;
-    
+
     assert_eq!(response["jsonrpc"], "2.0");
     assert_eq!(response["id"], 1);
     assert!(response["result"]["tasks"].is_array());
-    
+
     let task_list = response["result"]["tasks"].as_array().unwrap();
     assert_eq!(task_list.len(), 1);
     assert_eq!(task_list[0]["name"], "build");
     assert_eq!(task_list[0]["description"], "Build the project");
     assert_eq!(task_list[0]["after"], json!(["deps"]));
-    
+
     Ok(())
 }
 
@@ -169,13 +171,16 @@ async fn test_mcp_invalid_tool() -> Result<()> {
     });
 
     let response = TaskServerProvider::handle_request(request, &HashMap::new(), false).await;
-    
+
     assert_eq!(response["jsonrpc"], "2.0");
     assert_eq!(response["id"], 1);
     assert!(response["error"].is_object());
     assert_eq!(response["error"]["code"], -32601);
-    assert!(response["error"]["message"].as_str().unwrap().contains("Tool not found"));
-    
+    assert!(response["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("Tool not found"));
+
     Ok(())
 }
 
@@ -183,7 +188,7 @@ async fn test_mcp_invalid_tool() -> Result<()> {
 #[tokio::test]
 async fn test_mcp_run_task_blocked() -> Result<()> {
     let temp_dir = TempDir::new().unwrap();
-    
+
     let request = json!({
         "jsonrpc": "2.0",
         "method": "tools/call",
@@ -198,12 +203,15 @@ async fn test_mcp_run_task_blocked() -> Result<()> {
     });
 
     let response = TaskServerProvider::handle_request(request, &HashMap::new(), false).await;
-    
+
     assert_eq!(response["jsonrpc"], "2.0");
     assert_eq!(response["id"], 1);
     assert!(response["error"].is_object());
-    assert!(response["error"]["message"].as_str().unwrap().contains("not allowed"));
-    
+    assert!(response["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("not allowed"));
+
     Ok(())
 }
 
@@ -217,13 +225,16 @@ async fn test_invalid_method() -> Result<()> {
     });
 
     let response = TaskServerProvider::handle_request(request, &HashMap::new(), false).await;
-    
+
     assert_eq!(response["jsonrpc"], "2.0");
     assert_eq!(response["id"], 1);
     assert!(response["error"].is_object());
     assert_eq!(response["error"]["code"], -32601);
-    assert!(response["error"]["message"].as_str().unwrap().contains("Method not found"));
-    
+    assert!(response["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("Method not found"));
+
     Ok(())
 }
 
@@ -231,24 +242,20 @@ async fn test_invalid_method() -> Result<()> {
 #[tokio::test]
 async fn test_mcp_server_creation() -> Result<()> {
     let tasks = HashMap::new();
-    
+
     // Test stdio server creation
     let stdio_server = TaskServerProvider::new_stdio(tasks.clone(), true);
     assert!(stdio_server.use_stdio);
     assert!(stdio_server.allow_exec);
-    
+
     // Test Unix socket server creation
     let temp_dir = TempDir::new().unwrap();
     let socket_path = temp_dir.path().join("test.sock");
-    
-    let unix_server = TaskServerProvider::new_with_options(
-        Some(socket_path), 
-        tasks.clone(), 
-        false, 
-        false
-    );
+
+    let unix_server =
+        TaskServerProvider::new_with_options(Some(socket_path), tasks.clone(), false, false);
     assert!(!unix_server.use_stdio);
     assert!(!unix_server.allow_exec);
-    
+
     Ok(())
 }
