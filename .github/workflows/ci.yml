@@ -13,19 +13,11 @@ permissions:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
-    # Run stable Rust on all events, beta Rust only on main branch pushes
-    if: matrix.rust == 'stable' || (matrix.rust == 'beta' && github.event_name == 'push' && github.ref == 'refs/heads/main')
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         rust: [stable]
-        include:
-          # Only run beta Rust on main branch
-          - os: ubuntu-latest
-            rust: beta
-          - os: macos-latest
-            rust: beta
     steps:
       - uses: actions/checkout@v4
       - name: cache-cargo-target
@@ -124,9 +116,64 @@ jobs:
 
           # Run the example tests
           ./scripts/test-examples.sh
+  
+  test-beta:
+    runs-on: ${{ matrix.os }}
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        rust: [beta]
+    steps:
+      - uses: actions/checkout@v4
+      - name: cache-cargo-target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.rust }}-cargo-
+            ${{ runner.os }}-cargo-
+      - name: nix-install
+        uses: cachix/install-nix-action@v27
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: magic-nix-cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: cache-nix-store
+        uses: nix-community/cache-nix-action@v5
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          gc-max-store-size-linux: 1073741824
+          gc-max-store-size-macos: 1073741824
+      - name: nix-cache
+        uses: cachix/cachix-action@v15
+        with:
+          name: cuenv
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          skipPush: ${{ matrix.rust != 'stable' }}
+      # Build once - Nix will cache this
+      - name: nix-build
+        run: nix build .#cuenv --print-build-logs
+      # Run flake checks - uses cached build from above
+      - name: nix-flake-checks
+        run: nix flake check --print-build-logs -L
+      # Run tests using cached Nix environment
+      - name: cuenv-test-all
+        run: |
+          # Use cached dependencies but run tests directly for cross-platform compatibility
+          nix develop --command cargo nextest run --profile ci --no-fail-fast
+
   coverage:
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test]
+    if: always() && (needs.test.result == 'success')
     steps:
       - uses: actions/checkout@v4
       - name: cache-cargo-target
