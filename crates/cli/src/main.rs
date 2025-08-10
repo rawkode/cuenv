@@ -178,6 +178,24 @@ enum Commands {
         #[command(subcommand)]
         command: InternalCommands,
     },
+    /// Start MCP (Model Context Protocol) server for Claude Code integration
+    Mcp {
+        /// Transport type (stdio, tcp, unix)
+        #[arg(long, default_value = "stdio")]
+        transport: String,
+        
+        /// TCP port (only for tcp transport)
+        #[arg(long, default_value = "8765")]
+        port: u16,
+        
+        /// Unix socket path (only for unix transport, defaults to temp)
+        #[arg(long)]
+        socket: Option<PathBuf>,
+        
+        /// Allow task execution (default: read-only)
+        #[arg(long)]
+        allow_exec: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -662,6 +680,101 @@ async fn complete_hosts() -> Result<()> {
                         println!("{host}");
                     }
                 }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn handle_mcp_server(
+    transport: String,
+    port: u16,
+    socket: Option<PathBuf>,
+    allow_exec: bool,
+) -> Result<()> {
+    use cuenv_task::TaskServerProvider;
+    
+    // Get current directory and load environment tasks
+    let current_dir = match DirectoryManager::get_current_directory() {
+        Ok(d) => d,
+        Err(e) => {
+            return Err(Error::configuration(format!(
+                "Failed to get current directory: {e}"
+            )));
+        }
+    };
+
+    let mut env_manager = EnvManager::new();
+    env_manager.load_env(&current_dir).await?;
+
+    // Extract tasks from environment manager
+    let internal_tasks = env_manager.get_tasks().clone();
+
+    // Create the appropriate server based on transport
+    let mut provider = match transport.as_str() {
+        "stdio" => {
+            println!("Starting cuenv MCP server (stdio transport)");
+            println!("Transport: stdio");
+            println!("Task execution: {}", if allow_exec { "enabled" } else { "read-only" });
+            println!("Ready for MCP clients (like Claude Code)");
+            
+            TaskServerProvider::new_stdio(internal_tasks, allow_exec)
+        }
+        "unix" => {
+            let socket_path = socket.unwrap_or_else(|| {
+                tempfile::tempdir()
+                    .map(|d| d.path().join("cuenv-mcp.sock"))
+                    .unwrap_or_else(|_| PathBuf::from("/tmp/cuenv-mcp.sock"))
+            });
+            
+            println!("Starting cuenv MCP server (Unix socket transport)");
+            println!("Socket: {}", socket_path.display());
+            println!("Task execution: {}", if allow_exec { "enabled" } else { "read-only" });
+            
+            TaskServerProvider::new_with_options(Some(socket_path), internal_tasks, allow_exec, false)
+        }
+        "tcp" => {
+            println!("Starting cuenv MCP server (TCP transport)");
+            println!("Port: {}", port);
+            println!("Task execution: {}", if allow_exec { "enabled" } else { "read-only" });
+            println!("Note: TCP transport uses Unix socket internally - external TCP not implemented yet");
+            
+            // For TCP, we'll create a temporary socket and note the limitation
+            let temp_socket = tempfile::tempdir()
+                .map(|d| d.path().join("cuenv-mcp-tcp.sock"))
+                .map_err(|e| Error::configuration(format!("Failed to create temp socket: {}", e)))?;
+            
+            TaskServerProvider::new_with_options(Some(temp_socket), internal_tasks, allow_exec, false)
+        }
+        _ => {
+            return Err(Error::configuration(format!(
+                "Unsupported transport: {}. Use 'stdio', 'unix', or 'tcp'",
+                transport
+            )));
+        }
+    };
+
+    // Start the server (this will block until interrupted)
+    println!("Press Ctrl+C to stop the server");
+    
+    // Set up signal handling for graceful shutdown
+    let ctrl_c = tokio::signal::ctrl_c();
+    
+    tokio::select! {
+        result = provider.start() => {
+            match result {
+                Ok(()) => println!("MCP server stopped successfully"),
+                Err(e) => {
+                    eprintln!("MCP server error: {}", e);
+                    return Err(e);
+                }
+            }
+        }
+        _ = ctrl_c => {
+            println!("Received interrupt signal, stopping MCP server...");
+            if let Err(e) = provider.shutdown().await {
+                eprintln!("Error during shutdown: {}", e);
             }
         }
     }
@@ -1587,6 +1700,9 @@ tasks: env.#Tasks & {
                 )
                 .await?;
             }
+        },
+        Some(Commands::Mcp { transport, port, socket, allow_exec }) => {
+            handle_mcp_server(transport, port, socket, allow_exec).await?;
         },
         None => {
             let current_dir = match DirectoryManager::get_current_directory() {
