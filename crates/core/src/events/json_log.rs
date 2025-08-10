@@ -51,7 +51,7 @@ impl JsonLogSubscriber {
             writer: Mutex::new(None),
             file_path,
             include_metadata: true,
-            max_file_size: Some(DEFAULT_MAX_FILE_SIZE)
+            max_file_size: Some(DEFAULT_MAX_FILE_SIZE),
             backup_count: DEFAULT_BACKUP_COUNT,
             cached_file_size: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             write_counter: Arc::new(std::sync::atomic::AtomicU64::new(0)),
