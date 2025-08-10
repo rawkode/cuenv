@@ -45,7 +45,7 @@ mod cache_property_tests {
     /// Helper to create a sync cache for property tests
     fn create_sync_cache(config: UnifiedCacheConfig) -> Result<SyncCache, CacheError> {
         init_test_runtime();
-        
+
         let temp_dir = TempDir::new().map_err(|e| CacheError::Io {
             path: std::path::PathBuf::from("/tmp"),
             operation: "create temp dir",
@@ -621,7 +621,7 @@ mod cache_property_tests {
             value in arb_cache_value().prop_filter("Limit size", |v| v.len() < 10000),
         ) {
             init_test_runtime();
-            
+
             let temp_dir = TempDir::new().unwrap();
             // Use single-threaded runtime to avoid TLS exhaustion
             let rt = tokio::runtime::Builder::new_current_thread()

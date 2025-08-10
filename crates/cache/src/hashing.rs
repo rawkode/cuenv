@@ -437,14 +437,18 @@ mod tests {
     fn test_hash_consistency() {
         let mut hasher1 = ContentHasher::new("test");
         let mut hasher2 = ContentHasher::new("test");
-        
+
         let test_data = "consistent test data";
-        hasher1.hash_content(&test_data).expect("Failed to hash content");
-        hasher2.hash_content(&test_data).expect("Failed to hash content");
-        
+        hasher1
+            .hash_content(&test_data)
+            .expect("Failed to hash content");
+        hasher2
+            .hash_content(&test_data)
+            .expect("Failed to hash content");
+
         let hash1 = hasher1.finalize();
         let hash2 = hasher2.finalize();
-        
+
         assert_eq!(hash1, hash2, "Same input should produce same hash");
     }
 
@@ -452,14 +456,21 @@ mod tests {
     fn test_hash_different_inputs() {
         let mut hasher1 = ContentHasher::new("test");
         let mut hasher2 = ContentHasher::new("test");
-        
-        hasher1.hash_content("input1").expect("Failed to hash content");
-        hasher2.hash_content("input2").expect("Failed to hash content");
-        
+
+        hasher1
+            .hash_content("input1")
+            .expect("Failed to hash content");
+        hasher2
+            .hash_content("input2")
+            .expect("Failed to hash content");
+
         let hash1 = hasher1.finalize();
         let hash2 = hasher2.finalize();
-        
-        assert_ne!(hash1, hash2, "Different inputs should produce different hashes");
+
+        assert_ne!(
+            hash1, hash2,
+            "Different inputs should produce different hashes"
+        );
     }
 
     #[test]
@@ -467,15 +478,15 @@ mod tests {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let file_path = temp_dir.path().join("test_file.txt");
         let test_content = "Hello, World!";
-        
+
         fs::write(&file_path, test_content).expect("Failed to write test file");
-        
+
         let mut hasher = ContentHasher::new("file_test");
         hasher.hash_file(&file_path).expect("Failed to hash file");
-        
+
         let hash = hasher.finalize();
         assert!(!hash.is_empty(), "Hash should not be empty");
-        
+
         // Verify the file was recorded in manifest
         let file_key = file_path.to_string_lossy();
         assert!(hasher.manifest.files.contains_key(file_key.as_ref()));
@@ -485,7 +496,7 @@ mod tests {
     fn test_hash_file_nonexistent() {
         let mut hasher = ContentHasher::new("test");
         let nonexistent_path = Path::new("/nonexistent/file.txt");
-        
+
         let result = hasher.hash_file(nonexistent_path);
         assert!(result.is_err(), "Should fail when hashing nonexistent file");
     }
@@ -493,23 +504,27 @@ mod tests {
     #[test]
     fn test_hash_glob_patterns() {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        
+
         // Create test files
         fs::write(temp_dir.path().join("file1.txt"), "content1").unwrap();
         fs::write(temp_dir.path().join("file2.txt"), "content2").unwrap();
         fs::write(temp_dir.path().join("other.log"), "log content").unwrap();
-        
+
         let mut hasher = ContentHasher::new("glob_test");
         let patterns = vec!["*.txt".to_string()];
-        
-        hasher.hash_glob(temp_dir.path(), &patterns).expect("Failed to hash glob");
-        
+
+        hasher
+            .hash_glob(temp_dir.path(), &patterns)
+            .expect("Failed to hash glob");
+
         // Should have hashed the .txt files but not the .log file
-        assert!(hasher.manifest.files.len() >= 2, "Should have hashed at least 2 files");
-        
+        assert!(
+            hasher.manifest.files.len() >= 2,
+            "Should have hashed at least 2 files"
+        );
+
         // Check that .txt files are in manifest
-        let has_txt_files = hasher.manifest.files.keys()
-            .any(|k| k.ends_with(".txt"));
+        let has_txt_files = hasher.manifest.files.keys().any(|k| k.ends_with(".txt"));
         assert!(has_txt_files, "Should have .txt files in manifest");
     }
 
@@ -518,13 +533,15 @@ mod tests {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let empty_subdir = temp_dir.path().join("empty");
         fs::create_dir(&empty_subdir).unwrap();
-        
+
         let mut hasher = ContentHasher::new("empty_test");
         let patterns = vec!["*".to_string()];
-        
+
         // Should not fail on empty directory
-        hasher.hash_glob(&empty_subdir, &patterns).expect("Should handle empty directory");
-        
+        hasher
+            .hash_glob(&empty_subdir, &patterns)
+            .expect("Should handle empty directory");
+
         // Manifest should be empty for no files
         assert!(hasher.manifest.files.is_empty());
     }
@@ -532,21 +549,24 @@ mod tests {
     #[test]
     fn test_collect_files_recursive_basic() {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        
+
         // Create nested structure
         let subdir = temp_dir.path().join("subdir");
         fs::create_dir(&subdir).unwrap();
         fs::write(temp_dir.path().join("root.txt"), "root").unwrap();
         fs::write(subdir.join("nested.txt"), "nested").unwrap();
-        
+
         let mut files = Vec::new();
         collect_files_recursive(temp_dir.path(), &mut files).expect("Failed to collect files");
-        
+
         assert_eq!(files.len(), 2, "Should find 2 files");
-        
+
         let has_root = files.iter().any(|p| p.file_name().unwrap() == "root.txt");
         let has_nested = files.iter().any(|p| p.file_name().unwrap() == "nested.txt");
-        assert!(has_root && has_nested, "Should find both root and nested files");
+        assert!(
+            has_root && has_nested,
+            "Should find both root and nested files"
+        );
     }
 
     #[test]
@@ -554,17 +574,17 @@ mod tests {
         // Test that hash order is deterministic for different insertion orders
         let mut hasher1 = ContentHasher::new("order_test");
         let mut hasher2 = ContentHasher::new("order_test");
-        
+
         // Add same content in different order
         hasher1.hash_content("A").unwrap();
         hasher1.hash_content("B").unwrap();
-        
+
         hasher2.hash_content("B").unwrap();
         hasher2.hash_content("A").unwrap();
-        
+
         let hash1 = hasher1.finalize();
         let hash2 = hasher2.finalize();
-        
+
         assert_ne!(hash1, hash2, "Hash should depend on insertion order");
     }
 }

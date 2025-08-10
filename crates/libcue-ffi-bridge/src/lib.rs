@@ -174,7 +174,7 @@ mod tests {
         // Test with invalid UTF-8 path (simulated)
         let invalid_path = Path::new("/nonexistent/\u{0000}/invalid");
         let result = evaluate_cue_package(invalid_path, "test");
-        
+
         // Should fail with configuration error for invalid path
         assert!(result.is_err());
         let error = result.unwrap_err();
@@ -184,10 +184,10 @@ mod tests {
     #[test]
     fn test_evaluate_cue_package_invalid_package_name() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Package name with null bytes should fail
         let result = evaluate_cue_package(temp_dir.path(), "test\0package");
-        
+
         assert!(result.is_err());
         let error = result.unwrap_err();
         assert!(error.to_string().contains("Invalid package name"));
@@ -197,7 +197,7 @@ mod tests {
     fn test_evaluate_cue_package_nonexistent_directory() {
         let nonexistent = Path::new("/definitely/does/not/exist/12345");
         let result = evaluate_cue_package(nonexistent, "env");
-        
+
         // This will likely fail in the CUE evaluation, not path validation
         // The exact error depends on the Go CUE implementation
         assert!(result.is_err());
@@ -206,7 +206,7 @@ mod tests {
     #[test]
     fn test_evaluate_cue_package_with_valid_setup() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Create a simple valid CUE file
         let cue_content = r#"package env
 
@@ -220,7 +220,7 @@ env: {
         // This test depends on the Go FFI being available
         // In a real environment, this should work
         let result = evaluate_cue_package(temp_dir.path(), "env");
-        
+
         // The result depends on whether the FFI bridge is properly built
         // In CI this might fail if Go dependencies aren't available
         if result.is_err() {
@@ -239,7 +239,7 @@ env: {
     #[test]
     fn test_evaluate_cue_error_handling() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Create an invalid CUE file
         let invalid_cue = r#"package env
 
@@ -249,10 +249,10 @@ this is not valid CUE syntax {
         fs::write(temp_dir.path().join("env.cue"), invalid_cue).unwrap();
 
         let result = evaluate_cue_package(temp_dir.path(), "env");
-        
+
         // Should get an error - either FFI unavailable or CUE parse error
         assert!(result.is_err());
-        
+
         let error = result.unwrap_err();
         // Error should be meaningful
         assert!(!error.to_string().is_empty());
@@ -265,10 +265,10 @@ this is not valid CUE syntax {
         let temp_dir = TempDir::new().unwrap();
         let path_with_spaces = temp_dir.path().join("dir with spaces");
         fs::create_dir(&path_with_spaces).unwrap();
-        
+
         // This should handle spaces correctly
         let result = evaluate_cue_package(&path_with_spaces, "env");
-        
+
         // The result might be an error due to missing CUE files, but the path handling should work
         if let Err(e) = result {
             // Should not be a path conversion error
@@ -280,7 +280,7 @@ this is not valid CUE syntax {
     #[test]
     fn test_ffi_memory_management_stress() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Create a simple CUE file
         let cue_content = "package env\nenv: { TEST: \"value\" }";
         fs::write(temp_dir.path().join("env.cue"), cue_content).unwrap();
@@ -288,7 +288,7 @@ this is not valid CUE syntax {
         // Call FFI function multiple times to test memory management
         for i in 0..100 {
             let result = evaluate_cue_package(temp_dir.path(), "env");
-            
+
             // Each call should be independent and not cause memory issues
             if result.is_ok() {
                 // If FFI is available, all calls should succeed
@@ -297,14 +297,14 @@ this is not valid CUE syntax {
                 // If FFI isn't available, error should be consistent
                 let error_msg = result.unwrap_err().to_string();
                 println!("Iteration {}: {}", i, error_msg);
-                
+
                 // Break early if it's clearly an FFI availability issue
                 if i > 5 {
                     break;
                 }
             }
         }
-        
+
         // If we get here without crashes, memory management is working
     }
 
@@ -313,16 +313,16 @@ this is not valid CUE syntax {
     fn test_error_message_parsing() {
         // This tests the logic that parses "error:" prefixed messages
         // We can't easily mock the FFI call, but we can test the string logic
-        
+
         let temp_dir = TempDir::new().unwrap();
-        
+
         // The actual test depends on implementation details
         // For now, just verify the function exists and handles basic cases
         let result = evaluate_cue_package(temp_dir.path(), "nonexistent_package");
-        
+
         // Should get some kind of error
         assert!(result.is_err());
-        
+
         let error = result.unwrap_err();
         // Error message should be informative
         let error_str = error.to_string();

@@ -47,7 +47,10 @@ async fn test_cache_disk_space_handling() {
     // Cache should still be functional for reads of existing data
     if successful_writes > 0 {
         let result: Option<Vec<u8>> = cache.get("large_key_0").await.expect("Read should work");
-        assert!(result.is_some(), "Should be able to read existing data after disk issues");
+        assert!(
+            result.is_some(),
+            "Should be able to read existing data after disk issues"
+        );
     }
 }
 
@@ -55,11 +58,11 @@ async fn test_cache_disk_space_handling() {
 #[tokio::test]
 async fn test_cache_permission_denied_handling() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
-    
+
     // Create a subdirectory with restricted permissions
     let restricted_dir = temp_dir.path().join("restricted");
     fs::create_dir(&restricted_dir).expect("Failed to create restricted dir");
-    
+
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -71,7 +74,7 @@ async fn test_cache_permission_denied_handling() {
 
     // Try to create cache in restricted directory
     let result = ProductionCache::new(restricted_dir, Default::default()).await;
-    
+
     // Should get a permission error or similar
     match result {
         Ok(_) => {
@@ -107,7 +110,10 @@ async fn test_cache_corrupted_data_handling() {
     // Store some valid data first
     let test_key = "test_key";
     let test_data = "valid test data";
-    cache.put(test_key, &test_data, None).await.expect("Failed to store test data");
+    cache
+        .put(test_key, &test_data, None)
+        .await
+        .expect("Failed to store test data");
 
     // Find the cache file and corrupt it
     let cache_files: Vec<_> = fs::read_dir(temp_dir.path())
@@ -125,7 +131,7 @@ async fn test_cache_corrupted_data_handling() {
 
         // Try to read the corrupted key
         let result = cache.get::<String>(test_key).await;
-        
+
         match result {
             Ok(None) => {
                 // Cache handled corruption by treating key as missing
@@ -138,7 +144,10 @@ async fn test_cache_corrupted_data_handling() {
             Err(e) => {
                 // Got an error - should be informative
                 let error_msg = e.to_string();
-                assert!(!error_msg.is_empty(), "Corruption error should have message");
+                assert!(
+                    !error_msg.is_empty(),
+                    "Corruption error should have message"
+                );
                 println!("Got expected corruption error: {}", error_msg);
             }
         }
@@ -155,11 +164,12 @@ async fn test_cache_operation_timeouts() {
 
     // Test that operations complete within reasonable time
     let test_data = vec![0u8; 10_000]; // 10KB data
-    
+
     let put_result = timeout(
-        Duration::from_secs(10), 
-        cache.put("timeout_test", &test_data, None)
-    ).await;
+        Duration::from_secs(10),
+        cache.put("timeout_test", &test_data, None),
+    )
+    .await;
 
     match put_result {
         Ok(Ok(_)) => {
@@ -175,8 +185,9 @@ async fn test_cache_operation_timeouts() {
 
     let get_result = timeout(
         Duration::from_secs(10),
-        cache.get::<Vec<u8>>("timeout_test")
-    ).await;
+        cache.get::<Vec<u8>>("timeout_test"),
+    )
+    .await;
 
     match get_result {
         Ok(Ok(_)) => {
@@ -201,15 +212,20 @@ async fn test_cache_invalid_utf8_handling() {
 
     // Test invalid UTF-8 bytes in data (this should generally work for Vec<u8>)
     let invalid_utf8_data: Vec<u8> = vec![0xFF, 0xFE, 0xFD, 0x80, 0x81];
-    
+
     let result = cache.put("binary_data_key", &invalid_utf8_data, None).await;
     match result {
         Ok(_) => {
             println!("Cache handled binary data correctly");
-            
+
             // Try to retrieve it
-            let retrieved: Option<Vec<u8>> = cache.get("binary_data_key").await.expect("Get should work");
-            assert_eq!(retrieved, Some(invalid_utf8_data), "Binary data should round-trip correctly");
+            let retrieved: Option<Vec<u8>> =
+                cache.get("binary_data_key").await.expect("Get should work");
+            assert_eq!(
+                retrieved,
+                Some(invalid_utf8_data),
+                "Binary data should round-trip correctly"
+            );
         }
         Err(e) => {
             println!("Cache rejected binary data: {}", e);
@@ -236,7 +252,7 @@ async fn test_concurrent_error_handling() {
     let cache = std::sync::Arc::new(
         ProductionCache::new(temp_dir.path().to_path_buf(), Default::default())
             .await
-            .expect("Failed to create cache")
+            .expect("Failed to create cache"),
     );
 
     let handles: Vec<_> = (0..10)
@@ -245,26 +261,18 @@ async fn test_concurrent_error_handling() {
             tokio::spawn(async move {
                 let key = format!("concurrent_key_{}", i);
                 let data = format!("data for task {}", i);
-                
+
                 // Each task tries to write and then read
                 match cache.put(&key, &data, None).await {
-                    Ok(_) => {
-                        match cache.get::<String>(&key).await {
-                            Ok(Some(retrieved)) => {
-                                assert_eq!(retrieved, data, "Data should round-trip correctly");
-                                Ok(())
-                            }
-                            Ok(None) => {
-                                Err(format!("Data missing for key {}", key))
-                            }
-                            Err(e) => {
-                                Err(format!("Get failed for key {}: {}", key, e))
-                            }
+                    Ok(_) => match cache.get::<String>(&key).await {
+                        Ok(Some(retrieved)) => {
+                            assert_eq!(retrieved, data, "Data should round-trip correctly");
+                            Ok(())
                         }
-                    }
-                    Err(e) => {
-                        Err(format!("Put failed for key {}: {}", key, e))
-                    }
+                        Ok(None) => Err(format!("Data missing for key {}", key)),
+                        Err(e) => Err(format!("Get failed for key {}: {}", key, e)),
+                    },
+                    Err(e) => Err(format!("Put failed for key {}: {}", key, e)),
                 }
             })
         })
@@ -289,7 +297,10 @@ async fn test_concurrent_error_handling() {
     }
 
     // Should have mostly successes, but some errors are acceptable under stress
-    println!("Concurrent operations: {} successes, {} errors", success_count, error_count);
+    println!(
+        "Concurrent operations: {} successes, {} errors",
+        success_count, error_count
+    );
     assert!(success_count > 0, "At least some operations should succeed");
 }
 
@@ -302,14 +313,17 @@ async fn test_cache_recovery_from_temporary_failures() {
         .expect("Failed to create cache");
 
     // Store some initial data
-    cache.put("recovery_test", "initial_data", None).await.expect("Initial put should work");
+    cache
+        .put("recovery_test", "initial_data", None)
+        .await
+        .expect("Initial put should work");
 
     // Simulate temporary filesystem issue by removing permissions temporarily
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let original_perms = fs::metadata(temp_dir.path()).unwrap().permissions();
-        
+
         // Make directory read-only temporarily
         let mut restricted_perms = original_perms.clone();
         restricted_perms.set_mode(0o444);
@@ -317,7 +331,10 @@ async fn test_cache_recovery_from_temporary_failures() {
 
         // Try operation that should fail
         let result = cache.put("recovery_test2", "should_fail", None).await;
-        assert!(result.is_err(), "Operation should fail with restricted permissions");
+        assert!(
+            result.is_err(),
+            "Operation should fail with restricted permissions"
+        );
 
         // Restore permissions
         fs::set_permissions(temp_dir.path(), original_perms).unwrap();
@@ -325,12 +342,18 @@ async fn test_cache_recovery_from_temporary_failures() {
 
     // After "recovery", operations should work again
     let recovery_result = cache.put("recovery_test3", "after_recovery", None).await;
-    assert!(recovery_result.is_ok(), "Operations should work after recovery");
+    assert!(
+        recovery_result.is_ok(),
+        "Operations should work after recovery"
+    );
 
     // Original data should still be accessible
     let original_data: Option<String> = cache.get("recovery_test").await.expect("Get should work");
-    assert_eq!(original_data, Some("initial_data".to_string()), 
-        "Original data should survive temporary failures");
+    assert_eq!(
+        original_data,
+        Some("initial_data".to_string()),
+        "Original data should survive temporary failures"
+    );
 }
 
 /// Test handling of extremely large keys or values
@@ -344,7 +367,7 @@ async fn test_cache_large_data_limits() {
     // Test very long key
     let long_key = "x".repeat(10_000);
     let result = cache.put(&long_key, "test_value", None).await;
-    
+
     match result {
         Ok(_) => {
             println!("Cache accepted very long key");
@@ -360,15 +383,22 @@ async fn test_cache_large_data_limits() {
     // Test very large value (10MB)
     let large_value = vec![42u8; 10_000_000];
     let result = cache.put("large_value_test", &large_value, None).await;
-    
+
     match result {
         Ok(_) => {
             println!("Cache accepted very large value");
-            
+
             // Try to retrieve it
-            let retrieved: Option<Vec<u8>> = cache.get("large_value_test").await.expect("Get should work");
+            let retrieved: Option<Vec<u8>> = cache
+                .get("large_value_test")
+                .await
+                .expect("Get should work");
             if let Some(data) = retrieved {
-                assert_eq!(data.len(), large_value.len(), "Large value should round-trip with correct size");
+                assert_eq!(
+                    data.len(),
+                    large_value.len(),
+                    "Large value should round-trip with correct size"
+                );
                 assert_eq!(data[0], 42u8, "Large value should have correct content");
             }
         }
