@@ -123,9 +123,11 @@ impl TaskServerClient {
     pub async fn launch_and_connect(&mut self, executable: &str) -> Result<()> {
         // Remove socket if it exists
         if self.socket_path.exists() {
-            std::fs::remove_file(&self.socket_path).map_err(|e| {
-                Error::file_system(self.socket_path.clone(), "remove existing socket", e)
-            })?;
+            tokio::fs::remove_file(&self.socket_path)
+                .await
+                .map_err(|e| {
+                    Error::file_system(self.socket_path.clone(), "remove existing socket", e)
+                })?;
         }
 
         // Launch server process
@@ -294,9 +296,11 @@ impl TaskServerClient {
 
         // Remove socket file
         if self.socket_path.exists() {
-            std::fs::remove_file(&self.socket_path).map_err(|e| {
-                Error::file_system(self.socket_path.clone(), "remove socket file", e)
-            })?;
+            tokio::fs::remove_file(&self.socket_path)
+                .await
+                .map_err(|e| {
+                    Error::file_system(self.socket_path.clone(), "remove socket file", e)
+                })?;
         }
 
         Ok(())
@@ -464,54 +468,139 @@ impl TaskServerManager {
 
 /// Task server provider that exposes cuenv tasks to external tools
 pub struct TaskServerProvider {
-    socket_path: PathBuf,
+    socket_path: Option<PathBuf>,
     listener: Option<UnixListener>,
     tasks: Arc<HashMap<String, TaskConfig>>,
+    allow_exec: bool,
+    use_stdio: bool,
 }
 
 impl TaskServerProvider {
-    /// Create a new task server provider
+    /// Create a new task server provider for Unix socket
     pub fn new(socket_path: PathBuf, tasks: HashMap<String, TaskConfig>) -> Self {
+        Self {
+            socket_path: Some(socket_path),
+            listener: None,
+            tasks: Arc::new(tasks),
+            allow_exec: false,
+            use_stdio: false,
+        }
+    }
+
+    /// Create a new task server provider for stdio (MCP mode)
+    pub fn new_stdio(tasks: HashMap<String, TaskConfig>, allow_exec: bool) -> Self {
+        Self {
+            socket_path: None,
+            listener: None,
+            tasks: Arc::new(tasks),
+            allow_exec,
+            use_stdio: true,
+        }
+    }
+
+    /// Create a new task server provider with full options
+    pub fn new_with_options(
+        socket_path: Option<PathBuf>,
+        tasks: HashMap<String, TaskConfig>,
+        allow_exec: bool,
+        use_stdio: bool,
+    ) -> Self {
         Self {
             socket_path,
             listener: None,
             tasks: Arc::new(tasks),
+            allow_exec,
+            use_stdio,
         }
     }
 
     /// Start the server and listen for connections
     pub async fn start(&mut self) -> Result<()> {
-        // Remove socket if it exists
-        if self.socket_path.exists() {
-            std::fs::remove_file(&self.socket_path).map_err(|e| {
-                Error::file_system(self.socket_path.clone(), "remove existing socket", e)
-            })?;
-        }
+        if self.use_stdio {
+            // Use stdio for MCP mode
+            tracing::info!("Task server provider started in stdio mode for MCP");
+            self.handle_stdio().await
+        } else if let Some(socket_path) = &self.socket_path {
+            // Remove socket if it exists
+            if socket_path.exists() {
+                tokio::fs::remove_file(socket_path).await.map_err(|e| {
+                    Error::file_system(socket_path.clone(), "remove existing socket", e)
+                })?;
+            }
 
-        // Ensure parent directory exists
-        if let Some(parent) = self.socket_path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| {
-                Error::file_system(parent.to_path_buf(), "create socket parent directory", e)
-            })?;
-        }
+            // Ensure parent directory exists
+            if let Some(parent) = socket_path.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| {
+                    Error::file_system(parent.to_path_buf(), "create socket parent directory", e)
+                })?;
+            }
 
-        // Start Unix domain socket listener
-        let listener = UnixListener::bind(&self.socket_path).map_err(|e| {
-            Error::configuration(format!(
-                "Failed to bind to socket {}: {}",
-                self.socket_path.display(),
-                e
+            // Start Unix domain socket listener
+            let listener = UnixListener::bind(socket_path).map_err(|e| {
+                Error::configuration(format!(
+                    "Failed to bind to socket {}: {}",
+                    socket_path.display(),
+                    e
+                ))
+            })?;
+
+            self.listener = Some(listener);
+            tracing::info!(
+                socket_path = %socket_path.display(),
+                "Task server provider started"
+            );
+
+            // Accept connections
+            self.handle_connections().await
+        } else {
+            Err(Error::configuration(
+                "No transport configured: need either socket_path or use_stdio".to_string(),
             ))
-        })?;
+        }
+    }
 
-        self.listener = Some(listener);
-        tracing::info!(
-            socket_path = %self.socket_path.display(),
-            "Task server provider started"
-        );
+    /// Handle stdio communication for MCP mode
+    async fn handle_stdio(&mut self) -> Result<()> {
+        use tokio::io::{stdin, stdout};
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
-        // Accept connections
-        self.handle_connections().await
+        let stdin = stdin();
+        let mut stdout = stdout();
+        let mut buf_reader = BufReader::new(stdin);
+        let mut line = String::new();
+
+        while buf_reader
+            .read_line(&mut line)
+            .await
+            .map_err(|e| Error::configuration(format!("Failed to read from stdin: {}", e)))?
+            > 0
+        {
+            // Parse JSON-RPC request
+            let request: serde_json::Value = serde_json::from_str(&line.trim())
+                .map_err(|e| Error::configuration(format!("Invalid JSON-RPC request: {}", e)))?;
+
+            // Handle the request
+            let response = Self::handle_request(request, &self.tasks, self.allow_exec).await;
+
+            // Send response
+            let response_json = serde_json::to_string(&response).map_err(|e| {
+                Error::configuration(format!("Failed to serialize response: {}", e))
+            })?;
+
+            stdout
+                .write_all(format!("{}\n", response_json).as_bytes())
+                .await
+                .map_err(|e| Error::configuration(format!("Failed to write response: {}", e)))?;
+
+            stdout
+                .flush()
+                .await
+                .map_err(|e| Error::configuration(format!("Failed to flush stdout: {}", e)))?;
+
+            line.clear();
+        }
+
+        Ok(())
     }
 
     /// Handle incoming client connections
@@ -525,8 +614,9 @@ impl TaskServerProvider {
             match listener.accept().await {
                 Ok((stream, _)) => {
                     let tasks = Arc::clone(&self.tasks);
+                    let allow_exec = self.allow_exec;
                     tokio::spawn(async move {
-                        if let Err(e) = Self::handle_client(stream, tasks).await {
+                        if let Err(e) = Self::handle_client(stream, tasks, allow_exec).await {
                             tracing::error!(error = %e, "Client connection error");
                         }
                     });
@@ -543,6 +633,7 @@ impl TaskServerProvider {
     async fn handle_client(
         stream: UnixStream,
         tasks: Arc<HashMap<String, TaskConfig>>,
+        allow_exec: bool,
     ) -> Result<()> {
         let (read_half, mut write_half) = stream.into_split();
         let mut buf_reader = BufReader::new(read_half);
@@ -559,7 +650,7 @@ impl TaskServerProvider {
                 .map_err(|e| Error::configuration(format!("Invalid JSON-RPC request: {}", e)))?;
 
             // Handle the request
-            let response = Self::handle_request(request, &tasks).await;
+            let response = Self::handle_request(request, &tasks, allow_exec).await;
 
             // Send response
             let response_json = serde_json::to_string(&response).map_err(|e| {
@@ -577,10 +668,11 @@ impl TaskServerProvider {
         Ok(())
     }
 
-    /// Handle a JSON-RPC request
-    async fn handle_request(
+    /// Handle a JSON-RPC request (supports both TSP and MCP methods)
+    pub async fn handle_request(
         request: serde_json::Value,
         tasks: &HashMap<String, TaskConfig>,
+        allow_exec: bool,
     ) -> serde_json::Value {
         let method = request
             .get("method")
@@ -592,7 +684,13 @@ impl TaskServerProvider {
             .cloned()
             .unwrap_or(serde_json::Value::Null);
 
+        let params = request
+            .get("params")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
+
         match method {
+            // TSP Methods (devenv compatibility)
             "initialize" => {
                 // Convert cuenv TaskConfigs to TaskDefinitions
                 let task_definitions: Vec<TaskDefinition> = tasks
@@ -652,6 +750,22 @@ impl TaskServerProvider {
                     })
                 }
             }
+
+            // MCP Methods (Claude Code integration)
+            "tools/list" => {
+                // List available MCP tools
+                let all_tools = Self::get_mcp_tools(allow_exec);
+
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "result": {
+                        "tools": all_tools
+                    },
+                    "id": id
+                })
+            }
+            "tools/call" => Self::handle_mcp_tool_call(params, tasks, allow_exec, id).await,
+
             _ => serde_json::json!({
                 "jsonrpc": "2.0",
                 "error": {
@@ -661,6 +775,650 @@ impl TaskServerProvider {
                 "id": id
             }),
         }
+    }
+
+    /// Handle MCP tool call requests
+    async fn handle_mcp_tool_call(
+        params: serde_json::Value,
+        _tasks: &HashMap<String, TaskConfig>,
+        allow_exec: bool,
+        id: serde_json::Value,
+    ) -> serde_json::Value {
+        let tool_name = params
+            .get("name")
+            .and_then(|n| n.as_str())
+            .unwrap_or_default();
+
+        let arguments = params
+            .get("arguments")
+            .cloned()
+            .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+
+        match tool_name {
+            "cuenv.list_env_vars" => Self::handle_list_env_vars(arguments, id).await,
+            "cuenv.get_env_var" => Self::handle_get_env_var(arguments, id).await,
+            "cuenv.list_tasks" => Self::handle_list_tasks(arguments, id).await,
+            "cuenv.get_task" => Self::handle_get_task(arguments, id).await,
+            "cuenv.run_task" => {
+                if allow_exec {
+                    Self::handle_run_task(arguments, id).await
+                } else {
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -1,
+                            "message": "Task execution not allowed. Start MCP server with --allow-exec flag."
+                        },
+                        "id": id
+                    })
+                }
+            }
+            "cuenv.check_directory" => Self::handle_check_directory(arguments, id).await,
+            _ => serde_json::json!({
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -32601,
+                    "message": format!("Tool not found: {}", tool_name)
+                },
+                "id": id
+            }),
+        }
+    }
+
+    /// Returns the MCP tool definitions
+    fn get_mcp_tools(allow_exec: bool) -> Vec<serde_json::Value> {
+        let mut tools = vec![
+            serde_json::json!({
+                "name": "cuenv.list_env_vars",
+                "description": "List all environment variables from env.cue configuration",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {
+                            "type": "string",
+                            "description": "Directory containing env.cue file"
+                        },
+                        "environment": {
+                            "type": "string",
+                            "description": "Optional environment name (dev, staging, production, etc.)"
+                        },
+                        "capabilities": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Optional capabilities to enable"
+                        }
+                    },
+                    "required": ["directory"]
+                }
+            }),
+            serde_json::json!({
+                "name": "cuenv.get_env_var",
+                "description": "Get value of a specific environment variable",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {
+                            "type": "string",
+                            "description": "Directory containing env.cue file"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Environment variable name to retrieve"
+                        },
+                        "environment": {
+                            "type": "string",
+                            "description": "Optional environment name"
+                        },
+                        "capabilities": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Optional capabilities to enable"
+                        }
+                    },
+                    "required": ["directory", "name"]
+                }
+            }),
+            serde_json::json!({
+                "name": "cuenv.list_tasks",
+                "description": "List all available tasks from env.cue configuration",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {
+                            "type": "string",
+                            "description": "Directory containing env.cue file"
+                        },
+                        "environment": {
+                            "type": "string",
+                            "description": "Optional environment name"
+                        },
+                        "capabilities": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Optional capabilities to enable"
+                        }
+                    },
+                    "required": ["directory"]
+                }
+            }),
+            serde_json::json!({
+                "name": "cuenv.get_task",
+                "description": "Get details for a specific task",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {
+                            "type": "string",
+                            "description": "Directory containing env.cue file"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Task name to retrieve"
+                        },
+                        "environment": {
+                            "type": "string",
+                            "description": "Optional environment name"
+                        },
+                        "capabilities": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Optional capabilities to enable"
+                        }
+                    },
+                    "required": ["directory", "name"]
+                }
+            }),
+            serde_json::json!({
+                "name": "cuenv.check_directory",
+                "description": "Validate if directory has env.cue and is allowed",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {
+                            "type": "string",
+                            "description": "Directory path to check"
+                        }
+                    },
+                    "required": ["directory"]
+                }
+            }),
+        ];
+
+        // Add run_task tool only if execution is allowed
+        if allow_exec {
+            tools.push(serde_json::json!({
+                "name": "cuenv.run_task",
+                "description": "Execute a task (requires --allow-exec flag)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {
+                            "type": "string",
+                            "description": "Directory containing env.cue file"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Task name to execute"
+                        },
+                        "args": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Arguments to pass to the task"
+                        },
+                        "environment": {
+                            "type": "string",
+                            "description": "Optional environment name"
+                        },
+                        "capabilities": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Optional capabilities to enable"
+                        }
+                    },
+                    "required": ["directory", "name"]
+                }
+            }));
+        }
+
+        tools
+    }
+
+    /// Validate directory and check if it's allowed
+    fn validate_directory(directory: &str) -> Result<std::path::PathBuf> {
+        let path = std::path::PathBuf::from(directory);
+
+        // Canonicalize the path to resolve symlinks and remove '..' components
+        let canonical = path.canonicalize().map_err(|e| {
+            Error::configuration(format!(
+                "Failed to canonicalize directory '{}': {}",
+                directory, e
+            ))
+        })?;
+
+        // Basic path traversal protection: ensure the path is absolute
+        if !canonical.is_absolute() {
+            return Err(Error::configuration(format!(
+                "Directory path is not absolute after canonicalization: {}",
+                canonical.display()
+            )));
+        }
+
+        // SECURITY: Directory permission validation is done at CLI level.
+        // For MCP/TSP mode, we now canonicalize the path and require it to be absolute.
+        // If exposing this server to untrusted clients, consider restricting allowed directories further.
+
+        // Check if directory exists (after canonicalization)
+        if !canonical.exists() {
+            return Err(Error::configuration(format!(
+                "Directory does not exist: {}",
+                canonical.display()
+            )));
+        }
+
+        Ok(canonical)
+    }
+
+    /// Parses environment configuration in the specified directory without side effects.
+    ///
+    /// # Parameters
+    /// - `directory`: The path to the directory containing the environment configuration to parse.
+    /// - `environment`: An optional environment name to select a specific environment configuration.
+    /// - `capabilities`: An optional list of capabilities to use during parsing.
+    ///
+    /// # Returns
+    /// Returns a `Result` containing the parsed environment configuration as a `cuenv_config::ParseResult`
+    /// on success, or an error if parsing fails.
+    async fn parse_env_readonly(
+        directory: &str,
+        environment: Option<String>,
+        capabilities: Option<Vec<String>>,
+    ) -> Result<cuenv_config::ParseResult> {
+        use cuenv_config::{CueParser, ParseOptions};
+
+        let path = Self::validate_directory(directory)?;
+
+        let options = ParseOptions {
+            environment,
+            capabilities: capabilities.unwrap_or_default(),
+        };
+
+        CueParser::eval_package_with_options(&path, "env", &options)
+    }
+
+    /// Handle list_env_vars tool call
+    async fn handle_list_env_vars(
+        arguments: serde_json::Value,
+        id: serde_json::Value,
+    ) -> serde_json::Value {
+        let directory = arguments
+            .get("directory")
+            .and_then(|d| d.as_str())
+            .unwrap_or_default();
+        let environment = arguments
+            .get("environment")
+            .and_then(|e| e.as_str())
+            .map(|s| s.to_string());
+        let capabilities = arguments
+            .get("capabilities")
+            .and_then(|c| c.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect::<Vec<String>>()
+            });
+
+        match Self::parse_env_readonly(directory, environment, capabilities).await {
+            Ok(parse_result) => serde_json::json!({
+                "jsonrpc": "2.0",
+                "result": {
+                    "content": [{
+                        "type": "text",
+                        "text": serde_json::to_string_pretty(&parse_result.variables).unwrap_or_default()
+                    }]
+                },
+                "id": id
+            }),
+            Err(e) => serde_json::json!({
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -1,
+                    "message": format!("Failed to list environment variables: {}", e)
+                },
+                "id": id
+            }),
+        }
+    }
+
+    /// Handle get_env_var tool call
+    async fn handle_get_env_var(
+        arguments: serde_json::Value,
+        id: serde_json::Value,
+    ) -> serde_json::Value {
+        let directory = arguments
+            .get("directory")
+            .and_then(|d| d.as_str())
+            .unwrap_or_default();
+        let var_name = arguments
+            .get("name")
+            .and_then(|n| n.as_str())
+            .unwrap_or_default();
+        let environment = arguments
+            .get("environment")
+            .and_then(|e| e.as_str())
+            .map(|s| s.to_string());
+        let capabilities = arguments
+            .get("capabilities")
+            .and_then(|c| c.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect::<Vec<String>>()
+            });
+
+        match Self::parse_env_readonly(directory, environment, capabilities).await {
+            Ok(parse_result) => {
+                let value = parse_result.variables.get(var_name);
+                let result = match value {
+                    Some(v) => format!("{}={}", var_name, v),
+                    None => format!("{} not found", var_name),
+                };
+
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "result": {
+                        "content": [{
+                            "type": "text",
+                            "text": result
+                        }]
+                    },
+                    "id": id
+                })
+            }
+            Err(e) => serde_json::json!({
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -1,
+                    "message": format!("Failed to get environment variable: {}", e)
+                },
+                "id": id
+            }),
+        }
+    }
+
+    /// Handle list_tasks tool call
+    async fn handle_list_tasks(
+        arguments: serde_json::Value,
+        id: serde_json::Value,
+    ) -> serde_json::Value {
+        let directory = arguments
+            .get("directory")
+            .and_then(|d| d.as_str())
+            .unwrap_or_default();
+        let environment = arguments
+            .get("environment")
+            .and_then(|e| e.as_str())
+            .map(|s| s.to_string());
+        let capabilities = arguments
+            .get("capabilities")
+            .and_then(|c| c.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect::<Vec<String>>()
+            });
+
+        match Self::parse_env_readonly(directory, environment, capabilities).await {
+            Ok(parse_result) => {
+                let tasks: Vec<serde_json::Value> = parse_result
+                    .tasks
+                    .into_iter()
+                    .map(|(name, config)| {
+                        serde_json::json!({
+                            "name": name,
+                            "description": config.description.unwrap_or_default(),
+                            "dependencies": config.dependencies.unwrap_or_default(),
+                            "command": config.command.unwrap_or_default()
+                        })
+                    })
+                    .collect();
+
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "result": {
+                        "content": [{
+                            "type": "text",
+                            "text": serde_json::to_string_pretty(&tasks).unwrap_or_default()
+                        }]
+                    },
+                    "id": id
+                })
+            }
+            Err(e) => serde_json::json!({
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -1,
+                    "message": format!("Failed to list tasks: {}", e)
+                },
+                "id": id
+            }),
+        }
+    }
+
+    /// Handle get_task tool call
+    async fn handle_get_task(
+        arguments: serde_json::Value,
+        id: serde_json::Value,
+    ) -> serde_json::Value {
+        let directory = arguments
+            .get("directory")
+            .and_then(|d| d.as_str())
+            .unwrap_or_default();
+        let task_name = arguments
+            .get("name")
+            .and_then(|n| n.as_str())
+            .unwrap_or_default();
+        let environment = arguments
+            .get("environment")
+            .and_then(|e| e.as_str())
+            .map(|s| s.to_string());
+        let capabilities = arguments
+            .get("capabilities")
+            .and_then(|c| c.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect::<Vec<String>>()
+            });
+
+        match Self::parse_env_readonly(directory, environment, capabilities).await {
+            Ok(parse_result) => {
+                if let Some(config) = parse_result.tasks.get(task_name) {
+                    let task_info = serde_json::json!({
+                        "name": task_name,
+                        "description": config.description.clone().unwrap_or_default(),
+                        "dependencies": config.dependencies.clone().unwrap_or_default(),
+                        "command": config.command.clone().unwrap_or_default()
+                    });
+
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "result": {
+                            "content": [{
+                                "type": "text",
+                                "text": serde_json::to_string_pretty(&task_info).unwrap_or_default()
+                            }]
+                        },
+                        "id": id
+                    })
+                } else {
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "result": {
+                            "content": [{
+                                "type": "text",
+                                "text": format!("Task '{}' not found", task_name)
+                            }]
+                        },
+                        "id": id
+                    })
+                }
+            }
+            Err(e) => serde_json::json!({
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -1,
+                    "message": format!("Failed to get task: {}", e)
+                },
+                "id": id
+            }),
+        }
+    }
+
+    /// Handle run_task tool call (requires allow_exec)
+    async fn handle_run_task(
+        arguments: serde_json::Value,
+        id: serde_json::Value,
+    ) -> serde_json::Value {
+        let directory = arguments
+            .get("directory")
+            .and_then(|d| d.as_str())
+            .unwrap_or_default();
+        let task_name = arguments
+            .get("name")
+            .and_then(|n| n.as_str())
+            .unwrap_or_default();
+        let task_args = arguments
+            .get("args")
+            .and_then(|a| a.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default();
+        let environment = arguments
+            .get("environment")
+            .and_then(|e| e.as_str())
+            .map(|s| s.to_string());
+        let capabilities = arguments
+            .get("capabilities")
+            .and_then(|c| c.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect::<Vec<String>>()
+            });
+
+        let path = match Self::validate_directory(directory) {
+            Ok(p) => p,
+            Err(e) => {
+                return serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -1,
+                        "message": format!("Directory validation failed: {}", e)
+                    },
+                    "id": id
+                })
+            }
+        };
+
+        // Load environment and create task executor
+        use crate::TaskExecutor;
+        use cuenv_env::EnvManager;
+
+        let mut env_manager = EnvManager::new();
+        match env_manager
+            .load_env_with_options(&path, environment, capabilities.unwrap_or_default(), None)
+            .await
+        {
+            Ok(()) => {
+                // Create task executor and run the task
+                match TaskExecutor::new(env_manager, path).await {
+                    Ok(executor) => match executor.execute_task(task_name, &task_args).await {
+                        Ok(exit_code) => serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "result": {
+                                "content": [{
+                                    "type": "text",
+                                    "text": format!("Task '{}' completed with exit code: {}", task_name, exit_code)
+                                }]
+                            },
+                            "id": id
+                        }),
+                        Err(e) => serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "error": {
+                                "code": -1,
+                                "message": format!("Task execution failed: {}", e)
+                            },
+                            "id": id
+                        }),
+                    },
+                    Err(e) => serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "error": {
+                            "code": -1,
+                            "message": format!("Failed to create task executor: {}", e)
+                        },
+                        "id": id
+                    }),
+                }
+            }
+            Err(e) => serde_json::json!({
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -1,
+                    "message": format!("Failed to load environment: {}", e)
+                },
+                "id": id
+            }),
+        }
+    }
+
+    /// Handle check_directory tool call
+    async fn handle_check_directory(
+        arguments: serde_json::Value,
+        id: serde_json::Value,
+    ) -> serde_json::Value {
+        let directory = arguments
+            .get("directory")
+            .and_then(|d| d.as_str())
+            .unwrap_or_default();
+
+        let path = std::path::PathBuf::from(directory);
+        let env_cue = path.join("env.cue");
+
+        let allowed = if path.exists() {
+            // For now, assume directories are allowed in MCP mode
+            // Directory validation is typically done at the CLI level
+            true
+        } else {
+            false
+        };
+
+        let result = serde_json::json!({
+            "allowed": allowed,
+            "has_env_cue": env_cue.exists(),
+            "directory": directory
+        });
+
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "result": {
+                "content": [{
+                    "type": "text",
+                    "text": serde_json::to_string_pretty(&result).unwrap_or_default()
+                }]
+            },
+            "id": id
+        })
     }
 
     /// Simple task execution (placeholder implementation)
@@ -714,10 +1472,12 @@ impl TaskServerProvider {
         }
 
         // Remove socket file
-        if self.socket_path.exists() {
-            std::fs::remove_file(&self.socket_path).map_err(|e| {
-                Error::file_system(self.socket_path.clone(), "remove socket file", e)
-            })?;
+        if let Some(socket_path) = &self.socket_path {
+            if socket_path.exists() {
+                tokio::fs::remove_file(socket_path).await.map_err(|e| {
+                    Error::file_system(socket_path.clone(), "remove socket file", e)
+                })?;
+            }
         }
 
         Ok(())
@@ -726,9 +1486,11 @@ impl TaskServerProvider {
 
 impl Drop for TaskServerProvider {
     fn drop(&mut self) {
-        // Best effort cleanup
-        if self.socket_path.exists() {
-            let _ = std::fs::remove_file(&self.socket_path);
+        // Best effort cleanup - synchronous only in Drop
+        if let Some(socket_path) = &self.socket_path {
+            if socket_path.exists() {
+                let _ = std::fs::remove_file(socket_path);
+            }
         }
     }
 }
@@ -872,7 +1634,7 @@ mod tests {
         );
 
         let provider = TaskServerProvider::new(socket_path.clone(), tasks);
-        assert_eq!(provider.socket_path, socket_path);
+        assert_eq!(provider.socket_path, Some(socket_path));
         assert!(provider.listener.is_none());
     }
 

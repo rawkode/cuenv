@@ -188,6 +188,44 @@ tasks: {
 - Command allowlists
 - Audit logging
 
+### Claude Code Integration (MCP)
+
+cuenv provides built-in MCP (Model Context Protocol) server support for seamless integration with Claude Code:
+
+```bash
+# Start MCP server for Claude Code (read-only)
+cuenv mcp
+
+# Enable task execution
+cuenv mcp --allow-exec
+```
+
+**Configure Claude Code (`.mcp.json`):**
+
+```json
+{
+	"servers": {
+		"cuenv": {
+			"command": "cuenv",
+			"args": ["mcp", "--allow-exec"],
+			"type": "stdio",
+			"description": "cuenv environment and task management"
+		}
+	}
+}
+```
+
+**Available MCP tools:**
+
+- `cuenv.list_env_vars` - List environment variables
+- `cuenv.get_env_var` - Get specific variable value
+- `cuenv.list_tasks` - List available tasks
+- `cuenv.get_task` - Get task details
+- `cuenv.run_task` - Execute tasks (requires --allow-exec)
+- `cuenv.check_directory` - Validate directory configuration
+
+This allows Claude Code to programmatically manage environments and execute tasks in your projects.
+
 ## Contributing
 
 1. Enter the development environment: `nix develop`

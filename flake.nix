@@ -227,7 +227,7 @@
             cargoVendor = pkgs.rustPlatform.fetchCargoVendor {
               src = ./.;
               name = "cuenv-cargo-vendor";
-              hash = "sha256-MECnH12uaowCjK3wJteddq0q5FoDsubKCaoUOBbAEvU=";
+              hash = "sha256-2hTkBfaIDQi9xLfuaWJ0LPJaClokGC3SMKPXW21xf1k=";
             };
 
             # Common preBuild steps for checks
