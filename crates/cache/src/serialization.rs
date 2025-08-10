@@ -188,6 +188,8 @@ mod tests {
 
     #[test]
     fn test_instant_as_nanos_serialization() {
+        use crate::serialization::time::instant_as_nanos;
+
         #[derive(Serialize, Deserialize)]
         struct TestStruct {
             #[serde(with = "instant_as_nanos")]
@@ -216,6 +218,8 @@ mod tests {
 
     #[test]
     fn test_option_instant_some_serialization() {
+        use crate::serialization::time::option_instant_as_nanos;
+
         #[derive(Serialize, Deserialize)]
         struct TestStruct {
             #[serde(with = "option_instant_as_nanos")]
@@ -238,6 +242,8 @@ mod tests {
 
     #[test]
     fn test_option_instant_none_serialization() {
+        use crate::serialization::time::option_instant_as_nanos;
+
         #[derive(Serialize, Deserialize)]
         struct TestStruct {
             #[serde(with = "option_instant_as_nanos")]

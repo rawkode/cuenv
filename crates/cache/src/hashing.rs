@@ -154,14 +154,18 @@ impl ContentHasher {
     }
 
     /// Hash files matching a glob pattern
-    pub fn hash_glob(&mut self, pattern: &str, base_dir: &Path) -> Result<()> {
-        let files = expand_glob_pattern(pattern, base_dir)?;
+    pub fn hash_glob(&mut self, base_dir: &Path, patterns: &[String]) -> Result<()> {
+        let mut all_files = Vec::new();
+
+        for pattern in patterns {
+            let files = expand_glob_pattern(pattern, base_dir)?;
+            all_files.extend(files);
+        }
 
         // Sort files for consistent hashing
-        let mut sorted_files = files;
-        sorted_files.sort();
+        all_files.sort();
 
-        for file in sorted_files {
+        for file in all_files {
             self.hash_file(&file)?;
         }
 
@@ -172,6 +176,12 @@ impl ContentHasher {
     pub fn generate_hash(&mut self) -> Result<String> {
         let result = self.hasher.finalize_reset();
         Ok(format!("{result:x}"))
+    }
+
+    /// Finalize the hash and return the result (for test compatibility)
+    pub fn finalize(self) -> String {
+        let result = self.hasher.finalize();
+        format!("{result:x}")
     }
 
     /// Serialize the manifest for storage
@@ -484,12 +494,12 @@ mod tests {
         let mut hasher = ContentHasher::new("file_test");
         hasher.hash_file(&file_path).expect("Failed to hash file");
 
-        let hash = hasher.finalize();
-        assert!(!hash.is_empty(), "Hash should not be empty");
-
-        // Verify the file was recorded in manifest
+        // Verify the file was recorded in manifest (before finalize)
         let file_key = file_path.to_string_lossy();
         assert!(hasher.manifest.files.contains_key(file_key.as_ref()));
+
+        let hash = hasher.finalize();
+        assert!(!hash.is_empty(), "Hash should not be empty");
     }
 
     #[test]

@@ -117,7 +117,6 @@ mod tests {
     use super::*;
     use std::ffi::CString;
     use std::fs;
-    use std::os::raw::c_char;
     use tempfile::TempDir;
 
     #[test]
