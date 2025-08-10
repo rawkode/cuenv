@@ -746,159 +746,7 @@ impl TaskServerProvider {
             // MCP Methods (Claude Code integration)
             "tools/list" => {
                 // List available MCP tools
-                let tools = vec![
-                    serde_json::json!({
-                        "name": "cuenv.list_env_vars",
-                        "description": "List all environment variables from env.cue configuration",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "directory": {
-                                    "type": "string",
-                                    "description": "Directory containing env.cue file"
-                                },
-                                "environment": {
-                                    "type": "string",
-                                    "description": "Optional environment name (dev, staging, production, etc.)"
-                                },
-                                "capabilities": {
-                                    "type": "array",
-                                    "items": {"type": "string"},
-                                    "description": "Optional capabilities to enable"
-                                }
-                            },
-                            "required": ["directory"]
-                        }
-                    }),
-                    serde_json::json!({
-                        "name": "cuenv.get_env_var",
-                        "description": "Get value of a specific environment variable",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "directory": {
-                                    "type": "string",
-                                    "description": "Directory containing env.cue file"
-                                },
-                                "name": {
-                                    "type": "string",
-                                    "description": "Environment variable name to retrieve"
-                                },
-                                "environment": {
-                                    "type": "string",
-                                    "description": "Optional environment name"
-                                },
-                                "capabilities": {
-                                    "type": "array",
-                                    "items": {"type": "string"},
-                                    "description": "Optional capabilities to enable"
-                                }
-                            },
-                            "required": ["directory", "name"]
-                        }
-                    }),
-                    serde_json::json!({
-                        "name": "cuenv.list_tasks",
-                        "description": "List all available tasks from env.cue configuration",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "directory": {
-                                    "type": "string",
-                                    "description": "Directory containing env.cue file"
-                                },
-                                "environment": {
-                                    "type": "string",
-                                    "description": "Optional environment name"
-                                },
-                                "capabilities": {
-                                    "type": "array",
-                                    "items": {"type": "string"},
-                                    "description": "Optional capabilities to enable"
-                                }
-                            },
-                            "required": ["directory"]
-                        }
-                    }),
-                    serde_json::json!({
-                        "name": "cuenv.get_task",
-                        "description": "Get details for a specific task",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "directory": {
-                                    "type": "string",
-                                    "description": "Directory containing env.cue file"
-                                },
-                                "name": {
-                                    "type": "string",
-                                    "description": "Task name to retrieve"
-                                },
-                                "environment": {
-                                    "type": "string",
-                                    "description": "Optional environment name"
-                                },
-                                "capabilities": {
-                                    "type": "array",
-                                    "items": {"type": "string"},
-                                    "description": "Optional capabilities to enable"
-                                }
-                            },
-                            "required": ["directory", "name"]
-                        }
-                    }),
-                    serde_json::json!({
-                        "name": "cuenv.check_directory",
-                        "description": "Validate if directory has env.cue and is allowed",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "directory": {
-                                    "type": "string",
-                                    "description": "Directory path to check"
-                                }
-                            },
-                            "required": ["directory"]
-                        }
-                    }),
-                ];
-
-                // Add run_task tool only if execution is allowed
-                let mut all_tools = tools;
-                if allow_exec {
-                    all_tools.push(serde_json::json!({
-                        "name": "cuenv.run_task",
-                        "description": "Execute a task (requires --allow-exec flag)",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "directory": {
-                                    "type": "string",
-                                    "description": "Directory containing env.cue file"
-                                },
-                                "name": {
-                                    "type": "string",
-                                    "description": "Task name to execute"
-                                },
-                                "args": {
-                                    "type": "array",
-                                    "items": {"type": "string"},
-                                    "description": "Arguments to pass to the task"
-                                },
-                                "environment": {
-                                    "type": "string",
-                                    "description": "Optional environment name"
-                                },
-                                "capabilities": {
-                                    "type": "array",
-                                    "items": {"type": "string"},
-                                    "description": "Optional capabilities to enable"
-                                }
-                            },
-                            "required": ["directory", "name"]
-                        }
-                    }));
-                }
+                let all_tools = Self::get_mcp_tools(allow_exec);
 
                 serde_json::json!({
                     "jsonrpc": "2.0",
@@ -981,26 +829,209 @@ impl TaskServerProvider {
         }
     }
 
+    /// Returns the MCP tool definitions
+    fn get_mcp_tools(allow_exec: bool) -> Vec<serde_json::Value> {
+        let mut tools = vec![
+            serde_json::json!({
+                "name": "cuenv.list_env_vars",
+                "description": "List all environment variables from env.cue configuration",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {
+                            "type": "string",
+                            "description": "Directory containing env.cue file"
+                        },
+                        "environment": {
+                            "type": "string",
+                            "description": "Optional environment name (dev, staging, production, etc.)"
+                        },
+                        "capabilities": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Optional capabilities to enable"
+                        }
+                    },
+                    "required": ["directory"]
+                }
+            }),
+            serde_json::json!({
+                "name": "cuenv.get_env_var",
+                "description": "Get value of a specific environment variable",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {
+                            "type": "string",
+                            "description": "Directory containing env.cue file"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Environment variable name to retrieve"
+                        },
+                        "environment": {
+                            "type": "string",
+                            "description": "Optional environment name"
+                        },
+                        "capabilities": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Optional capabilities to enable"
+                        }
+                    },
+                    "required": ["directory", "name"]
+                }
+            }),
+            serde_json::json!({
+                "name": "cuenv.list_tasks",
+                "description": "List all available tasks from env.cue configuration",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {
+                            "type": "string",
+                            "description": "Directory containing env.cue file"
+                        },
+                        "environment": {
+                            "type": "string",
+                            "description": "Optional environment name"
+                        },
+                        "capabilities": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Optional capabilities to enable"
+                        }
+                    },
+                    "required": ["directory"]
+                }
+            }),
+            serde_json::json!({
+                "name": "cuenv.get_task",
+                "description": "Get details for a specific task",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {
+                            "type": "string",
+                            "description": "Directory containing env.cue file"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Task name to retrieve"
+                        },
+                        "environment": {
+                            "type": "string",
+                            "description": "Optional environment name"
+                        },
+                        "capabilities": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Optional capabilities to enable"
+                        }
+                    },
+                    "required": ["directory", "name"]
+                }
+            }),
+            serde_json::json!({
+                "name": "cuenv.check_directory",
+                "description": "Validate if directory has env.cue and is allowed",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {
+                            "type": "string",
+                            "description": "Directory path to check"
+                        }
+                    },
+                    "required": ["directory"]
+                }
+            }),
+        ];
+
+        // Add run_task tool only if execution is allowed
+        if allow_exec {
+            tools.push(serde_json::json!({
+                "name": "cuenv.run_task",
+                "description": "Execute a task (requires --allow-exec flag)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "directory": {
+                            "type": "string",
+                            "description": "Directory containing env.cue file"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Task name to execute"
+                        },
+                        "args": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Arguments to pass to the task"
+                        },
+                        "environment": {
+                            "type": "string",
+                            "description": "Optional environment name"
+                        },
+                        "capabilities": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Optional capabilities to enable"
+                        }
+                    },
+                    "required": ["directory", "name"]
+                }
+            }));
+        }
+
+        tools
+    }
+
     /// Validate directory and check if it's allowed
     fn validate_directory(directory: &str) -> Result<std::path::PathBuf> {
         let path = std::path::PathBuf::from(directory);
         
-        // Check if directory exists
-        if !path.exists() {
+        // Canonicalize the path to resolve symlinks and remove '..' components
+        let canonical = path.canonicalize().map_err(|e| {
+            Error::configuration(format!(
+                "Failed to canonicalize directory '{}': {}",
+                directory, e
+            ))
+        })?;
+        
+        // Basic path traversal protection: ensure the path is absolute
+        if !canonical.is_absolute() {
             return Err(Error::configuration(format!(
-                "Directory does not exist: {}",
-                directory
+                "Directory path is not absolute after canonicalization: {}",
+                canonical.display()
             )));
         }
         
-        // Note: Directory permission validation is done at CLI level
-        // For MCP/TSP mode, we trust that the user has proper permissions
-        // since they're explicitly calling the server from an allowed context
+        // SECURITY: Directory permission validation is done at CLI level.
+        // For MCP/TSP mode, we now canonicalize the path and require it to be absolute.
+        // If exposing this server to untrusted clients, consider restricting allowed directories further.
         
-        Ok(path)
+        // Check if directory exists (after canonicalization)
+        if !canonical.exists() {
+            return Err(Error::configuration(format!(
+                "Directory does not exist: {}",
+                canonical.display()
+            )));
+        }
+        
+        Ok(canonical)
     }
 
-    /// Parse environment without side effects
+    /// Parses environment configuration in the specified directory without side effects.
+    ///
+    /// # Parameters
+    /// - `directory`: The path to the directory containing the environment configuration to parse.
+    /// - `environment`: An optional environment name to select a specific environment configuration.
+    /// - `capabilities`: An optional list of capabilities to use during parsing.
+    ///
+    /// # Returns
+    /// Returns a `Result` containing the parsed environment configuration as a `cuenv_config::ParseResult`
+    /// on success, or an error if parsing fails.
     async fn parse_env_readonly(
         directory: &str,
         environment: Option<String>,
