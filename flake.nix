@@ -148,7 +148,7 @@
           src = ./crates/libcue-ffi-bridge;
 
           # Single hash - reuses the working vendor hash, eliminates placeholder hash
-          vendorHash = "sha256-l/urNOAK9q5nflBt2ovfbaM3WNCn0ouZlc9RJq/+eKk=";
+          vendorHash = "sha256-mU40RCeO0R286fxfgONJ7kw6kFDHPMUzHw8sjsBgiRg=";
 
           nativeBuildInputs = [ pkgs.go_1_24 ];
 
