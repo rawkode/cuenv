@@ -163,17 +163,18 @@ mod tests {
     #[test]
     fn test_cstring_ptr_null_to_str_panics_debug() {
         let null_wrapper = unsafe { CStringPtr::new(std::ptr::null_mut()) };
-        
+
         // Test that we correctly identify null pointers
         assert!(null_wrapper.is_null());
-        
+
         // In debug builds, this should panic. In release builds, it's undefined behavior.
         // Rather than testing undefined behavior, let's test the null check works
         if cfg!(debug_assertions) {
             // In debug mode, we expect a panic
             std::panic::catch_unwind(|| {
                 let _ = unsafe { null_wrapper.to_str() };
-            }).expect_err("Expected panic in debug mode for null pointer");
+            })
+            .expect_err("Expected panic in debug mode for null pointer");
         } else {
             // In release mode, we just verify the null check works
             // Don't actually call to_str() with null as it's undefined behavior
@@ -336,7 +337,7 @@ this is not valid CUE syntax {
         // - If available: should return error for nonexistent package
         // - If not available: may return different error types
         // Either way, we should get some kind of result (error or success)
-        
+
         match result {
             Ok(output) => {
                 // If FFI isn't available or returns empty result, that's acceptable
@@ -350,7 +351,7 @@ this is not valid CUE syntax {
                 println!("Got expected error: {}", error_str);
             }
         }
-        
+
         // The main thing is the function doesn't crash/panic
     }
 }
