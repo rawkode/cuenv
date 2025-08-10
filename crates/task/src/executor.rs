@@ -738,7 +738,7 @@ impl TaskExecutor {
             .get(task_name)
             .ok_or_else(|| Error::configuration(format!("Task '{task_name}' not found")))?;
 
-        let dependencies = task_definition.dependencies.clone().unwrap_or_default();
+        let dependencies = task_definition.dependency_names();
 
         // Validate and collect dependencies
         for dep_name in &dependencies {
