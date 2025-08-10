@@ -21,8 +21,9 @@ cuenv-utils.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
-# Error handling
+# Error handling and logging
 log.workspace = true
+tracing.workspace = true
 
 # Standard library extensions
 fs2.workspace = true

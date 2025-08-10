@@ -2,7 +2,7 @@ use crate::{MonorepoTaskRegistry, TaskBuilder};
 use ::tracing::Instrument;
 use cuenv_cache::config::CacheConfiguration;
 use cuenv_cache::{concurrent::action::ActionCache, CacheManager};
-use cuenv_config::TaskConfig;
+use cuenv_config::{Config, TaskConfig};
 use cuenv_core::{Error, Result};
 use cuenv_core::{TaskDefinition, TaskExecutionMode};
 use cuenv_env::manager::EnvManager;
@@ -35,6 +35,8 @@ pub struct TaskExecutionPlan {
 /// Main task executor that handles dependency resolution and execution
 #[derive(Clone)]
 pub struct TaskExecutor {
+    /// Pre-loaded configuration from ConfigLoader
+    config: Arc<Config>,
     env_manager: EnvManager,
     working_dir: PathBuf,
     cache_manager: Arc<CacheManager>,
@@ -49,24 +51,37 @@ pub struct TaskExecutor {
 }
 
 impl TaskExecutor {
-    /// Create a new task executor
-    pub async fn new(env_manager: EnvManager, working_dir: PathBuf) -> Result<Self> {
-        // TODO: Add CacheConfigLoader when moved to workspace
-        let cache_config = CacheConfiguration::default();
+    /// Create a new task executor with pre-loaded configuration
+    ///
+    /// This replaces the old constructor pattern and now requires a pre-loaded
+    /// `Config` from the `ConfigLoader`. The `EnvManager` is created internally
+    /// and has its configuration already applied.
+    pub async fn new(config: Arc<Config>) -> Result<Self> {
+        // Create EnvManager with the pre-loaded configuration
+        let mut env_manager = EnvManager::new(config.clone());
+        env_manager.apply_config().await?;
+        
+        let working_dir = config.working_directory.clone();
+
+        // Setup cache configuration from the Config
+        let mut cache_config = CacheConfiguration::default();
+        cache_config.global.enabled = config.runtime_settings.cache_enabled;
+        
         let cache_config_struct = Self::create_cache_config_struct(&cache_config)?;
         let mut cache_manager = CacheManager::new(cache_config_struct).await?;
 
-        // Apply task-specific cache environment configurations
-        let tasks = env_manager.get_tasks();
-        cache_manager.apply_task_configs(tasks)?;
+        // Apply task-specific cache environment configurations from Config
+        let tasks = config.filter_tasks_by_capabilities();
+        cache_manager.apply_task_configs(&tasks)?;
 
         let cache_manager = Arc::new(cache_manager);
         let action_cache = cache_manager.action_cache();
 
-        // Create TaskBuilder with current working directory and environment
+        // Create TaskBuilder with working directory from Config
         let task_builder = TaskBuilder::new(working_dir.clone());
 
         Ok(Self {
+            config: config.clone(),
             env_manager,
             working_dir,
             cache_manager,
@@ -79,23 +94,28 @@ impl TaskExecutor {
     }
 
     /// Create a new task executor with monorepo registry for cross-package execution
-    pub async fn new_with_registry(registry: MonorepoTaskRegistry) -> Result<Self> {
-        // Create a minimal env manager for the registry-based executor
-        let env_manager = EnvManager::new();
-        let working_dir = std::env::current_dir()?;
+    pub async fn new_with_registry(config: Arc<Config>, registry: MonorepoTaskRegistry) -> Result<Self> {
+        // Create EnvManager with the pre-loaded configuration
+        let mut env_manager = EnvManager::new(config.clone());
+        env_manager.apply_config().await?;
+        
+        let working_dir = config.working_directory.clone();
 
-        // TODO: Add CacheConfigLoader when moved to workspace
-        let cache_config = CacheConfiguration::default();
+        // Setup cache configuration from the Config
+        let mut cache_config = CacheConfiguration::default();
+        cache_config.global.enabled = config.runtime_settings.cache_enabled;
+        
         let cache_config_struct = Self::create_cache_config_struct(&cache_config)?;
         let cache_manager = CacheManager::new(cache_config_struct).await?;
 
         let cache_manager = Arc::new(cache_manager);
         let action_cache = cache_manager.action_cache();
 
-        // Create TaskBuilder with current working directory
+        // Create TaskBuilder with working directory from Config
         let task_builder = TaskBuilder::new(working_dir.clone());
 
         Ok(Self {
+            config: config.clone(),
             env_manager,
             working_dir,
             cache_manager,
@@ -110,24 +130,29 @@ impl TaskExecutor {
     /// Create a new task executor with custom cache config (for testing)
     #[cfg(test)]
     pub async fn new_with_config(
-        env_manager: EnvManager,
-        working_dir: PathBuf,
+        config: Arc<Config>,
         cache_config: cuenv_cache::CacheConfig,
     ) -> Result<Self> {
+        // Create EnvManager with the pre-loaded configuration
+        let mut env_manager = EnvManager::new(config.clone());
+        env_manager.apply_config().await?;
+        
+        let working_dir = config.working_directory.clone();
         let cache_configuration = CacheConfiguration::default();
         let mut cache_manager = CacheManager::new(cache_config).await?;
 
-        // Apply task-specific cache environment configurations
-        let tasks = env_manager.get_tasks();
-        cache_manager.apply_task_configs(tasks)?;
+        // Apply task-specific cache environment configurations from Config
+        let tasks = config.filter_tasks_by_capabilities();
+        cache_manager.apply_task_configs(&tasks)?;
 
         let cache_manager = Arc::new(cache_manager);
         let action_cache = cache_manager.action_cache();
 
-        // Create TaskBuilder with current working directory
+        // Create TaskBuilder with working directory from Config
         let task_builder = TaskBuilder::new(working_dir.clone());
 
         Ok(Self {
+            config: config.clone(),
             env_manager,
             working_dir,
             cache_manager,
