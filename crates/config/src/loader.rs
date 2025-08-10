@@ -139,7 +139,7 @@ impl ConfigLoader {
     /// - Environment variables cannot be captured
     /// - Cache operations fail
     pub fn load(self) -> Result<Config> {
-        let directory = self.directory.ok_or_else(|| {
+        let directory = self.directory.clone().ok_or_else(|| {
             cuenv_core::Error::configuration(
                 "No directory specified for configuration loading".to_string(),
             )
@@ -147,6 +147,7 @@ impl ConfigLoader {
 
         let environment_name = self
             .environment_name
+            .clone()
             .unwrap_or_else(|| "default".to_string());
 
         // Capture original environment variables
@@ -235,7 +236,7 @@ impl ConfigLoader {
 
         // Cache the result for future use (unless in dry run mode or caching disabled)
         if !self.dry_run && self.runtime_settings.cache_enabled {
-            if let Err(e) = CueCache::set(cue_file, &parsed_result) {
+            if let Err(e) = CueCache::save(cue_file, &parsed_result) {
                 // Log cache write failure but don't fail the entire operation
                 tracing::warn!("Failed to write configuration to cache: {}", e);
             }
@@ -250,7 +251,7 @@ impl ConfigLoader {
     /// and builds cross-package reference information.
     pub fn discover_packages(directory: &Path) -> Result<PackageInfo> {
         let mut packages = HashMap::new();
-        let mut cross_package_refs = HashMap::new();
+        let cross_package_refs = HashMap::new();
 
         // Use a simple directory traversal to find packages
         // In a real implementation, this could use more sophisticated discovery

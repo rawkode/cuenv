@@ -393,7 +393,7 @@ impl Default for CueParser {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct ParseOptions {
     pub environment: Option<String>,
     pub capabilities: Vec<String>,

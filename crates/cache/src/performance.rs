@@ -176,7 +176,7 @@ impl MemoryPool {
     }
 
     /// Return a block to the pool
-    pub fn deallocate(&self, ptr: *mut u8) {
+    pub unsafe fn deallocate(&self, ptr: *mut u8) {
         if let Some(mut blocks) = self.blocks.try_lock() {
             if blocks.len() < self.max_blocks {
                 blocks.push(ptr);
@@ -187,9 +187,7 @@ impl MemoryPool {
         // Pool is full, deallocate
         let layout =
             Layout::from_size_align(self.block_size, CACHE_LINE_SIZE).expect("Invalid layout");
-        unsafe {
-            dealloc(ptr, layout);
-        }
+        dealloc(ptr, layout);
         self.allocated.fetch_sub(1, Ordering::Relaxed);
     }
 }

@@ -185,16 +185,17 @@ impl Config {
         let mut filtered = HashMap::new();
         for (name, value) in &self.parsed_data.variables {
             if let Some(metadata) = self.parsed_data.metadata.get(name) {
-                if metadata.capabilities.is_empty()
-                    || self
-                        .capabilities
-                        .iter()
-                        .any(|cap| metadata.capabilities.contains(cap))
-                {
+                if let Some(capability) = &metadata.capability {
+                    // Variable has a capability tag, only include if it matches the filter
+                    if self.capabilities.contains(capability) {
+                        filtered.insert(name.clone(), value.clone());
+                    }
+                } else {
+                    // No capability tag means always include
                     filtered.insert(name.clone(), value.clone());
                 }
             } else {
-                // If no metadata, include by default
+                // No metadata means no capability tag, always include
                 filtered.insert(name.clone(), value.clone());
             }
         }
@@ -204,30 +205,18 @@ impl Config {
     /// Filter tasks by capabilities
     pub fn filter_tasks_by_capabilities(&self) -> HashMap<String, &TaskConfig> {
         if self.capabilities.is_empty() {
-            return self.parsed_data.tasks.iter().collect();
+            return self.parsed_data.tasks.iter().map(|(k, v)| (k.clone(), v)).collect();
         }
 
-        let mut filtered = HashMap::new();
-        for (name, task) in &self.parsed_data.tasks {
-            if task.capabilities.is_empty()
-                || self
-                    .capabilities
-                    .iter()
-                    .any(|cap| task.capabilities.contains(cap))
-            {
-                filtered.insert(name.clone(), task);
-            }
-        }
-        filtered
+        // Tasks don't have capability filtering, return all tasks
+        self.parsed_data.tasks.iter().map(|(k, v)| (k.clone(), v)).collect()
     }
 
     /// Check if a variable is marked as sensitive
-    pub fn is_variable_sensitive(&self, name: &str) -> bool {
-        self.parsed_data
-            .metadata
-            .get(name)
-            .map(|meta| meta.sensitive)
-            .unwrap_or(false)
+    /// Note: Currently not implemented as VariableMetadata only has capability field
+    pub fn is_variable_sensitive(&self, _name: &str) -> bool {
+        // VariableMetadata only has capability field, sensitive field not implemented yet
+        false
     }
 
     /// Get the resolved environment variables for the current environment and capabilities

@@ -338,7 +338,7 @@ where
 impl Visit for EventFieldVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         self.fields
-            .insert(field.name().to_string(), format!("{:?}", value));
+            .insert(field.name().to_string(), format!("{value:?}"));
     }
 
     fn record_str(&mut self, field: &Field, value: &str) {

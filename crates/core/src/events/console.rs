@@ -97,7 +97,7 @@ impl ConsoleSubscriber {
                     self.verbosity,
                     ConsoleVerbosity::Verbose | ConsoleVerbosity::Debug
                 ) {
-                    Some(self.colorize(&format!("▶ Starting task '{}'", task_name), "blue"))
+                    Some(self.colorize(&format!("▶ Starting task '{task_name}'"), "blue"))
                 } else {
                     None
                 }
@@ -107,12 +107,12 @@ impl ConsoleSubscriber {
                 duration_ms,
                 ..
             } => Some(self.colorize(
-                &format!("✅ Task '{}' completed in {}ms", task_name, duration_ms),
+                &format!("✅ Task '{task_name}' completed in {duration_ms}ms"),
                 "green",
             )),
             TaskEvent::TaskFailed {
                 task_name, error, ..
-            } => Some(self.colorize(&format!("❌ Task '{}' failed: {}", task_name, error), "red")),
+            } => Some(self.colorize(&format!("❌ Task '{task_name}' failed: {error}"), "red")),
             TaskEvent::TaskProgress {
                 task_name, message, ..
             } => {
@@ -120,7 +120,7 @@ impl ConsoleSubscriber {
                     self.verbosity,
                     ConsoleVerbosity::Verbose | ConsoleVerbosity::Debug
                 ) {
-                    Some(self.colorize(&format!("⏳ {}: {}", task_name, message), "yellow"))
+                    Some(self.colorize(&format!("⏳ {task_name}: {message}"), "yellow"))
                 } else {
                     None
                 }
@@ -133,7 +133,7 @@ impl ConsoleSubscriber {
                     ConsoleVerbosity::Verbose | ConsoleVerbosity::Debug
                 ) {
                     Some(self.colorize(
-                        &format!("⏭ Task '{}' skipped: {}", task_name, reason),
+                        &format!("⏭ Task '{task_name}' skipped: {reason}"),
                         "cyan",
                     ))
                 } else {
@@ -144,14 +144,14 @@ impl ConsoleSubscriber {
                 task_name, output, ..
             } => {
                 if matches!(self.verbosity, ConsoleVerbosity::Debug) {
-                    Some(format!("📤 {}: {}", task_name, output))
+                    Some(format!("📤 {task_name}: {output}"))
                 } else {
                     None
                 }
             }
             TaskEvent::TaskError {
                 task_name, error, ..
-            } => Some(self.colorize(&format!("🚨 {}: {}", task_name, error), "red")),
+            } => Some(self.colorize(&format!("🚨 {task_name}: {error}"), "red")),
         }
     }
 
@@ -162,8 +162,7 @@ impl ConsoleSubscriber {
                 total_levels,
             } => Some(self.colorize(
                 &format!(
-                    "🚀 Starting pipeline: {} tasks across {} levels",
-                    total_tasks, total_levels
+                    "🚀 Starting pipeline: {total_tasks} tasks across {total_levels} levels"
                 ),
                 "blue",
             )),
@@ -176,7 +175,7 @@ impl ConsoleSubscriber {
                     ConsoleVerbosity::Verbose | ConsoleVerbosity::Debug
                 ) {
                     Some(self.colorize(
-                        &format!("📊 Level {}: {} tasks", level, tasks_in_level),
+                        &format!("📊 Level {level}: {tasks_in_level} tasks"),
                         "cyan",
                     ))
                 } else {
@@ -191,8 +190,7 @@ impl ConsoleSubscriber {
                 if *failed_tasks > 0 {
                     Some(self.colorize(
                         &format!(
-                            "📊 Level {} completed: {} successful, {} failed",
-                            level, successful_tasks, failed_tasks
+                            "📊 Level {level} completed: {successful_tasks} successful, {failed_tasks} failed"
                         ),
                         "yellow",
                     ))
@@ -202,8 +200,7 @@ impl ConsoleSubscriber {
                 ) {
                     Some(self.colorize(
                         &format!(
-                            "📊 Level {} completed: {} tasks successful",
-                            level, successful_tasks
+                            "📊 Level {level} completed: {successful_tasks} tasks successful"
                         ),
                         "green",
                     ))
@@ -217,8 +214,7 @@ impl ConsoleSubscriber {
                 failed_tasks,
             } => Some(self.colorize(
                 &format!(
-                    "🏁 Pipeline completed in {}ms: {} successful, {} failed",
-                    total_duration_ms, successful_tasks, failed_tasks
+                    "🏁 Pipeline completed in {total_duration_ms}ms: {successful_tasks} successful, {failed_tasks} failed"
                 ),
                 if *failed_tasks > 0 { "red" } else { "green" },
             )),
@@ -235,17 +231,17 @@ impl ConsoleSubscriber {
 
         match event {
             CacheEvent::CacheHit { key } => {
-                Some(self.colorize(&format!("💾 Cache hit: {}", key), "green"))
+                Some(self.colorize(&format!("💾 Cache hit: {key}"), "green"))
             }
             CacheEvent::CacheMiss { key } => {
-                Some(self.colorize(&format!("💿 Cache miss: {}", key), "yellow"))
+                Some(self.colorize(&format!("💿 Cache miss: {key}"), "yellow"))
             }
             CacheEvent::CacheWrite { key, size_bytes } => Some(self.colorize(
-                &format!("💾 Cache write: {} ({} bytes)", key, size_bytes),
+                &format!("💾 Cache write: {key} ({size_bytes} bytes)"),
                 "cyan",
             )),
             CacheEvent::CacheEvict { key, reason } => {
-                Some(self.colorize(&format!("🗑 Cache evict: {} ({})", key, reason), "red"))
+                Some(self.colorize(&format!("🗑 Cache evict: {key} ({reason})"), "red"))
             }
         }
     }
@@ -253,19 +249,19 @@ impl ConsoleSubscriber {
     fn format_env_event(&self, event: &crate::events::EnvEvent) -> String {
         match event {
             crate::events::EnvEvent::EnvLoading { path } => {
-                format!("Loading environment from {}", path)
+                format!("Loading environment from {path}")
             }
             crate::events::EnvEvent::EnvLoaded { path, var_count } => {
-                format!("Loaded {} variables from {}", var_count, path)
+                format!("Loaded {var_count} variables from {path}")
             }
             crate::events::EnvEvent::EnvLoadFailed { path, error } => {
-                format!("Failed to load environment from {}: {}", path, error)
+                format!("Failed to load environment from {path}: {error}")
             }
             crate::events::EnvEvent::EnvVarChanged { key, is_secret } => {
                 if *is_secret {
-                    format!("Environment variable {} changed (sensitive)", key)
+                    format!("Environment variable {key} changed (sensitive)")
                 } else {
-                    format!("Environment variable {} changed", key)
+                    format!("Environment variable {key} changed")
                 }
             }
         }
@@ -280,13 +276,11 @@ impl ConsoleSubscriber {
             } => {
                 if let Some(pkg) = package_name {
                     format!(
-                        "Task '{}' resolved dependency '{}' from package '{}'",
-                        task_name, dependency_name, pkg
+                        "Task '{task_name}' resolved dependency '{dependency_name}' from package '{pkg}'"
                     )
                 } else {
                     format!(
-                        "Task '{}' resolved dependency '{}'",
-                        task_name, dependency_name
+                        "Task '{task_name}' resolved dependency '{dependency_name}'"
                     )
                 }
             }
@@ -296,8 +290,7 @@ impl ConsoleSubscriber {
                 error,
             } => {
                 format!(
-                    "Task '{}' failed to resolve dependency '{}': {}",
-                    task_name, dependency_name, error
+                    "Task '{task_name}' failed to resolve dependency '{dependency_name}': {error}"
                 )
             }
         }
@@ -320,17 +313,17 @@ impl ConsoleSubscriber {
             _ => "\x1b[0m",
         };
 
-        format!("{}{}\x1b[0m", color_code, text)
+        format!("{color_code}{text}\x1b[0m")
     }
 
     /// Write output to the configured destination
     fn write_output(&self, content: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match self.writer {
             ConsoleWriter::Stderr => {
-                eprintln!("{}", content);
+                eprintln!("{content}");
             }
             ConsoleWriter::Stdout => {
-                println!("{}", content);
+                println!("{content}");
             }
         }
         Ok(())

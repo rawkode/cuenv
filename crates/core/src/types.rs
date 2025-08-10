@@ -587,7 +587,7 @@ impl ResolvedDependency {
 
     /// Create a new dependency with package information
     pub fn with_package(name: String, package: String) -> Self {
-        let qualified_name = format!("{}:{}", package, name);
+        let qualified_name = format!("{package}:{name}");
         Self {
             name,
             package: Some(package),
@@ -612,7 +612,7 @@ pub struct TaskSecurity {
 }
 
 /// Resolved cache configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TaskCache {
     /// Whether caching is enabled
     pub enabled: bool,
@@ -631,16 +631,6 @@ pub struct CacheEnvFilter {
     pub exclude: Vec<String>,
     /// Use smart defaults for common tools
     pub smart_defaults: bool,
-}
-
-impl Default for TaskCache {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            key: None,
-            env_filter: None,
-        }
-    }
 }
 
 /// Immutable, validated task definition ready for execution

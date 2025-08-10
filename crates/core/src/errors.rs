@@ -88,12 +88,12 @@ impl std::fmt::Display for Error {
                 )
             }
             Error::Environment { variable, message } => {
-                write!(f, "environment variable '{}' error: {}", variable, message)
+                write!(f, "environment variable '{variable}' error: {message}")
             }
             Error::SecretResolution {
                 reference, message, ..
             } => {
-                write!(f, "failed to resolve secret '{}': {}", reference, message)
+                write!(f, "failed to resolve secret '{reference}': {message}")
             }
             Error::CommandExecution {
                 command,
@@ -123,10 +123,10 @@ impl std::fmt::Display for Error {
                 }
             }
             Error::Configuration { message } => {
-                write!(f, "configuration error: {}", message)
+                write!(f, "configuration error: {message}")
             }
             Error::ShellExpansion { value, message } => {
-                write!(f, "failed to expand shell value '{}': {}", value, message)
+                write!(f, "failed to expand shell value '{value}': {message}")
             }
             Error::FileSystem {
                 path,
@@ -142,22 +142,22 @@ impl std::fmt::Display for Error {
                 )
             }
             Error::Json { message, .. } => {
-                write!(f, "JSON error: {}", message)
+                write!(f, "JSON error: {message}")
             }
             Error::Ffi { operation, message } => {
-                write!(f, "FFI operation '{}' failed: {}", operation, message)
+                write!(f, "FFI operation '{operation}' failed: {message}")
             }
             Error::PermissionDenied { operation, message } => {
-                write!(f, "permission denied for {}: {}", operation, message)
+                write!(f, "permission denied for {operation}: {message}")
             }
             Error::Unsupported { feature, message } => {
-                write!(f, "unsupported feature '{}': {}", feature, message)
+                write!(f, "unsupported feature '{feature}': {message}")
             }
             Error::Security { message } => {
-                write!(f, "security validation error: {}", message)
+                write!(f, "security validation error: {message}")
             }
             Error::Network { endpoint, message } => {
-                write!(f, "network error for '{}': {}", endpoint, message)
+                write!(f, "network error for '{endpoint}': {message}")
             }
             Error::Timeout {
                 operation,
@@ -165,8 +165,7 @@ impl std::fmt::Display for Error {
             } => {
                 write!(
                     f,
-                    "operation '{}' timed out after {:?}",
-                    operation, duration
+                    "operation '{operation}' timed out after {duration:?}"
                 )
             }
         }

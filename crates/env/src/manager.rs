@@ -4,13 +4,11 @@
 //! management. All configuration loading has been moved to the `ConfigLoader` in the
 //! `cuenv-config` crate.
 
-use cuenv_config::{CommandConfig, Config, Hook, TaskConfig, VariableMetadata};
+use cuenv_config::{CommandConfig, Config, Hook, TaskConfig};
 use cuenv_core::{Error, Result};
-use cuenv_utils::sync::env::SyncEnv;
 use std::collections::{HashMap, HashSet};
-use std::io::{self, BufReader};
-use std::path::Path;
-use std::process::{Command, Stdio};
+use std::io;
+use std::process::Command;
 use std::sync::{Arc, RwLock};
 
 use crate::diff::EnvDiff;
@@ -250,15 +248,11 @@ impl EnvManager {
         if let Some(ref diff) = self.current_diff {
             println!("Environment changes:");
 
-            for (key, value) in diff.added_vars() {
+            for (key, value) in diff.added_or_changed() {
                 println!("  + {}={}", key, value);
             }
 
-            for (key, (old_value, new_value)) in diff.changed_vars() {
-                println!("  ~ {}={} (was: {})", key, new_value, old_value);
-            }
-
-            for key in diff.removed_vars() {
+            for key in diff.removed() {
                 println!("  - {}", key);
             }
         } else {
@@ -403,15 +397,17 @@ impl EnvManager {
 
         for (name, value) in &resolved_vars {
             if let Some(metadata) = self.config.get_variable_metadata(name) {
-                if metadata.capabilities.is_empty()
-                    || capabilities
-                        .iter()
-                        .any(|cap| metadata.capabilities.contains(cap))
-                {
+                if let Some(capability) = &metadata.capability {
+                    // Variable has a capability tag, only include if it matches the filter
+                    if capabilities.contains(capability) {
+                        filtered.insert(name.clone(), value.clone());
+                    }
+                } else {
+                    // No capability tag means always include
                     filtered.insert(name.clone(), value.clone());
                 }
             } else {
-                // If no metadata, include by default
+                // No metadata means no capability tag, always include
                 filtered.insert(name.clone(), value.clone());
             }
         }
@@ -434,7 +430,7 @@ impl EnvManager {
     /// Update the environment diff for tracking changes
     fn update_environment_diff(&mut self, new_vars: HashMap<String, String>) -> Result<()> {
         let current_env: HashMap<String, String> = std::env::vars().collect();
-        self.current_diff = Some(EnvDiff::new(&self.original_env, &current_env));
+        self.current_diff = Some(EnvDiff::new(self.original_env.clone(), current_env));
         Ok(())
     }
 
@@ -495,8 +491,8 @@ impl EnvManager {
 
                 let status = cmd.status().map_err(|e| {
                     Error::command_execution(
-                        &config.command,
-                        config.args.clone(),
+                        &exec.command,
+                        exec.args.clone().unwrap_or_default(),
                         format!("Hook execution failed: {}", e),
                         None,
                     )
@@ -504,8 +500,8 @@ impl EnvManager {
 
                 if !status.success() {
                     return Err(Error::command_execution(
-                        &config.command,
-                        config.args.clone(),
+                        &exec.command,
+                        exec.args.clone().unwrap_or_default(),
                         "Hook returned non-zero exit code".to_string(),
                         status.code(),
                     ));
@@ -521,42 +517,13 @@ impl EnvManager {
     }
 
     /// Run a command using its configuration
-    fn run_command_config(&self, cmd_config: &CommandConfig, args: &[String]) -> Result<i32> {
-        let mut cmd = Command::new(&cmd_config.command);
-
-        // Add configured arguments first, then user arguments
-        if let Some(config_args) = &cmd_config.args {
-            cmd.args(config_args);
-        }
-        cmd.args(args);
-
-        // Apply environment variables (filtered by command capabilities)
-        let capabilities = cmd_config
-            .capabilities
-            .as_ref()
-            .map(|c| c.as_slice())
-            .unwrap_or(&[]);
-        let filtered_vars = self.get_filtered_vars(capabilities);
-
-        for (key, value) in &filtered_vars {
-            cmd.env(key, value);
-        }
-
-        // Apply working directory if specified
-        if let Some(working_dir) = &cmd_config.working_directory {
-            cmd.current_dir(working_dir);
-        }
-
-        let status = cmd.status().map_err(|e| {
-            Error::command_execution(
-                &cmd_config.command,
-                cmd_config.args.clone(),
-                format!("Failed to execute command: {}", e),
-                None,
-            )
-        })?;
-
-        Ok(status.code().unwrap_or(-1))
+    /// Note: CommandConfig currently only contains capabilities, not full command execution details
+    fn run_command_config(&self, _cmd_config: &CommandConfig, _args: &[String]) -> Result<i32> {
+        // TODO: Implement proper command execution when CommandConfig structure is complete
+        // For now, return an error indicating this feature is not implemented
+        Err(Error::configuration(
+            "Command execution via CommandConfig is not yet implemented in centralized configuration".to_string()
+        ))
     }
 }
 

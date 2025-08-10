@@ -12,7 +12,7 @@ pub mod watcher;
 
 pub use cache::*;
 pub use diff::*;
-pub use manager::{EnvManager, TaskSource};
+pub use manager::EnvManager;
 pub use source_parser::*;
 pub use state::StateManager;
 pub use watcher::*;

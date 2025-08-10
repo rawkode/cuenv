@@ -150,7 +150,7 @@ impl TaskSpan {
                 if secs < 1.0 {
                     format!("{:.0}ms", duration.as_millis())
                 } else {
-                    format!("{:.1}s", secs)
+                    format!("{secs:.1}s")
                 }
             }
             None => String::new(),
