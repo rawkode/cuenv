@@ -20,7 +20,7 @@ pub struct TaskBuilder {
     /// Global environment variables for expansion
     global_env: HashMap<String, String>,
     /// Cached dependency validation results
-    dependency_cache: Arc<std::sync::RwLock<HashMap<Vec<String>, Result<(), String>>>>,
+    dependency_cache: Arc<std::sync::RwLock<HashMap<Vec<String>, std::result::Result<(), String>>>>,
 }
 
 /// Task building context
