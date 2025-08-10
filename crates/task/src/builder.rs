@@ -499,9 +499,9 @@ impl TaskBuilder {
             outputs: config.outputs.unwrap_or_default(),
             security,
             cache,
-            timeout: config.timeout.map(Duration::from_secs).unwrap_or_else(|| 
-                Duration::from_secs(DEFAULT_TASK_TIMEOUT_SECS)
-            ),
+            timeout: config.timeout
+                .map(|t| Duration::from_secs(t as u64))
+                .unwrap_or_else(|| Duration::from_secs(DEFAULT_TASK_TIMEOUT_SECS)),
         })
     }
 }
