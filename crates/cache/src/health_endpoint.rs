@@ -297,10 +297,7 @@ impl<C: Cache + Clone + 'static> HealthEndpoint<C> {
             Ok(resp) => Ok(resp),
             Err(e) => {
                 error!("Error handling request: {}", e);
-                Ok(HttpResponse::internal_error(format!(
-                    "Internal error: {}",
-                    e
-                )))
+                Ok(HttpResponse::internal_error(format!("Internal error: {e}")))
             }
         }
     }
@@ -325,11 +322,7 @@ impl<C: Cache + Clone + 'static> HealthEndpoint<C> {
                     Err(_) => return Err(()),
                 };
 
-                if auth_str.starts_with("Bearer ") {
-                    &auth_str[7..]
-                } else {
-                    return Err(());
-                }
+                auth_str.strip_prefix("Bearer ").ok_or(())?
             }
             None => return Err(()),
         };
@@ -345,14 +338,13 @@ impl<C: Cache + Clone + 'static> HealthEndpoint<C> {
                 }
 
                 // Check if token is allowed for this endpoint
-                if !auth_token.allowed_endpoints.is_empty() {
-                    if !auth_token
+                if !auth_token.allowed_endpoints.is_empty()
+                    && !auth_token
                         .allowed_endpoints
                         .iter()
                         .any(|allowed| endpoint.starts_with(allowed) || allowed == "*")
-                    {
-                        return Err(());
-                    }
+                {
+                    return Err(());
                 }
 
                 Ok(())
@@ -453,8 +445,7 @@ impl<C: Cache + Clone + 'static> HealthEndpoint<C> {
             Ok(Err(e)) => {
                 error!("Detailed health check failed: {}", e);
                 Ok(HttpResponse::internal_error(format!(
-                    "Health check failed: {}",
-                    e
+                    "Health check failed: {e}"
                 )))
             }
             Err(_) => {
@@ -544,8 +535,7 @@ impl<C: Cache + Clone + 'static> HealthEndpoint<C> {
                     HealthStatus::Unknown => 3,
                 };
                 metrics.push(format!(
-                    "# HELP cuenv_health_status Overall system health status\n# TYPE cuenv_health_status gauge\ncuenv_health_status {}",
-                    status_value
+                    "# HELP cuenv_health_status Overall system health status\n# TYPE cuenv_health_status gauge\ncuenv_health_status {status_value}"
                 ));
 
                 // Component health counts
@@ -601,8 +591,7 @@ impl<C: Cache + Clone + 'static> HealthEndpoint<C> {
             Err(e) => {
                 error!("Failed to get metrics: {}", e);
                 Ok(HttpResponse::internal_error(format!(
-                    "Failed to get metrics: {}",
-                    e
+                    "Failed to get metrics: {e}"
                 )))
             }
         }
@@ -632,8 +621,7 @@ impl<C: Cache + Clone + 'static> HealthEndpoint<C> {
                 match self.hardening.shutdown().await {
                     Ok(()) => HttpResponse::ok_text("Shutdown initiated".to_string()),
                     Err(e) => Ok(HttpResponse::internal_error(format!(
-                        "Shutdown failed: {}",
-                        e
+                        "Shutdown failed: {e}"
                     ))),
                 }
             }

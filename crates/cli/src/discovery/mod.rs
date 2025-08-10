@@ -200,7 +200,7 @@ impl PackageDiscovery {
         let package = packages
             .into_iter()
             .find(|p| p.name == package_name)
-            .ok_or_else(|| Error::configuration(format!("Package '{}' not found", package_name)))?;
+            .ok_or_else(|| Error::configuration(format!("Package '{package_name}' not found")))?;
 
         // Load the package
         let parse_result =
@@ -217,7 +217,7 @@ impl PackageDiscovery {
 #[allow(dead_code)]
 pub async fn discover_packages(load: bool) -> Result<Vec<DiscoveredPackage>> {
     let current_dir = std::env::current_dir()
-        .map_err(|e| Error::configuration(format!("Failed to get current directory: {}", e)))?;
+        .map_err(|e| Error::configuration(format!("Failed to get current directory: {e}")))?;
 
     let mut discovery = PackageDiscovery::new(32);
     discovery.discover(&current_dir, load).await

@@ -645,7 +645,7 @@ mod tests {
 
         // Only one execution should have happened
         let stats = cache.stats();
-        println!("Cache stats: {:?}", stats);
+        println!("Cache stats: {stats:?}");
         assert_eq!(stats.writes, 1);
     }
 }

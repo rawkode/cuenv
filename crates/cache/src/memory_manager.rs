@@ -282,7 +282,12 @@ impl MemoryManager {
     pub async fn shutdown(&self) {
         self.shutdown.store(true, Ordering::Release);
 
-        if let Some(handle) = self.monitor_handle.lock().take() {
+        let handle = {
+            // Take the handle and drop the lock immediately
+            self.monitor_handle.lock().take()
+        };
+
+        if let Some(handle) = handle {
             let _ = handle.await;
         }
     }
@@ -359,6 +364,12 @@ pub struct CacheWarmer {
     warming: Arc<AtomicBool>,
     /// Last warm time
     last_warm: Arc<Mutex<Option<Instant>>>,
+}
+
+impl Default for CacheWarmer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CacheWarmer {

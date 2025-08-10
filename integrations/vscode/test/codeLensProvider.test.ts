@@ -111,7 +111,7 @@ suite('TaskCodeLensProvider Tests', () => {
             const content = `tasks: {
     "build": {
         description: "Build the project"
-        command: ["npm", "run", "build"]
+        command: ["bun", "run", "build"]
     }
 }`;
             const doc = new MockDocument('env.cue', content);
@@ -132,7 +132,7 @@ suite('TaskCodeLensProvider Tests', () => {
             const content = `tasks: {
     test: {
         description: "Run all tests"
-        command: ["npm", "test"]
+        command: ["bun", "test"]
     }
 }`;
             const doc = new MockDocument('env.cue', content);
@@ -152,11 +152,11 @@ suite('TaskCodeLensProvider Tests', () => {
             const content = `tasks: {
     "build-prod": {
         description: "Production build"
-        command: ["npm", "run", "build:prod"]
+        command: ["bun", "run", "build:prod"]
     }
     "test.unit": {
         description: "Unit tests"
-        command: ["npm", "run", "test:unit"]
+        command: ["bun", "run", "test:unit"]
     }
 }`;
             const doc = new MockDocument('env.cue', content);
@@ -177,12 +177,12 @@ suite('TaskCodeLensProvider Tests', () => {
             const content = `environments: {
     dev: {
         tasks: {
-            build: { command: ["npm", "run", "build:dev"] }
+            build: { command: ["bun", "run", "build:dev"] }
         }
     }
     prod: {
         tasks: {
-            build: { command: ["npm", "run", "build:prod"] }
+            build: { command: ["bun", "run", "build:prod"] }
         }
     }
 }`;
@@ -202,7 +202,7 @@ suite('TaskCodeLensProvider Tests', () => {
             const content = `
 // This should not match
 description: "This mentions build but should not match"
-build_command: "npm run build"
+build_command: "bun run build"
 
 // This should match
 tasks: {

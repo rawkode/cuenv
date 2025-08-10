@@ -543,7 +543,7 @@ mod tests {
         // Add some entries
         for i in 0..5 {
             cache
-                .put(&format!("key_{}", i), &format!("value_{}", i), None)
+                .put(&format!("key_{i}"), &format!("value_{i}"), None)
                 .await
                 .unwrap();
         }

@@ -401,6 +401,12 @@ pub struct CASBuilder {
 }
 
 #[allow(dead_code)]
+impl Default for CASBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CASBuilder {
     /// Create a new builder
     pub fn new() -> Self {

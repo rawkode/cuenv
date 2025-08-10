@@ -685,13 +685,13 @@ mod tests {
         assert!(!StateManager::should_load(root));
 
         // Should load different directory
-        assert!(StateManager::should_load(&other));
+        assert!(StateManager::should_load(other));
 
         // Should not unload when in subdirectory
         assert!(!StateManager::should_unload(&subdir));
 
         // Should unload when leaving to different directory
-        assert!(StateManager::should_unload(&other));
+        assert!(StateManager::should_unload(other));
 
         // Clean up
         SyncEnv::remove_var("CUENV_DIR").unwrap();

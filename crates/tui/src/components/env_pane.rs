@@ -67,7 +67,7 @@ impl EnvPane {
             // Check if value looks like a secret reference
             let (value_display, value_style) = if value.starts_with("${") && value.ends_with("}") {
                 (
-                    format!("🔒 {}", value),
+                    format!("🔒 {value}"),
                     Style::default()
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::ITALIC),

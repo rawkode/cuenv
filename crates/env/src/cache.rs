@@ -123,7 +123,7 @@ impl EnvCache {
         for (key, value) in env {
             // Use shell-words to properly escape values
             let escaped = shell_words::quote(value);
-            content.push_str(&format!("{}={}\n", key, escaped));
+            content.push_str(&format!("{key}={escaped}\n"));
         }
 
         // Atomic write using tempfile

@@ -18,7 +18,7 @@ pub enum Shell {
     Bash,
     Zsh,
     Fish,
-    PowerShell,
+    Pwsh,
     Cmd,
 }
 
@@ -30,7 +30,7 @@ impl std::str::FromStr for Shell {
             "bash" => Ok(Self::Bash),
             "zsh" => Ok(Self::Zsh),
             "fish" => Ok(Self::Fish),
-            "powershell" | "pwsh" => Ok(Self::PowerShell),
+            "powershell" | "pwsh" => Ok(Self::Pwsh),
             "cmd" => Ok(Self::Cmd),
             _ => Err(format!("Unknown shell: {s}")),
         }
@@ -44,7 +44,7 @@ impl Shell {
             Self::Bash => "bash",
             Self::Zsh => "zsh",
             Self::Fish => "fish",
-            Self::PowerShell => "powershell",
+            Self::Pwsh => "powershell",
             Self::Cmd => "cmd",
         }
     }
@@ -57,7 +57,7 @@ impl Shell {
     /// Check if this is a Windows shell
     #[allow(dead_code)]
     pub const fn is_windows(&self) -> bool {
-        matches!(self, Self::PowerShell | Self::Cmd)
+        matches!(self, Self::Pwsh | Self::Cmd)
     }
 }
 

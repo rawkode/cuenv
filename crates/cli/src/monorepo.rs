@@ -73,7 +73,7 @@ async fn execute_local_task(
                         }
 
                         if let Some(package_name) = found_package {
-                            let full_task_name = format!("{}:{}", package_name, task_name);
+                            let full_task_name = format!("{package_name}:{task_name}");
                             return execute_cross_package_task(
                                 &module_root,
                                 &full_task_name,
@@ -212,12 +212,12 @@ pub async fn list_monorepo_tasks(current_dir: &Path) -> Result<()> {
         packages.sort();
 
         for package in packages {
-            println!("  Package: {}", package);
+            println!("  Package: {package}");
             if let Some(tasks) = by_package.get(&package) {
                 for (task, desc) in tasks {
-                    print!("    {}:{}", package, task);
+                    print!("    {package}:{task}");
                     if let Some(description) = desc {
-                        print!(": {}", description);
+                        print!(": {description}");
                     }
                     println!();
                 }

@@ -264,7 +264,7 @@ impl CommandExecutor for TestCommandExecutor {
     async fn execute(&self, cmd: &str, args: &CommandArguments) -> Result<Output> {
         let key = format!("{} {}", cmd, args.as_slice().join(" "));
         let responses = self.responses.lock().map_err(|e| Error::Configuration {
-            message: format!("Failed to lock test responses: {}", e),
+            message: format!("Failed to lock test responses: {e}"),
         })?;
 
         match responses.get(&key) {
@@ -274,7 +274,7 @@ impl CommandExecutor for TestCommandExecutor {
                 stderr: response.stderr.to_vec(),
             }),
             None => Err(Error::Configuration {
-                message: format!("no test response configured for command: {}", key),
+                message: format!("no test response configured for command: {key}"),
             }),
         }
     }

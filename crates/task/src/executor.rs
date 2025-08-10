@@ -157,8 +157,7 @@ impl TaskExecutor {
 
         if exit_code != 0 {
             return Err(Error::configuration(format!(
-                "Task '{}' failed with exit code {}",
-                task_name, exit_code
+                "Task '{task_name}' failed with exit code {exit_code}"
             )));
         }
 
@@ -411,8 +410,7 @@ impl TaskExecutor {
                                                     task_name: task_name_owned.clone(),
                                                     task_id: task_name_owned.clone(),
                                                     error: format!(
-                                                        "Task exited with code {}",
-                                                        status
+                                                        "Task exited with code {status}"
                                                     ),
                                                 },
                                             ))

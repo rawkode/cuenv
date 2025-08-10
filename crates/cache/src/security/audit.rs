@@ -551,10 +551,10 @@ impl AuditLogger {
         // Hash all fields except the integrity_hash itself
         hasher.update(entry.entry_id.as_bytes());
         hasher.update(entry.timestamp.to_rfc3339().as_bytes());
-        hasher.update(&serde_json::to_vec(&entry.event).unwrap_or_default());
-        hasher.update(&serde_json::to_vec(&entry.context).unwrap_or_default());
+        hasher.update(serde_json::to_vec(&entry.event).unwrap_or_default());
+        hasher.update(serde_json::to_vec(&entry.context).unwrap_or_default());
         hasher.update(entry.previous_hash.as_bytes());
-        hasher.update(&entry.schema_version.to_le_bytes());
+        hasher.update(entry.schema_version.to_le_bytes());
 
         let hash = hasher.finalize();
         hex::encode(hash)
@@ -564,7 +564,7 @@ impl AuditLogger {
     fn compute_genesis_hash() -> String {
         let mut hasher = Sha256::new();
         hasher.update(b"CUENV_AUDIT_LOG_GENESIS");
-        hasher.update(&Utc::now().timestamp().to_le_bytes());
+        hasher.update(Utc::now().timestamp().to_le_bytes());
         let hash = hasher.finalize();
         hex::encode(hash)
     }
@@ -714,7 +714,7 @@ mod tests {
         for i in 0..5 {
             logger
                 .log_cache_read(
-                    &format!("key_{}", i),
+                    &format!("key_{i}"),
                     i % 2 == 0,
                     Some(1024),
                     5,

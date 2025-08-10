@@ -79,13 +79,13 @@ impl CrossPackageReference {
 impl fmt::Display for CrossPackageReference {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::LocalTask { task } => write!(f, "{}", task),
-            Self::PackageTask { package, task } => write!(f, "{}:{}", package, task),
+            Self::LocalTask { task } => write!(f, "{task}"),
+            Self::PackageTask { package, task } => write!(f, "{package}:{task}"),
             Self::PackageTaskOutput {
                 package,
                 task,
                 output,
-            } => write!(f, "{}:{}#{}", package, task, output),
+            } => write!(f, "{package}:{task}#{output}"),
         }
     }
 }
@@ -111,8 +111,7 @@ pub fn parse_reference(input: &str) -> Result<CrossPackageReference> {
         c.is_alphanumeric() || c == ':' || c == '-' || c == '_' || c == '/' || c == '.' || c == '#'
     }) {
         return Err(Error::configuration(format!(
-            "Invalid characters in task reference: {}",
-            input
+            "Invalid characters in task reference: {input}"
         )));
     }
 
@@ -141,8 +140,7 @@ pub fn parse_reference(input: &str) -> Result<CrossPackageReference> {
     // Check for empty components
     if parts.iter().any(|p| p.is_empty()) {
         return Err(Error::configuration(format!(
-            "Task reference contains empty components: {}",
-            input
+            "Task reference contains empty components: {input}"
         )));
     }
 
@@ -201,8 +199,7 @@ pub fn parse_reference(input: &str) -> Result<CrossPackageReference> {
         }
 
         _ => Err(Error::configuration(format!(
-            "Invalid task reference format: {}",
-            input
+            "Invalid task reference format: {input}"
         ))),
     }
 }

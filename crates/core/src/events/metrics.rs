@@ -639,7 +639,7 @@ mod tests {
             let event = EnhancedEvent {
                 event: SystemEvent::Task(TaskEvent::TaskCompleted {
                     task_name: "repeated_task".to_string(),
-                    task_id: format!("test-{}", i),
+                    task_id: format!("test-{i}"),
                     duration_ms: 1000 + (i as u64 * 500), // 1000, 1500, 2000 ms
                 }),
                 timestamp: SystemTime::now(),

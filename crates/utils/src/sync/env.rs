@@ -216,10 +216,10 @@ mod tests {
 
         let handles: Vec<_> = (0..num_threads)
             .map(|i| {
-                let key = format!("{}_{}", base_key, i);
+                let key = format!("{base_key}_{i}");
                 thread::spawn(move || {
                     for j in 0..iterations {
-                        let value = format!("thread_{}_iter_{}", i, j);
+                        let value = format!("thread_{i}_iter_{j}");
                         SyncEnv::set_var(&key, &value)
                             .expect("Failed to set env var in stress test");
 
@@ -245,7 +245,7 @@ mod tests {
 
         // Verify all variables were cleaned up
         for i in 0..num_threads {
-            let key = format!("{}_{}", base_key, i);
+            let key = format!("{base_key}_{i}");
             assert_eq!(SyncEnv::var(&key)?, None);
         }
 

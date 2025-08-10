@@ -133,7 +133,7 @@ impl MiniMap {
                 "├─ "
             };
 
-            let prefix = format!("{}{}", parent_prefix, connector);
+            let prefix = format!("{parent_prefix}{connector}");
 
             self.visible_lines.push(TreeLine {
                 task_name: task_name.to_string(),
@@ -146,9 +146,9 @@ impl MiniMap {
                 let child_prefix = if depth == 0 {
                     "".to_string()
                 } else if is_last_child {
-                    format!("{}    ", parent_prefix)
+                    format!("{parent_prefix}    ")
                 } else {
-                    format!("{}│   ", parent_prefix)
+                    format!("{parent_prefix}│   ")
                 };
 
                 let num_children = task.dependencies.len();
@@ -266,7 +266,7 @@ impl MiniMap {
             TaskState::Cancelled => Color::Magenta,
         };
         spans.push(Span::styled(
-            format!("{} ", icon),
+            format!("{icon} "),
             Style::default().fg(icon_color),
         ));
 

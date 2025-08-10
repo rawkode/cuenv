@@ -42,7 +42,7 @@ impl FallbackRenderer {
         output.push_str("==================\n\n");
 
         let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S");
-        output.push_str(&format!("Generated: {}\n", timestamp));
+        output.push_str(&format!("Generated: {timestamp}\n"));
         output.push_str(&format!("Total tasks: {}\n", plan.tasks.len()));
         output.push_str(&format!("Execution levels: {}\n\n", plan.levels.len()));
 
@@ -61,7 +61,7 @@ impl FallbackRenderer {
         output.push_str("---------------\n");
 
         for (level_idx, level_tasks) in plan.levels.iter().enumerate() {
-            output.push_str(&format!("\nLevel {}: ", level_idx));
+            output.push_str(&format!("\nLevel {level_idx}: "));
 
             let task_names: Vec<String> = level_tasks
                 .iter()
@@ -138,9 +138,9 @@ impl FallbackRenderer {
                 let child_prefix = if depth == 0 {
                     "".to_string()
                 } else if is_last {
-                    format!("{}    ", prefix)
+                    format!("{prefix}    ")
                 } else {
-                    format!("{}│   ", prefix)
+                    format!("{prefix}│   ")
                 };
 
                 let num_deps = deps.len();
@@ -223,20 +223,17 @@ impl FallbackRenderer {
         if let Some(base_path) = &self.output_path {
             // Write ASCII DAG
             let dag_content = self.generate_ascii_dag(plan).await;
-            let dag_path = format!("{}.dag.txt", base_path);
+            let dag_path = format!("{base_path}.dag.txt");
             let mut dag_file = File::create(&dag_path)?;
             dag_file.write_all(dag_content.as_bytes())?;
-            println!("Task DAG written to: {}", dag_path);
+            println!("Task DAG written to: {dag_path}");
 
             // Write Chrome Trace JSON
             if let Ok(trace_content) = self.generate_chrome_trace().await {
-                let trace_path = format!("{}.trace.json", base_path);
+                let trace_path = format!("{base_path}.trace.json");
                 let mut trace_file = File::create(&trace_path)?;
                 trace_file.write_all(trace_content.as_bytes())?;
-                println!(
-                    "Chrome Trace written to: {} (open in chrome://tracing)",
-                    trace_path
-                );
+                println!("Chrome Trace written to: {trace_path} (open in chrome://tracing)");
             }
         }
 
@@ -247,10 +244,10 @@ impl FallbackRenderer {
     pub async fn handle_event(&self, event: TaskEvent) {
         match event {
             TaskEvent::Started { task_name, .. } => {
-                println!("[START] {}", task_name);
+                println!("[START] {task_name}");
             }
             TaskEvent::Progress { task_name, message } => {
-                println!("[PROGRESS] {} - {}", task_name, message);
+                println!("[PROGRESS] {task_name} - {message}");
             }
             TaskEvent::Log {
                 task_name,
@@ -263,7 +260,7 @@ impl FallbackRenderer {
                     crate::events::LogStream::System => "[SYS]",
                 };
                 for line in content.lines() {
-                    println!("{} {} | {}", prefix, task_name, line);
+                    println!("{prefix} {task_name} | {line}");
                 }
             }
             TaskEvent::Completed {
@@ -291,7 +288,7 @@ impl FallbackRenderer {
                 );
             }
             TaskEvent::Cancelled { task_name } => {
-                println!("[CANCEL] {}", task_name);
+                println!("[CANCEL] {task_name}");
             }
         }
     }

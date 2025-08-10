@@ -747,7 +747,7 @@ async fn handle_mcp_server(
         }
         "tcp" => {
             println!("Starting cuenv MCP server (TCP transport)");
-            println!("Port: {}", port);
+            println!("Port: {port}");
             println!(
                 "Task execution: {}",
                 if allow_exec { "enabled" } else { "read-only" }
@@ -757,9 +757,7 @@ async fn handle_mcp_server(
             // For TCP, we'll create a temporary socket and note the limitation
             let temp_socket = tempfile::tempdir()
                 .map(|d| d.path().join("cuenv-mcp-tcp.sock"))
-                .map_err(|e| {
-                    Error::configuration(format!("Failed to create temp socket: {}", e))
-                })?;
+                .map_err(|e| Error::configuration(format!("Failed to create temp socket: {e}")))?;
 
             TaskServerProvider::new_with_options(
                 Some(temp_socket),
@@ -770,8 +768,7 @@ async fn handle_mcp_server(
         }
         _ => {
             return Err(Error::configuration(format!(
-                "Unsupported transport: {}. Use 'stdio', 'unix', or 'tcp'",
-                transport
+                "Unsupported transport: {transport}. Use 'stdio', 'unix', or 'tcp'"
             )));
         }
     };
@@ -787,7 +784,7 @@ async fn handle_mcp_server(
             match result {
                 Ok(()) => println!("MCP server stopped successfully"),
                 Err(e) => {
-                    eprintln!("MCP server error: {}", e);
+                    eprintln!("MCP server error: {e}");
                     return Err(e);
                 }
             }
@@ -795,7 +792,7 @@ async fn handle_mcp_server(
         _ = ctrl_c => {
             println!("Received interrupt signal, stopping MCP server...");
             if let Err(e) = provider.shutdown().await {
-                eprintln!("Error during shutdown: {}", e);
+                eprintln!("Error during shutdown: {e}");
             }
         }
     }
@@ -817,7 +814,7 @@ async fn handle_task_protocol(
 
     // Create socket directory in temp
     let socket_dir = tempfile::tempdir().map_err(|e| {
-        Error::configuration(format!("Failed to create temp socket directory: {}", e))
+        Error::configuration(format!("Failed to create temp socket directory: {e}"))
     })?;
 
     let mut manager = TaskServerManager::new(socket_dir.path().to_path_buf());
@@ -835,13 +832,10 @@ async fn handle_task_protocol(
         match manager.add_server(server_executable, server_name).await {
             Ok(tasks) => {
                 all_tasks.extend(tasks);
-                println!("Connected to task server: {}", server_executable);
+                println!("Connected to task server: {server_executable}");
             }
             Err(e) => {
-                eprintln!(
-                    "Failed to connect to task server {}: {}",
-                    server_executable, e
-                );
+                eprintln!("Failed to connect to task server {server_executable}: {e}");
                 return Err(e);
             }
         }
@@ -860,7 +854,7 @@ async fn handle_task_protocol(
                 );
             }
             Err(e) => {
-                eprintln!("Failed to discover task servers: {}", e);
+                eprintln!("Failed to discover task servers: {e}");
                 return Err(e);
             }
         }
@@ -885,7 +879,7 @@ async fn handle_task_protocol(
     if let Some(task_name) = run_task {
         // Run a specific task
         if all_tasks.iter().any(|t| t.name == *task_name) {
-            println!("Running task: {}", task_name);
+            println!("Running task: {task_name}");
 
             let inputs = HashMap::new(); // TODO: Accept inputs from CLI
             let outputs = HashMap::new(); // TODO: Accept outputs from CLI
@@ -893,22 +887,21 @@ async fn handle_task_protocol(
             match manager.run_task(task_name, inputs, outputs).await {
                 Ok(exit_code) => {
                     if exit_code == 0 {
-                        println!("Task '{}' completed successfully", task_name);
+                        println!("Task '{task_name}' completed successfully");
                     } else {
-                        println!("Task '{}' failed with exit code {}", task_name, exit_code);
+                        println!("Task '{task_name}' failed with exit code {exit_code}");
                         std::process::exit(exit_code);
                     }
                 }
                 Err(e) => {
-                    eprintln!("Failed to run task '{}': {}", task_name, e);
+                    eprintln!("Failed to run task '{task_name}': {e}");
                     return Err(e);
                 }
             }
         } else {
-            eprintln!("Task '{}' not found in available servers", task_name);
+            eprintln!("Task '{task_name}' not found in available servers");
             return Err(Error::configuration(format!(
-                "Task '{}' not found",
-                task_name
+                "Task '{task_name}' not found"
             )));
         }
     }
@@ -950,7 +943,7 @@ async fn handle_task_protocol(
         match unified_manager.start_as_provider(socket_path).await {
             Ok(()) => println!("Task server provider started successfully"),
             Err(e) => {
-                eprintln!("Failed to start task server provider: {}", e);
+                eprintln!("Failed to start task server provider: {e}");
                 return Err(e);
             }
         }
@@ -978,9 +971,9 @@ async fn handle_task_protocol(
             UnifiedTaskManager::new(socket_dir.path().to_path_buf(), internal_tasks);
 
         match unified_manager.export_tasks_to_json() {
-            Ok(json) => println!("{}", json),
+            Ok(json) => println!("{json}"),
             Err(e) => {
-                eprintln!("Failed to export tasks as JSON: {}", e);
+                eprintln!("Failed to export tasks as JSON: {e}");
                 return Err(e);
             }
         }
@@ -1007,9 +1000,9 @@ async fn handle_task_protocol(
     if should_show_usage(
         serve,
         export_json,
-        &server,
-        &discovery_dir,
-        &run_task,
+        server,
+        discovery_dir,
+        run_task,
         list_tasks,
     ) {
         println!("Task Server Protocol (TSP) - Dual-Modality Support");
@@ -1226,7 +1219,7 @@ tasks: env.#Tasks & {
                                     Ok(Shell::Bash) => ShellType::Bash,
                                     Ok(Shell::Zsh) => ShellType::Zsh,
                                     Ok(Shell::Fish) => ShellType::Fish,
-                                    Ok(Shell::PowerShell) => ShellType::PowerShell,
+                                    Ok(Shell::Pwsh) => ShellType::PowerShell,
                                     Ok(Shell::Cmd) => ShellType::Cmd,
                                     _ => ShellType::Bash,
                                 }
@@ -1582,7 +1575,7 @@ tasks: env.#Tasks & {
                     Ok(Shell::Bash) => ShellType::Bash,
                     Ok(Shell::Zsh) => ShellType::Zsh,
                     Ok(Shell::Fish) => ShellType::Fish,
-                    Ok(Shell::PowerShell) => ShellType::PowerShell,
+                    Ok(Shell::Pwsh) => ShellType::PowerShell,
                     Ok(Shell::Cmd) => ShellType::Cmd,
                     _ => ShellType::Bash,
                 },
@@ -1602,11 +1595,11 @@ tasks: env.#Tasks & {
                         // Get the CUE variables that were loaded
                         let cue_vars = env_manager.get_cue_vars();
                         for (key, value) in cue_vars {
-                            println!("{}", shell_impl.export(&key, &value));
+                            println!("{}", shell_impl.export(key, value));
                         }
                     }
                     Err(e) => {
-                        eprintln!("Error: Failed to load cuenv environment: {}", e);
+                        eprintln!("Error: Failed to load cuenv environment: {e}");
                         std::process::exit(1);
                     }
                 }
@@ -1622,7 +1615,7 @@ tasks: env.#Tasks & {
                     Ok(Shell::Bash) => ShellType::Bash,
                     Ok(Shell::Zsh) => ShellType::Zsh,
                     Ok(Shell::Fish) => ShellType::Fish,
-                    Ok(Shell::PowerShell) => ShellType::PowerShell,
+                    Ok(Shell::Pwsh) => ShellType::PowerShell,
                     Ok(Shell::Cmd) => ShellType::Cmd,
                     _ => ShellType::Bash,
                 },

@@ -749,10 +749,9 @@ impl HitRateAnalyzer {
         // Extract pattern from key (e.g., "user:123" -> "user:*")
         if let Some(colon_pos) = key.find(':') {
             Some(format!("{}:*", &key[..colon_pos]))
-        } else if let Some(slash_pos) = key.find('/') {
-            Some(format!("{}/*", &key[..slash_pos]))
         } else {
-            None
+            key.find('/')
+                .map(|slash_pos| format!("{}/*", &key[..slash_pos]))
         }
     }
 }

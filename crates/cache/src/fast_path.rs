@@ -285,6 +285,12 @@ pub struct InlineCache<const N: usize> {
 }
 
 #[allow(dead_code)]
+impl<const N: usize> Default for InlineCache<N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const N: usize> InlineCache<N> {
     pub const fn new() -> Self {
         const EMPTY: (Option<String>, Option<Vec<u8>>) = (None, None);

@@ -331,22 +331,21 @@ mod tests {
 
         // Paths within allowed directories should pass
         assert!(
-            SecurityValidator::validate_path(&Path::new("/tmp/file.txt"), &allowed_paths).is_ok()
+            SecurityValidator::validate_path(Path::new("/tmp/file.txt"), &allowed_paths).is_ok()
         );
         assert!(
-            SecurityValidator::validate_path(&Path::new("/home/user/doc.txt"), &allowed_paths)
+            SecurityValidator::validate_path(Path::new("/home/user/doc.txt"), &allowed_paths)
                 .is_ok()
         );
 
         // Paths with null bytes should fail
         assert!(
-            SecurityValidator::validate_path(&Path::new("/tmp/file\0.txt"), &allowed_paths)
-                .is_err()
+            SecurityValidator::validate_path(Path::new("/tmp/file\0.txt"), &allowed_paths).is_err()
         );
 
         // Paths with suspicious patterns should fail
         assert!(
-            SecurityValidator::validate_path(&Path::new("/tmp/.../file"), &allowed_paths).is_err()
+            SecurityValidator::validate_path(Path::new("/tmp/.../file"), &allowed_paths).is_err()
         );
     }
 
@@ -417,15 +416,14 @@ mod tests {
 
         // Test path traversal attempts
         assert!(
-            SecurityValidator::validate_path(&Path::new("/tmp/../etc/passwd"), &allowed_paths)
+            SecurityValidator::validate_path(Path::new("/tmp/../etc/passwd"), &allowed_paths)
                 .is_err()
         );
         assert!(
-            SecurityValidator::validate_path(&Path::new("/tmp/../../root"), &allowed_paths)
-                .is_err()
+            SecurityValidator::validate_path(Path::new("/tmp/../../root"), &allowed_paths).is_err()
         );
         assert!(
-            SecurityValidator::validate_path(&Path::new("/tmp/.//../etc"), &allowed_paths).is_err()
+            SecurityValidator::validate_path(Path::new("/tmp/.//../etc"), &allowed_paths).is_err()
         );
     }
 

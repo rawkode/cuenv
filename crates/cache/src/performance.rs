@@ -54,6 +54,12 @@ pub struct PerfStats {
     pub io_operations: CacheLineAligned<AtomicU64>,
 }
 
+impl Default for PerfStats {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PerfStats {
     pub const fn new() -> Self {
         Self {
@@ -101,6 +107,12 @@ pub mod simd_hash {
     use std::arch::x86_64::*;
 
     /// Fast hash using SSE4.2 CRC32 instructions
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because it uses SSE4.2 intrinsics which require
+    /// the target CPU to support these instructions. The caller must ensure that
+    /// the CPU supports SSE4.2 before calling this function.
     #[target_feature(enable = "sse4.2")]
     pub unsafe fn hash_key_simd(key: &[u8]) -> u64 {
         let mut hash = 0u64;
@@ -176,7 +188,14 @@ impl MemoryPool {
     }
 
     /// Return a block to the pool
-    pub fn deallocate(&self, ptr: *mut u8) {
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that:
+    /// - `ptr` was previously allocated by this pool's `allocate` method
+    /// - `ptr` has not been deallocated already
+    /// - No other code is accessing the memory pointed to by `ptr`
+    pub unsafe fn deallocate(&self, ptr: *mut u8) {
         if let Some(mut blocks) = self.blocks.try_lock() {
             if blocks.len() < self.max_blocks {
                 blocks.push(ptr);
@@ -271,6 +290,15 @@ where
 }
 
 /// Optimized memory copy for cache-aligned data
+///
+/// # Safety
+///
+/// This function is unsafe because it directly manipulates raw pointers.
+/// The caller must ensure that:
+/// - Both `dst` and `src` are valid pointers
+/// - `dst` points to at least `len` bytes of writable memory
+/// - `src` points to at least `len` bytes of readable memory
+/// - The memory regions do not overlap
 #[cfg(target_arch = "x86_64")]
 pub unsafe fn aligned_copy(dst: *mut u8, src: *const u8, len: usize) {
     use std::arch::x86_64::*;
@@ -361,8 +389,10 @@ mod tests {
         let ptr1 = pool.allocate().expect("Failed to allocate");
         let ptr2 = pool.allocate().expect("Failed to allocate");
 
-        pool.deallocate(ptr1);
-        pool.deallocate(ptr2);
+        unsafe {
+            pool.deallocate(ptr1);
+            pool.deallocate(ptr2);
+        }
 
         // Should reuse from pool
         let ptr3 = pool.allocate().expect("Failed to allocate");

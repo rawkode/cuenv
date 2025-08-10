@@ -72,8 +72,7 @@ impl ContentHasher {
                 .map_err(|e| {
                     if e.kind() == std::io::ErrorKind::PermissionDenied {
                         Error::configuration(format!(
-                            "Symlink detected or permission denied: {:?}",
-                            file_path
+                            "Symlink detected or permission denied: {file_path:?}"
                         ))
                     } else {
                         Error::file_system(file_path.to_path_buf(), "open file for hashing", e)
