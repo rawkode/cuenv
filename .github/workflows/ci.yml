@@ -65,7 +65,7 @@ jobs:
         if: runner.os == 'Windows'
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.23'
       # Build once - Nix will cache this (Unix only)
       - name: nix-build
         if: runner.os != 'Windows'
