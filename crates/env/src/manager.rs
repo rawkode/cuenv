@@ -314,7 +314,12 @@ impl EnvManager {
             }
 
             let status = cmd.status().map_err(|e| {
-                Error::command_execution(format!("Failed to execute command '{}': {}", command, e))
+                Error::command_execution(
+                    command,
+                    vec![],
+                    format!("Failed to execute command: {}", e),
+                    None,
+                )
             })?;
 
             Ok(status.code().unwrap_or(-1))
@@ -341,10 +346,12 @@ impl EnvManager {
         }
 
         let status = cmd.status().map_err(|e| {
-            Error::command_execution(format!(
-                "Failed to execute restricted command '{}': {}",
-                command, e
-            ))
+            Error::command_execution(
+                command,
+                vec![],
+                format!("Failed to execute restricted command: {}", e),
+                None,
+            )
         })?;
 
         Ok(status.code().unwrap_or(-1))
@@ -457,12 +464,20 @@ impl EnvManager {
                 }
 
                 let status = cmd.status().map_err(|e| {
-                    Error::command_execution(format!("Hook execution failed: {}", e))
+                    Error::command_execution(
+                        &config.command,
+                        config.args.clone(),
+                        format!("Hook execution failed: {}", e),
+                        None,
+                    )
                 })?;
 
                 if !status.success() {
                     return Err(Error::command_execution(
+                        &config.command,
+                        config.args.clone(),
                         "Hook returned non-zero exit code".to_string(),
+                        status.code(),
                     ));
                 }
             }
@@ -479,12 +494,20 @@ impl EnvManager {
                 }
 
                 let status = cmd.status().map_err(|e| {
-                    Error::command_execution(format!("Hook execution failed: {}", e))
+                    Error::command_execution(
+                        &config.command,
+                        config.args.clone(),
+                        format!("Hook execution failed: {}", e),
+                        None,
+                    )
                 })?;
 
                 if !status.success() {
                     return Err(Error::command_execution(
+                        &config.command,
+                        config.args.clone(),
                         "Hook returned non-zero exit code".to_string(),
+                        status.code(),
                     ));
                 }
             }
@@ -525,10 +548,12 @@ impl EnvManager {
         }
 
         let status = cmd.status().map_err(|e| {
-            Error::command_execution(format!(
-                "Failed to execute command '{}': {}",
-                cmd_config.command, e
-            ))
+            Error::command_execution(
+                &cmd_config.command,
+                cmd_config.args.clone(),
+                format!("Failed to execute command: {}", e),
+                None,
+            )
         })?;
 
         Ok(status.code().unwrap_or(-1))
