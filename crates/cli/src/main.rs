@@ -781,7 +781,7 @@ async fn handle_task_protocol(
         let current_dir = match DirectoryManager::get_current_directory() {
             Ok(d) => d,
             Err(e) => {
-                eyre::bail!("Failed to get current directory: {e}")
+                return Err(Error::configuration(format!("Failed to get current directory: {e}")))
             }
         };
 
@@ -791,7 +791,7 @@ async fn handle_task_protocol(
         // Extract tasks from environment manager 
         let internal_tasks = env_manager.get_tasks().clone();
         
-        use cuenv_task::{TaskServerProvider, UnifiedTaskManager};
+        use cuenv_task::UnifiedTaskManager;
         let mut unified_manager = UnifiedTaskManager::new(socket_dir.path().to_path_buf(), internal_tasks);
         
         println!("Starting cuenv task server provider at: {}", socket_path.display());
@@ -812,7 +812,7 @@ async fn handle_task_protocol(
         let current_dir = match DirectoryManager::get_current_directory() {
             Ok(d) => d,
             Err(e) => {
-                eyre::bail!("Failed to get current directory: {e}")
+                return Err(Error::configuration(format!("Failed to get current directory: {e}")))
             }
         };
 
@@ -1549,13 +1549,13 @@ tasks: env.#Tasks & {
                     export_json,
                 } => {
                     handle_task_protocol(
-                        server,
-                        discovery_dir,
-                        run_task,
-                        *list_tasks,
-                        *serve,
-                        socket,
-                        *export_json,
+                        &server,
+                        &discovery_dir,
+                        &run_task,
+                        list_tasks,
+                        serve,
+                        &socket,
+                        export_json,
                     )
                     .await?;
                 }
