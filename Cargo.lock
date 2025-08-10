@@ -659,7 +659,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -700,7 +700,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-cache"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -753,7 +753,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-config"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "cuenv-core",
  "cuenv-libcue-ffi-bridge",
@@ -768,7 +768,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-core"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -787,7 +787,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-env"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "anyhow",
  "cuenv-config",
@@ -816,7 +816,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-hooks"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -840,7 +840,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-libcue-ffi-bridge"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "cc",
  "cuenv-core",
@@ -852,7 +852,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-security"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "anyhow",
  "chrono",
@@ -878,7 +878,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-shell"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "cuenv-core",
  "cuenv-env",
@@ -892,7 +892,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-task"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -918,7 +918,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-tui"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -942,7 +942,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-utils"
-version = "0.4.7"
+version = "0.4.8"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
