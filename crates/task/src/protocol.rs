@@ -14,7 +14,8 @@ use cuenv_core::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
+use tokio::process::Command;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixStream, UnixListener};
@@ -134,7 +135,7 @@ impl TaskServerClient {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        let mut child = cmd.spawn().map_err(|e| {
+        let child = cmd.spawn().map_err(|e| {
             Error::command_execution(
                 executable,
                 vec![self.socket_path.to_string_lossy().to_string()],
@@ -152,7 +153,10 @@ impl TaskServerClient {
 
         if socket_ready.is_err() {
             // Try to kill the child process
-            let _ = child.kill().await;
+            let _ = tokio::process::Command::new("kill")
+                .arg(format!("{}", child.id().unwrap_or(0)))
+                .output()
+                .await;
             return Err(Error::configuration(
                 "Timeout waiting for task server to create socket".to_string(),
             ));
@@ -311,11 +315,13 @@ impl TaskServerClient {
 
 impl Drop for TaskServerClient {
     fn drop(&mut self) {
-        // Best effort cleanup
-        if let Some(mut process) = self.server_process.take() {
-            let _ = std::process::Command::new("kill")
-                .arg(process.id().to_string())
-                .output();
+        // Best effort cleanup  
+        if let Some(process) = self.server_process.take() {
+            if let Some(pid) = process.id() {
+                let _ = std::process::Command::new("kill")
+                    .arg(pid.to_string())
+                    .output();
+            }
         }
 
         if self.socket_path.exists() {
@@ -387,7 +393,7 @@ impl TaskServerManager {
             if path.is_file() {
                 if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
                     // Try to add this as a task server
-                    match self.add_server(path.to_str().unwrap(), name).await {
+                    match self.add_server(&path.to_string_lossy(), name).await {
                         Ok(mut tasks) => {
                             // Prefix task names with server name
                             for task in &mut tasks {
@@ -418,10 +424,35 @@ impl TaskServerManager {
         inputs: HashMap<String, String>,
         outputs: HashMap<String, String>,
     ) -> Result<i32> {
-        // For now, just try the first server
-        // TODO: Implement proper task routing based on task name prefix
-        if let Some(server) = self.servers.first_mut() {
-            let result = server.run_task(task_name, inputs, outputs).await?;
+        // Route task to the correct server based on prefix
+        let (server_prefix, actual_task_name) = if let Some(idx) = task_name.find(':') {
+            let (prefix, rest) = task_name.split_at(idx);
+            (Some(prefix), &rest[1..])
+        } else {
+            (None, task_name)
+        };
+
+        if let Some(prefix) = server_prefix {
+            // Find server by prefix
+            let server_index = self.servers.iter().position(|server| {
+                // Extract server name from socket path for comparison
+                server.socket_path.file_stem()
+                    .and_then(|s| s.to_str())
+                    .map(|name| name.trim_end_matches(".sock") == prefix)
+                    .unwrap_or(false)
+            });
+            
+            if let Some(idx) = server_index {
+                let result = self.servers[idx].run_task(actual_task_name, inputs, outputs).await?;
+                Ok(result.exit_code)
+            } else {
+                Err(Error::configuration(
+                    format!("No task server found for prefix '{}'", prefix),
+                ))
+            }
+        } else if let Some(server) = self.servers.first_mut() {
+            // Fallback: no prefix, use first server
+            let result = server.run_task(actual_task_name, inputs, outputs).await?;
             Ok(result.exit_code)
         } else {
             Err(Error::configuration(
@@ -525,8 +556,9 @@ impl TaskServerProvider {
     }
 
     /// Handle a single client connection
-    async fn handle_client(mut stream: UnixStream, tasks: Arc<HashMap<String, TaskConfig>>) -> Result<()> {
-        let mut buf_reader = BufReader::new(&mut stream);
+    async fn handle_client(stream: UnixStream, tasks: Arc<HashMap<String, TaskConfig>>) -> Result<()> {
+        let (read_half, mut write_half) = stream.into_split();
+        let mut buf_reader = BufReader::new(read_half);
         let mut line = String::new();
 
         while buf_reader.read_line(&mut line).await.map_err(|e| {
@@ -545,7 +577,7 @@ impl TaskServerProvider {
                 Error::configuration(format!("Failed to serialize response: {}", e))
             })?;
 
-            stream.write_all(format!("{}\n", response_json).as_bytes()).await.map_err(|e| {
+            write_half.write_all(format!("{}\n", response_json).as_bytes()).await.map_err(|e| {
                 Error::configuration(format!("Failed to write response: {}", e))
             })?;
 
@@ -740,7 +772,7 @@ impl UnifiedTaskManager {
     }
 
     /// Discover and combine both internal and external tasks
-    pub async fn discover_all_tasks(&mut self) -> Result<Vec<TaskDefinition>> {
+    pub async fn discover_all_tasks(&mut self, discovery_path: Option<&Path>) -> Result<Vec<TaskDefinition>> {
         let mut all_tasks = Vec::new();
 
         // Add internal tasks
@@ -752,9 +784,11 @@ impl UnifiedTaskManager {
             });
         }
 
-        // Add external tasks from discovery
-        let external_tasks = self.server_manager.discover_servers(Path::new(".")).await?;
-        all_tasks.extend(external_tasks);
+        // Add external tasks from discovery if path provided
+        if let Some(path) = discovery_path {
+            let external_tasks = self.server_manager.discover_servers(path).await?;
+            all_tasks.extend(external_tasks);
+        }
 
         Ok(all_tasks)
     }

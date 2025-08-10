@@ -834,8 +834,20 @@ async fn handle_task_protocol(
         }
     }
 
+    /// Helper function to determine if usage should be shown
+    fn should_show_usage(
+        serve: bool,
+        export_json: bool,
+        server: &Option<String>,
+        discovery_dir: &Option<PathBuf>,
+        run_task: &Option<String>,
+        list_tasks: bool,
+    ) -> bool {
+        !serve && !export_json && server.is_none() && discovery_dir.is_none() && run_task.is_none() && !list_tasks
+    }
+
     // If no action specified, show usage
-    if !serve && !export_json && server.is_none() && discovery_dir.is_none() && run_task.is_none() && !list_tasks {
+    if should_show_usage(serve, export_json, &server, &discovery_dir, &run_task, list_tasks) {
         println!("Task Server Protocol (TSP) - Dual-Modality Support");
         println!();
         println!("Consumer Mode (use external task servers):");
