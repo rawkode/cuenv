@@ -48,6 +48,14 @@ jobs:
       - name: magic-nix-cache
         if: runner.os != 'Windows'
         uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: cache-nix-store
+        if: runner.os != 'Windows'
+        uses: nix-community/cache-nix-action@v5
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          gc-max-store-size-linux: 1073741824
+          gc-max-store-size-macos: 1073741824
       - name: nix-cache
         if: runner.os != 'Windows'
         uses: cachix/cachix-action@v15
@@ -144,6 +152,12 @@ jobs:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
       - name: magic-nix-cache
         uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: cache-nix-store
+        uses: nix-community/cache-nix-action@v5
+        with:
+          primary-key: nix-ubuntu-latest-${{ hashFiles('**/*.nix', '**/flake.lock') }}
+          restore-prefixes-first-match: nix-ubuntu-latest-
+          gc-max-store-size-linux: 1073741824
       - name: nix-cache
         uses: cachix/cachix-action@v15
         with:
