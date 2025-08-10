@@ -18,7 +18,7 @@ use pin_project_lite::pin_project;
 use sha2::{Digest, Sha256};
 use std::future::Future;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -277,7 +277,7 @@ pin_project! {
 
 impl CacheWriter {
     /// Create a new cache writer
-    pub async fn new(cache_dir: &PathBuf, key: &str, ttl: Option<Duration>) -> Result<Self> {
+    pub async fn new(cache_dir: &Path, key: &str, ttl: Option<Duration>) -> Result<Self> {
         match key.validate() {
             Ok(()) => {}
             Err(e) => return Err(e),
