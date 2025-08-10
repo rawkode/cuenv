@@ -2,8 +2,8 @@
 
 use crate::events::{EnhancedEvent, EventSubscriber, SystemEvent, TaskEvent, PipelineEvent, CacheEvent};
 use async_trait::async_trait;
-use std::io::{self, IsTerminal, Write};
-use tracing::{debug, error};
+use std::io::{self};
+use tracing::{debug};
 
 /// Console subscriber for terminal output
 pub struct ConsoleSubscriber {
