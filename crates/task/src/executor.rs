@@ -1,4 +1,4 @@
-use crate::{MonorepoTaskRegistry, TaskBuilder, TaskDefinition};
+use crate::{MonorepoTaskRegistry, TaskBuilder, TaskDefinition, TaskExecutionMode};
 use ::tracing::Instrument;
 use cuenv_cache::config::CacheConfiguration;
 use cuenv_cache::{concurrent::action::ActionCache, CacheManager};
@@ -295,8 +295,8 @@ impl TaskExecutor {
 
                             // Send task configuration info as progress messages
                             // Show capabilities for this task's command
-                            if let Some(cmd) = &task_config.command {
-                                let capabilities = env_manager_clone.get_command_capabilities(cmd);
+                            if let TaskExecutionMode::Command { command } = &task_config.execution_mode {
+                                let capabilities = env_manager_clone.get_command_capabilities(command);
                                 if !capabilities.is_empty() {
                                     // event_bus
                                     //     .publish(TaskEvent::Progress {
@@ -310,7 +310,7 @@ impl TaskExecutor {
                                 }
                             }
 
-                            if let Some(_shell) = &task_config.shell {
+                            if !task_config.shell.is_empty() {
                                 // event_bus
                                 //     .publish(TaskEvent::Progress {
                                 //         task_name: task_name_owned.clone(),
@@ -319,7 +319,7 @@ impl TaskExecutor {
                                 //     .await;
                             }
 
-                            if let Some(_timeout) = task_config.timeout {
+                            if task_config.timeout.as_millis() > 0 {
                                 // event_bus
                                 //     .publish(TaskEvent::Progress {
                                 //         task_name: task_name_owned.clone(),
@@ -338,7 +338,7 @@ impl TaskExecutor {
                                 //     .await;
                             }
 
-                            if let Some(_working_dir) = &task_config.working_dir {
+                            if !task_config.working_directory.as_os_str().is_empty() {
                                 // event_bus
                                 //     .publish(TaskEvent::Progress {
                                 //         task_name: task_name_owned.clone(),
@@ -349,10 +349,10 @@ impl TaskExecutor {
 
                             if let Some(security) = &task_config.security {
                                 let mut restrictions = Vec::new();
-                                if security.restrict_disk.unwrap_or(false) {
+                                if security.restrict_disk {
                                     restrictions.push("disk");
                                 }
-                                if security.restrict_network.unwrap_or(false) {
+                                if security.restrict_network {
                                     restrictions.push("network");
                                 }
                                 if !restrictions.is_empty() {
@@ -523,7 +523,7 @@ impl TaskExecutor {
         }
 
         // Build task definitions using TaskBuilder
-        let task_definitions = self.task_builder.build_tasks(all_task_configs)?;
+        let task_definitions = self.task_builder.build_tasks(all_task_configs.clone())?;
 
         // Build dependency graph using task definitions
         let mut task_dependencies = HashMap::with_capacity(task_definitions.len());
@@ -589,7 +589,7 @@ impl TaskExecutor {
 
         Ok(TaskExecutionPlan {
             levels,
-            tasks: all_tasks,
+            tasks: task_definitions,
         })
     }
 
@@ -857,7 +857,7 @@ impl TaskExecutor {
     async fn execute_single_task_with_cache(
         ctx: &TaskExecutionContext<'_>,
         task_name: &str,
-        task_config: &TaskConfig,
+        task_config: &TaskDefinition,
         args: &[String],
     ) -> Result<i32> {
         // Check if caching is enabled for this task using the new configuration system
