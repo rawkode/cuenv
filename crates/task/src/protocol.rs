@@ -1,7 +1,7 @@
 //! Task Server Protocol implementation
 //!
 //! This module implements the devenv Task Server Protocol (TSP) - a JSON-RPC based
-//! protocol that allows external tools to register tasks with cuenv through a 
+//! protocol that allows external tools to register tasks with cuenv through a
 //! long-running server process.
 //!
 //! Protocol specification:
@@ -10,19 +10,19 @@
 //! - Communication uses JSON-RPC 2.0 with initialize and run methods
 //! - Servers stream back log output and final results
 
+use cuenv_config::TaskConfig;
 use cuenv_core::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use tokio::process::Command;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{UnixStream, UnixListener};
+use tokio::net::{UnixListener, UnixStream};
 use tokio::process::Child;
+use tokio::process::Command;
 use tokio::time::timeout;
-use cuenv_config::TaskConfig;
-use std::sync::Arc;
 
 /// JSON-RPC 2.0 request structure
 #[derive(Debug, Serialize)]
@@ -35,6 +35,7 @@ struct JsonRpcRequest<T> {
 
 /// JSON-RPC 2.0 response structure
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct JsonRpcResponse<T> {
     jsonrpc: String,
     result: Option<T>,
@@ -44,6 +45,7 @@ struct JsonRpcResponse<T> {
 
 /// JSON-RPC error structure
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct JsonRpcError {
     code: i32,
     message: String,
@@ -82,7 +84,8 @@ struct RunTaskParams {
 
 /// Run task response
 #[derive(Debug, Deserialize)]
-struct RunTaskResult {
+#[allow(dead_code)]
+pub struct RunTaskResult {
     exit_code: i32,
     #[serde(default)]
     outputs: HashMap<String, String>,
@@ -90,6 +93,7 @@ struct RunTaskResult {
 
 /// Log message from server
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct LogMessage {
     task: String,
     stream: String, // "stdout" or "stderr"
@@ -120,11 +124,7 @@ impl TaskServerClient {
         // Remove socket if it exists
         if self.socket_path.exists() {
             std::fs::remove_file(&self.socket_path).map_err(|e| {
-                Error::file_system(
-                    self.socket_path.clone(),
-                    "remove existing socket",
-                    e,
-                )
+                Error::file_system(self.socket_path.clone(), "remove existing socket", e)
             })?;
         }
 
@@ -149,7 +149,8 @@ impl TaskServerClient {
             while !self.socket_path.exists() {
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
-        }).await;
+        })
+        .await;
 
         if socket_ready.is_err() {
             // Try to kill the child process
@@ -164,10 +165,7 @@ impl TaskServerClient {
 
         // Connect to socket
         let stream = UnixStream::connect(&self.socket_path).await.map_err(|e| {
-            Error::configuration(format!(
-                "Failed to connect to task server socket: {}",
-                e
-            ))
+            Error::configuration(format!("Failed to connect to task server socket: {}", e))
         })?;
 
         self.server_process = Some(child);
@@ -186,7 +184,7 @@ impl TaskServerClient {
         };
 
         let response: JsonRpcResponse<InitializeResult> = self.send_request(request).await?;
-        
+
         if let Some(error) = response.error {
             return Err(Error::configuration(format!(
                 "Task server initialization failed: {} (code {})",
@@ -194,9 +192,9 @@ impl TaskServerClient {
             )));
         }
 
-        let result = response.result.ok_or_else(|| {
-            Error::configuration("Task server returned no result".to_string())
-        })?;
+        let result = response
+            .result
+            .ok_or_else(|| Error::configuration("Task server returned no result".to_string()))?;
 
         Ok(result.tasks)
     }
@@ -228,9 +226,9 @@ impl TaskServerClient {
             )));
         }
 
-        let result = response.result.ok_or_else(|| {
-            Error::configuration("Task server returned no result".to_string())
-        })?;
+        let result = response
+            .result
+            .ok_or_else(|| Error::configuration("Task server returned no result".to_string()))?;
 
         Ok(result)
     }
@@ -240,22 +238,20 @@ impl TaskServerClient {
         &mut self,
         request: JsonRpcRequest<T>,
     ) -> Result<JsonRpcResponse<R>> {
-        let stream = self.stream.as_mut().ok_or_else(|| {
-            Error::configuration("Not connected to task server".to_string())
-        })?;
+        let stream = self
+            .stream
+            .as_mut()
+            .ok_or_else(|| Error::configuration("Not connected to task server".to_string()))?;
 
         // Serialize request
-        let request_json = serde_json::to_string(&request).map_err(|e| {
-            Error::configuration(format!("Failed to serialize request: {}", e))
-        })?;
+        let request_json = serde_json::to_string(&request)
+            .map_err(|e| Error::configuration(format!("Failed to serialize request: {}", e)))?;
 
         // Send request
         stream
             .write_all(format!("{}\n", request_json).as_bytes())
             .await
-            .map_err(|e| {
-                Error::configuration(format!("Failed to send request: {}", e))
-            })?;
+            .map_err(|e| Error::configuration(format!("Failed to send request: {}", e)))?;
 
         // Read response
         let mut buf_reader = BufReader::new(stream);
@@ -263,9 +259,7 @@ impl TaskServerClient {
         buf_reader
             .read_line(&mut response_line)
             .await
-            .map_err(|e| {
-                Error::configuration(format!("Failed to read response: {}", e))
-            })?;
+            .map_err(|e| Error::configuration(format!("Failed to read response: {}", e)))?;
 
         // Parse response
         let response: JsonRpcResponse<R> = serde_json::from_str(&response_line).map_err(|e| {
@@ -301,11 +295,7 @@ impl TaskServerClient {
         // Remove socket file
         if self.socket_path.exists() {
             std::fs::remove_file(&self.socket_path).map_err(|e| {
-                Error::file_system(
-                    self.socket_path.clone(),
-                    "remove socket file",
-                    e,
-                )
+                Error::file_system(self.socket_path.clone(), "remove socket file", e)
             })?;
         }
 
@@ -315,7 +305,7 @@ impl TaskServerClient {
 
 impl Drop for TaskServerClient {
     fn drop(&mut self) {
-        // Best effort cleanup  
+        // Best effort cleanup
         if let Some(process) = self.server_process.take() {
             if let Some(pid) = process.id() {
                 let _ = std::process::Command::new("kill")
@@ -346,47 +336,43 @@ impl TaskServerManager {
     }
 
     /// Add a task server by launching an executable
-    pub async fn add_server(&mut self, executable: &str, server_name: &str) -> Result<Vec<TaskDefinition>> {
+    pub async fn add_server(
+        &mut self,
+        executable: &str,
+        server_name: &str,
+    ) -> Result<Vec<TaskDefinition>> {
         // Create socket path
         let socket_path = self.socket_dir.join(format!("{}.sock", server_name));
-        
+
         let mut client = TaskServerClient::new(socket_path);
-        
+
         // Launch and connect
         client.launch_and_connect(executable).await?;
-        
+
         // Initialize and get tasks
         let tasks = client.initialize().await?;
-        
+
         self.servers.push(client);
-        
+
         Ok(tasks)
     }
 
     /// Discover task servers from a directory
     pub async fn discover_servers(&mut self, discovery_dir: &Path) -> Result<Vec<TaskDefinition>> {
         let mut all_tasks = Vec::new();
-        
+
         if !discovery_dir.exists() {
             return Ok(all_tasks);
         }
 
         // Look for executable files in the discovery directory
         let entries = std::fs::read_dir(discovery_dir).map_err(|e| {
-            Error::file_system(
-                discovery_dir.to_path_buf(),
-                "read discovery directory",
-                e,
-            )
+            Error::file_system(discovery_dir.to_path_buf(), "read discovery directory", e)
         })?;
 
         for entry in entries {
             let entry = entry.map_err(|e| {
-                Error::file_system(
-                    discovery_dir.to_path_buf(),
-                    "read directory entry",
-                    e,
-                )
+                Error::file_system(discovery_dir.to_path_buf(), "read directory entry", e)
             })?;
 
             let path = entry.path();
@@ -436,19 +422,24 @@ impl TaskServerManager {
             // Find server by prefix
             let server_index = self.servers.iter().position(|server| {
                 // Extract server name from socket path for comparison
-                server.socket_path.file_stem()
+                server
+                    .socket_path
+                    .file_stem()
                     .and_then(|s| s.to_str())
                     .map(|name| name.trim_end_matches(".sock") == prefix)
                     .unwrap_or(false)
             });
-            
+
             if let Some(idx) = server_index {
-                let result = self.servers[idx].run_task(actual_task_name, inputs, outputs).await?;
+                let result = self.servers[idx]
+                    .run_task(actual_task_name, inputs, outputs)
+                    .await?;
                 Ok(result.exit_code)
             } else {
-                Err(Error::configuration(
-                    format!("No task server found for prefix '{}'", prefix),
-                ))
+                Err(Error::configuration(format!(
+                    "No task server found for prefix '{}'",
+                    prefix
+                )))
             }
         } else if let Some(server) = self.servers.first_mut() {
             // Fallback: no prefix, use first server
@@ -493,22 +484,14 @@ impl TaskServerProvider {
         // Remove socket if it exists
         if self.socket_path.exists() {
             std::fs::remove_file(&self.socket_path).map_err(|e| {
-                Error::file_system(
-                    self.socket_path.clone(),
-                    "remove existing socket",
-                    e,
-                )
+                Error::file_system(self.socket_path.clone(), "remove existing socket", e)
             })?;
         }
 
         // Ensure parent directory exists
         if let Some(parent) = self.socket_path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| {
-                Error::file_system(
-                    parent.to_path_buf(),
-                    "create socket parent directory",
-                    e,
-                )
+                Error::file_system(parent.to_path_buf(), "create socket parent directory", e)
             })?;
         }
 
@@ -533,9 +516,10 @@ impl TaskServerProvider {
 
     /// Handle incoming client connections
     async fn handle_connections(&mut self) -> Result<()> {
-        let listener = self.listener.as_ref().ok_or_else(|| {
-            Error::configuration("Task server provider not started".to_string())
-        })?;
+        let listener = self
+            .listener
+            .as_ref()
+            .ok_or_else(|| Error::configuration("Task server provider not started".to_string()))?;
 
         loop {
             match listener.accept().await {
@@ -556,18 +540,23 @@ impl TaskServerProvider {
     }
 
     /// Handle a single client connection
-    async fn handle_client(stream: UnixStream, tasks: Arc<HashMap<String, TaskConfig>>) -> Result<()> {
+    async fn handle_client(
+        stream: UnixStream,
+        tasks: Arc<HashMap<String, TaskConfig>>,
+    ) -> Result<()> {
         let (read_half, mut write_half) = stream.into_split();
         let mut buf_reader = BufReader::new(read_half);
         let mut line = String::new();
 
-        while buf_reader.read_line(&mut line).await.map_err(|e| {
-            Error::configuration(format!("Failed to read from client: {}", e))
-        })? > 0 {
+        while buf_reader
+            .read_line(&mut line)
+            .await
+            .map_err(|e| Error::configuration(format!("Failed to read from client: {}", e)))?
+            > 0
+        {
             // Parse JSON-RPC request
-            let request: serde_json::Value = serde_json::from_str(&line.trim()).map_err(|e| {
-                Error::configuration(format!("Invalid JSON-RPC request: {}", e))
-            })?;
+            let request: serde_json::Value = serde_json::from_str(&line.trim())
+                .map_err(|e| Error::configuration(format!("Invalid JSON-RPC request: {}", e)))?;
 
             // Handle the request
             let response = Self::handle_request(request, &tasks).await;
@@ -577,9 +566,10 @@ impl TaskServerProvider {
                 Error::configuration(format!("Failed to serialize response: {}", e))
             })?;
 
-            write_half.write_all(format!("{}\n", response_json).as_bytes()).await.map_err(|e| {
-                Error::configuration(format!("Failed to write response: {}", e))
-            })?;
+            write_half
+                .write_all(format!("{}\n", response_json).as_bytes())
+                .await
+                .map_err(|e| Error::configuration(format!("Failed to write response: {}", e)))?;
 
             line.clear();
         }
@@ -592,11 +582,15 @@ impl TaskServerProvider {
         request: serde_json::Value,
         tasks: &HashMap<String, TaskConfig>,
     ) -> serde_json::Value {
-        let method = request.get("method")
+        let method = request
+            .get("method")
             .and_then(|m| m.as_str())
             .unwrap_or_default();
 
-        let id = request.get("id").cloned().unwrap_or(serde_json::Value::Null);
+        let id = request
+            .get("id")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
 
         match method {
             "initialize" => {
@@ -695,7 +689,8 @@ impl TaskServerProvider {
 
     /// Export tasks to JSON format for static consumption
     pub fn export_tasks_to_json(&self) -> Result<String> {
-        let task_definitions: Vec<TaskDefinition> = self.tasks
+        let task_definitions: Vec<TaskDefinition> = self
+            .tasks
             .iter()
             .map(|(name, config)| TaskDefinition {
                 name: name.clone(),
@@ -708,9 +703,8 @@ impl TaskServerProvider {
             "tasks": task_definitions
         });
 
-        serde_json::to_string_pretty(&export).map_err(|e| {
-            Error::configuration(format!("Failed to serialize tasks to JSON: {}", e))
-        })
+        serde_json::to_string_pretty(&export)
+            .map_err(|e| Error::configuration(format!("Failed to serialize tasks to JSON: {}", e)))
     }
 
     /// Shutdown the server
@@ -722,11 +716,7 @@ impl TaskServerProvider {
         // Remove socket file
         if self.socket_path.exists() {
             std::fs::remove_file(&self.socket_path).map_err(|e| {
-                Error::file_system(
-                    self.socket_path.clone(),
-                    "remove socket file",
-                    e,
-                )
+                Error::file_system(self.socket_path.clone(), "remove socket file", e)
             })?;
         }
 
@@ -772,7 +762,10 @@ impl UnifiedTaskManager {
     }
 
     /// Discover and combine both internal and external tasks
-    pub async fn discover_all_tasks(&mut self, discovery_path: Option<&Path>) -> Result<Vec<TaskDefinition>> {
+    pub async fn discover_all_tasks(
+        &mut self,
+        discovery_path: Option<&Path>,
+    ) -> Result<Vec<TaskDefinition>> {
         let mut all_tasks = Vec::new();
 
         // Add internal tasks
@@ -795,7 +788,8 @@ impl UnifiedTaskManager {
 
     /// Export internal tasks as JSON
     pub fn export_tasks_to_json(&self) -> Result<String> {
-        let task_definitions: Vec<TaskDefinition> = self.internal_tasks
+        let task_definitions: Vec<TaskDefinition> = self
+            .internal_tasks
             .iter()
             .map(|(name, config)| TaskDefinition {
                 name: name.clone(),
@@ -808,9 +802,8 @@ impl UnifiedTaskManager {
             "tasks": task_definitions
         });
 
-        serde_json::to_string_pretty(&export).map_err(|e| {
-            Error::configuration(format!("Failed to serialize tasks to JSON: {}", e))
-        })
+        serde_json::to_string_pretty(&export)
+            .map_err(|e| Error::configuration(format!("Failed to serialize tasks to JSON: {}", e)))
     }
 
     /// Shutdown all components
@@ -830,14 +823,14 @@ impl UnifiedTaskManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_task_server_client_creation() {
         let temp_dir = TempDir::new().unwrap();
         let socket_path = temp_dir.path().join("test.sock");
-        
+
         let client = TaskServerClient::new(socket_path.clone());
         assert_eq!(client.socket_path, socket_path);
         assert!(client.stream.is_none());
@@ -847,7 +840,7 @@ mod tests {
     #[tokio::test]
     async fn test_task_server_manager_creation() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         let manager = TaskServerManager::new(temp_dir.path().to_path_buf());
         assert_eq!(manager.socket_dir, temp_dir.path());
         assert!(manager.servers.is_empty());
@@ -858,7 +851,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let socket_dir = temp_dir.path().join("sockets");
         fs::create_dir_all(&socket_dir).unwrap();
-        
+
         let mut manager = TaskServerManager::new(socket_dir);
         let tasks = manager.discover_servers(temp_dir.path()).await.unwrap();
         assert!(tasks.is_empty());
@@ -869,12 +862,15 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let socket_path = temp_dir.path().join("provider.sock");
         let mut tasks = HashMap::new();
-        tasks.insert("test".to_string(), cuenv_config::TaskConfig {
-            description: Some("Test task".to_string()),
-            command: Some("echo hello".to_string()),
-            ..Default::default()
-        });
-        
+        tasks.insert(
+            "test".to_string(),
+            cuenv_config::TaskConfig {
+                description: Some("Test task".to_string()),
+                command: Some("echo hello".to_string()),
+                ..Default::default()
+            },
+        );
+
         let provider = TaskServerProvider::new(socket_path.clone(), tasks);
         assert_eq!(provider.socket_path, socket_path);
         assert!(provider.listener.is_none());
@@ -884,11 +880,14 @@ mod tests {
     async fn test_unified_task_manager_creation() {
         let temp_dir = TempDir::new().unwrap();
         let mut tasks = HashMap::new();
-        tasks.insert("test".to_string(), cuenv_config::TaskConfig {
-            description: Some("Test task".to_string()),
-            ..Default::default()
-        });
-        
+        tasks.insert(
+            "test".to_string(),
+            cuenv_config::TaskConfig {
+                description: Some("Test task".to_string()),
+                ..Default::default()
+            },
+        );
+
         let manager = UnifiedTaskManager::new(temp_dir.path().to_path_buf(), tasks.clone());
         assert_eq!(manager.internal_tasks, tasks);
         assert!(manager.server_provider.is_none());
@@ -898,15 +897,18 @@ mod tests {
     fn test_export_tasks_to_json() {
         let temp_dir = TempDir::new().unwrap();
         let mut tasks = HashMap::new();
-        tasks.insert("build".to_string(), cuenv_config::TaskConfig {
-            description: Some("Build the project".to_string()),
-            dependencies: Some(vec!["deps".to_string()]),
-            ..Default::default()
-        });
-        
+        tasks.insert(
+            "build".to_string(),
+            cuenv_config::TaskConfig {
+                description: Some("Build the project".to_string()),
+                dependencies: Some(vec!["deps".to_string()]),
+                ..Default::default()
+            },
+        );
+
         let manager = UnifiedTaskManager::new(temp_dir.path().to_path_buf(), tasks);
         let json = manager.export_tasks_to_json().unwrap();
-        
+
         // Verify JSON contains expected structure
         assert!(json.contains("tasks"));
         assert!(json.contains("build"));

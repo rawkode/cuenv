@@ -151,7 +151,7 @@ impl From<bool> for TaskCacheConfig {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct TaskConfig {
     pub description: Option<String>,
     pub command: Option<String>,
@@ -177,7 +177,7 @@ pub struct TaskConfig {
 }
 
 /// Cache environment variable filtering configuration for tasks
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CacheEnvConfig {
     /// Patterns to include (allowlist)
@@ -251,7 +251,7 @@ where
     deserializer.deserialize_any(CacheConfigVisitor)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SecurityConfig {
     #[serde(rename = "restrictDisk")]
     pub restrict_disk: Option<bool>,
