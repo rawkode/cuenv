@@ -575,6 +575,27 @@ pub struct ResolvedDependency {
     pub qualified_name: String,
 }
 
+impl ResolvedDependency {
+    /// Create a new dependency without package information
+    pub fn new(name: String) -> Self {
+        Self {
+            qualified_name: name.clone(),
+            name,
+            package: None,
+        }
+    }
+
+    /// Create a new dependency with package information
+    pub fn with_package(name: String, package: String) -> Self {
+        let qualified_name = format!("{}:{}", package, name);
+        Self {
+            name,
+            package: Some(package),
+            qualified_name,
+        }
+    }
+}
+
 /// Validated security configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskSecurity {
@@ -687,5 +708,10 @@ impl TaskDefinition {
     /// Check if this task is a script execution
     pub fn is_script(&self) -> bool {
         matches!(self.execution_mode, TaskExecutionMode::Script { .. })
+    }
+
+    /// Get the names of all dependencies
+    pub fn dependency_names(&self) -> Vec<String> {
+        self.dependencies.iter().map(|dep| dep.name.clone()).collect()
     }
 }

@@ -11,6 +11,7 @@ use std::collections::{HashMap, HashSet};
 use std::env;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 /// Task builder that validates and builds task definitions from configurations
 #[derive(Clone)]
@@ -66,7 +67,7 @@ impl TaskBuilder {
 
         // Step 2: Build initial task definitions
         for (name, config) in &task_configs {
-            let mut definition = TaskDefinition::try_from(config.clone())?;
+            let mut definition = self.config_to_definition(config.clone())?;
             definition.name = name.clone();
             context.task_definitions.insert(name.clone(), definition);
         }
@@ -404,8 +405,7 @@ impl TaskBuilder {
         };
 
         resolve_paths(&mut security.read_only_paths)?;
-        resolve_paths(&mut security.read_write_paths)?;
-        resolve_paths(&mut security.deny_paths)?;
+        resolve_paths(&mut security.write_only_paths)?;
 
         Ok(())
     }
@@ -440,6 +440,69 @@ impl TaskBuilder {
     /// Update global environment variables
     pub fn update_env(&mut self, env_vars: HashMap<String, String>) {
         self.global_env.extend(env_vars);
+    }
+
+    /// Convert TaskConfig to TaskDefinition
+    fn config_to_definition(&self, config: TaskConfig) -> Result<TaskDefinition> {
+        // Determine execution mode
+        let execution_mode = match (config.command, config.script) {
+            (Some(command), None) => TaskExecutionMode::Command { command },
+            (None, Some(script)) => TaskExecutionMode::Script { content: script },
+            (Some(_), Some(_)) => return Err(Error::configuration(
+                "Task cannot have both command and script".to_string()
+            )),
+            (None, None) => return Err(Error::configuration(
+                "Task must have either command or script".to_string()
+            )),
+        };
+
+        // Convert dependencies
+        let dependencies = config.dependencies
+            .unwrap_or_default()
+            .into_iter()
+            .map(ResolvedDependency::new)
+            .collect();
+
+        // Convert security config if present
+        let security = config.security.map(|sec| TaskSecurity {
+            restrict_disk: sec.restrict_disk.unwrap_or(false),
+            restrict_network: sec.restrict_network.unwrap_or(false),
+            read_only_paths: sec.read_only_paths
+                .unwrap_or_default()
+                .into_iter()
+                .map(PathBuf::from)
+                .collect(),
+            write_only_paths: Vec::new(), // TODO: Add when TaskConfig supports it
+            allowed_hosts: sec.allowed_hosts.unwrap_or_default(),
+        });
+
+        // Convert cache config
+        let cache = match config.cache {
+            Some(_cache_config) => TaskCache {
+                enabled: true, // If cache config is present, enable it
+                key: config.cache_key,
+                env_filter: None, // TODO: Convert from cache_config if needed
+            },
+            None => TaskCache::default(),
+        };
+
+        Ok(TaskDefinition {
+            name: String::new(), // Will be set by caller
+            description: config.description,
+            execution_mode,
+            dependencies,
+            working_directory: PathBuf::from(
+                config.working_dir.unwrap_or_else(|| ".".to_string())
+            ),
+            shell: config.shell.unwrap_or_else(|| "sh".to_string()),
+            inputs: config.inputs.unwrap_or_default(),
+            outputs: config.outputs.unwrap_or_default(),
+            security,
+            cache,
+            timeout: config.timeout.map(Duration::from_secs).unwrap_or_else(|| 
+                Duration::from_secs(DEFAULT_TASK_TIMEOUT_SECS)
+            ),
+        })
     }
 }
 
@@ -598,8 +661,6 @@ mod tests {
             restrict_disk: Some(true),
             restrict_network: Some(false),
             read_only_paths: Some(vec!["./readonly".to_string()]),
-            read_write_paths: None,
-            deny_paths: None,
             allowed_hosts: Some(vec!["example.com".to_string()]),
             infer_from_inputs_outputs: None,
         });
