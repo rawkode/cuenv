@@ -1,0 +1,209 @@
+{
+  "name": "cuenv",
+  "displayName": "cuenv Environment Manager",
+  "description": "VSCode integration for cuenv - Environment variable management and task execution",
+  "version": "0.1.0",
+  "publisher": "rawkode",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rawkode/cuenv.git"
+  },
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "environment",
+    "tasks",
+    "cuenv",
+    "direnv",
+    "cue"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "workspaceContains:env.cue"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cuenv.reload",
+        "title": "Reload Environment",
+        "category": "cuenv"
+      },
+      {
+        "command": "cuenv.viewOutput",
+        "title": "Open cuenv Output",
+        "category": "cuenv"
+      },
+      {
+        "command": "cuenv.toggleAutoLoad",
+        "title": "Toggle Auto Load",
+        "category": "cuenv"
+      },
+      {
+        "command": "cuenv.runTask",
+        "title": "Run Task",
+        "category": "cuenv"
+      },
+      {
+        "command": "cuenv.refreshEnvPanel",
+        "title": "Refresh",
+        "category": "cuenv",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "cuenv.refreshTasksPanel",
+        "title": "Refresh",
+        "category": "cuenv",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "cuenv.toggleMasking",
+        "title": "Toggle Masking",
+        "category": "cuenv",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "cuenv.copyEnvName",
+        "title": "Copy Name",
+        "category": "cuenv"
+      },
+      {
+        "command": "cuenv.copyEnvValue",
+        "title": "Copy Value",
+        "category": "cuenv"
+      },
+      {
+        "command": "cuenv.runTaskInNewTerminal",
+        "title": "Run in New Terminal",
+        "category": "cuenv"
+      },
+      {
+        "command": "cuenv.revealTaskDefinition",
+        "title": "Reveal Definition",
+        "category": "cuenv"
+      }
+    ],
+    "configuration": {
+      "title": "cuenv",
+      "properties": {
+        "cuenv.executablePath": {
+          "type": "string",
+          "default": "cuenv",
+          "description": "Path to the cuenv executable"
+        },
+        "cuenv.autoLoad.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically load environment when opening workspace"
+        },
+        "cuenv.env.maskPatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "(?i)(secret|token|password|key|api_key)"
+          ],
+          "description": "Regular expressions to match environment variable names that should be masked"
+        },
+        "cuenv.tasks.terminal.strategy": {
+          "type": "string",
+          "enum": [
+            "shared",
+            "new"
+          ],
+          "default": "shared",
+          "description": "Terminal strategy for task execution"
+        },
+        "cuenv.watch.debounceMs": {
+          "type": "number",
+          "default": 300,
+          "description": "Debounce time in milliseconds for file watching"
+        }
+      }
+    },
+    "views": {
+      "cuenv": [
+        {
+          "id": "cuenv-env",
+          "name": "Environment",
+          "when": "cuenv.hasEnvFile"
+        },
+        {
+          "id": "cuenv-tasks",
+          "name": "Tasks",
+          "when": "cuenv.hasEnvFile"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cuenv",
+          "title": "cuenv",
+          "icon": "$(symbol-event)"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "cuenv.refreshEnvPanel",
+          "when": "view == cuenv-env",
+          "group": "navigation"
+        },
+        {
+          "command": "cuenv.toggleMasking",
+          "when": "view == cuenv-env",
+          "group": "navigation"
+        },
+        {
+          "command": "cuenv.refreshTasksPanel",
+          "when": "view == cuenv-tasks",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "cuenv.copyEnvName",
+          "when": "view == cuenv-env && viewItem == envVar",
+          "group": "1_copy"
+        },
+        {
+          "command": "cuenv.copyEnvValue",
+          "when": "view == cuenv-env && viewItem == envVar",
+          "group": "1_copy"
+        },
+        {
+          "command": "cuenv.runTask",
+          "when": "view == cuenv-tasks && viewItem == task",
+          "group": "1_run"
+        },
+        {
+          "command": "cuenv.runTaskInNewTerminal",
+          "when": "view == cuenv-tasks && viewItem == task",
+          "group": "1_run"
+        },
+        {
+          "command": "cuenv.revealTaskDefinition",
+          "when": "view == cuenv-tasks && viewItem == task",
+          "group": "2_reveal"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "typescript": "^4.9.4"
+  }
+}
