@@ -27,6 +27,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@beta
