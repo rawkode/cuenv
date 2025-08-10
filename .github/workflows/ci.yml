@@ -1,4 +1,5 @@
 name: ci
+# CI workflow for cuenv - optimized with comprehensive caching
 on:
   push:
     branches: [main]
