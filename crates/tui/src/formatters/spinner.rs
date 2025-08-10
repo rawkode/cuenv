@@ -175,7 +175,7 @@ impl SpinnerFormatter {
             let deps = plan
                 .tasks
                 .get(task_name)
-                .and_then(|t| t.dependencies.clone())
+                .map(|t| t.dependency_names())
                 .unwrap_or_default();
 
             let mut display = TaskDisplay::new(task_name.clone(), depth, deps);
