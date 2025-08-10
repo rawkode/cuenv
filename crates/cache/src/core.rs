@@ -261,7 +261,7 @@ impl Cache {
     async fn scan_for_corrupted_files(
         inner: &Arc<CacheInner>,
         metadata_dir: &std::path::Path,
-        _corrupted_keys: &mut Vec<String>,
+        _corrupted_keys: &mut [String],
     ) {
         // Simple non-recursive cleanup to avoid boxing issues
         // Just clean up obvious orphaned files in the metadata directory
@@ -375,7 +375,7 @@ impl Cache {
         // Fallback to SHA256 for cryptographic strength
         let mut hasher = Sha256::new();
         hasher.update(key.as_bytes());
-        hasher.update(&inner.version.to_le_bytes());
+        hasher.update(inner.version.to_le_bytes());
         format!("{:x}", hasher.finalize())
     }
 
@@ -1133,8 +1133,8 @@ impl CacheTrait for Cache {
         // This prevents readers from seeing metadata pointing to incomplete data
 
         let unique_id = uuid::Uuid::new_v4();
-        let temp_data_path = data_path.with_extension(format!("tmp.{}", unique_id));
-        let temp_metadata_path = metadata_path.with_extension(format!("tmp.{}", unique_id));
+        let temp_data_path = data_path.with_extension(format!("tmp.{unique_id}"));
+        let temp_metadata_path = metadata_path.with_extension(format!("tmp.{unique_id}"));
 
         // Step 1: Write data file first
         match fs::write(&temp_data_path, &data).await {
@@ -1839,7 +1839,7 @@ impl StreamingCache for Cache {
                     return Err(CacheError::Io {
                         path: PathBuf::from(key),
                         operation: "flush output stream",
-                        source: std::io::Error::new(std::io::ErrorKind::Other, e),
+                        source: std::io::Error::other(e),
                         recovery_hint: RecoveryHint::Retry {
                             after: Duration::from_millis(10),
                         },

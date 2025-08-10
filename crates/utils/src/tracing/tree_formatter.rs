@@ -138,9 +138,9 @@ impl TreeFormatter {
             // Format children
             if !task.children.is_empty() {
                 let child_prefix = if is_last {
-                    format!("{}  ", prefix)
+                    format!("{prefix}  ")
                 } else {
-                    format!("{}{} ", prefix, self.chars.vertical)
+                    format!("{prefix}{} ", self.chars.vertical)
                 };
 
                 let mut sorted_children = task.children.clone();
@@ -187,10 +187,10 @@ impl TreeFormatter {
 
         if self.config.use_colors {
             let colored_symbol = match task.state {
-                TaskState::Waiting => format!("\x1b[90m{}\x1b[0m", symbol), // Gray
-                TaskState::Running { .. } => format!("\x1b[33m{}\x1b[0m", symbol), // Yellow
-                TaskState::Completed { .. } => format!("\x1b[32m{}\x1b[0m", symbol), // Green
-                TaskState::Failed { .. } => format!("\x1b[31m{}\x1b[0m", symbol), // Red
+                TaskState::Waiting => format!("\x1b[90m{symbol}\x1b[0m"), // Gray
+                TaskState::Running { .. } => format!("\x1b[33m{symbol}\x1b[0m"), // Yellow
+                TaskState::Completed { .. } => format!("\x1b[32m{symbol}\x1b[0m"), // Green
+                TaskState::Failed { .. } => format!("\x1b[31m{symbol}\x1b[0m"), // Red
             };
             line.push_str(&colored_symbol);
         } else {
@@ -234,7 +234,7 @@ impl TreeFormatter {
             if !duration_str.is_empty() {
                 line.push_str(" [");
                 if self.config.use_colors {
-                    line.push_str(&format!("\x1b[90m{}\x1b[0m", duration_str)); // Gray
+                    line.push_str(&format!("\x1b[90m{duration_str}\x1b[0m")); // Gray
                 } else {
                     line.push_str(&duration_str);
                 }
@@ -246,9 +246,9 @@ impl TreeFormatter {
         if let Some(target) = &task.target {
             line.push(' ');
             if self.config.use_colors {
-                line.push_str(&format!("\x1b[90m({})\x1b[0m", target)); // Gray
+                line.push_str(&format!("\x1b[90m({target})\x1b[0m")); // Gray
             } else {
-                line.push_str(&format!("({})", target));
+                line.push_str(&format!("({target})"));
             }
         }
 
@@ -273,17 +273,17 @@ impl TreeFormatter {
             summary.push_str("v Pipeline ");
         }
 
-        summary.push_str(&format!("[{}/{} complete", completed_tasks, total_tasks));
+        summary.push_str(&format!("[{completed_tasks}/{total_tasks} complete"));
 
         if running_tasks > 0 {
-            summary.push_str(&format!(", {} running", running_tasks));
+            summary.push_str(&format!(", {running_tasks} running"));
         }
 
         if failed_tasks > 0 {
             if self.config.use_colors {
-                summary.push_str(&format!(", \x1b[31m{} failed\x1b[0m", failed_tasks));
+                summary.push_str(&format!(", \x1b[31m{failed_tasks} failed\x1b[0m"));
             } else {
-                summary.push_str(&format!(", {} failed", failed_tasks));
+                summary.push_str(&format!(", {failed_tasks} failed"));
             }
         }
 

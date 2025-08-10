@@ -105,7 +105,7 @@ pub fn evaluate_cue_package(dir_path: &Path, package_name: &str) -> Result<Strin
         let error_msg = json_str.strip_prefix("error:").unwrap_or(json_str);
         return Err(Error::cue_parse(
             dir_path,
-            format!("CUE evaluation error: {}", error_msg),
+            format!("CUE evaluation error: {error_msg}"),
         ));
     }
 

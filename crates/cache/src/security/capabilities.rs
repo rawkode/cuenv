@@ -332,10 +332,10 @@ impl CapabilityAuthority {
         getrandom::getrandom(&mut rng_bytes).expect("Failed to generate random bytes");
 
         let mut hasher = Sha256::new();
-        hasher.update(&rng_bytes);
+        hasher.update(rng_bytes);
         hasher.update(self.authority_id.as_bytes());
         hasher.update(
-            &SystemTime::now()
+            SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_nanos()

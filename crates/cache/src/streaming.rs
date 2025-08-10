@@ -465,11 +465,11 @@ impl CacheWriter {
     fn hash_key(key: &str) -> String {
         let mut hasher = Sha256::new();
         hasher.update(key.as_bytes());
-        hasher.update(&3u32.to_le_bytes()); // Version 3
+        hasher.update(3u32.to_le_bytes()); // Version 3
         format!("{:x}", hasher.finalize())
     }
 
-    fn get_paths(cache_dir: &PathBuf, hash: &str) -> (PathBuf, PathBuf) {
+    fn get_paths(cache_dir: &Path, hash: &str) -> (PathBuf, PathBuf) {
         // Use 256-way sharding as specified in Phase 3
         let shard = &hash[..2];
 

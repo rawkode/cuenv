@@ -222,27 +222,30 @@ impl ConfigLoader {
 
     /// Build parse options from CLI options and environment variables
     fn build_parse_options(&self) -> ParseOptions {
-        let mut options = ParseOptions::default();
-
         // Environment name: CLI takes precedence, then environment variable
-        options.environment = self
+        let environment = self
             .cli_options
             .environment
             .clone()
             .or_else(|| std::env::var(cuenv_core::CUENV_ENV_VAR).ok());
 
         // Capabilities: CLI takes precedence, then environment variable
-        if !self.cli_options.capabilities.is_empty() {
-            options.capabilities = self.cli_options.capabilities.clone();
+        let capabilities = if !self.cli_options.capabilities.is_empty() {
+            self.cli_options.capabilities.clone()
         } else if let Ok(env_caps) = std::env::var(cuenv_core::CUENV_CAPABILITIES_VAR) {
-            options.capabilities = env_caps
+            env_caps
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
-                .collect();
-        }
+                .collect()
+        } else {
+            Vec::new()
+        };
 
-        options
+        ParseOptions {
+            environment,
+            capabilities,
+        }
     }
 
     /// Build cache configuration from CLI options and environment variables

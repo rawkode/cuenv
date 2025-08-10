@@ -61,7 +61,7 @@ impl std::str::FromStr for Shell {
             "fish" => Ok(Self::Fish),
             "powershell" | "pwsh" => Ok(Self::PowerShell),
             "cmd" => Ok(Self::Cmd),
-            _ => Err(format!("Unknown shell: {}", s)),
+            _ => Err(format!("Unknown shell: {s}")),
         }
     }
 }
@@ -86,15 +86,15 @@ impl ExportFormat {
 
     pub fn format_export(&self, key: &str, value: &str) -> String {
         match self.shell {
-            Shell::Fish => format!("set -x {} \"{}\"", key, value),
-            _ => format!("export {}=\"{}\"", key, value),
+            Shell::Fish => format!("set -x {key} \"{value}\""),
+            _ => format!("export {key}=\"{value}\""),
         }
     }
 
     pub fn format_unset(&self, key: &str) -> String {
         match self.shell {
-            Shell::Fish => format!("set -e {}", key),
-            _ => format!("unset {}", key),
+            Shell::Fish => format!("set -e {key}"),
+            _ => format!("unset {key}"),
         }
     }
 }
