@@ -669,7 +669,6 @@ async fn complete_hosts() -> Result<()> {
     Ok(())
 }
 
-
 async fn handle_task_protocol(
     server: &Option<String>,
     discovery_dir: &Option<PathBuf>,
@@ -681,7 +680,7 @@ async fn handle_task_protocol(
 ) -> Result<()> {
     use cuenv_task::TaskServerManager;
     use std::collections::HashMap;
-    
+
     // Create socket directory in temp
     let socket_dir = tempfile::tempdir().map_err(|e| {
         Error::configuration(format!("Failed to create temp socket directory: {}", e))
@@ -691,21 +690,24 @@ async fn handle_task_protocol(
 
     // Add servers based on command line options
     let mut all_tasks = Vec::new();
-    
+
     if let Some(server_executable) = server {
         // Launch a single server
         let server_name = std::path::Path::new(server_executable)
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("server");
-            
+
         match manager.add_server(server_executable, server_name).await {
             Ok(tasks) => {
                 all_tasks.extend(tasks);
                 println!("Connected to task server: {}", server_executable);
             }
             Err(e) => {
-                eprintln!("Failed to connect to task server {}: {}", server_executable, e);
+                eprintln!(
+                    "Failed to connect to task server {}: {}",
+                    server_executable, e
+                );
                 return Err(e);
             }
         }
@@ -715,9 +717,13 @@ async fn handle_task_protocol(
         // Discover servers from directory
         match manager.discover_servers(discovery_path).await {
             Ok(tasks) => {
+                let task_count = tasks.len();
                 all_tasks.extend(tasks);
-                println!("Discovered {} task servers from {}", 
-                    tasks.len(), discovery_path.display());
+                println!(
+                    "Discovered {} task servers from {}",
+                    task_count,
+                    discovery_path.display()
+                );
             }
             Err(e) => {
                 eprintln!("Failed to discover task servers: {}", e);
@@ -746,10 +752,10 @@ async fn handle_task_protocol(
         // Run a specific task
         if all_tasks.iter().any(|t| t.name == *task_name) {
             println!("Running task: {}", task_name);
-            
-            let inputs = HashMap::new();  // TODO: Accept inputs from CLI
+
+            let inputs = HashMap::new(); // TODO: Accept inputs from CLI
             let outputs = HashMap::new(); // TODO: Accept outputs from CLI
-            
+
             match manager.run_task(task_name, inputs, outputs).await {
                 Ok(exit_code) => {
                     if exit_code == 0 {
@@ -766,37 +772,46 @@ async fn handle_task_protocol(
             }
         } else {
             eprintln!("Task '{}' not found in available servers", task_name);
-            return Err(Error::configuration(format!("Task '{}' not found", task_name)));
+            return Err(Error::configuration(format!(
+                "Task '{}' not found",
+                task_name
+            )));
         }
     }
 
     // Handle new server/export modes
     if serve {
         // Start cuenv as a task server provider
-        let socket_path = socket.clone().unwrap_or_else(|| {
-            socket_dir.path().join("cuenv.sock")
-        });
+        let socket_path = socket
+            .clone()
+            .unwrap_or_else(|| socket_dir.path().join("cuenv.sock"));
 
         // Load current environment tasks
         let current_dir = match DirectoryManager::get_current_directory() {
             Ok(d) => d,
             Err(e) => {
-                return Err(Error::configuration(format!("Failed to get current directory: {e}")))
+                return Err(Error::configuration(format!(
+                    "Failed to get current directory: {e}"
+                )))
             }
         };
 
         let mut env_manager = EnvManager::new();
         env_manager.load_env(&current_dir).await?;
-        
-        // Extract tasks from environment manager 
+
+        // Extract tasks from environment manager
         let internal_tasks = env_manager.get_tasks().clone();
-        
+
         use cuenv_task::UnifiedTaskManager;
-        let mut unified_manager = UnifiedTaskManager::new(socket_dir.path().to_path_buf(), internal_tasks);
-        
-        println!("Starting cuenv task server provider at: {}", socket_path.display());
+        let mut unified_manager =
+            UnifiedTaskManager::new(socket_dir.path().to_path_buf(), internal_tasks);
+
+        println!(
+            "Starting cuenv task server provider at: {}",
+            socket_path.display()
+        );
         println!("Press Ctrl+C to stop the server");
-        
+
         // Start the provider (this will block)
         match unified_manager.start_as_provider(socket_path).await {
             Ok(()) => println!("Task server provider started successfully"),
@@ -812,19 +827,22 @@ async fn handle_task_protocol(
         let current_dir = match DirectoryManager::get_current_directory() {
             Ok(d) => d,
             Err(e) => {
-                return Err(Error::configuration(format!("Failed to get current directory: {e}")))
+                return Err(Error::configuration(format!(
+                    "Failed to get current directory: {e}"
+                )))
             }
         };
 
         let mut env_manager = EnvManager::new();
         env_manager.load_env(&current_dir).await?;
-        
-        // Extract tasks from environment manager 
+
+        // Extract tasks from environment manager
         let internal_tasks = env_manager.get_tasks().clone();
-        
+
         use cuenv_task::UnifiedTaskManager;
-        let unified_manager = UnifiedTaskManager::new(socket_dir.path().to_path_buf(), internal_tasks);
-        
+        let unified_manager =
+            UnifiedTaskManager::new(socket_dir.path().to_path_buf(), internal_tasks);
+
         match unified_manager.export_tasks_to_json() {
             Ok(json) => println!("{}", json),
             Err(e) => {
@@ -843,11 +861,23 @@ async fn handle_task_protocol(
         run_task: &Option<String>,
         list_tasks: bool,
     ) -> bool {
-        !serve && !export_json && server.is_none() && discovery_dir.is_none() && run_task.is_none() && !list_tasks
+        !serve
+            && !export_json
+            && server.is_none()
+            && discovery_dir.is_none()
+            && run_task.is_none()
+            && !list_tasks
     }
 
     // If no action specified, show usage
-    if should_show_usage(serve, export_json, &server, &discovery_dir, &run_task, list_tasks) {
+    if should_show_usage(
+        serve,
+        export_json,
+        &server,
+        &discovery_dir,
+        &run_task,
+        list_tasks,
+    ) {
         println!("Task Server Protocol (TSP) - Dual-Modality Support");
         println!();
         println!("Consumer Mode (use external task servers):");
@@ -868,7 +898,6 @@ async fn handle_task_protocol(
 
     Ok(())
 }
-
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
@@ -1537,30 +1566,28 @@ tasks: env.#Tasks & {
         Some(Commands::CompleteHosts) => {
             complete_hosts().await?;
         }
-        Some(Commands::Internal { command }) => {
-            match command {
-                InternalCommands::TaskProtocol {
-                    server,
-                    discovery_dir,
-                    run_task,
+        Some(Commands::Internal { command }) => match command {
+            InternalCommands::TaskProtocol {
+                server,
+                discovery_dir,
+                run_task,
+                list_tasks,
+                serve,
+                socket,
+                export_json,
+            } => {
+                handle_task_protocol(
+                    &server,
+                    &discovery_dir,
+                    &run_task,
                     list_tasks,
                     serve,
-                    socket,
+                    &socket,
                     export_json,
-                } => {
-                    handle_task_protocol(
-                        &server,
-                        &discovery_dir,
-                        &run_task,
-                        list_tasks,
-                        serve,
-                        &socket,
-                        export_json,
-                    )
-                    .await?;
-                }
+                )
+                .await?;
             }
-        }
+        },
         None => {
             let current_dir = match DirectoryManager::get_current_directory() {
                 Ok(d) => d,

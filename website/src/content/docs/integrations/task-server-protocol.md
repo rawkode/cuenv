@@ -23,11 +23,11 @@ graph LR
     A[External Tool] -->|JSON-RPC| B[Unix Socket]
     B --> C[cuenv TSP Client]
     C --> D[Unified Task Manager]
-    
+
     D --> E[cuenv TSP Server]
     E -->|JSON-RPC| F[Unix Socket]
     F --> G[External Consumer]
-    
+
     D --> H[Local cuenv Tasks]
 ```
 
@@ -68,60 +68,66 @@ cuenv internal task-protocol --serve --discovery-dir ./external-tools
 ### JSON-RPC Methods
 
 #### `initialize`
+
 Initialize connection with the task server.
 
 **Request:**
+
 ```json
 {
-  "jsonrpc": "2.0",
-  "method": "initialize",
-  "params": {},
-  "id": 1
+	"jsonrpc": "2.0",
+	"method": "initialize",
+	"params": {},
+	"id": 1
 }
 ```
 
 **Response:**
+
 ```json
 {
-  "jsonrpc": "2.0",
-  "result": {
-    "tasks": [
-      {
-        "name": "build",
-        "description": "Build the application",
-        "after": ["install"]
-      }
-    ]
-  },
-  "id": 1
+	"jsonrpc": "2.0",
+	"result": {
+		"tasks": [
+			{
+				"name": "build",
+				"description": "Build the application",
+				"after": ["install"]
+			}
+		]
+	},
+	"id": 1
 }
 ```
 
 #### `run`
+
 Execute a specific task.
 
 **Request:**
+
 ```json
 {
-  "jsonrpc": "2.0",
-  "method": "run",
-  "params": {
-    "task": "build",
-    "inputs": ["/src"],
-    "outputs": ["/dist"]
-  },
-  "id": 2
+	"jsonrpc": "2.0",
+	"method": "run",
+	"params": {
+		"task": "build",
+		"inputs": ["/src"],
+		"outputs": ["/dist"]
+	},
+	"id": 2
 }
 ```
 
 **Response:**
+
 ```json
 {
-  "jsonrpc": "2.0",
-  "result": {
-    "exit_code": 0
-  },
-  "id": 2
+	"jsonrpc": "2.0",
+	"result": {
+		"exit_code": 0
+	},
+	"id": 2
 }
 ```
 
@@ -187,16 +193,17 @@ cuenv internal task-protocol --serve --discovery-dir ./tools --list-tasks
 
 cuenv's rich task configuration maps to the simpler TSP format:
 
-| cuenv TaskConfig | TSP TaskDefinition |
-|------------------|-------------------|
-| `dependencies` | `after` |
-| `description` | `description` |
-| `command/script` | Executed on `run` |
+| cuenv TaskConfig | TSP TaskDefinition     |
+| ---------------- | ---------------------- |
+| `dependencies`   | `after`                |
+| `description`    | `description`          |
+| `command/script` | Executed on `run`      |
 | `inputs/outputs` | Passed to `run` params |
 
 ### Example Mapping
 
 **cuenv task:**
+
 ```cue
 tasks: {
     "build": {
@@ -210,11 +217,12 @@ tasks: {
 ```
 
 **TSP representation:**
+
 ```json
 {
-  "name": "build",
-  "description": "Build the application", 
-  "after": ["install"]
+	"name": "build",
+	"description": "Build the application",
+	"after": ["install"]
 }
 ```
 
@@ -272,7 +280,7 @@ cuenv internal task-protocol --discovery-dir <path> --list-tasks
 # Connect to specific server
 cuenv internal task-protocol --server <executable> --list-tasks
 
-# Run task from specific server  
+# Run task from specific server
 cuenv internal task-protocol --server <executable> --run-task <name>
 ```
 
@@ -304,6 +312,7 @@ cuenv internal task-protocol --serve --discovery-dir <path> --list-tasks
 ### Common Issues
 
 **Socket Permission Errors**
+
 ```bash
 # Check socket file permissions
 ls -la /tmp/cuenv-*.sock
@@ -313,6 +322,7 @@ mkdir -p /tmp && chmod 755 /tmp
 ```
 
 **Task Server Not Found**
+
 ```bash
 # Verify executable exists and is executable
 ls -la ./task-server
@@ -323,6 +333,7 @@ chmod +x ./task-server
 ```
 
 **JSON-RPC Communication Errors**
+
 ```bash
 # Test with manual JSON-RPC call
 echo '{"jsonrpc":"2.0","method":"initialize","params":{},"id":1}' | \
@@ -340,6 +351,6 @@ RUST_LOG=debug cuenv internal task-protocol --serve --discovery-dir .
 ## Related Documentation
 
 - [devenv Integration](/guides/devenv-integration/) - Basic devenv usage with cuenv
-- [Task Examples](/guides/task-examples/) - Task configuration patterns  
+- [Task Examples](/guides/task-examples/) - Task configuration patterns
 - [Commands Reference](/reference/commands/) - Full CLI command documentation
 - [Hooks Reference](/reference/hooks/) - Environment lifecycle management
