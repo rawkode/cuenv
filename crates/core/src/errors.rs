@@ -1,16 +1,16 @@
-use std::fmt;
 use std::path::PathBuf;
 
 /// Result type alias for cuenv operations
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Core error type for cuenv operations
-#[derive(Debug)]
+/// Core error type for cuenv operations using thiserror
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// CUE file parsing errors
     CueParse {
         path: PathBuf,
         message: String,
+        #[source]
         source: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
 
@@ -21,6 +21,7 @@ pub enum Error {
     SecretResolution {
         reference: String,
         message: String,
+        #[source]
         source: Option<Box<dyn std::error::Error + Send + Sync>>,
     },
 
@@ -42,12 +43,14 @@ pub enum Error {
     FileSystem {
         path: PathBuf,
         operation: String,
+        #[source]
         source: std::io::Error,
     },
 
     /// JSON serialization/deserialization errors
     Json {
         message: String,
+        #[source]
         source: serde_json::Error,
     },
 
@@ -73,8 +76,8 @@ pub enum Error {
     },
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::CueParse { path, message, .. } => {
                 write!(
@@ -85,12 +88,12 @@ impl fmt::Display for Error {
                 )
             }
             Error::Environment { variable, message } => {
-                write!(f, "environment variable '{variable}' error: {message}")
+                write!(f, "environment variable '{}' error: {}", variable, message)
             }
             Error::SecretResolution {
                 reference, message, ..
             } => {
-                write!(f, "failed to resolve secret '{reference}': {message}")
+                write!(f, "failed to resolve secret '{}': {}", reference, message)
             }
             Error::CommandExecution {
                 command,
@@ -120,10 +123,10 @@ impl fmt::Display for Error {
                 }
             }
             Error::Configuration { message } => {
-                write!(f, "configuration error: {message}")
+                write!(f, "configuration error: {}", message)
             }
             Error::ShellExpansion { value, message } => {
-                write!(f, "failed to expand shell value '{value}': {message}")
+                write!(f, "failed to expand shell value '{}': {}", value, message)
             }
             Error::FileSystem {
                 path,
@@ -139,50 +142,38 @@ impl fmt::Display for Error {
                 )
             }
             Error::Json { message, .. } => {
-                write!(f, "JSON error: {message}")
+                write!(f, "JSON error: {}", message)
             }
             Error::Ffi { operation, message } => {
-                write!(f, "FFI operation '{operation}' failed: {message}")
+                write!(f, "FFI operation '{}' failed: {}", operation, message)
             }
             Error::PermissionDenied { operation, message } => {
-                write!(f, "permission denied for {operation}: {message}")
+                write!(f, "permission denied for {}: {}", operation, message)
             }
             Error::Unsupported { feature, message } => {
-                write!(f, "unsupported feature '{feature}': {message}")
+                write!(f, "unsupported feature '{}': {}", feature, message)
             }
             Error::Security { message } => {
-                write!(f, "security validation error: {message}")
+                write!(f, "security validation error: {}", message)
             }
             Error::Network { endpoint, message } => {
-                write!(f, "network error for '{endpoint}': {message}")
+                write!(f, "network error for '{}': {}", endpoint, message)
             }
             Error::Timeout {
                 operation,
                 duration,
             } => {
-                write!(f, "operation '{operation}' timed out after {duration:?}")
+                write!(
+                    f,
+                    "operation '{}' timed out after {:?}",
+                    operation, duration
+                )
             }
         }
     }
 }
 
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Error::CueParse { source, .. } => source
-                .as_ref()
-                .map(|e| e.as_ref() as &(dyn std::error::Error + 'static)),
-            Error::SecretResolution { source, .. } => source
-                .as_ref()
-                .map(|e| e.as_ref() as &(dyn std::error::Error + 'static)),
-            Error::FileSystem { source, .. } => Some(source),
-            Error::Json { source, .. } => Some(source),
-            _ => None,
-        }
-    }
-}
-
-// Conversion implementations
+// Conversion implementations (keeping these as they provide more context than thiserror's #[from])
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Self {
         Error::FileSystem {
