@@ -141,30 +141,35 @@
         cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
         version = cargoToml.workspace.package.version;
 
-        # Vendor Go dependencies (unchanged from original)
-        goVendor = pkgs.stdenv.mkDerivation {
-          pname = "cuenv-go-vendor";
+        # Pre-compiled Go FFI bridge using buildGoModule - eliminates manual hash management
+        goBridge = pkgs.buildGoModule {
+          pname = "cuenv-go-bridge";
           version = version;
           src = ./crates/libcue-ffi-bridge;
 
+          # Single hash - reuses the working vendor hash, eliminates placeholder hash
+          vendorHash = "sha256-l/urNOAK9q5nflBt2ovfbaM3WNCn0ouZlc9RJq/+eKk=";
+
           nativeBuildInputs = [ pkgs.go_1_24 ];
 
+          # Build as C archive instead of regular Go binary
           buildPhase = ''
-            export HOME=$(mktemp -d)
-            export GOPATH="$HOME/go"
-            export GOCACHE="$HOME/go-cache"
-
-            go mod vendor
+            export CGO_ENABLED=1
+            go build -buildmode=c-archive -o libcue_bridge.a bridge.go
           '';
 
           installPhase = ''
-            mkdir -p $out
-            cp -r vendor $out/
+            mkdir -p $out/lib
+            cp libcue_bridge.{a,h} $out/lib/
           '';
 
-          outputHashMode = "recursive";
-          outputHashAlgo = "sha256";
-          outputHash = "sha256-l/urNOAK9q5nflBt2ovfbaM3WNCn0ouZlc9RJq/+eKk=";
+          # Skip the default Go binary installation since we're building a C archive
+          dontInstallBinaries = true;
+
+          meta = with pkgs.lib; {
+            description = "CUE FFI bridge for cuenv";
+            license = licenses.mit;
+          };
         };
 
         # Common build environment for all Crane builds
@@ -193,93 +198,60 @@
           };
         };
 
-        # Pre-compiled Go FFI bridge - build once, reuse everywhere
-        goBridge = pkgs.stdenv.mkDerivation {
-          pname = "cuenv-go-bridge";
-          version = version;
-          src = ./crates/libcue-ffi-bridge;
-
-          nativeBuildInputs = [ pkgs.go_1_24 ];
-
-          buildPhase = ''
-            export HOME=$(mktemp -d)
-            export GOPATH="$HOME/go"
-            export GOCACHE="$HOME/go-cache"
-            export CGO_ENABLED=1
-
-            # Copy vendored Go dependencies
-            cp -r ${goVendor}/vendor ./
-            chmod -R u+w vendor
-
-            # Build the Go bridge as a static C archive
-            go build -buildmode=c-archive -o libcue_bridge.a bridge.go
-          '';
-
-          installPhase = ''
-            mkdir -p $out/lib
-            cp libcue_bridge.{a,h} $out/lib/
-          '';
-
-          outputHashMode = "recursive";
-          outputHashAlgo = "sha256";
-          # This hash will need to be updated after first build
-          outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-        };
 
         # Cargo dependencies for all crates - shared build artifacts
         cargoArtifacts = craneLib.buildDepsOnly (commonArgs // {
           pname = "cuenv-deps";
         });
 
-        # Pure Rust crates (no FFI bridge needed) 
+        # Pure Rust crates (no FFI bridge needed) - corrected names to match workspace
         pureRustCrates = [
           "cuenv-core"
           "cuenv-env"
           "cuenv-cli"
-          "cuenv-cache" 
+          "cuenv-cache"
           "cuenv-utils"
-          "cuenv-env-manager"
-          "cuenv-platform"
-          "cuenv-shell-detection"
-          "cuenv-constraints"
+          "cuenv-shell"
+          "cuenv-task"
+          "cuenv-security"
+          "cuenv-tui"
+          "cuenv-hooks"
         ];
 
         # Build pure Rust crates efficiently (parallel, cached)
-        pureRustPackages = builtins.listToAttrs (map (crateName: {
-          name = crateName;
-          value = craneLib.buildPackage (commonArgs // {
-            inherit cargoArtifacts;
-            pname = crateName;
-            cargoExtraArgs = "-p ${crateName}";
-            
-            # No FFI bridge setup needed for pure Rust crates
-            preBuild = ''
-              export CUE_ROOT="$PWD/cue"
-            '';
-          });
-        }) pureRustCrates);
+        pureRustPackages = builtins.listToAttrs (map
+          (crateName: {
+            name = crateName;
+            value = craneLib.buildPackage (commonArgs // {
+              inherit cargoArtifacts;
+              pname = crateName;
+              cargoExtraArgs = "-p ${crateName}";
+
+              # No FFI bridge setup needed for pure Rust crates
+              preBuild = ''
+                export CUE_ROOT="$PWD/cue"
+              '';
+            });
+          })
+          pureRustCrates);
 
         # FFI-dependent crates (need the Go bridge)
         ffiBridge = craneLib.buildPackage (commonArgs // {
           inherit cargoArtifacts;
           pname = "cuenv-libcue-ffi-bridge";
           cargoExtraArgs = "-p cuenv-libcue-ffi-bridge";
-          
+
           preBuild = ''
             export HOME=$(mktemp -d)
             export GOPATH="$HOME/go"
             export GOCACHE="$HOME/go-cache"
             export CUE_ROOT="$PWD/cue"
             
-            # Use pre-compiled Go bridge
+            # Use pre-compiled Go bridge - fail fast if copy fails
             mkdir -p crates/libcue-ffi-bridge/target/debug
             mkdir -p crates/libcue-ffi-bridge/target/release
-            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/ || true
-            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/ || true
-            
-            # Copy Go vendor as fallback
-            cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
-            chmod -R u+w crates/libcue-ffi-bridge
+            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/
+            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/
           '';
         });
 
@@ -287,22 +259,18 @@
           inherit cargoArtifacts;
           pname = "cuenv-config";
           cargoExtraArgs = "-p cuenv-config";
-          
+
           preBuild = ''
             export HOME=$(mktemp -d)
             export GOPATH="$HOME/go" 
             export GOCACHE="$HOME/go-cache"
             export CUE_ROOT="$PWD/cue"
             
-            # Use pre-compiled Go bridge
+            # Use pre-compiled Go bridge - fail fast if copy fails
             mkdir -p crates/libcue-ffi-bridge/target/debug
             mkdir -p crates/libcue-ffi-bridge/target/release
-            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/ || true
-            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/ || true
-            
-            # Copy Go vendor as fallback
-            cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
-            chmod -R u+w crates/libcue-ffi-bridge
+            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/
+            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/
           '';
         });
 
@@ -310,22 +278,18 @@
         cuenv = craneLib.buildPackage (commonArgs // {
           inherit cargoArtifacts;
           pname = "cuenv";
-          
+
           preBuild = ''
             export HOME=$(mktemp -d)
             export GOPATH="$HOME/go"
             export GOCACHE="$HOME/go-cache"
             export CUE_ROOT="$PWD/cue"
             
-            # Use pre-compiled Go bridge
+            # Use pre-compiled Go bridge - fail fast if copy fails
             mkdir -p crates/libcue-ffi-bridge/target/debug
             mkdir -p crates/libcue-ffi-bridge/target/release
-            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/ || true
-            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/ || true
-            
-            # Copy Go vendor as fallback  
-            cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
-            chmod -R u+w crates/libcue-ffi-bridge
+            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/
+            cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/
           '';
 
           # Only build the main CLI binary
@@ -338,7 +302,7 @@
         packages = {
           default = cuenv;
           cuenv = cuenv;
-          
+
           # Individual crate packages for granular builds
           inherit ffiBridge configCrate;
           go-bridge = goBridge;
@@ -356,23 +320,63 @@
           # Clippy check using shared cargo artifacts
           clippy = craneLib.cargoClippy (commonArgs // {
             inherit cargoArtifacts;
-            cargoClippyExtraArgs = "--all-targets --all-features -- -D warnings -A clippy::duplicate_mod -A clippy::uninlined_format_args -A clippy::too_many_arguments -A clippy::new_without_default -A clippy::ptr_arg -A clippy::needless_borrows_for_generic_args -A clippy::io_other_error -A clippy::manual_strip -A clippy::collapsible_if -A clippy::derivable_impls -A clippy::missing_safety_doc -A clippy::field_reassign_with_default -A clippy::manual_map -A clippy::not_unsafe_ptr_arg_deref -A clippy::question_mark -A clippy::needless_borrow -A clippy::await_holding_lock -A clippy::type_complexity -A clippy::enum_variant_names";
-            
+            cargoClippyExtraArgs = builtins.concatStringsSep " " [
+              "--all-targets"
+              "--all-features"
+              "--"
+              "-D"
+              "warnings"
+              "-A"
+              "clippy::duplicate_mod"
+              "-A"
+              "clippy::uninlined_format_args"
+              "-A"
+              "clippy::too_many_arguments"
+              "-A"
+              "clippy::new_without_default"
+              "-A"
+              "clippy::ptr_arg"
+              "-A"
+              "clippy::needless_borrows_for_generic_args"
+              "-A"
+              "clippy::io_other_error"
+              "-A"
+              "clippy::manual_strip"
+              "-A"
+              "clippy::collapsible_if"
+              "-A"
+              "clippy::derivable_impls"
+              "-A"
+              "clippy::missing_safety_doc"
+              "-A"
+              "clippy::field_reassign_with_default"
+              "-A"
+              "clippy::manual_map"
+              "-A"
+              "clippy::not_unsafe_ptr_arg_deref"
+              "-A"
+              "clippy::question_mark"
+              "-A"
+              "clippy::needless_borrow"
+              "-A"
+              "clippy::await_holding_lock"
+              "-A"
+              "clippy::type_complexity"
+              "-A"
+              "clippy::enum_variant_names"
+            ];
+
             preBuild = ''
               export HOME=$(mktemp -d)
               export GOPATH="$HOME/go"
               export GOCACHE="$HOME/go-cache"
               export CUE_ROOT="$PWD/cue"
               
-              # Use pre-compiled Go bridge
+              # Use pre-compiled Go bridge - fail fast if copy fails
               mkdir -p crates/libcue-ffi-bridge/target/debug
               mkdir -p crates/libcue-ffi-bridge/target/release
-              cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/ || true
-              cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/ || true
-              
-              # Copy Go vendor as fallback
-              cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
-              chmod -R u+w crates/libcue-ffi-bridge
+              cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/
+              cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/
             '';
           });
 
@@ -382,7 +386,7 @@
             partitions = 1;
             partitionType = "count";
             cargoNextestExtraArgs = "--lib --bins -E 'not test(/concurrent|thread_safe|monitored_cache|profiling|tree_operations|confidence|sequential_pattern|streaming|prop_test_cache|statistics|parse_shell|process_guard/)'";
-            
+
             preBuild = ''
               export HOME=$(mktemp -d)
               export GOPATH="$HOME/go"
@@ -391,15 +395,34 @@
               export RUST_TEST_THREADS=2
               export GOMAXPROCS=2
               
-              # Use pre-compiled Go bridge
+              # Use pre-compiled Go bridge - fail fast if copy fails
               mkdir -p crates/libcue-ffi-bridge/target/debug
               mkdir -p crates/libcue-ffi-bridge/target/release
-              cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/ || true
-              cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/ || true
+              cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/
+              cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/
+            '';
+          });
+
+          # Integration tests - network-dependent functionality
+          integration-tests = craneLib.cargoNextest (commonArgs // {
+            inherit cargoArtifacts;
+            partitions = 1;
+            partitionType = "count";
+            cargoNextestExtraArgs = "--test '*integration*'";
+
+            preBuild = ''
+              export HOME=$(mktemp -d)
+              export GOPATH="$HOME/go"
+              export GOCACHE="$HOME/go-cache"
+              export CUE_ROOT="$PWD/cue"
+              export RUST_TEST_THREADS=1
+              export GOMAXPROCS=1
               
-              # Copy Go vendor as fallback
-              cp -r ${goVendor}/vendor crates/libcue-ffi-bridge/
-              chmod -R u+w crates/libcue-ffi-bridge
+              # Use pre-compiled Go bridge - fail fast if copy fails
+              mkdir -p crates/libcue-ffi-bridge/target/debug
+              mkdir -p crates/libcue-ffi-bridge/target/release
+              cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/debug/
+              cp -r ${goBridge}/lib/* crates/libcue-ffi-bridge/target/release/
             '';
           });
 
@@ -413,7 +436,7 @@
           });
 
           clippy-cache = craneLib.cargoClippy (commonArgs // {
-            inherit cargoArtifacts; 
+            inherit cargoArtifacts;
             pname = "cuenv-cache-clippy";
             cargoExtraArgs = "-p cuenv-cache";
             cargoClippyExtraArgs = "-- -D warnings";
@@ -422,7 +445,7 @@
 
           clippy-env = craneLib.cargoClippy (commonArgs // {
             inherit cargoArtifacts;
-            pname = "cuenv-env-clippy";  
+            pname = "cuenv-env-clippy";
             cargoExtraArgs = "-p cuenv-env";
             cargoClippyExtraArgs = "-- -D warnings";
             preBuild = "export CUE_ROOT=\"$PWD/cue\"";
@@ -430,7 +453,7 @@
 
           clippy-utils = craneLib.cargoClippy (commonArgs // {
             inherit cargoArtifacts;
-            pname = "cuenv-utils-clippy";  
+            pname = "cuenv-utils-clippy";
             cargoExtraArgs = "-p cuenv-utils";
             cargoClippyExtraArgs = "-- -D warnings";
             preBuild = "export CUE_ROOT=\"$PWD/cue\"";
@@ -485,5 +508,6 @@
             }
           '';
         };
-      }));
+      }
+    ));
 }
