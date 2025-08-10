@@ -53,18 +53,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-release-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-release-cargo-
-            ${{ runner.os }}-cargo-
       - name: Get version from tag
         id: get_version
         run: |
@@ -74,12 +62,12 @@ jobs:
           VERSION="$TAG"  # Use tag directly as it has no prefix
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "Building version: $VERSION"
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
-      - name: Namespace Labs Nix Cache
+      - name: namespacelabs-nix-cache
         uses: namespacelabs/nscloud-cache-action@v1
         with:
           path: /nix
+      - name: nix-install
+        uses: DeterminateSystems/nix-installer-action@main
       - name: Setup dependencies via Nix
         run: |
           # Use Nix development shell which includes all required dependencies
