@@ -181,12 +181,23 @@ fn test_lock_file_permissions() {
 }
 
 /// Test cache manager lock file permissions
-#[test]
+#[tokio::test]
 #[cfg(unix)]
-fn test_cache_manager_lock_permissions() {
+async fn test_cache_manager_lock_permissions() {
     let temp_dir = TempDir::new().unwrap();
     std::env::set_var("XDG_CACHE_HOME", temp_dir.path());
-    let cache_manager = CacheManager::new_sync().unwrap();
+
+    // Create cache manager using async constructor
+    let engine = std::sync::Arc::new(cuenv::cache::CacheEngine::new().unwrap());
+    let config = cuenv::cache::CacheConfig {
+        base_dir: engine.cache_dir.clone(),
+        max_size: 1024 * 1024 * 1024, // 1GB default
+        mode: cuenv::cache::CacheMode::ReadWrite,
+        inline_threshold: 4096, // 4KB default
+        env_filter: Default::default(),
+        task_env_filters: std::collections::HashMap::new(),
+    };
+    let cache_manager = CacheManager::new(config).await.unwrap();
 
     // The cache manager creates lock files with secure permissions
     // This test verifies the implementation exists and compiles correctly
