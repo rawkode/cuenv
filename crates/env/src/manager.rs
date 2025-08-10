@@ -249,13 +249,13 @@ impl EnvManager {
     pub fn from_config(config: &cuenv_config::Config) -> Result<Self> {
         let mut manager = Self::new();
         manager.save_original_env()?;
-        
+
         // Populate from the config object instead of parsing CUE again
         manager.cue_vars = config.variables.clone();
         manager.cue_vars_metadata = config.metadata.clone();
         manager.commands = config.commands.clone();
         manager.tasks = config.tasks.clone();
-        
+
         // Convert Vec<Hook> to HookConfig for compatibility with existing code
         for (hook_type, hooks) in &config.hooks {
             for hook in hooks {
@@ -293,7 +293,7 @@ impl EnvManager {
                 }
             }
         }
-        
+
         Ok(manager)
     }
 }

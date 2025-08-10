@@ -241,12 +241,12 @@ fn cli_to_options(cli: &Cli) -> Result<CliOptions> {
     Ok(CliOptions {
         cache_mode,
         cache_enabled: cli.cache_enabled,
-        force: false, // Will be set per command
-        environment: None, // Will be set per command
-        capabilities: Vec::new(), // Will be set per command
-        audit: false, // Will be set per command
+        force: false,                     // Will be set per command
+        environment: None,                // Will be set per command
+        capabilities: Vec::new(),         // Will be set per command
+        audit: false,                     // Will be set per command
         output_format: "tui".to_string(), // Default
-        trace_output: false, // Will be set per command
+        trace_output: false,              // Will be set per command
     })
 }
 
@@ -671,7 +671,7 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    // Convert CLI options to our configuration structure  
+    // Convert CLI options to our configuration structure
     let mut cli_options = cli_to_options(&cli)?;
 
     // Apply CLI cache configuration if provided
@@ -1068,7 +1068,7 @@ tasks: env.#Tasks & {
                 // Use centralized configuration loading
                 cli_options.environment = environment.or_else(|| env::var(CUENV_ENV_VAR).ok());
                 cli_options.capabilities = capabilities;
-                
+
                 let config = ConfigLoader::new(&current_dir)
                     .with_cli_options(cli_options)
                     .load()?;
@@ -1101,7 +1101,7 @@ tasks: env.#Tasks & {
                 Vec::new()
             };
             cli_options.audit = audit;
-            
+
             let config = ConfigLoader::new(&current_dir)
                 .with_cli_options(cli_options)
                 .load()?;
