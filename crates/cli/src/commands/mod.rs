@@ -6,6 +6,7 @@ pub mod discover;
 pub mod env;
 pub mod init;
 pub mod internal;
+pub mod mcp;
 pub mod shell;
 pub mod task;
 

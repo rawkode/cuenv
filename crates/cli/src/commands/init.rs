@@ -1,10 +1,9 @@
+use cuenv_config::Config;
 use cuenv_core::{Result, ENV_CUE_FILENAME};
-use std::env;
+use std::sync::Arc;
 
-pub async fn execute(force: bool) -> Result<()> {
-    let current_dir = env::current_dir()
-        .map_err(|e| cuenv_core::Error::file_system(".", "get current directory", e))?;
-    let env_file = current_dir.join(ENV_CUE_FILENAME);
+pub async fn execute(config: Arc<Config>, force: bool) -> Result<()> {
+    let env_file = config.working_dir.join(ENV_CUE_FILENAME);
 
     if env_file.exists() && !force {
         eprintln!("Error: {ENV_CUE_FILENAME} already exists. Use --force to overwrite.");
@@ -73,7 +72,7 @@ tasks: env.#Tasks & {
     println!("  1. Edit {ENV_CUE_FILENAME} to customize your environment");
     println!(
         "  2. Run 'cuenv allow {}' to allow this directory",
-        current_dir.display()
+        config.working_dir.display()
     );
     println!("  3. Add shell hook with 'eval \"$(cuenv shell init <shell>)\"'");
 

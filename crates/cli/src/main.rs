@@ -1,5 +1,6 @@
 use clap::Parser;
 use cuenv_cache::CacheMode;
+use cuenv_config::{ConfigLoader, RuntimeOptions};
 use std::env;
 
 mod commands;
@@ -24,6 +25,18 @@ struct Cli {
     #[arg(long)]
     cache_enabled: Option<bool>,
 
+    /// Environment to use (e.g., dev, staging, production)
+    #[arg(short = 'e', long = "env", global = true)]
+    environment: Option<String>,
+
+    /// Capabilities to enable (can be specified multiple times)
+    #[arg(short = 'c', long = "capability", global = true)]
+    capabilities: Vec<String>,
+
+    /// Run in audit mode to see file and network access without restrictions
+    #[arg(long, global = true)]
+    audit: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -33,8 +46,16 @@ async fn main() -> eyre::Result<()> {
     // Parse command-line arguments
     let cli = Cli::parse();
 
-    // Set cache mode if provided
-    if let Some(cache_mode) = cli.cache {
+    // Build runtime options from CLI arguments
+    let mut runtime = RuntimeOptions::default();
+    runtime.environment = cli.environment.clone();
+    runtime.capabilities = cli.capabilities.clone();
+    runtime.audit_mode = cli.audit;
+    runtime.cache_mode = cli.cache.clone();
+    runtime.cache_enabled = cli.cache_enabled.unwrap_or(true);
+
+    // Set cache environment variables if provided
+    if let Some(cache_mode) = cli.cache.clone() {
         let mode = match cache_mode.as_str() {
             "off" => CacheMode::Off,
             "read" => CacheMode::Read,
@@ -45,16 +66,26 @@ async fn main() -> eyre::Result<()> {
         env::set_var("CUENV_CACHE_MODE", mode.to_string());
     }
 
-    // Handle cache enabled flag
     if let Some(enabled) = cli.cache_enabled {
         env::set_var("CUENV_CACHE_ENABLED", enabled.to_string());
     }
 
-    // Execute the command
-    if let Some(command) = cli.command {
-        execute::execute_command(command).await
-    } else {
-        // Default behavior when no command is specified
-        Commands::Reload.execute().await
-    }
+    // Determine the command to execute
+    let command = cli.command.unwrap_or(Commands::Shell {
+        command: crate::commands::shell::ShellCommands::Load {
+            directory: None,
+            environment: cli.environment,
+            capabilities: cli.capabilities,
+        },
+    });
+
+    // Load configuration once at startup
+    let config = ConfigLoader::new()
+        .runtime(runtime)
+        .load()
+        .await?
+        .into_arc();
+
+    // Execute the command with configuration
+    command.execute(config).await.map_err(Into::into)
 }

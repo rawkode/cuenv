@@ -1,10 +1,10 @@
 use super::PackageDiscovery;
+use cuenv_config::Config;
 use cuenv_core::Result;
-use std::env;
+use std::sync::Arc;
 
-pub async fn execute(max_depth: usize, load: bool, dump: bool) -> Result<()> {
-    let current_dir = env::current_dir()
-        .map_err(|e| cuenv_core::Error::file_system(".", "get current directory", e))?;
+pub async fn execute(config: Arc<Config>, max_depth: usize, load: bool, dump: bool) -> Result<()> {
+    let current_dir = &config.working_dir;
     let mut discovery = PackageDiscovery::new(max_depth);
 
     // If dump is requested, we need to load the packages

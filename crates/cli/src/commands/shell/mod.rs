@@ -129,7 +129,7 @@ impl ShellCommands {
                                 Ok(Shell::Bash) => ShellType::Bash,
                                 Ok(Shell::Zsh) => ShellType::Zsh,
                                 Ok(Shell::Fish) => ShellType::Fish,
-                                Ok(Shell::PowerShell) => ShellType::PowerShell,
+                                Ok(Shell::Pwsh) => ShellType::PowerShell,
                                 Ok(Shell::Cmd) => ShellType::Cmd,
                                 _ => ShellType::Bash,
                             }
