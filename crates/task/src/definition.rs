@@ -12,6 +12,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
+/// Default task timeout in seconds (1 hour)
+pub const DEFAULT_TASK_TIMEOUT_SECS: u64 = 3600;
+
 /// Immutable, validated task definition ready for execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskDefinition {
@@ -157,7 +160,7 @@ impl TaskDefinition {
             outputs: Vec::new(),
             security: None,
             cache: TaskCache::default(),
-            timeout: Duration::from_secs(3600), // 1 hour default
+            timeout: Duration::from_secs(DEFAULT_TASK_TIMEOUT_SECS), // 1 hour default
         }
     }
 

@@ -33,6 +33,8 @@ pub struct JsonLogSubscriber {
     cached_file_size: Arc<std::sync::atomic::AtomicU64>,
     /// Write counter for periodic size checks
     write_counter: Arc<std::sync::atomic::AtomicU64>,
+    /// Check file size every N writes (configurable to reduce filesystem calls)
+    size_check_interval: u64,
 }
 
 impl JsonLogSubscriber {
@@ -55,6 +57,7 @@ impl JsonLogSubscriber {
             backup_count: DEFAULT_BACKUP_COUNT,
             cached_file_size: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             write_counter: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            size_check_interval: SIZE_CHECK_INTERVAL,
         };
 
         subscriber.initialize_writer().await?;
@@ -84,6 +87,35 @@ impl JsonLogSubscriber {
             backup_count,
             cached_file_size: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             write_counter: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            size_check_interval: SIZE_CHECK_INTERVAL,
+        };
+
+        subscriber.initialize_writer().await?;
+        Ok(subscriber)
+    }
+
+    /// Create a JSON log subscriber with custom size check interval (for performance tuning)
+    pub async fn with_size_check_interval<P: AsRef<Path>>(
+        file_path: P,
+        size_check_interval: u64,
+    ) -> Result<Self, JsonLogError> {
+        let file_path = file_path.as_ref().to_path_buf();
+        
+        if let Some(parent) = file_path.parent() {
+            tokio::fs::create_dir_all(parent).await.map_err(|e| {
+                JsonLogError::IoError(format!("Failed to create log directory: {}", e))
+            })?;
+        }
+
+        let subscriber = Self {
+            writer: Mutex::new(None),
+            file_path,
+            include_metadata: true,
+            max_file_size: Some(DEFAULT_MAX_FILE_SIZE),
+            backup_count: DEFAULT_BACKUP_COUNT,
+            cached_file_size: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            write_counter: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            size_check_interval,
         };
 
         subscriber.initialize_writer().await?;
@@ -110,11 +142,11 @@ impl JsonLogSubscriber {
             return Ok(());
         };
 
-        // Check every SIZE_CHECK_INTERVAL writes or when cached size exceeds threshold
+        // Check every size_check_interval writes or when cached size exceeds threshold
         let write_count = self.write_counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let cached_size = self.cached_file_size.load(std::sync::atomic::Ordering::Relaxed);
         
-        let should_check_size = write_count % SIZE_CHECK_INTERVAL == 0 || cached_size > max_size;
+        let should_check_size = write_count % self.size_check_interval == 0 || cached_size > max_size;
         
         if should_check_size {
             // Check actual file size

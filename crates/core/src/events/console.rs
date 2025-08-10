@@ -2,7 +2,7 @@
 
 use crate::events::{EnhancedEvent, EventSubscriber, SystemEvent, TaskEvent, PipelineEvent, CacheEvent};
 use async_trait::async_trait;
-use std::io::{self};
+use std::io::{self, IsTerminal};
 use tracing::{debug};
 
 /// Console subscriber for terminal output
@@ -38,7 +38,7 @@ impl ConsoleSubscriber {
     /// Create a new console subscriber with default settings
     pub fn new() -> Self {
         Self {
-            use_colors: io::IsTerminal::is_terminal(&io::stderr()),
+            use_colors: io::stderr().is_terminal(),
             verbosity: ConsoleVerbosity::Normal,
             writer: ConsoleWriter::Stderr,
         }
