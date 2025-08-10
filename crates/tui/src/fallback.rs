@@ -84,11 +84,11 @@ impl FallbackRenderer {
         output
     }
 
-    fn find_root_tasks(&self, tasks: &HashMap<String, cuenv_config::TaskConfig>) -> Vec<String> {
+    fn find_root_tasks(&self, tasks: &HashMap<String, cuenv_core::TaskDefinition>) -> Vec<String> {
         let mut roots = Vec::new();
         let all_deps: std::collections::HashSet<String> = tasks
             .values()
-            .flat_map(|task| task.dependencies.clone().unwrap_or_default().into_iter())
+            .flat_map(|task| task.dependency_names().into_iter())
             .collect();
 
         for task_name in tasks.keys() {
@@ -106,7 +106,7 @@ impl FallbackRenderer {
         output: &mut String,
         task_name: &str,
         task_infos: &HashMap<String, crate::events::TaskInfo>,
-        task_configs: &HashMap<String, cuenv_config::TaskConfig>,
+        task_configs: &HashMap<String, cuenv_core::TaskDefinition>,
         depth: usize,
         prefix: &str,
         is_last: bool,
@@ -133,7 +133,8 @@ impl FallbackRenderer {
         ));
 
         if let Some(config) = task_configs.get(task_name) {
-            if let Some(deps) = &config.dependencies {
+            let deps = config.dependency_names();
+            if !deps.is_empty() {
                 let child_prefix = if depth == 0 {
                     "".to_string()
                 } else if is_last {
