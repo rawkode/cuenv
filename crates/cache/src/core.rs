@@ -8,6 +8,12 @@
 //! - Lock-free concurrent access patterns
 //! - Comprehensive observability and metrics
 
+pub mod internal;
+pub mod serialization;
+
+use crate::cleanup::CacheCleanup;
+use self::internal::{CacheStats, InMemoryEntry, MemoryMapUtils, PathUtils};
+use self::serialization::{deserialize, serialize};
 use crate::errors::{CacheError, RecoveryHint, Result, SerializationOp, StoreType};
 use crate::eviction::{create_eviction_policy, EvictionPolicy};
 use crate::fast_path::FastPathCache;
@@ -64,26 +70,6 @@ struct CacheInner {
     version: u32,
 }
 
-struct InMemoryEntry {
-    /// Memory-mapped data for zero-copy access
-    mmap: Option<Arc<Mmap>>,
-    /// Raw data (used when mmap is not available)
-    data: Vec<u8>,
-    metadata: CacheMetadata,
-    last_accessed: RwLock<Instant>,
-}
-
-struct CacheStats {
-    hits: AtomicU64,
-    misses: AtomicU64,
-    writes: AtomicU64,
-    removals: AtomicU64,
-    errors: AtomicU64,
-    total_bytes: AtomicU64,
-    expired_cleanups: AtomicU64,
-    entry_count: AtomicU64,
-    stats_since: SystemTime,
-}
 
 impl Cache {
     /// Create a new unified cache with production-ready features
