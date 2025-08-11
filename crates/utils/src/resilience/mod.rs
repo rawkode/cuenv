@@ -10,4 +10,7 @@
 
 pub mod circuit;
 
-pub use circuit::{suggest_recovery, CircuitBreaker, CircuitBreakerConfig};
+pub use circuit::{
+    retry, retry_with_circuit_breaker, suggest_recovery, CircuitBreaker, CircuitBreakerConfig,
+    CircuitBreakerStats, CircuitState, RetryConfig, RetryOn,
+};

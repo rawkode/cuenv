@@ -11,59 +11,45 @@ use std::time::Instant;
 use tokio::task::JoinSet;
 use tracing::Instrument;
 
-/// Spawn a task execution
-pub fn spawn_task_execution(
-    join_set: &mut JoinSet<i32>,
-    task_name: String,
-    task_definition: TaskDefinition,
-    working_dir: PathBuf,
-    task_args: Vec<String>,
-    failed_tasks: Arc<Mutex<Vec<(String, i32)>>>,
-    action_cache: Arc<ActionCache>,
-    env_manager: EnvManager,
-    cache_config: CacheConfiguration,
-    executed_tasks: Arc<Mutex<HashSet<String>>>,
-    audit_mode: bool,
-    capture_output: bool,
-) {
-    // Create task span
-    // TODO: Add tracing when moved to workspace
-    let task_span = tracing::info_span!("task", name = task_name.as_str());
-
-    join_set.spawn(
-        async move {
-            execute_single_task_async(
-                task_name,
-                task_definition,
-                working_dir,
-                task_args,
-                failed_tasks,
-                action_cache,
-                env_manager,
-                cache_config,
-                executed_tasks,
-                audit_mode,
-                capture_output,
-            )
-            .await
-        }
-        .instrument(task_span),
-    );
+/// Parameters for task execution
+pub struct TaskExecutionParams {
+    pub task_name: String,
+    pub task_definition: TaskDefinition,
+    pub working_dir: PathBuf,
+    pub task_args: Vec<String>,
+    pub failed_tasks: Arc<Mutex<Vec<(String, i32)>>>,
+    pub action_cache: Arc<ActionCache>,
+    pub env_manager: EnvManager,
+    pub cache_config: CacheConfiguration,
+    pub executed_tasks: Arc<Mutex<HashSet<String>>>,
+    pub audit_mode: bool,
+    pub capture_output: bool,
 }
 
-async fn execute_single_task_async(
-    task_name: String,
-    task_definition: TaskDefinition,
-    working_dir: PathBuf,
-    task_args: Vec<String>,
-    failed_tasks: Arc<Mutex<Vec<(String, i32)>>>,
-    action_cache: Arc<ActionCache>,
-    env_manager: EnvManager,
-    cache_config: CacheConfiguration,
-    executed_tasks: Arc<Mutex<HashSet<String>>>,
-    audit_mode: bool,
-    capture_output: bool,
-) -> i32 {
+/// Spawn a task execution
+pub fn spawn_task_execution(join_set: &mut JoinSet<i32>, params: TaskExecutionParams) {
+    // Create task span
+    // TODO: Add tracing when moved to workspace
+    let task_span = tracing::info_span!("task", name = params.task_name.as_str());
+
+    join_set.spawn(async move { execute_single_task_async(params).await }.instrument(task_span));
+}
+
+async fn execute_single_task_async(params: TaskExecutionParams) -> i32 {
+    let TaskExecutionParams {
+        task_name,
+        task_definition,
+        working_dir,
+        task_args,
+        failed_tasks,
+        action_cache,
+        env_manager,
+        cache_config,
+        executed_tasks,
+        audit_mode,
+        capture_output,
+    } = params;
+
     let start_time = Instant::now();
 
     // Publish task started event

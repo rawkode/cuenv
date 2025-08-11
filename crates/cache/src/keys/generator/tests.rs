@@ -1,7 +1,7 @@
 //! Tests for cache key generator
 
 #[cfg(test)]
-mod tests {
+mod generator_tests {
     use crate::keys::config::CacheKeyFilterConfig;
     use crate::keys::generator::CacheKeyGenerator;
     use std::collections::HashMap;

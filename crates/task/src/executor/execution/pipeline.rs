@@ -66,17 +66,19 @@ impl TaskExecutor {
 
                 super::task::spawn_task_execution(
                     &mut join_set,
-                    task_name.clone(),
-                    task_definition,
-                    working_dir,
-                    args.to_vec(),
-                    Arc::clone(&failed_tasks),
-                    Arc::clone(&self.action_cache),
-                    self.env_manager.clone(),
-                    self.cache_config.clone(),
-                    Arc::clone(&self.executed_tasks),
-                    audit_mode,
-                    capture_output,
+                    super::task::TaskExecutionParams {
+                        task_name: task_name.clone(),
+                        task_definition,
+                        working_dir,
+                        task_args: args.to_vec(),
+                        failed_tasks: Arc::clone(&failed_tasks),
+                        action_cache: Arc::clone(&self.action_cache),
+                        env_manager: self.env_manager.clone(),
+                        cache_config: self.cache_config.clone(),
+                        executed_tasks: Arc::clone(&self.executed_tasks),
+                        audit_mode,
+                        capture_output,
+                    },
                 );
             }
 
