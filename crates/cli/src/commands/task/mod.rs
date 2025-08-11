@@ -191,7 +191,7 @@ async fn execute_task(
         };
         std::process::exit(status);
     } else {
-        eprintln!("Task '{}' not found", task_name);
+        eprintln!("Task '{task_name}' not found");
         eprintln!("Run 'cuenv task list' to see available tasks");
         std::process::exit(1);
     }

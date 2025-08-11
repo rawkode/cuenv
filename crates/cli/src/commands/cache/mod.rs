@@ -40,7 +40,7 @@ impl CacheCommands {
                 } else {
                     0.0
                 };
-                println!("  Hit rate: {:.1}%", hit_rate);
+                println!("  Hit rate: {hit_rate:.1}%");
                 println!(
                     "  Total bytes saved: {:.2} MB",
                     stats.total_bytes_saved as f64 / 1_048_576.0

@@ -217,12 +217,12 @@ mod tests {
         match result {
             Ok(json) => {
                 // If it succeeds unexpectedly, log it but don't fail
-                println!("FFI succeeded for nonexistent path (CI behavior): {}", json);
+                println!("FFI succeeded for nonexistent path (CI behavior): {json}");
                 // In some CI environments, this might succeed with empty/default values
             }
             Err(error) => {
                 // This is the expected behavior - log the error
-                println!("Got expected error for nonexistent path: {}", error);
+                println!("Got expected error for nonexistent path: {error}");
                 assert!(!error.to_string().is_empty());
             }
         }
@@ -251,7 +251,7 @@ env: {
         if result.is_err() {
             // If FFI isn't available, we should get a specific error
             let error = result.unwrap_err();
-            println!("FFI not available in test environment: {}", error);
+            println!("FFI not available in test environment: {error}");
             // This is acceptable in test environments without Go build
         } else {
             // If it works, verify the JSON contains our values
@@ -280,12 +280,12 @@ this is not valid CUE syntax {
         match result {
             Ok(json) => {
                 // If it succeeds despite invalid CUE, this might be CI-specific behavior
-                println!("FFI succeeded with invalid CUE (CI behavior): {}", json);
+                println!("FFI succeeded with invalid CUE (CI behavior): {json}");
                 // Don't fail the test - just log the unexpected success
             }
             Err(error) => {
                 // This is the expected behavior for invalid CUE
-                println!("Got expected error for invalid CUE: {}", error);
+                println!("Got expected error for invalid CUE: {error}");
                 assert!(!error.to_string().is_empty());
             }
         }
@@ -328,7 +328,7 @@ this is not valid CUE syntax {
             } else {
                 // If FFI isn't available, error should be consistent
                 let error_msg = result.unwrap_err().to_string();
-                println!("Iteration {}: {}", i, error_msg);
+                println!("Iteration {i}: {error_msg}");
 
                 // Break early if it's clearly an FFI availability issue
                 if i > 5 {
@@ -360,14 +360,14 @@ this is not valid CUE syntax {
         match result {
             Ok(output) => {
                 // If FFI isn't available or returns empty result, that's acceptable
-                println!("FFI returned success (possibly unavailable): {}", output);
+                println!("FFI returned success (possibly unavailable): {output}");
             }
             Err(error) => {
                 // Expected case - should get an error for nonexistent package
                 let error_str = error.to_string();
                 assert!(!error_str.is_empty());
                 assert!(error_str.len() > 5); // Should be a meaningful message
-                println!("Got expected error: {}", error_str);
+                println!("Got expected error: {error_str}");
             }
         }
 

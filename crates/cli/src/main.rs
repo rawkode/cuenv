@@ -47,12 +47,13 @@ async fn main() -> eyre::Result<()> {
     let cli = Cli::parse();
 
     // Build runtime options from CLI arguments
-    let mut runtime = RuntimeOptions::default();
-    runtime.environment = cli.environment.clone();
-    runtime.capabilities = cli.capabilities.clone();
-    runtime.audit_mode = cli.audit;
-    runtime.cache_mode = cli.cache.clone();
-    runtime.cache_enabled = cli.cache_enabled.unwrap_or(true);
+    let runtime = RuntimeOptions {
+        environment: cli.environment.clone(),
+        capabilities: cli.capabilities.clone(),
+        audit_mode: cli.audit,
+        cache_mode: cli.cache.clone(),
+        cache_enabled: cli.cache_enabled.unwrap_or(true),
+    };
 
     // Set cache environment variables if provided
     if let Some(cache_mode) = cli.cache.clone() {

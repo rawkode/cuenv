@@ -52,8 +52,7 @@ impl ShellCommands {
                     Ok(())
                 }
                 Err(e) => Err(cuenv_core::Error::configuration(format!(
-                    "Failed to generate shell hook: {}",
-                    e
+                    "Failed to generate shell hook: {e}"
                 ))),
             },
             ShellCommands::Load {
@@ -156,7 +155,7 @@ impl ShellCommands {
                         }
                     }
                     StateManager::unload().await.map_err(|e| {
-                        cuenv_core::Error::configuration(format!("Failed to unload state: {}", e))
+                        cuenv_core::Error::configuration(format!("Failed to unload state: {e}"))
                     })?;
                 } else if current_dir.join(ENV_CUE_FILENAME).exists() {
                     let dir_manager = DirectoryManager::new();

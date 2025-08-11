@@ -47,7 +47,7 @@ pub async fn execute(
         }
         "tcp" => {
             println!("Starting cuenv MCP server (TCP transport)");
-            println!("Port: {}", port);
+            println!("Port: {port}");
             println!(
                 "Task execution: {}",
                 if allow_exec { "enabled" } else { "read-only" }
@@ -57,9 +57,7 @@ pub async fn execute(
             // For TCP, we'll create a temporary socket and note the limitation
             let temp_socket = tempfile::tempdir()
                 .map(|d| d.path().join("cuenv-mcp-tcp.sock"))
-                .map_err(|e| {
-                    Error::configuration(format!("Failed to create temp socket: {}", e))
-                })?;
+                .map_err(|e| Error::configuration(format!("Failed to create temp socket: {e}")))?;
 
             TaskServerProvider::new_with_options(
                 Some(temp_socket),
@@ -70,8 +68,7 @@ pub async fn execute(
         }
         _ => {
             return Err(Error::configuration(format!(
-                "Unsupported transport: {}. Use 'stdio', 'unix', or 'tcp'",
-                transport
+                "Unsupported transport: {transport}. Use 'stdio', 'unix', or 'tcp'"
             )));
         }
     };
@@ -87,7 +84,7 @@ pub async fn execute(
             match result {
                 Ok(()) => println!("MCP server stopped successfully"),
                 Err(e) => {
-                    eprintln!("MCP server error: {}", e);
+                    eprintln!("MCP server error: {e}");
                     return Err(e);
                 }
             }
@@ -95,7 +92,7 @@ pub async fn execute(
         _ = ctrl_c => {
             println!("Received interrupt signal, stopping MCP server...");
             if let Err(e) = provider.shutdown().await {
-                eprintln!("Error during shutdown: {}", e);
+                eprintln!("Error during shutdown: {e}");
             }
         }
     }

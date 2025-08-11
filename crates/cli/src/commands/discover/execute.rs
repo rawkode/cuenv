@@ -10,7 +10,7 @@ pub async fn execute(config: Arc<Config>, max_depth: usize, load: bool, dump: bo
     // If dump is requested, we need to load the packages
     let should_load = load || dump;
 
-    match discovery.discover(&current_dir, should_load).await {
+    match discovery.discover(current_dir, should_load).await {
         Ok(packages) => {
             if packages.is_empty() {
                 println!("No CUE packages found");

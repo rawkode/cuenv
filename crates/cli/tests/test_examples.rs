@@ -25,6 +25,7 @@ env: {
 
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
+        .arg("env")
         .arg("export")
         .env_clear() // Clear all environment variables to ensure clean test
         .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
@@ -57,6 +58,7 @@ fn test_capabilities_filtering() {
     // Test basic export first
     let output = Command::new(get_cuenv_binary())
         .current_dir(&example_dir)
+        .arg("env")
         .arg("export")
         .env("CUE_ROOT", example_dir.parent().unwrap().join("cue"))
         .env("PATH", std::env::var("PATH").unwrap_or_default())
@@ -72,6 +74,7 @@ fn test_capabilities_filtering() {
     // Test with aws capability
     let output = Command::new(get_cuenv_binary())
         .current_dir(&example_dir)
+        .arg("task")
         .arg("run")
         .arg("--capability")
         .arg("aws")
@@ -112,6 +115,7 @@ fn test_environment_overrides() {
     // Test with production environment override
     let output = Command::new(get_cuenv_binary())
         .current_dir(&example_dir)
+        .arg("task")
         .arg("run")
         .arg("--env")
         .arg("production")
@@ -153,6 +157,7 @@ GITHUB_TOKEN: "github://myorg/myrepo/GITHUB_TOKEN"
 
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
+        .arg("env")
         .arg("export")
         .env_clear() // Clear all environment variables to ensure clean test
         .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
@@ -194,6 +199,7 @@ capabilities: {
     // When running a command with the deploy capability name, should infer aws and docker capabilities
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
+        .arg("task")
         .arg("exec")
         .arg("echo")
         .arg("deploy")
@@ -224,6 +230,7 @@ INVALID_SYNTAX: {
 
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
+        .arg("env")
         .arg("export")
         .env_clear() // Clear all environment variables to ensure clean test
         .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
@@ -248,6 +255,7 @@ DATABASE_URL: "postgres://localhost/mydb"
 
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
+        .arg("env")
         .arg("export")
         .env_clear() // Clear all environment variables to ensure clean test
         .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
@@ -279,6 +287,7 @@ PORT: "8080"
     #[cfg(unix)]
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
+        .arg("task")
         .arg("exec")
         .arg("sh")
         .arg("-c")
@@ -289,6 +298,7 @@ PORT: "8080"
     #[cfg(windows)]
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
+        .arg("task")
         .arg("exec")
         .arg("cmd")
         .arg("/C")

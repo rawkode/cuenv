@@ -71,7 +71,7 @@ async fn handle_task_protocol(
 
     // Create socket directory in temp
     let socket_dir = tempfile::tempdir().map_err(|e| {
-        Error::configuration(format!("Failed to create temp socket directory: {}", e))
+        Error::configuration(format!("Failed to create temp socket directory: {e}"))
     })?;
 
     let mut manager = TaskServerManager::new(socket_dir.path().to_path_buf());
@@ -89,13 +89,10 @@ async fn handle_task_protocol(
         match manager.add_server(server_executable, server_name).await {
             Ok(tasks) => {
                 all_tasks.extend(tasks);
-                println!("Connected to task server: {}", server_executable);
+                println!("Connected to task server: {server_executable}");
             }
             Err(e) => {
-                eprintln!(
-                    "Failed to connect to task server {}: {}",
-                    server_executable, e
-                );
+                eprintln!("Failed to connect to task server {server_executable}: {e}");
                 return Err(e);
             }
         }
@@ -114,7 +111,7 @@ async fn handle_task_protocol(
                 );
             }
             Err(e) => {
-                eprintln!("Failed to discover task servers: {}", e);
+                eprintln!("Failed to discover task servers: {e}");
                 return Err(e);
             }
         }
@@ -139,7 +136,7 @@ async fn handle_task_protocol(
     if let Some(task_name) = run_task {
         // Run a specific task
         if all_tasks.iter().any(|t| t.name == *task_name) {
-            println!("Running task: {}", task_name);
+            println!("Running task: {task_name}");
 
             let inputs = HashMap::new(); // TODO: Accept inputs from CLI
             let outputs = HashMap::new(); // TODO: Accept outputs from CLI
@@ -147,19 +144,19 @@ async fn handle_task_protocol(
             match manager.run_task(task_name, inputs, outputs).await {
                 Ok(exit_code) => {
                     if exit_code == 0 {
-                        println!("Task '{}' completed successfully", task_name);
+                        println!("Task '{task_name}' completed successfully");
                     } else {
-                        println!("Task '{}' failed with exit code {}", task_name, exit_code);
+                        println!("Task '{task_name}' failed with exit code {exit_code}");
                         std::process::exit(exit_code);
                     }
                 }
                 Err(e) => {
-                    eprintln!("Failed to run task '{}': {}", task_name, e);
+                    eprintln!("Failed to run task '{task_name}': {e}");
                     return Err(e);
                 }
             }
         } else {
-            eprintln!("Task '{}' not found", task_name);
+            eprintln!("Task '{task_name}' not found");
             eprintln!("Available tasks:");
             for task in &all_tasks {
                 eprintln!("  - {}", task.name);
@@ -252,7 +249,7 @@ async fn handle_task_protocol(
         // Extract and serialize tasks
         let tasks = env_manager.get_tasks();
         let json = serde_json::to_string_pretty(&tasks)?;
-        println!("{}", json);
+        println!("{json}");
     }
 
     fn should_show_usage(
@@ -275,9 +272,9 @@ async fn handle_task_protocol(
     if should_show_usage(
         serve,
         export_json,
-        &server,
-        &discovery_dir,
-        &run_task,
+        server,
+        discovery_dir,
+        run_task,
         list_tasks,
     ) {
         println!("Task Server Protocol (TSP) - Dual-Modality Support");

@@ -450,10 +450,10 @@ mod tests {
 
         let test_data = "consistent test data";
         hasher1
-            .hash_content(&test_data)
+            .hash_content(test_data)
             .expect("Failed to hash content");
         hasher2
-            .hash_content(&test_data)
+            .hash_content(test_data)
             .expect("Failed to hash content");
 
         let hash1 = hasher1.finalize();
