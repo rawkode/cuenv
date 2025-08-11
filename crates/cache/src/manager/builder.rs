@@ -69,11 +69,12 @@ impl CacheManagerBuilder {
     /// Build the cache manager synchronously
     pub fn build_sync(self) -> Result<super::CacheManager> {
         let config = self.build_config()?;
-        
+
         // Check if we're already in an async context
         if tokio::runtime::Handle::try_current().is_ok() {
             return Err(Error::configuration(
-                "Cannot use sync constructor from async context. Use build_async() instead.".to_string(),
+                "Cannot use sync constructor from async context. Use build_async() instead."
+                    .to_string(),
             ));
         }
 
@@ -114,9 +115,7 @@ impl Default for CacheManagerBuilder {
 }
 
 /// Initialize cache components
-pub async fn initialize_components(
-    config: &CacheConfig,
-) -> Result<CacheComponents> {
+pub async fn initialize_components(config: &CacheConfig) -> Result<CacheComponents> {
     // Create cache directories
     std::fs::create_dir_all(&config.base_dir)?;
 
@@ -145,11 +144,12 @@ pub async fn initialize_components(
     })?);
 
     // Initialize signer
-    let signer = Arc::new(
-        CacheSigner::new(&config.base_dir).map_err(|e| Error::Configuration {
-            message: format!("Failed to initialize cache signer: {e}"),
-        })?,
-    );
+    let signer =
+        Arc::new(
+            CacheSigner::new(&config.base_dir).map_err(|e| Error::Configuration {
+                message: format!("Failed to initialize cache signer: {e}"),
+            })?,
+        );
 
     // Initialize cache key generator with configuration
     let mut key_gen_manager = KeyGenManager::new(config.env_filter.clone())?;
@@ -194,7 +194,7 @@ mod tests {
     #[test]
     fn test_builder() -> Result<()> {
         let temp_dir = TempDir::new()?;
-        
+
         let builder = CacheManagerBuilder::new()
             .with_base_dir(temp_dir.path().to_path_buf())
             .with_max_size(1024 * 1024)

@@ -47,12 +47,7 @@ pub fn get_json<T: for<'de> Deserialize<'de>>(cache: &FastPathCache, key: &str) 
 
 /// Fast path to put string
 #[inline(always)]
-pub fn put_string(
-    cache: &FastPathCache,
-    key: String,
-    value: &str,
-    ttl: Option<Duration>,
-) -> bool {
+pub fn put_string(cache: &FastPathCache, key: String, value: &str, ttl: Option<Duration>) -> bool {
     let metadata = CacheMetadata {
         created_at: SystemTime::now(),
         last_accessed: SystemTime::now(),

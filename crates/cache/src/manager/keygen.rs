@@ -147,11 +147,7 @@ mod tests {
             ..Default::default()
         };
 
-        let key = manager.generate_cache_key_legacy(
-            "test_task",
-            &config,
-            Path::new("/test"),
-        )?;
+        let key = manager.generate_cache_key_legacy("test_task", &config, Path::new("/test"))?;
 
         assert!(!key.is_empty());
         // The key is a hash, so it won't contain the literal task name

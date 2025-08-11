@@ -101,7 +101,7 @@ impl CacheOperations {
     pub fn clear_cache(&self) -> Result<()> {
         // Clear action cache
         self.action_cache.clear();
-        
+
         // Clear memory cache
         if let Ok(mut cache) = self.memory_cache.lock() {
             cache.clear();
@@ -127,7 +127,11 @@ impl CacheOperations {
     }
 
     /// Convert ActionResult to CachedTaskResult
-    fn convert_action_result(&self, cache_key: &str, action_result: ActionResult) -> CachedTaskResult {
+    fn convert_action_result(
+        &self,
+        cache_key: &str,
+        action_result: ActionResult,
+    ) -> CachedTaskResult {
         CachedTaskResult {
             cache_key: cache_key.to_string(),
             executed_at: action_result.executed_at,
@@ -171,7 +175,7 @@ mod tests {
         };
 
         operations.store_result("test_key".to_string(), result.clone())?;
-        
+
         // Should be able to retrieve from memory cache
         let retrieved = operations.get_cached_result("test_key");
         assert!(retrieved.is_some());

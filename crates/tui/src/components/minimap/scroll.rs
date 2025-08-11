@@ -40,7 +40,11 @@ impl MiniMap {
         }
     }
 
-    pub(crate) fn apply_horizontal_scroll(&self, line: Line, visible_width: usize) -> Line<'static> {
+    pub(crate) fn apply_horizontal_scroll(
+        &self,
+        line: Line,
+        visible_width: usize,
+    ) -> Line<'static> {
         let mut total_width = 0;
         let mut visible_spans = Vec::new();
         let scroll_offset = self.horizontal_scroll as usize;

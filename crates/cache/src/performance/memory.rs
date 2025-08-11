@@ -127,7 +127,7 @@ mod tests {
 
         let ptr1 = pool.allocate().expect("Failed to allocate");
         let ptr2 = pool.allocate().expect("Failed to allocate");
-        
+
         assert_eq!(pool.allocated_count(), 2);
         assert_eq!(pool.pooled_count(), 0);
 

@@ -83,7 +83,7 @@ impl<C: Cache + Clone + Send + Sync + 'static> CacheWarmer<C> {
         let warmer = CandidateWarmer::new(self.cache.clone(), self.config.clone());
         let tracker = self.access_tracker.read();
         let patterns = self.patterns.read();
-        
+
         warmer.warm_cache(&tracker, &patterns).await
     }
 

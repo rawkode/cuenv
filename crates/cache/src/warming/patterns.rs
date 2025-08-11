@@ -80,9 +80,7 @@ impl WarmingPatterns {
         for key in selected_keys {
             if let Some(related) = self.related_keys.get(key) {
                 for related_key in related {
-                    if !selected_keys.contains(related_key)
-                        && !candidates.contains(related_key)
-                    {
+                    if !selected_keys.contains(related_key) && !candidates.contains(related_key) {
                         candidates.push(related_key.clone());
                     }
                 }

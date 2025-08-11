@@ -115,12 +115,8 @@ impl CacheManager {
         env_vars: &HashMap<String, String>,
         working_dir: &Path,
     ) -> Result<String> {
-        self.key_gen_manager.generate_cache_key(
-            task_name,
-            task_config,
-            env_vars,
-            working_dir,
-        )
+        self.key_gen_manager
+            .generate_cache_key(task_name, task_config, env_vars, working_dir)
     }
 
     /// Legacy API for backward compatibility with tests
@@ -130,11 +126,8 @@ impl CacheManager {
         task_config: &TaskConfig,
         working_dir: &Path,
     ) -> Result<String> {
-        self.key_gen_manager.generate_cache_key_legacy(
-            task_name,
-            task_config,
-            working_dir,
-        )
+        self.key_gen_manager
+            .generate_cache_key_legacy(task_name, task_config, working_dir)
     }
 
     /// Legacy API for backward compatibility with tests
@@ -184,12 +177,15 @@ impl CacheManager {
             if let Some(cache_env) = &task_config.cache_env {
                 let filter_config: CacheKeyFilterConfig = cache_env.clone().into();
                 task_filters.insert(task_name.clone(), filter_config.clone());
-                self.config.task_env_filters.insert(task_name.clone(), filter_config);
+                self.config
+                    .task_env_filters
+                    .insert(task_name.clone(), filter_config);
             }
         }
 
         // Apply to key generator
-        self.key_gen_manager.apply_task_configs(tasks, self.config.env_filter.clone())?;
+        self.key_gen_manager
+            .apply_task_configs(tasks, self.config.env_filter.clone())?;
         Ok(())
     }
 }
