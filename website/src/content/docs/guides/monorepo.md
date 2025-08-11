@@ -1,3 +1,8 @@
+---
+title: Monorepo Support
+description: Comprehensive monorepo structure management with environment configurations and cross-package task dependencies
+---
+
 # Monorepo Support
 
 cuenv provides comprehensive support for monorepo structures, allowing you to manage environment configurations and tasks across multiple packages in a single repository.

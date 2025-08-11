@@ -1,3 +1,8 @@
+---
+title: Cache System
+description: Production-grade caching with predictive features, remote federation, and comprehensive monitoring
+---
+
 # Cache System
 
 The cuenv cache system is a production-grade, high-performance caching implementation designed for reliability, security, and scalability. It provides transparent caching for task execution with advanced features like predictive caching, remote cache federation, and comprehensive monitoring.
