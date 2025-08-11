@@ -10,6 +10,7 @@ mod core;
 mod engine;
 mod errors;
 mod eviction;
+#[path = "fast-path/mod.rs"]
 mod fast_path;
 mod hashing;
 mod item;
@@ -25,6 +26,7 @@ mod storage;
 mod streaming;
 mod traits;
 mod types;
+#[path = "warming/mod.rs"]
 mod warming;
 
 // Feature modules
