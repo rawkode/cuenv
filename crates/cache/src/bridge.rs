@@ -5,7 +5,7 @@
 
 use crate::core::Cache;
 use crate::errors::{CacheError, RecoveryHint, Result};
-use crate::traits::{Cache as CacheTrait, CacheMetadata, CacheStatistics};
+use crate::traits::{CacheMetadata, CacheStatistics};
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt;
 use std::sync::Arc;
