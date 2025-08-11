@@ -219,12 +219,12 @@ CUENV_ENV=staging cuenv run -- ./deploy.sh
 - Resolves GCP Secret Manager references (`gcp-secret://...`)
 - Automatically obfuscates secret values in output
 
-### `cuenv export`
+### `cuenv env export`
 
 Export the current environment in various formats.
 
 ```bash
-cuenv export [options]
+cuenv env export [options]
 ```
 
 **Options:**
@@ -236,16 +236,16 @@ cuenv export [options]
 
 ```bash
 # Export as shell script
-cuenv export -f shell > env.sh
+cuenv env export -f shell > env.sh
 
 # Export as JSON
-cuenv export -f json > env.json
+cuenv env export -f json > env.json
 
 # Export as .env file
-cuenv export -f dotenv > .env
+cuenv env export -f dotenv > .env
 
 # Export for Docker
-cuenv export -f docker > docker.env
+cuenv env export -f docker > docker.env
 ```
 
 ### `cuenv dump`
