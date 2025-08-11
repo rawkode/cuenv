@@ -21,7 +21,7 @@ pub mod eviction;
 #[path = "fast-path/mod.rs"]
 pub mod fast_path;
 pub mod hashing;
-pub mod health_endpoint;
+pub mod health;
 pub mod item;
 pub mod keys;
 pub mod manager;
@@ -55,7 +55,7 @@ pub use engine::*;
 pub use eviction::*;
 pub use fast_path::*;
 pub use hashing::*;
-pub use health_endpoint::*;
+pub use health::{HealthEndpoint, HealthEndpointConfig};
 pub use item::*;
 pub use keys::*;
 pub use manager::CacheManager;

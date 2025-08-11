@@ -1,5 +1,6 @@
 use cuenv_config::{
-    CommandConfig, CueParser, Hook, HookConfig, HookType, ParseOptions, TaskConfig, VariableMetadata,
+    CommandConfig, CueParser, Hook, HookConfig, HookType, ParseOptions, TaskConfig,
+    VariableMetadata,
 };
 use cuenv_core::{Error, Result};
 use std::collections::HashMap;

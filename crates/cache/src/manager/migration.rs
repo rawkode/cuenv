@@ -72,7 +72,7 @@ impl CacheMigrator {
             }
             _ => {
                 // Generic migration
-                log::info!("Generic migration from version {}", from_version);
+                log::info!("Generic migration from version {from_version}");
             }
         }
 

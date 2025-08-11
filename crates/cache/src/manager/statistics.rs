@@ -103,12 +103,6 @@ impl StatsContainer {
         }
     }
 
-    pub fn record_error(&self) {
-        if let Ok(mut stats) = self.stats.write() {
-            stats.record_error();
-        }
-    }
-
     pub fn record_cleanup(&self) {
         if let Ok(mut stats) = self.stats.write() {
             stats.record_cleanup();
@@ -117,10 +111,6 @@ impl StatsContainer {
 
     pub fn get_snapshot(&self) -> CacheStatistics {
         self.stats.read().unwrap().clone()
-    }
-
-    pub fn get_stats_ref(&self) -> Arc<RwLock<CacheStatistics>> {
-        Arc::clone(&self.stats)
     }
 }
 

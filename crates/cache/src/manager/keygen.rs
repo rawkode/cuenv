@@ -23,6 +23,7 @@ impl KeyGenManager {
     }
 
     /// Create with existing generator
+    #[allow(dead_code)]
     pub fn with_generator(key_generator: Arc<CacheKeyGenerator>) -> Self {
         Self { key_generator }
     }

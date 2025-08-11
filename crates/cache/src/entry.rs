@@ -58,25 +58,13 @@ impl InMemoryEntry {
 }
 
 /// Cache entry statistics
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct CacheStats {
     pub hits: u64,
     pub misses: u64,
     pub evictions: u64,
     pub memory_usage: u64,
     pub disk_usage: u64,
-}
-
-impl Default for CacheStats {
-    fn default() -> Self {
-        Self {
-            hits: 0,
-            misses: 0,
-            evictions: 0,
-            memory_usage: 0,
-            disk_usage: 0,
-        }
-    }
 }
 
 impl CacheStats {

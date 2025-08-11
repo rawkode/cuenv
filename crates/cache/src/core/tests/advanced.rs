@@ -8,8 +8,10 @@ use tempfile::TempDir;
 #[tokio::test]
 async fn test_entry_limit_enforcement() -> Result<()> {
     let temp_dir = TempDir::new().unwrap();
-    let mut config = CacheConfig::default();
-    config.max_entries = 5; // Set small limit for testing
+    let config = CacheConfig {
+        max_entries: 5, // Set small limit for testing
+        ..Default::default()
+    };
     let cache = Cache::new(temp_dir.path().to_path_buf(), config).await?;
 
     // Add entries up to the limit

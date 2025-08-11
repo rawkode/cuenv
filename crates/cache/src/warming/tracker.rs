@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant, SystemTime};
 
 /// Access tracking for cache entries
+#[derive(Clone)]
 pub(crate) struct AccessTracker {
     /// Access counts per key
     pub access_counts: HashMap<String, AccessInfo>,
