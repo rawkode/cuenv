@@ -1,6 +1,6 @@
-package cuenv
+package schema
 
-#GcpSecret: #Resolver & {
+#GcpSecret: #Secret & {
 	project: string
 	secret:  string
 	version: string | *"latest"

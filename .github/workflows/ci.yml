@@ -46,15 +46,34 @@ jobs:
           mkdir -p target/debug
           cp result/bin/cuenv target/debug/
 
-          # To ensure we test the local CUE schema, not a remote one,
-          # we manually populate the CUE module cache
-          export CUE_CACHE_DIR="examples/cue.mod/pkg"
-          export SCHEMA_PATH="$CUE_CACHE_DIR/github.com/rawkode/cuenv@v0"
-          mkdir -p "$SCHEMA_PATH"
-          cp -r cue/* "$SCHEMA_PATH/"
-
-          # Run the example tests
+          # Run the example tests directly
           ./scripts/test-examples.sh
+  schema-compatibility:
+    name: Test Schema Compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+      - name: Test against published schema
+        run: |
+          # Build cuenv
+          nix build .#cuenv
+          mkdir -p target/debug
+          cp result/bin/cuenv target/debug/
+
+          # Update examples to use latest published schema
+          cd examples
+          nix develop -c cue mod get github.com/rawkode/cuenv@v0
+          cd ..
+
+          # Run tests - if they fail, we have a breaking change
+          ./scripts/test-examples.sh
+        continue-on-error: true
+      - name: Report compatibility status
+        if: failure()
+        run: |
+          echo "::warning::Schema compatibility test failed - this may indicate a breaking change"
   coverage:
     runs-on:
       - namespace-profile-linux-caching

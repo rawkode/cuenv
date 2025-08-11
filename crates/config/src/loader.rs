@@ -8,7 +8,10 @@ use crate::{
     config::{Config, ConfigBuilder, MonorepoContext, RuntimeOptions},
     CueParser, ParseOptions, ParseResult, SecurityConfig,
 };
-use cuenv_core::{constants::ENV_CUE_FILENAME, Error, Result};
+use cuenv_core::{
+    constants::{CUENV_PACKAGE_VAR, DEFAULT_PACKAGE_NAME, ENV_CUE_FILENAME},
+    Error, Result,
+};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -161,8 +164,12 @@ impl ConfigLoader {
         }
         options.capabilities = self.runtime.capabilities.clone();
 
+        // Get the package name from environment or use default
+        let package_name =
+            std::env::var(CUENV_PACKAGE_VAR).unwrap_or_else(|_| DEFAULT_PACKAGE_NAME.to_string());
+
         // Parse the CUE package
-        CueParser::eval_package_with_options(dir, "env", &options)
+        CueParser::eval_package_with_options(dir, &package_name, &options)
     }
 
     /// Extract security configuration from parse result

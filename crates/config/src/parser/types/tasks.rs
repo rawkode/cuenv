@@ -2,7 +2,51 @@
 
 use super::{CacheEnvConfig, SecurityConfig, TaskCacheConfig};
 use serde::{de::MapAccess, de::Visitor, Deserialize, Deserializer, Serialize};
+use std::collections::HashMap;
 use std::fmt;
+
+/// A task node that can be either a single task or a group of tasks
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TaskNode {
+    /// A single task definition
+    Task(TaskConfig),
+    /// A group of tasks with optional description
+    Group {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
+        #[serde(flatten)]
+        tasks: HashMap<String, TaskNode>,
+    },
+}
+
+impl TaskNode {
+    /// Check if this node is a task (leaf node)
+    pub fn is_task(&self) -> bool {
+        matches!(self, TaskNode::Task(_))
+    }
+    
+    /// Check if this node is a group (has sub-tasks)
+    pub fn is_group(&self) -> bool {
+        matches!(self, TaskNode::Group { .. })
+    }
+    
+    /// Get the task config if this is a task node
+    pub fn as_task(&self) -> Option<&TaskConfig> {
+        match self {
+            TaskNode::Task(config) => Some(config),
+            _ => None,
+        }
+    }
+    
+    /// Get the subtasks if this is a group node
+    pub fn as_group(&self) -> Option<(&Option<String>, &HashMap<String, TaskNode>)> {
+        match self {
+            TaskNode::Group { description, tasks } => Some((description, tasks)),
+            _ => None,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct TaskConfig {

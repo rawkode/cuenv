@@ -1,7 +1,8 @@
 /// Constants used throughout the cuenv codebase
 // CUE package constants
-pub const ENV_PACKAGE_NAME: &str = "env";
 pub const ENV_CUE_FILENAME: &str = "env.cue";
+pub const CUENV_PACKAGE_VAR: &str = "CUENV_PACKAGE";
+pub const DEFAULT_PACKAGE_NAME: &str = "cuenv";
 
 // Resolver prefix
 pub const CUENV_RESOLVER_PREFIX: &str = "cuenv-resolver://";

@@ -2,7 +2,7 @@
 
 use crate::parser::ffi::CueParser;
 use crate::parser::types::{
-    CommandConfig, CueParseResult, Hook, HookValue, HooksConfig, TaskConfig, VariableMetadata,
+    CommandConfig, CueParseResult, Hook, HookValue, HooksConfig, TaskConfig, TaskNode, VariableMetadata,
 };
 use cuenv_core::errors::Result;
 use serde::{Deserialize, Serialize};
@@ -30,12 +30,13 @@ pub fn build_parse_result(
 ) -> Result<ParseResult> {
     let final_vars = build_filtered_variables(&cue_result, options);
     let hooks = extract_hooks(cue_result.hooks);
+    let tasks = process_tasks(cue_result.tasks);
 
     Ok(ParseResult {
         variables: final_vars,
         metadata: std::mem::take(&mut cue_result.metadata),
         commands: std::mem::take(&mut cue_result.commands),
-        tasks: std::mem::take(&mut cue_result.tasks),
+        tasks,
         hooks,
     })
 }
@@ -128,6 +129,54 @@ fn extract_hooks(hooks_config: Option<HooksConfig>) -> HashMap<String, Vec<Hook>
     }
 
     hooks
+}
+
+/// Processes the hierarchical task structure into a flat map
+fn process_tasks(raw_tasks: HashMap<String, serde_json::Value>) -> HashMap<String, TaskConfig> {
+    let mut result = HashMap::new();
+    
+    for (name, value) in raw_tasks {
+        // Try to deserialize as TaskNode
+        if let Ok(node) = serde_json::from_value::<TaskNode>(value.clone()) {
+            // Flatten the hierarchical structure
+            flatten_task_node(&name, &node, &mut result, vec![]);
+        } else if let Ok(task) = serde_json::from_value::<TaskConfig>(value) {
+            // Fallback to direct TaskConfig (for backwards compatibility)
+            result.insert(name, task);
+        }
+    }
+    
+    result
+}
+
+/// Recursively flattens a task node hierarchy
+fn flatten_task_node(
+    name: &str,
+    node: &TaskNode,
+    result: &mut HashMap<String, TaskConfig>,
+    path: Vec<String>,
+) {
+    match node {
+        TaskNode::Task(config) => {
+            // Build the full task name from the path
+            let full_name = if path.is_empty() {
+                name.to_string()
+            } else {
+                format!("{}:{}", path.join(":"), name)
+            };
+            result.insert(full_name, config.clone());
+        }
+        TaskNode::Group { tasks, .. } => {
+            // Add this group to the path
+            let mut new_path = path.clone();
+            new_path.push(name.to_string());
+            
+            // Recursively process all sub-tasks
+            for (sub_name, sub_node) in tasks {
+                flatten_task_node(sub_name, sub_node, result, new_path.clone());
+            }
+        }
+    }
 }
 
 #[cfg(test)]

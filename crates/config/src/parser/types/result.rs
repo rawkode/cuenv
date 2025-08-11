@@ -1,6 +1,6 @@
 //! Result types for CUE parsing
 
-use super::{CommandConfig, HookValue, TaskConfig, VariableMetadata};
+use super::{CommandConfig, HookValue, TaskNode, VariableMetadata};
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -11,7 +11,7 @@ pub(crate) struct CueParseResult {
     pub environments: HashMap<String, HashMap<String, serde_json::Value>>,
     pub commands: HashMap<String, CommandConfig>,
     #[serde(default)]
-    pub tasks: HashMap<String, TaskConfig>,
+    pub tasks: HashMap<String, serde_json::Value>,
     pub hooks: Option<HooksConfig>,
 }
 

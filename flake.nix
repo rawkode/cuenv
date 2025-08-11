@@ -131,6 +131,7 @@
             protobuf
             grpcurl
             netcat
+            jq
           ]
           ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
             # cargo-llvm-cov only works on Linux
