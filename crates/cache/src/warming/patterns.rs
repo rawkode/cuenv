@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::SystemTime;
 
 /// Warming patterns for predictive loading
+#[derive(Clone)]
 pub(crate) struct WarmingPatterns {
     /// Sequential access patterns
     pub sequential_patterns: HashMap<String, Vec<String>>,

@@ -8,6 +8,8 @@ use crate::types::CachedTaskResult;
 use cuenv_core::{Error, Result};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+
+#[cfg(test)]
 use std::time::SystemTime;
 
 /// Handles cache operations (get, store, cleanup)

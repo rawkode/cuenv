@@ -27,7 +27,11 @@ use std::time::SystemTime;
 /// Unified cache manager that provides access to cache components
 pub struct CacheManager {
     config: CacheConfig,
+    /// Store reference for future extensibility and ownership
+    #[allow(dead_code)]
     content_store: Arc<ContentAddressedStore>,
+    /// Store reference for future extensibility and ownership
+    #[allow(dead_code)]
     action_cache: Arc<ActionCache>,
     /// Underlying cache engine for legacy compatibility
     #[allow(dead_code)]
@@ -37,6 +41,7 @@ pub struct CacheManager {
     /// Key generation manager
     key_gen_manager: keygen::KeyGenManager,
     /// Cache version for migration support
+    #[allow(dead_code)]
     version: u32,
 }
 

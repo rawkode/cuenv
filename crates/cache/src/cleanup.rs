@@ -1,7 +1,7 @@
 //! Cache cleanup and maintenance utilities
 
 use crate::core::internal::PathUtils;
-use std::path::PathBuf;
+use std::path::Path;
 use tokio::fs;
 use tracing;
 
@@ -10,7 +10,7 @@ pub struct CacheCleanup;
 
 impl CacheCleanup {
     /// Clean up files for a specific entry
-    pub async fn cleanup_entry_files(base_dir: &PathBuf, key: &str) {
+    pub async fn cleanup_entry_files(base_dir: &Path, key: &str) {
         let metadata_path = PathUtils::metadata_path(base_dir, key);
         let data_path = PathUtils::object_path(base_dir, key);
 
@@ -40,9 +40,7 @@ impl CacheCleanup {
     }
 
     /// Scan for corrupted files in the cache
-    pub async fn scan_for_corrupted_files(
-        base_dir: &PathBuf,
-    ) -> Result<Vec<String>, std::io::Error> {
+    pub async fn scan_for_corrupted_files(base_dir: &Path) -> Result<Vec<String>, std::io::Error> {
         let mut corrupted_files = Vec::new();
         let objects_dir = base_dir.join("objects");
 

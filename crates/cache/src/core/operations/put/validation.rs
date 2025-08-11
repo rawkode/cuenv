@@ -16,8 +16,7 @@ impl Cache {
                 available_bytes: max_entry_size as u64,
                 recovery_hint: RecoveryHint::Manual {
                     instructions: format!(
-                        "Entry size {} bytes exceeds maximum of {} bytes",
-                        data_len, max_entry_size
+                        "Entry size {data_len} bytes exceeds maximum of {max_entry_size} bytes"
                     ),
                 },
             });

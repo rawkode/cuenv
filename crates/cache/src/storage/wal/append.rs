@@ -9,14 +9,14 @@ use crc32c::crc32c;
 use parking_lot::Mutex;
 use std::fs::File;
 use std::io::{BufWriter, Write as IoWrite};
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 /// Append an operation to the WAL
 pub fn append_operation(
     op: &WalOperation,
-    path: &PathBuf,
+    path: &Path,
     file: &Mutex<Option<BufWriter<File>>>,
     size: &Arc<Mutex<u64>>,
     sequence: &Arc<Mutex<u64>>,
@@ -90,7 +90,7 @@ pub fn append_operation(
         Ok(()) => {}
         Err(e) => {
             return Err(CacheError::Io {
-                path: path.clone(),
+                path: path.to_path_buf(),
                 operation: "write WAL length",
                 source: e,
                 recovery_hint: RecoveryHint::Retry {
@@ -104,7 +104,7 @@ pub fn append_operation(
         Ok(()) => {}
         Err(e) => {
             return Err(CacheError::Io {
-                path: path.clone(),
+                path: path.to_path_buf(),
                 operation: "write WAL entry",
                 source: e,
                 recovery_hint: RecoveryHint::Retry {
@@ -119,7 +119,7 @@ pub fn append_operation(
         Ok(()) => {}
         Err(e) => {
             return Err(CacheError::Io {
-                path: path.clone(),
+                path: path.to_path_buf(),
                 operation: "flush WAL",
                 source: e,
                 recovery_hint: RecoveryHint::Retry {

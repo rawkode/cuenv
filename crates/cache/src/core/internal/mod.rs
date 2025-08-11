@@ -5,7 +5,7 @@ use crate::traits::CacheMetadata;
 use memmap2::{Mmap, MmapOptions};
 use parking_lot::RwLock;
 use sha2::{Digest, Sha256};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Instant, SystemTime};
@@ -93,7 +93,7 @@ pub struct PathUtils;
 
 impl PathUtils {
     /// Generate object path from base directory and key hash
-    pub fn object_path_from_hash(base_dir: &PathBuf, hash: &str) -> PathBuf {
+    pub fn object_path_from_hash(base_dir: &Path, hash: &str) -> PathBuf {
         let prefix = &hash[..2];
         let subdir = &hash[2..4];
         base_dir
@@ -104,13 +104,13 @@ impl PathUtils {
     }
 
     /// Generate object path from base directory and key
-    pub fn object_path(base_dir: &PathBuf, key: &str) -> PathBuf {
+    pub fn object_path(base_dir: &Path, key: &str) -> PathBuf {
         let hash = Self::hash_key(key);
         Self::object_path_from_hash(base_dir, &hash)
     }
 
     /// Generate metadata path from base directory and key
-    pub fn metadata_path(base_dir: &PathBuf, key: &str) -> PathBuf {
+    pub fn metadata_path(base_dir: &Path, key: &str) -> PathBuf {
         let hash = Self::hash_key(key);
         let prefix = &hash[..2];
         let subdir = &hash[2..4];
@@ -118,7 +118,7 @@ impl PathUtils {
             .join("metadata")
             .join(prefix)
             .join(subdir)
-            .join(format!("{}.meta", hash))
+            .join(format!("{hash}.meta"))
     }
 
     /// Hash a cache key using SHA-256

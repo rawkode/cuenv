@@ -182,7 +182,9 @@ pub struct CacheComponents {
     pub engine: Arc<CacheEngine>,
     pub signer: Arc<CacheSigner>,
     pub key_gen_manager: KeyGenManager,
+    #[allow(dead_code)]
     pub operations: Option<CacheOperations>,
+    #[allow(dead_code)]
     pub stats: StatsContainer,
 }
 

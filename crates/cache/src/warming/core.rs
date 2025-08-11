@@ -81,10 +81,19 @@ impl<C: Cache + Clone + Send + Sync + 'static> CacheWarmer<C> {
     /// Perform cache warming
     async fn warm_cache(&self) -> Result<usize> {
         let warmer = CandidateWarmer::new(self.cache.clone(), self.config.clone());
-        let tracker = self.access_tracker.read();
-        let patterns = self.patterns.read();
 
-        warmer.warm_cache(&tracker, &patterns).await
+        // Clone the data we need to avoid holding locks across await
+        let tracker_data = {
+            let tracker = self.access_tracker.read();
+            tracker.clone()
+        };
+
+        let patterns_data = {
+            let patterns = self.patterns.read();
+            patterns.clone()
+        };
+
+        warmer.warm_cache(&tracker_data, &patterns_data).await
     }
 
     /// Shutdown the warmer
