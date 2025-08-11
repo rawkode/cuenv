@@ -1,258 +1,176 @@
-# CLAUDE.md
+# Contributor Guide: cuenv
 
-## Project Overview
+Welcome to the `cuenv` project! This guide provides everything you need to know to contribute effectively. Reading and understanding this document is the first and most important step.
 
-cuenv is a direnv alternative that uses CUE (Configure, Unify, Execute) files for type-safe environment configuration. It integrates Go (for CUE evaluation) with Rust (for the main application) through FFI.
+## 1. Project Overview
 
-## Versioning Convention
+`cuenv` is a `direnv` alternative that uses CUE (Configure, Unify, Execute) for type-safe environment configuration. It provides a robust way to manage complex development environments with the safety and expressiveness of the CUE language.
 
-**IMPORTANT**: This project uses semantic versioning WITHOUT the 'v' prefix:
+The project integrates a Go core (for CUE evaluation) with a Rust main application through a Foreign Function Interface (FFI), combining the strengths of both ecosystems.
 
-- ✅ Correct: `0.4.4`
-- ❌ Incorrect: `v0.4.4`
+## 2. Core Philosophy & Principles
 
-This applies to:
+To ensure the long-term health and maintainability of the codebase, we adhere to a specific set of principles. All contributions must align with this philosophy.
 
-- Git tags (e.g., `git tag 0.4.4`)
-- GitHub releases
-- Cargo.toml version field
+### Modularity and High Cohesion
 
-## Critical Development Rules
+The primary goal is long-term maintainability. We achieve this by writing code that is simple, composable, and easy to understand in isolation.
 
-### No Warnings Policy
+-   **Many Small Units**: Prefer many small, focused files, functions, and modules over large, monolithic ones. If a file or function has too many responsibilities, break it apart.
+-   **Group by Feature, Not Type**: Code that changes together should live together. Instead of organizing files by their type (e.g., `models.rs`, `errors.rs`), organize them by the feature they implement (e.g., a `src/state/` module containing all logic, tests, and errors related to state management). This is a critical pattern in this codebase.
+-   **Single Responsibility**: Every function and module should have a single, well-defined responsibility.
+-   **Use Directories for Modularity**: Organize code into a clear directory hierarchy. **Do not use underscores in filenames (e.g., `my_feature_utils.rs`) as a substitute for creating a dedicated module directory (e.g., `my_feature/utils.rs`).** A clean directory structure is essential for discoverability and long-term maintenance.
 
-**IMPORTANT**: This project has a strict no-warnings policy. All clippy warnings are treated as errors and will cause the build to fail.
+### Functional-First Approach
 
-**Why**: Warnings often indicate potential bugs, performance issues, or code that doesn't follow Rust best practices. By treating warnings as errors, we ensure:
+We favor a style inspired by functional programming to minimize side effects and improve predictability.
 
-- Code quality remains consistently high
-- Technical debt doesn't accumulate
-- CI/CD pipelines remain stable
-- The codebase follows idiomatic Rust patterns
+-   **Immutability by Default**: Always use `let` instead of `let mut` unless mutability is unavoidable. Immutable data structures are easier to reason about.
+-   **Pure Functions for Logic**: Core business logic should be implemented as pure functions—functions whose output is determined only by their inputs, with no observable side effects.
+-   **Embrace Iterators**: Use iterator methods (`map`, `filter`, `fold`, etc.) over manual loops. This leads to more declarative and less error-prone code.
 
-Always run `nix develop -c cargo clippy` before committing to catch any warnings.
+**Example:**
+-   **❌ Avoid (Imperative, Mutable):**
+    ```rust
+    let mut results = Vec::new();
+    for item in some_list {
+        if item.is_valid() {
+            results.push(item.process());
+        }
+    }
+    ```
+-   **✅ Prefer (Functional, Immutable):**
+    ```rust
+    let results: Vec<_> = some_list
+        .into_iter()
+        .filter(|item| item.is_valid())
+        .map(|item| item.process())
+        .collect();
+    ```
 
-### Nix-Only Dependencies
+### Test-Driven Development (TDD)
 
-**IMPORTANT**: Only use software and tools that are provided by the Nix flake. Do not rely on system-installed tools.
+Development of any new feature or bug fix **must** follow the TDD workflow. This is non-negotiable.
 
-**Why**: The Nix flake provides a reproducible development environment that ensures:
+The cycle is **Red-Green-Refactor**:
+1.  **🔴 Red**: Write a failing test that captures the requirements.
+2.  **🟢 Green**: Write the simplest possible code to make the test pass.
+3.  **🔵 Refactor**: Clean up the code and the test while ensuring the suite remains green.
 
-- All developers and CI systems use exactly the same tool versions
-- Builds are reproducible across different machines and operating systems
-- Dependencies are explicitly declared and version-controlled
-- No "works on my machine" issues
-- The development environment is self-contained and doesn't pollute the system
+## 3. Critical Development Rules
 
-Always use `nix develop -c <command>` to run commands, or enter the development shell with `nix develop` first.
+These rules are enforced automatically by our CI and are not subject to debate.
 
-## Development Commands
+-   **No-Warnings Policy**: This project has a strict **zero-warnings policy**. All Clippy warnings are treated as errors and will fail the build. **NEVER use `#[allow]` attributes** to suppress warnings. You must fix the underlying issue.
 
-All commands should be run within the Nix development shell:
+-   **Nix-Only Dependencies**: **Only use software provided by the Nix flake.** Do not rely on system-installed tools (including your own `rustc` or `go`). The Nix flake creates a 100% reproducible development environment. Always enter the environment first with `nix develop` or prefix commands with `nix develop -c`.
+
+-   **Versioning Convention**: This project uses semantic versioning **WITHOUT the 'v' prefix**.
+    -   ✅ Correct: `0.4.4`
+    -   ❌ Incorrect: `v0.4.4`
+    This applies to Git tags, GitHub releases, and the `Cargo.toml` version field.
+
+-   **Commit Message Format**: Follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification (e.g., `feat:`, `fix:`, `docs:`, `refactor:`, `release:`).
+
+## 4. Development Workflow & Commands
+
+All commands must be run from within the Nix development shell.
 
 ```bash
-# Enter development environment
+# Enter the development environment (do this first!)
 nix develop
-
-# Building
-nix develop -c cargo build                    # Build debug version
-nix develop -c cargo build --release          # Build release version
-nix develop -c cargo watch                    # Watch and rebuild on changes
-nix build .#cuenv                            # Nix build (all platforms)
-
-nix develop -c ./scripts/test-examples.sh     # Test all examples
-
-# Testing with Nextest (faster, better output)
-nix develop -c cargo nextest run              # Run all tests with nextest
-nix develop -c cargo nextest run <test_name>  # Run specific test
-nix develop -c cargo nextest run --profile ci # Run tests with CI profile
-nix develop -c cargo nextest run --profile quick # Quick test run for development
-nix develop -c cargo nextest list             # List all tests without running
-
-# Test Coverage with Nextest
-nix develop -c cargo llvm-cov nextest         # Generate test coverage
-nix develop -c cargo llvm-cov nextest --lcov --output-path lcov.info # Generate lcov report
-
-# Code Quality
-nix develop -c cargo fmt                      # Format Rust code
-nix develop -c cargo clippy                   # Lint Rust code
-nix develop -c treefmt                        # Format all code (Rust, Go, Nix, YAML)
-nix develop -c nix flake check                # Comprehensive checks
-
-# Running
-nix develop -c cargo run -- <args>            # Run cuenv with arguments
-nix develop -c cargo run -- init              # Initialize in current directory
-nix develop -c cargo run -- reload            # Reload environment
-
-# Documentation
-nix develop -c cargo doc --open               # Generate and open API docs
 ```
 
-## Architecture Overview
+### Code Quality & Formatting
 
-cuenv is a direnv alternative that uses CUE (Configure, Unify, Execute) files for type-safe environment configuration.
+Always run these commands in order before committing:
+
+```bash
+# 1. Format all code in the project (Rust, Go, Nix, etc.)
+treefmt
+
+# 2. Auto-fix simple clippy warnings
+cargo clippy --fix --all-targets --all-features --allow-dirty
+
+# 3. Manually fix any remaining warnings
+cargo clippy --all-targets --all-features -- -D warnings
+
+# 4. Run all checks (formatting, clippy, tests) - the ultimate gatekeeper
+nix flake check
+```
+
+### Building & Running
+
+```bash
+# Build debug version
+cargo build
+
+# Build release version
+cargo build --release
+
+# Run the application with arguments
+cargo run -- <args>
+```
+
+### Testing
+
+We use `nextest` for a faster and more informative testing experience.
+
+```bash
+# Run all tests
+cargo nextest run
+
+# Run tests with the CI profile
+cargo nextest run --profile ci
+
+# Generate a test coverage report
+cargo llvm-cov nextest --lcov --output-path lcov.info
+```
+
+## 5. Architecture Deep Dive
 
 ### Key Components
-
-1. **Go-Rust FFI Bridge** (`libcue-bridge/`)
-   - Go code that evaluates CUE files and returns JSON
-   - Built as a static C archive during `cargo build`
-   - Uses CGO for C interoperability
-
-2. **Build Script** (`build.rs`)
-   - Compiles the Go bridge with `CGO_ENABLED=1`
-   - Handles protobuf compilation
-   - Automatically runs during `cargo build`
-
-3. **Environment Manager** (`src/env_manager.rs`)
-   - Central orchestrator that loads CUE configs, manages state, and applies environment changes
-
-4. **State Management** (`src/state.rs`)
-   - Transactional state system with atomic operations and rollback support
-
-5. **Shell Integration**
-   - Multi-shell support with auto-loading hooks for bash, zsh, fish, and others
-
-6. **Security Layer**
-   - Landlock-based sandboxing for disk/network access restrictions
-
-7. **Task System**
-   - Dependency-aware task executor with caching and parallel execution
-
-### Binary Support
-
-- Regular build: Dynamic linking
-- Standard platform-specific builds via Cargo
-
-### Important Patterns
-
-- **Group by Function, Not Type**: Code that is modified together, lives together.
-- **Platform Abstraction**: Unix/Windows implementations behind trait (`src/platform/`)
-- **RAII Resource Management**: Automatic cleanup for FFI strings, processes, and locks
-- **Error Recovery**: All errors include helpful suggestions via custom error type (`src/error.rs`)
-- **Atomic Operations**: File writes and state changes use temporary files with atomic moves
-- **Error Handling**: Use `miette` for pretty error reporting with source locations
+-   **Go-Rust FFI Bridge** (`libcue-bridge/`): Go code compiled into a static C archive that evaluates CUE files. The `build.rs` script orchestrates this.
+-   **Environment Manager** (`src/env_manager.rs`): The central orchestrator for loading configs and applying changes.
+-   **State Management** (`src/state.rs`): A transactional state system with atomic operations.
+-   **Security Layer** (`src/landlock/`): A Landlock-based sandbox for restricting system access on Linux.
+-   **Platform Abstraction** (`src/platform/`): Traits and implementations for OS-specific differences.
 
 ### FFI Memory Management
-
-- Always use `CString` for passing strings to Go
-- Free returned C strings with `CStr::from_ptr` and proper cleanup
-- The build script handles vendored Go dependencies
-
-### Platform Differences
-
-- Linux: Standard glibc builds
-- macOS: Dynamic linking with system frameworks
-- Windows: Basic support through platform abstraction layer
-
-### CUE Schema
-
-Environment configurations are defined in `env.cue` files following the schema in `cue/schema.cue`:
-
-- Environment variables with metadata (description, sensitive flags)
-- Multiple environments (dev, staging, prod)
-- Capability-based filtering
-- Tasks with dependencies and caching
-- Pre/post hooks
-- Security restrictions (file/network access)
+-   Always use `CString` for passing strings from Rust to Go.
+-   Always free C strings returned from Go using `CStr::from_ptr`.
+-   RAII patterns are used extensively to manage the lifetime of FFI resources automatically.
 
 ### Testing Strategy
+-   **Unit Tests**: Live alongside the code they test.
+-   **Integration Tests**: In the `tests/` directory, covering major user workflows.
+-   **Property-based Tests**: For critical, algorithmic components.
+-   **Example Tests**: `scripts/test-examples.sh` tests all configurations in `examples/`. **Do not add new test directories; use the examples.**
 
-1. **Unit Tests**: Alongside code files
-2. **Integration Tests**: In `tests/` directory covering major workflows
-3. **Property-based Tests**: For critical components
-4. **Security/Landlock Tests**: Require specific kernel support
-5. **Example Tests**: Via `scripts/test-examples.sh`
-6. **Nix Checks**: `nix flake check` runs formatting, clippy, and tests
+## 6. Common Tasks & Procedures
 
-### Common Development Tasks
+### Modifying the CUE Schema
+1.  Edit `cue/schema.cue`.
+2.  Update Rust types in `src/cue_config.rs`.
+3.  Add/update tests in the `examples/` directory.
 
-#### Modifying the CUE Bridge
+### Adding a New Shell
+1.  Implement the `Shell` trait in `src/shell/<shell_name>.rs`.
+2.  Add detection logic in `src/shell_hook.rs`.
+3.  Provide a test case in the `examples/` directory.
 
-1. Edit Go code in `libcue-bridge/`
-2. The build.rs will automatically recompile during `cargo build`
+### Updating Dependencies
+-   **Rust**: Update `Cargo.toml` and run `cargo update`.
+-   **Go**: Update `libcue-bridge/go.mod` and run `go mod vendor` inside that directory.
+-   **Nix**: Run `nix flake update`.
 
-#### Adding a New Shell
+### Release Process
+1.  **Update Version**: Change `version` in `Cargo.toml`.
+2.  **Update Lockfile**: Run `nix develop -c cargo update -p cuenv`.
+3.  **Commit**: `git add Cargo.toml Cargo.lock` and `git commit -m "release: 0.5.0"`.
+4.  **Tag & Push**: `git tag -a 0.5.0 -m "Release 0.5.0"` (no 'v' prefix!), then `git push origin main && git push origin 0.5.0`.
 
-1. Implement the `Shell` trait in `src/shell/<shell_name>.rs`
-2. Add shell detection in `src/shell_hook.rs`
-3. Update documentation
-
-#### Modifying CUE Schema
-
-1. Edit `cue/schema.cue`
-2. Update corresponding Rust types in `src/cue_config.rs`
-3. Add tests for new fields
-
-#### Working on Security Features
-
-1. Landlock code is in `src/landlock/`
-2. Test with `cargo test --test landlock_tests` (requires Linux with Landlock support)
-3. Use audit mode (`--audit`) to trace access patterns
-
-#### Updating Dependencies
-
-1. For Rust: Update `Cargo.toml` and run `cargo update`
-2. For Go: Update `libcue-bridge/go.mod` and run `go mod vendor`
-3. For Nix: Run `nix flake update`
-
-## Release Process
-
-1. **Update Version**
-
-   ```bash
-   # Edit Cargo.toml
-   version = "0.4.5"  # No 'v' prefix!
-
-   # Update Cargo.lock
-   nix develop -c cargo update -p cuenv
-   ```
-
-2. **Commit Changes**
-
-   ```bash
-   git add Cargo.toml Cargo.lock
-   git commit -m "release: 0.4.5"
-   ```
-
-3. **Create Tag** (NO 'v' prefix!)
-
-   ```bash
-   git tag -a 0.4.5 -m "Release 0.4.5"
-   git push origin main
-   git push origin 0.4.5
-   ```
-
-4. **GitHub Release**
-   - Automatically triggered by tag push
-   - Creates binaries for:
-     - x86_64-unknown-linux-gnu
-     - aarch64-apple-darwin
-
-## Gotchas
-
-1. **CGO is Required**: The project cannot be built with `CGO_ENABLED=0`
-2. **Protobuf**: Required for building (remote cache features)
-3. **Go Version**: Requires Go 1.24+ for CUE support
-4. **Vendored Dependencies**: Go dependencies are vendored via Nix
-5. **Nix Flake Warning**: You may see "attribute 'package' missing" error when running `nix flake check`. This can be safely ignored as it doesn't affect functionality
-6. **Use Existing Examples**: Never create new test directories or example configurations. The `examples/` directory contains comprehensive test cases for all functionality - use those instead
-
-## Security Considerations
-
-- Environment variables can be marked as `sensitive`
-- Landlock support for sandboxing (Linux only)
-- Audit mode available for permission tracking
-- Never commit secrets to `.envrc` or `env.cue` files
-
-## Commit Message Format
-
-Follow conventional commits:
-
-- `feat:` New features
-- `fix:` Bug fixes
-- `docs:` Documentation changes
-- `chore:` Maintenance tasks
-- `release:` Version updates (e.g., `release: 0.4.5`)
-
-Remember: NO 'v' prefix in version numbers!
+## 7. Gotchas
+-   **CGO is Required**: Cannot be built with `CGO_ENABLED=0`.
+-   **Use Existing Examples**: Do not create new test directories. Add to or modify the comprehensive configurations in the `examples/` directory.
+-   **Nix Flake Warning**: An `"attribute 'package' missing"` warning from `nix flake check` can be safely ignored.

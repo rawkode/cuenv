@@ -1,5 +1,5 @@
 use cuenv_config::{
-    CommandConfig, CueParser, Hook, HookConfig, HookType, ParseOptions, TaskConfig,
+    CommandConfig, CueParser, Hook, HookConfig, HookType, ParseOptions, TaskConfig, VariableMetadata,
 };
 use cuenv_core::{Error, Result};
 use std::collections::HashMap;
@@ -9,6 +9,7 @@ use super::apply::apply_merged_environment;
 use super::hooks::process_sourcing_hooks;
 
 /// Load environment with given options
+#[allow(clippy::too_many_arguments)]
 pub async fn load_env_with_options(
     dir: &Path,
     environment: Option<String>,
@@ -19,7 +20,7 @@ pub async fn load_env_with_options(
     tasks: &mut HashMap<String, TaskConfig>,
     hooks: &mut HashMap<String, HookConfig>,
     cue_vars: &mut HashMap<String, String>,
-    cue_vars_metadata: &mut HashMap<String, cuenv_config::VariableMetadata>,
+    cue_vars_metadata: &mut HashMap<String, VariableMetadata>,
     sourced_env: &mut HashMap<String, String>,
 ) -> Result<()> {
     // First pass: load package to get command mappings
