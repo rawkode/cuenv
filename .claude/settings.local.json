@@ -27,7 +27,8 @@
       "Bash(RUST_BACKTRACE=1 nix develop -c cargo test --test test_examples test_basic_env_loading -- --nocapture)",
       "WebFetch(domain:release-plz.dev)",
       "Bash(git tag:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   },

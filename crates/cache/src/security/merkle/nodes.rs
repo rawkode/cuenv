@@ -12,7 +12,6 @@ pub fn hash_to_hex(hash: &Hash) -> String {
 }
 
 /// Convert hex string to hash
-#[allow(dead_code)]
 pub fn hex_to_hash(hex: &str) -> Result<Hash> {
     if hex.len() != 64 {
         return Err(CacheError::Configuration {

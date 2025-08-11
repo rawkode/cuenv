@@ -1,4 +1,3 @@
-#![allow(unused)]
 use async_trait::async_trait;
 use cuenv::env::EnvManager;
 use cuenv::errors::Result;

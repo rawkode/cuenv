@@ -3,6 +3,11 @@ use chrono::Local;
 use cuenv_task::executor::TaskExecutionPlan;
 use serde::Serialize;
 use std::collections::HashMap;
+
+struct TaskTreeContext<'a> {
+    task_infos: &'a HashMap<String, crate::events::TaskInfo>,
+    task_configs: &'a HashMap<String, cuenv_core::TaskDefinition>,
+}
 use std::fs::File;
 use std::io::{self, Write};
 use std::time::Instant;
@@ -54,7 +59,11 @@ impl FallbackRenderer {
         output.push_str("---------------\n");
 
         for root in &root_tasks {
-            Self::render_task_tree(&mut output, root, &tasks, &plan.tasks, 0, "", true);
+            let context = TaskTreeContext {
+                task_infos: &tasks,
+                task_configs: &plan.tasks,
+            };
+            Self::render_task_tree(&mut output, root, &context, 0, "", true);
         }
 
         output.push_str("\n\nExecution Order:\n");
@@ -101,12 +110,10 @@ impl FallbackRenderer {
         roots
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn render_task_tree(
         output: &mut String,
         task_name: &str,
-        task_infos: &HashMap<String, crate::events::TaskInfo>,
-        task_configs: &HashMap<String, cuenv_core::TaskDefinition>,
+        context: &TaskTreeContext<'_>,
         depth: usize,
         prefix: &str,
         is_last: bool,
@@ -119,7 +126,8 @@ impl FallbackRenderer {
             "├─ "
         };
 
-        let state = task_infos
+        let state = context
+            .task_infos
             .get(task_name)
             .map(|info| &info.state)
             .unwrap_or(&TaskState::Queued);
@@ -132,7 +140,7 @@ impl FallbackRenderer {
             task_name
         ));
 
-        if let Some(config) = task_configs.get(task_name) {
+        if let Some(config) = context.task_configs.get(task_name) {
             let deps = config.dependency_names();
             if !deps.is_empty() {
                 let child_prefix = if depth == 0 {
@@ -149,8 +157,7 @@ impl FallbackRenderer {
                     Self::render_task_tree(
                         output,
                         dep,
-                        task_infos,
-                        task_configs,
+                        context,
                         depth + 1,
                         &child_prefix,
                         is_last_dep,

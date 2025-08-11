@@ -1,4 +1,3 @@
-#![allow(unused)]
 //! Comprehensive integration tests covering all cache phases
 //!
 //! This module validates the integration of all cache system phases

@@ -40,6 +40,7 @@ impl AccessTracker {
 
         entry.count += 1;
         entry.last_access = SystemTime::now();
+        entry.size = size; // Update size in case it changed
     }
 
     /// Cleanup old entries based on access window
@@ -59,5 +60,34 @@ impl AccessTracker {
             .filter(|(_, info)| info.count >= min_access_count)
             .map(|(key, info)| (key.clone(), info.count))
             .collect()
+    }
+
+    /// Get total size of all tracked entries
+    pub fn total_tracked_size(&self) -> u64 {
+        self.access_counts.values().map(|info| info.size).sum()
+    }
+
+    /// Get candidates sorted by size (largest first) for size-aware warming
+    pub fn get_candidates_by_size(&self, max_total_size: u64) -> Vec<(String, u64)> {
+        let mut candidates: Vec<_> = self
+            .access_counts
+            .iter()
+            .map(|(key, info)| (key.clone(), info.size, info.count))
+            .collect();
+
+        // Sort by size descending, then by count descending
+        candidates.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| b.2.cmp(&a.2)));
+
+        let mut total_size = 0u64;
+        let mut result = Vec::new();
+
+        for (key, size, _) in candidates {
+            if total_size + size <= max_total_size {
+                total_size += size;
+                result.push((key, size));
+            }
+        }
+
+        result
     }
 }

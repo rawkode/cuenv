@@ -1,4 +1,3 @@
-#![allow(unused)]
 #[cfg(test)]
 mod landlock_unit_tests {
     use cuenv::access_restrictions::AccessRestrictions;

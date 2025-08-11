@@ -1,4 +1,3 @@
-#![allow(unused)]
 //! Property-based tests for the cache system
 //!
 //! These tests use proptest to verify cache invariants and behavior across

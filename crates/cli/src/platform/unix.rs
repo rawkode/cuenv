@@ -1,4 +1,6 @@
-use super::{escape_shell_value, ExportFormat, PlatformOps, Shell};
+#[cfg(test)]
+use super::{escape_shell_value, ExportFormat};
+use super::{PlatformOps, Shell};
 use std::collections::HashMap;
 use std::env;
 
@@ -42,40 +44,25 @@ impl PlatformOps for UnixPlatform {
         Ok(Shell::Bash)
     }
 
-    fn get_export_format(shell: Shell) -> ExportFormat {
+    #[cfg(test)]
+    fn _get_export_format(shell: Shell) -> ExportFormat {
         match shell {
-            Shell::Bash | Shell::Zsh => ExportFormat {
-                prefix: "export ",
-                separator: "=",
-                suffix: "",
-                unset_prefix: "unset ",
-                escape_value: escape_shell_value,
-            },
-            Shell::Fish => ExportFormat {
-                prefix: "set -x ",
-                separator: " ",
-                suffix: "",
-                unset_prefix: "set -e ",
-                escape_value: escape_shell_value,
-            },
+            Shell::Bash | Shell::Zsh => {
+                ExportFormat::new("export ", "=", "", "unset ", escape_shell_value)
+            }
+            Shell::Fish => ExportFormat::new("set -x ", " ", "", "set -e ", escape_shell_value),
             _ => {
                 // Shouldn't happen on Unix, but provide bash format as fallback
-                ExportFormat {
-                    prefix: "export ",
-                    separator: "=",
-                    suffix: "",
-                    unset_prefix: "unset ",
-                    escape_value: escape_shell_value,
-                }
+                ExportFormat::new("export ", "=", "", "unset ", escape_shell_value)
             }
         }
     }
 
-    fn home_env_var() -> &'static str {
+    fn _home_env_var() -> &'static str {
         "HOME"
     }
 
-    fn setup_environment(_env: &mut HashMap<String, String>) {
+    fn _setup_environment(_env: &mut HashMap<String, String>) {
         // Unix doesn't need special environment setup
     }
 }
@@ -86,36 +73,55 @@ mod tests {
 
     #[test]
     fn test_unix_shell_detection() {
-        // Test shell detection logic
-        let format = UnixPlatform::get_export_format(Shell::Bash);
-        assert_eq!(format.prefix, "export ");
-        assert_eq!(format.separator, "=");
+        // Test shell detection logic and field access
+        let format = UnixPlatform::_get_export_format(Shell::Bash);
+        assert_eq!(format.prefix(), "export ");
+        assert_eq!(format.separator(), "=");
+        assert_eq!(format.suffix(), "");
+        assert_eq!(format.unset_prefix(), "unset ");
+        // Test escape_value function pointer
+        assert_eq!((format.escape_value())("test"), "'test'");
 
-        let format = UnixPlatform::get_export_format(Shell::Fish);
-        assert_eq!(format.prefix, "set -x ");
-        assert_eq!(format.separator, " ");
+        let format = UnixPlatform::_get_export_format(Shell::Fish);
+        assert_eq!(format.prefix(), "set -x ");
+        assert_eq!(format.separator(), " ");
+        assert_eq!(format.suffix(), "");
+        assert_eq!(format.unset_prefix(), "set -e ");
+        // Test escape_value function pointer
+        assert_eq!((format.escape_value())("test"), "'test'");
     }
 
     #[test]
     fn test_unix_export_format() {
-        let format = UnixPlatform::get_export_format(Shell::Bash);
-        let export = format.format_export("KEY", "value with spaces");
+        let format = UnixPlatform::_get_export_format(Shell::Bash);
+        let export = format._format_export("KEY", "value with spaces");
         assert_eq!(export, "export KEY='value with spaces'");
 
-        let export = format.format_export("KEY", "value with 'quotes'");
+        let export = format._format_export("KEY", "value with 'quotes'");
         assert_eq!(export, "export KEY='value with '\\''quotes'\\'''");
 
-        let unset = format.format_unset("KEY");
+        let unset = format._format_unset("KEY");
         assert_eq!(unset, "unset KEY");
+
+        // Verify field values are accessible
+        let (prefix, sep, suffix, unset_prefix) = format.field_values();
+        assert_eq!(prefix, "export ");
+        assert_eq!(sep, "=");
+        assert_eq!(suffix, "");
+        assert_eq!(unset_prefix, "unset ");
+
+        // Verify escape function works
+        let escape_fn = format.get_escape_fn();
+        assert_eq!(escape_fn("test"), "'test'");
     }
 
     #[test]
     fn test_fish_export_format() {
-        let format = UnixPlatform::get_export_format(Shell::Fish);
-        let export = format.format_export("KEY", "value");
+        let format = UnixPlatform::_get_export_format(Shell::Fish);
+        let export = format._format_export("KEY", "value");
         assert_eq!(export, "set -x KEY 'value'");
 
-        let unset = format.format_unset("KEY");
+        let unset = format._format_unset("KEY");
         assert_eq!(unset, "set -e KEY");
     }
 }

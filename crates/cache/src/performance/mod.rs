@@ -7,8 +7,6 @@
 //! - Cache-line aware memory layouts
 //! - Prefetching and branch prediction hints
 
-#![allow(dead_code)]
-
 pub mod alignment;
 pub mod batch;
 pub mod hints;

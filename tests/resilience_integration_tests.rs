@@ -1,4 +1,3 @@
-#![allow(unused)]
 //! Integration tests for resilience patterns
 
 #[cfg(test)]

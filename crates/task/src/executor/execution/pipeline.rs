@@ -73,7 +73,7 @@ impl TaskExecutor {
                         task_args: args.to_vec(),
                         failed_tasks: Arc::clone(&failed_tasks),
                         action_cache: Arc::clone(&self.action_cache),
-                        env_manager: self.env_manager.clone(),
+                        _env_manager: self.env_manager.clone(),
                         cache_config: self.cache_config.clone(),
                         executed_tasks: Arc::clone(&self.executed_tasks),
                         audit_mode,

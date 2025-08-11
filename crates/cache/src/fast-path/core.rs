@@ -141,7 +141,6 @@ impl FastPathCache {
     }
 
     /// Clear all fast path entries
-    #[allow(dead_code)]
     pub fn clear(&self) {
         self.small_values.clear();
         if let Some(mut tracker) = self.lru_tracker.try_write() {

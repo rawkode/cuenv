@@ -70,11 +70,7 @@ impl EvictionPolicy for LruPolicy {
             return None;
         }
 
-        #[allow(clippy::question_mark)]
-        let order = match self.access_order.try_lock() {
-            Some(guard) => guard,
-            None => return None,
-        };
+        let order = self.access_order.try_lock()?;
 
         order.front().cloned()
     }

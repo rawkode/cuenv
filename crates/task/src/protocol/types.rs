@@ -17,7 +17,6 @@ pub struct JsonRpcRequest<T> {
 
 /// JSON-RPC 2.0 response structure
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct JsonRpcResponse<T> {
     pub jsonrpc: String,
     pub result: Option<T>,
@@ -27,7 +26,6 @@ pub struct JsonRpcResponse<T> {
 
 /// JSON-RPC error structure
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct JsonRpcError {
     pub code: i32,
     pub message: String,
@@ -66,18 +64,8 @@ pub struct RunTaskParams {
 
 /// Run task response
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct RunTaskResult {
     pub exit_code: i32,
     #[serde(default)]
     pub outputs: HashMap<String, String>,
-}
-
-/// Log message from server
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)]
-pub struct LogMessage {
-    pub task: String,
-    pub stream: String, // "stdout" or "stderr"
-    pub content: String,
 }

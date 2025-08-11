@@ -7,7 +7,6 @@ use std::path::Path;
 mod command;
 mod environment;
 mod export;
-mod helpers;
 mod hooks;
 mod secrets;
 pub mod stubs;
@@ -62,18 +61,22 @@ impl EnvManager {
     ) -> Result<()> {
         self.save_original_env()?;
 
+        let mut context = environment::LoadEnvironmentContext {
+            commands: &mut self.commands,
+            tasks: &mut self.tasks,
+            hooks: &mut self.hooks,
+            cue_vars: &mut self.cue_vars,
+            cue_vars_metadata: &mut self.cue_vars_metadata,
+            sourced_env: &mut self.sourced_env,
+        };
+
         environment::load_env_with_options(
             dir,
             environment,
             capabilities,
             command,
             &self.original_env,
-            &mut self.commands,
-            &mut self.tasks,
-            &mut self.hooks,
-            &mut self.cue_vars,
-            &mut self.cue_vars_metadata,
-            &mut self.sourced_env,
+            &mut context,
         )
         .await?;
 

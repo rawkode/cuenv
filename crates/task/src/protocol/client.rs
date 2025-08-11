@@ -101,10 +101,18 @@ impl TaskServerClient {
         let response: JsonRpcResponse<InitializeResult> = self.send_request(request).await?;
 
         if let Some(error) = response.error {
-            return Err(Error::configuration(format!(
-                "Task server initialization failed: {} (code {})",
-                error.message, error.code
-            )));
+            let error_msg = if let Some(data) = error.data {
+                format!(
+                    "Task server initialization failed: {} (code {}) - Additional data: {}",
+                    error.message, error.code, data
+                )
+            } else {
+                format!(
+                    "Task server initialization failed: {} (code {})",
+                    error.message, error.code
+                )
+            };
+            return Err(Error::configuration(error_msg));
         }
 
         let result = response
@@ -135,10 +143,18 @@ impl TaskServerClient {
         let response: JsonRpcResponse<RunTaskResult> = self.send_request(request).await?;
 
         if let Some(error) = response.error {
-            return Err(Error::configuration(format!(
-                "Task execution failed: {} (code {})",
-                error.message, error.code
-            )));
+            let error_msg = if let Some(data) = error.data {
+                format!(
+                    "Task execution failed: {} (code {}) - Additional data: {}",
+                    error.message, error.code, data
+                )
+            } else {
+                format!(
+                    "Task execution failed: {} (code {})",
+                    error.message, error.code
+                )
+            };
+            return Err(Error::configuration(error_msg));
         }
 
         let result = response
@@ -182,6 +198,22 @@ impl TaskServerClient {
                 "Failed to parse response: {e} - Response: {response_line}"
             ))
         })?;
+
+        // Validate JSON-RPC protocol
+        if response.jsonrpc != "2.0" {
+            return Err(Error::configuration(format!(
+                "Invalid JSON-RPC version: expected '2.0', got '{}'",
+                response.jsonrpc
+            )));
+        }
+
+        // Validate response ID matches request ID
+        if response.id != request.id {
+            return Err(Error::configuration(format!(
+                "Response ID mismatch: expected {}, got {}",
+                request.id, response.id
+            )));
+        }
 
         Ok(response)
     }

@@ -496,8 +496,8 @@ pub fn init_cleanup_handler() {
                 }
             };
 
-            #[allow(clippy::never_loop)]
-            for sig in signals.forever() {
+            // Wait for and handle the first signal, then exit
+            if let Some(sig) = signals.forever().next() {
                 log::info!("Received signal {sig}, cleaning up resources...");
 
                 if let Some(registry) = registry.upgrade() {

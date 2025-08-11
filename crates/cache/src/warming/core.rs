@@ -66,7 +66,12 @@ impl<C: Cache + Clone + Send + Sync + 'static> CacheWarmer<C> {
             match self.warm_cache().await {
                 Ok(warmed) => {
                     if warmed > 0 {
-                        tracing::info!("Warmed {} cache entries", warmed);
+                        let total_size = self.access_tracker.read().total_tracked_size();
+                        tracing::info!(
+                            "Warmed {} cache entries (tracking {} bytes total)",
+                            warmed,
+                            total_size
+                        );
                     }
                 }
                 Err(e) => {

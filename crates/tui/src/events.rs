@@ -188,19 +188,14 @@ impl TaskRegistry {
 
     pub async fn get_aggregate_state(&self, task_name: &str) -> TaskState {
         let tasks = self.tasks.read().await;
-        self.aggregate_state_recursive(task_name, &tasks)
+        Self::aggregate_state_recursive(task_name, &tasks)
     }
 
-    #[allow(clippy::only_used_in_recursion)]
-    fn aggregate_state_recursive(
-        &self,
-        task_name: &str,
-        tasks: &HashMap<String, TaskInfo>,
-    ) -> TaskState {
+    fn aggregate_state_recursive(task_name: &str, tasks: &HashMap<String, TaskInfo>) -> TaskState {
         if let Some(task) = tasks.get(task_name) {
             // If any dependent has failed, this task's aggregate state is failed
             for dep in &task.dependents {
-                let dep_state = self.aggregate_state_recursive(dep, tasks);
+                let dep_state = Self::aggregate_state_recursive(dep, tasks);
                 if dep_state == TaskState::Failed {
                     return TaskState::Failed;
                 }

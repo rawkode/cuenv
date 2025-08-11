@@ -1,4 +1,5 @@
-use crate::manager::{helpers::parse_shell_exports, AccessRestrictions};
+use crate::manager::AccessRestrictions;
+use crate::source_parser::parse_shell_exports;
 
 #[test]
 fn test_access_restrictions_creation_and_methods() {
@@ -37,7 +38,7 @@ export =invalid
 export 123INVALID=value
         "#;
 
-    let vars = parse_shell_exports(output);
+    let vars = parse_shell_exports(output).expect("Failed to parse shell exports");
 
     assert_eq!(vars.get("PATH"), Some(&"/usr/bin:/bin".to_string()));
     assert_eq!(vars.get("HOME"), Some(&"/home/user".to_string()));

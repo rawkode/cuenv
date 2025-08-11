@@ -1,4 +1,3 @@
-#![allow(unused)]
 //! Production validation tests for the cache system
 //!
 //! These tests simulate real-world production scenarios and validate

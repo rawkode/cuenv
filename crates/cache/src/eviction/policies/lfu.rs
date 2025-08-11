@@ -48,7 +48,11 @@ impl EvictionPolicy for LfuPolicy {
     }
 
     fn next_eviction(&self) -> Option<String> {
-        // Always try to return a candidate for eviction; the cache decides if eviction is needed.
+        // Check if eviction is needed
+        if self.memory_usage() <= self.max_memory {
+            return None;
+        }
+
         // Lock-free O(n) scan over frequencies to find the minimum.
         let mut candidate: Option<(String, u64)> = None;
 

@@ -8,6 +8,26 @@ mod protocol_tests {
     use std::sync::Arc;
     use tempfile::TempDir;
 
+    #[test]
+    fn test_protocol_types_serialization() {
+        // Test JsonRpcResponse deserialization
+        let response_json = r#"{"jsonrpc":"2.0","result":{"exit_code":0,"outputs":{}},"id":1}"#;
+        let response: types::JsonRpcResponse<types::RunTaskResult> =
+            serde_json::from_str(response_json).unwrap();
+        assert_eq!(response.jsonrpc, "2.0");
+        assert_eq!(response.id, 1);
+        assert!(response.error.is_none());
+
+        // Test JsonRpcError deserialization
+        let error_json = r#"{"jsonrpc":"2.0","error":{"code":-32601,"message":"Method not found","data":null},"id":1}"#;
+        let error_response: types::JsonRpcResponse<serde_json::Value> =
+            serde_json::from_str(error_json).unwrap();
+        let error = error_response.error.unwrap();
+        assert_eq!(error.code, -32601);
+        assert_eq!(error.message, "Method not found");
+        assert!(error.data.is_none());
+    }
+
     #[tokio::test]
     async fn test_task_server_client_creation() {
         let temp_dir = TempDir::new().unwrap();

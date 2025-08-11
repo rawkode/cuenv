@@ -41,10 +41,8 @@ pub struct HookManager<E: CommandExecutor + Send + Sync> {
     cache_ttl: Duration,
     rate_limiter: Option<Arc<RateLimitManager>>,
     audit_logger: Option<Arc<AuditLogger>>,
-    #[allow(dead_code)]
-    circuit_breaker: Arc<CircuitBreaker>,
-    #[allow(dead_code)]
-    retry_config: RetryConfig,
+    _circuit_breaker: Arc<CircuitBreaker>,
+    _retry_config: RetryConfig,
 }
 
 impl<E: CommandExecutor + Send + Sync> HookManager<E> {
@@ -79,8 +77,8 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
             cache_ttl: DEFAULT_CACHE_TTL,
             rate_limiter: None,
             audit_logger: audit_logger(),
-            circuit_breaker: Arc::new(CircuitBreaker::new(circuit_breaker_config)),
-            retry_config,
+            _circuit_breaker: Arc::new(CircuitBreaker::new(circuit_breaker_config)),
+            _retry_config: retry_config,
         })
     }
 

@@ -11,8 +11,7 @@ pub struct DiscoveredPackage {
     /// Absolute path to the directory containing env.cue
     pub path: PathBuf,
     /// Path relative to the cue.mod root
-    #[allow(dead_code)]
-    pub relative_path: PathBuf,
+    pub _relative_path: PathBuf,
     /// The parsed CUE package (if loaded)
     pub parse_result: Option<ParseResult>,
 }
@@ -180,7 +179,7 @@ impl PackageDiscovery {
             packages.push(DiscoveredPackage {
                 name,
                 path: package_dir.to_path_buf(),
-                relative_path,
+                _relative_path: relative_path,
                 parse_result,
             });
         }
@@ -189,8 +188,7 @@ impl PackageDiscovery {
     }
 
     /// Discover and load a specific package by name
-    #[allow(dead_code)]
-    pub async fn load_package_by_name(
+    pub async fn _load_package_by_name(
         &mut self,
         start_path: &Path,
         package_name: &str,
@@ -207,15 +205,16 @@ impl PackageDiscovery {
             CueParser::eval_package_with_options(&package.path, "env", &ParseOptions::default())?;
 
         Ok(DiscoveredPackage {
+            name: package.name,
+            path: package.path,
+            _relative_path: package._relative_path,
             parse_result: Some(parse_result),
-            ..package
         })
     }
 }
 
 /// Convenience function to discover all packages from the current directory
-#[allow(dead_code)]
-pub async fn discover_packages(load: bool) -> Result<Vec<DiscoveredPackage>> {
+pub async fn _discover_packages(load: bool) -> Result<Vec<DiscoveredPackage>> {
     let current_dir = std::env::current_dir()
         .map_err(|e| Error::configuration(format!("Failed to get current directory: {e}")))?;
 
@@ -224,9 +223,8 @@ pub async fn discover_packages(load: bool) -> Result<Vec<DiscoveredPackage>> {
 }
 
 /// Convenience function to list discovered packages
-#[allow(dead_code)]
-pub async fn list_packages() -> Result<()> {
-    let packages = discover_packages(false).await?;
+pub async fn _list_packages() -> Result<()> {
+    let packages = _discover_packages(false).await?;
 
     if packages.is_empty() {
         println!("No CUE packages found");

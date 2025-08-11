@@ -1,4 +1,3 @@
-#![allow(unused)]
 use std::path::PathBuf;
 use std::process::Command;
 use tempfile::TempDir;

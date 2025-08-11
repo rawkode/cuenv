@@ -110,6 +110,22 @@ pub fn evaluate_shell_environment(shell_script: &str) -> Result<HashMap<String, 
     ))
 }
 
+/// Check if a string is a valid environment variable name
+fn is_valid_env_var_name(name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+
+    // Must start with a letter or underscore
+    let first_char = name.chars().next().unwrap();
+    if !first_char.is_ascii_alphabetic() && first_char != '_' {
+        return false;
+    }
+
+    // Rest must be alphanumeric or underscore
+    name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
 /// Parse shell export statements into environment variables
 pub fn parse_shell_exports(output: &str) -> Result<HashMap<String, String>> {
     debug!(
@@ -140,6 +156,10 @@ pub fn parse_shell_exports(output: &str) -> Result<HashMap<String, String>> {
     let mut env = HashMap::new();
     for line in env_content.lines() {
         if let Some((key, value)) = line.split_once('=') {
+            // Skip invalid variable names
+            if key.is_empty() || !is_valid_env_var_name(key) {
+                continue;
+            }
             // shell-words should have quoted properly, so unquote
             let value = value.trim_matches('"').trim_matches('\'');
             env.insert(key.to_string(), value.to_string());
@@ -181,6 +201,17 @@ fn convert_exports_to_dotenv(shell_output: &str) -> Result<String> {
 
         // Handle export statements
         if let Some(export) = line.strip_prefix("export ") {
+            // Validate that it has a valid variable name
+            if let Some(eq_pos) = export.find('=') {
+                let var_name = &export[..eq_pos];
+                if !is_valid_env_var_name(var_name) {
+                    continue;
+                }
+            } else {
+                // No equals sign, skip
+                continue;
+            }
+
             // Check if this starts a multi-line value
             if starts_multiline_value(export) {
                 in_multiline = true;
@@ -192,12 +223,22 @@ fn convert_exports_to_dotenv(shell_output: &str) -> Result<String> {
             }
         } else if let Some(decl) = line.strip_prefix("declare -x ") {
             // Handle bash declare -x format
-            result.push_str(decl);
-            result.push('\n');
+            if let Some(eq_pos) = decl.find('=') {
+                let var_name = &decl[..eq_pos];
+                if is_valid_env_var_name(var_name) {
+                    result.push_str(decl);
+                    result.push('\n');
+                }
+            }
         } else if line.contains('=') && !line.starts_with(' ') {
             // Already in VAR=value format
-            result.push_str(line);
-            result.push('\n');
+            if let Some(eq_pos) = line.find('=') {
+                let var_name = &line[..eq_pos];
+                if is_valid_env_var_name(var_name) {
+                    result.push_str(line);
+                    result.push('\n');
+                }
+            }
         }
     }
 

@@ -14,7 +14,6 @@ pub mod zero_copy {
     use std::os::unix::io::RawFd;
 
     /// Copy data between file descriptors using sendfile (zero-copy)
-    #[allow(dead_code)]
     pub async fn sendfile_copy(from_fd: RawFd, to_fd: RawFd, count: usize) -> io::Result<usize> {
         use libc::{off_t, sendfile};
 
@@ -28,7 +27,6 @@ pub mod zero_copy {
     }
 
     /// Copy data using splice for pipe operations (zero-copy)
-    #[allow(dead_code)]
     pub async fn splice_copy(from_fd: RawFd, to_fd: RawFd, count: usize) -> io::Result<usize> {
         use libc::{splice, SPLICE_F_MORE, SPLICE_F_MOVE};
 
@@ -57,7 +55,6 @@ pub mod vectored {
     use super::*;
 
     /// Read into multiple buffers (scatter)
-    #[allow(dead_code)]
     pub async fn read_vectored<R: AsyncRead + Unpin>(
         reader: &mut R,
         bufs: &mut [&mut [u8]],
@@ -74,7 +71,6 @@ pub mod vectored {
     }
 
     /// Write from multiple buffers (gather)
-    #[allow(dead_code)]
     pub async fn write_vectored<W: AsyncWrite + Unpin>(
         writer: &mut W,
         bufs: &[IoSlice<'_>],
