@@ -2,7 +2,7 @@
   "name": "cuenv",
   "displayName": "cuenv",
   "description": "VSCode integration for cuenv - Environment variable management and task execution",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "rawkode",
   "repository": {
     "type": "git",

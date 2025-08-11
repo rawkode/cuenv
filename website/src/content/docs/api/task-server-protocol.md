@@ -18,6 +18,7 @@ The core component for exposing cuenv tasks to external tools via JSON-RPC proto
 ### Constructor Changes
 
 #### Before (Deprecated)
+
 ```rust
 // OLD: Accepted HashMap, required redundant parsing
 impl TaskServerProvider {
@@ -27,15 +28,16 @@ impl TaskServerProvider {
 ```
 
 #### After (Current)
+
 ```rust
 // NEW: Accepts Arc<Config>, uses pre-loaded data
 impl TaskServerProvider {
     /// Create a new task server provider for Unix socket
     pub fn new(socket_path: PathBuf, config: Arc<Config>) -> Self
-    
+
     /// Create a new task server provider for stdio (MCP mode)
     pub fn new_stdio(config: Arc<Config>, allow_exec: bool) -> Self
-    
+
     /// Create a new task server provider with full options
     pub fn new_with_options(
         socket_path: Option<PathBuf>,
@@ -49,6 +51,7 @@ impl TaskServerProvider {
 ### Usage Examples
 
 #### MCP Server (stdio)
+
 ```rust
 use cuenv_task::TaskServerProvider;
 use std::sync::Arc;
@@ -64,6 +67,7 @@ provider.start().await?;
 ```
 
 #### TSP Server (Unix socket)
+
 ```rust
 use cuenv_task::TaskServerProvider;
 use std::path::PathBuf;
@@ -78,6 +82,7 @@ provider.start().await?;
 ```
 
 #### Full Options
+
 ```rust
 let provider = TaskServerProvider::new_with_options(
     Some(socket_path),
@@ -98,7 +103,7 @@ The `TaskServerProvider` handles both protocols simultaneously:
 "tools/list"  -> Lists available MCP tools
 "tools/call"  -> Executes MCP tool calls
 
-// TSP Methods (for devenv compatibility)  
+// TSP Methods (for devenv compatibility)
 "initialize"  -> Returns available tasks
 "run"         -> Executes a task
 ```
@@ -142,7 +147,7 @@ The MCP server exposes these tools to clients:
 
 // cuenv.get_env_var - Get specific environment variable
 {
-    "name": "cuenv.get_env_var", 
+    "name": "cuenv.get_env_var",
     "inputSchema": {
         "properties": {
             "directory": { "type": "string" },
@@ -171,7 +176,7 @@ The MCP server exposes these tools to clients:
     }
 }
 
-// cuenv.get_task - Get specific task details  
+// cuenv.get_task - Get specific task details
 {
     "name": "cuenv.get_task",
     "inputSchema": {
@@ -204,41 +209,44 @@ The MCP server exposes these tools to clients:
 ## Performance Improvements
 
 ### Before: Redundant Parsing
+
 ```rust
 // OLD: Each MCP request parsed CUE files
 async fn handle_mcp_tool_call(params: serde_json::Value) -> serde_json::Value {
     let directory = params.get("directory").unwrap();
-    
+
     // EXPENSIVE: Parse CUE files on every request
     let parse_result = CueParser::eval_package_with_options(directory, "env", &options)?;
-    
+
     // Use parse_result.tasks...
 }
 ```
 
 ### After: Shared Configuration
+
 ```rust
 // NEW: Uses pre-loaded Arc<Config>
 async fn handle_mcp_tool_call(params: serde_json::Value) -> serde_json::Value {
     // FAST: No I/O needed, uses cached configuration
     let tasks = self.config.get_tasks();
-    
+
     // Use tasks directly...
 }
 ```
 
 ### Benchmarks
 
-| Operation | Before | After | Improvement |
-|-----------|--------|-------|-------------|
-| MCP `list_tasks` | ~80ms | ~8ms | 10x faster |
-| MCP `get_task` | ~70ms | ~5ms | 14x faster |
-| MCP `run_task` | ~120ms | ~25ms | 5x faster |
-| TSP `initialize` | ~60ms | ~6ms | 10x faster |
+| Operation        | Before | After | Improvement |
+| ---------------- | ------ | ----- | ----------- |
+| MCP `list_tasks` | ~80ms  | ~8ms  | 10x faster  |
+| MCP `get_task`   | ~70ms  | ~5ms  | 14x faster  |
+| MCP `run_task`   | ~120ms | ~25ms | 5x faster   |
+| TSP `initialize` | ~60ms  | ~6ms  | 10x faster  |
 
 ## Security Model
 
 ### Execution Control
+
 ```rust
 // Execution requires explicit permission
 let provider = TaskServerProvider::new_stdio(
@@ -248,20 +256,21 @@ let provider = TaskServerProvider::new_stdio(
 ```
 
 ### Directory Validation
+
 ```rust
 impl TaskServerProvider {
     /// Validate directory and check if it's allowed
     fn validate_directory(directory: &str) -> Result<PathBuf> {
         let path = PathBuf::from(directory);
-        
+
         // Canonicalize to prevent path traversal
         let canonical = path.canonicalize()?;
-        
+
         // Ensure absolute path
         if !canonical.is_absolute() {
             return Err(Error::configuration("Path must be absolute"));
         }
-        
+
         Ok(canonical)
     }
 }
@@ -270,6 +279,7 @@ impl TaskServerProvider {
 ## Error Handling
 
 ### JSON-RPC Error Responses
+
 ```rust
 // Configuration errors
 {
@@ -283,7 +293,7 @@ impl TaskServerProvider {
 
 // Execution errors (when allow_exec=false)
 {
-    "jsonrpc": "2.0", 
+    "jsonrpc": "2.0",
     "error": {
         "code": -1,
         "message": "Task execution not allowed. Start MCP server with --allow-exec flag."
@@ -305,19 +315,21 @@ impl TaskServerProvider {
 ## Integration Examples
 
 ### Claude Code Integration
+
 ```json
 {
-    "servers": {
-        "cuenv": {
-            "command": "cuenv",
-            "args": ["mcp", "--allow-exec"],
-            "type": "stdio"
-        }
-    }
+	"servers": {
+		"cuenv": {
+			"command": "cuenv",
+			"args": ["mcp", "--allow-exec"],
+			"type": "stdio"
+		}
+	}
 }
 ```
 
 ### devenv Integration
+
 ```nix
 { pkgs, ... }: {
   tasks = {
@@ -329,6 +341,7 @@ impl TaskServerProvider {
 ```
 
 ### Custom Integration
+
 ```rust
 use cuenv_task::{TaskServerManager, UnifiedTaskManager};
 
@@ -336,15 +349,15 @@ async fn custom_integration(config: Arc<Config>) -> Result<()> {
     // Create unified manager with internal tasks
     let socket_dir = tempfile::tempdir()?.path().to_path_buf();
     let mut manager = UnifiedTaskManager::new(socket_dir, config);
-    
+
     // Discover external task servers
     let tasks = manager.discover_all_tasks(Some(&discovery_dir)).await?;
-    
+
     // Tasks now include both internal cuenv tasks and external tasks
     for task in tasks {
         println!("Available: {}", task.name);
     }
-    
+
     Ok(())
 }
 ```
@@ -360,7 +373,7 @@ If you have existing code that creates `TaskServerProvider`:
 let tasks = parse_cue_files()?; // Your CUE parsing code
 let provider = TaskServerProvider::new_stdio(tasks, allow_exec);
 
-// NEW  
+// NEW
 let config = ConfigLoader::load_from_directory(&directory)?;
 let shared_config = Arc::new(config);
 let provider = TaskServerProvider::new_stdio(shared_config, allow_exec);
@@ -381,13 +394,15 @@ println!("Request handled in: {:?}", start.elapsed());
 ## Future Enhancements
 
 ### Planned Features
+
 - WebSocket transport support
-- Streaming task output for long-running tasks  
+- Streaming task output for long-running tasks
 - Task progress reporting
 - Distributed task execution
 - Advanced capability-based security
 
 ### API Stability
+
 - `Arc<Config>` pattern is stable and will be maintained
 - JSON-RPC protocol methods are versioned for compatibility
 - MCP tool schemas follow semantic versioning

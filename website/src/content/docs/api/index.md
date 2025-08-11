@@ -14,7 +14,7 @@ cuenv's architecture is built around a **centralized configuration pattern** usi
 ## Core APIs
 
 - **[Configuration API](./configuration)** - Core `Config` and `ConfigLoader` APIs
-- **[Task Server Protocol](./task-server-protocol)** - TSP and MCP server implementations  
+- **[Task Server Protocol](./task-server-protocol)** - TSP and MCP server implementations
 - **[Task Execution](./task-execution)** - Task executor and builder APIs
 - **[Environment Management](./environment-management)** - Environment variable handling
 
@@ -37,7 +37,7 @@ impl TaskCommands {
     }
 }
 
-// Protocol servers accept shared configuration  
+// Protocol servers accept shared configuration
 impl TaskServerProvider {
     pub fn new_stdio(config: Arc<Config>, allow_exec: bool) -> Self {
         Self { config, allow_exec, /* ... */ }
@@ -72,7 +72,7 @@ use cuenv_config::{CueParser, ParseOptions};
 async fn old_list_tasks() -> Result<()> {
     let options = ParseOptions::default();
     let parse_result = CueParser::eval_package(&dir, "env", &options)?; // Expensive I/O
-    
+
     for (name, task) in parse_result.tasks {
         println!("{name}: {:?}", task.description);
     }
@@ -88,7 +88,7 @@ use cuenv_config::Config;
 
 async fn new_list_tasks(config: Arc<Config>) -> Result<()> {
     let tasks = config.get_tasks(); // No I/O - uses cached data
-    
+
     for (name, task) in tasks {
         println!("{name}: {:?}", task.description);
     }
@@ -99,11 +99,11 @@ async fn new_list_tasks(config: Arc<Config>) -> Result<()> {
 
 The centralized configuration architecture provides significant performance improvements:
 
-| Operation | Before (ms) | After (ms) | Improvement |
-|-----------|-------------|------------|-------------|
-| `cuenv task list` | ~50ms | ~20ms | 2.5x faster |
-| MCP server request | ~100ms | ~10ms | 10x faster |
-| Task execution | ~75ms | ~25ms | 3x faster |
+| Operation          | Before (ms) | After (ms) | Improvement |
+| ------------------ | ----------- | ---------- | ----------- |
+| `cuenv task list`  | ~50ms       | ~20ms      | 2.5x faster |
+| MCP server request | ~100ms      | ~10ms      | 10x faster  |
+| Task execution     | ~75ms       | ~25ms      | 3x faster   |
 
 ## Integration APIs
 
@@ -136,12 +136,12 @@ impl MyCustomCommand {
     pub fn new(config: Arc<Config>) -> Self {
         Self { config }
     }
-    
+
     pub async fn execute(&self) -> Result<()> {
         // Access configuration data efficiently
         let tasks = self.config.get_tasks();
         let env_vars = self.config.get_env_vars();
-        
+
         // Your custom logic here
         Ok(())
     }
@@ -158,11 +158,11 @@ use cuenv_core::{Error, Result};
 // Functions return Result<T> for consistent error handling
 pub async fn api_function(config: Arc<Config>) -> Result<String> {
     let tasks = config.get_tasks();
-    
+
     if tasks.is_empty() {
         return Err(Error::configuration("No tasks defined".to_string()));
     }
-    
+
     Ok("Success".to_string())
 }
 ```
@@ -178,17 +178,17 @@ use tokio::task;
 async fn concurrent_access(config: Arc<Config>) {
     let config1 = Arc::clone(&config);
     let config2 = Arc::clone(&config);
-    
+
     let task1 = task::spawn(async move {
         let tasks = config1.get_tasks();
         // Process tasks...
     });
-    
+
     let task2 = task::spawn(async move {
         let env_vars = config2.get_env_vars();
         // Process environment variables...
     });
-    
+
     let _ = tokio::try_join!(task1, task2);
 }
 ```

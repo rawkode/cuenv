@@ -109,6 +109,10 @@ The status bar provides quick access to common actions:
 - **Quick Pick**: Click for action menu (Reload, Open Output, etc.)
 - **Multi-root Aware**: Shows status for active editor's workspace folder
 
+### Performance
+
+The extension benefits from cuenv's new centralized configuration architecture, providing faster environment loading and task execution through the Arc<Config> pattern and elimination of redundant CUE parsing.
+
 ## 🔧 Commands
 
 | Command                   | Description                          |

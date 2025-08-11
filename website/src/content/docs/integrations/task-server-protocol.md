@@ -24,7 +24,7 @@ graph LR
     A[External Tool] -->|JSON-RPC| B[Unix Socket]
     B --> C[cuenv TSP Client]
     C --> D[Unified Task Manager]
-    
+
     ConfigLoader[ConfigLoader] -->|Arc&lt;Config&gt;| D
     D -->|Shared Config| E[cuenv TSP Server]
     E -->|JSON-RPC| F[Unix Socket]
@@ -197,12 +197,12 @@ The TSP implementation has been significantly optimized with the new centralized
 
 ### Before vs After
 
-| Operation | Before | After | Improvement |
-|-----------|--------|-------|-------------|
-| TSP server startup | ~150ms | ~40ms | 4x faster |
-| `initialize` method | ~60ms | ~6ms | 10x faster |
-| `run` method | ~120ms | ~30ms | 4x faster |
-| Task discovery | ~80ms | ~15ms | 5x faster |
+| Operation           | Before | After | Improvement |
+| ------------------- | ------ | ----- | ----------- |
+| TSP server startup  | ~150ms | ~40ms | 4x faster   |
+| `initialize` method | ~60ms  | ~6ms  | 10x faster  |
+| `run` method        | ~120ms | ~30ms | 4x faster   |
+| Task discovery      | ~80ms  | ~15ms | 5x faster   |
 
 ### Technical Improvements
 

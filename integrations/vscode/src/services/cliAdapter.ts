@@ -51,7 +51,7 @@ export class CLIAdapter {
 
     async exportEnv(workspaceFolder: string): Promise<EnvironmentJson> {
         // For now, parse shell export format since --json isn't available for export yet
-        const result = await this.execCuenv(['export'], workspaceFolder);
+        const result = await this.execCuenv(['env', 'export'], workspaceFolder);
         return this.parseShellExports(result.stdout);
     }
 

@@ -249,14 +249,15 @@ This unified approach ensures that existing devenv integrations continue to work
 
 The new centralized configuration architecture provides significant performance benefits:
 
-| Operation | Before | After | Improvement |
-|-----------|--------|-------|-----------|
-| MCP `list_env_vars` | ~70ms | ~7ms | 10x faster |
-| MCP `list_tasks` | ~80ms | ~8ms | 10x faster |
-| MCP `get_task` | ~65ms | ~5ms | 13x faster |
-| Server startup | ~200ms | ~50ms | 4x faster |
+| Operation           | Before | After | Improvement |
+| ------------------- | ------ | ----- | ----------- |
+| MCP `list_env_vars` | ~70ms  | ~7ms  | 10x faster  |
+| MCP `list_tasks`    | ~80ms  | ~8ms  | 10x faster  |
+| MCP `get_task`      | ~65ms  | ~5ms  | 13x faster  |
+| Server startup      | ~200ms | ~50ms | 4x faster   |
 
 These improvements come from:
+
 - **Eliminated redundant CUE parsing**: Configuration is loaded once and shared via `Arc<Config>`
 - **Zero-copy task access**: Tasks are accessed from cached configuration, not re-parsed
 - **Reduced memory allocation**: Single configuration instance shared across all requests
@@ -356,7 +357,8 @@ let env_vars = config.get_env_vars();  // No I/O needed
 ```
 
 This architecture ensures that:
+
 - Configuration is loaded once during server startup
-- All MCP requests use cached configuration data  
+- All MCP requests use cached configuration data
 - Response times are consistently fast (~5-10ms per request)
 - Memory usage is optimized through shared references

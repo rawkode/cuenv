@@ -25,12 +25,12 @@ graph TD
     C --> D[ParseResult]
     D --> E[Config Creation]
     E --> F[Arc&lt;Config&gt;]
-    
+
     F --> G[Command Handlers]
-    F --> H[MCP Server]  
+    F --> H[MCP Server]
     F --> I[Task Executor]
     F --> J[Environment Manager]
-    
+
     G --> K[Task Commands]
     G --> L[Env Commands]
     G --> M[Shell Commands]
@@ -39,6 +39,7 @@ graph TD
 ### Configuration Loading Pattern
 
 #### Before: Redundant Loading
+
 ```rust
 // OLD: Each component parsed CUE files independently
 fn list_tasks() {
@@ -47,7 +48,7 @@ fn list_tasks() {
 }
 
 fn run_task() {
-    let parse_result = CueParser::eval_package(&dir, "env", &options)?; // Parse #2  
+    let parse_result = CueParser::eval_package(&dir, "env", &options)?; // Parse #2
     // ... use tasks
 }
 
@@ -58,12 +59,13 @@ fn mcp_server() {
 ```
 
 #### After: Centralized Configuration
+
 ```rust
 // NEW: Single parse, shared everywhere
 fn main() {
     let config = ConfigLoader::load_from_directory(&dir)?; // Parse once
     let shared_config = Arc::new(config);
-    
+
     // All components use the same configuration
     command.execute(Arc::clone(&shared_config)).await?;
 }
@@ -72,6 +74,7 @@ fn main() {
 ### Key Components
 
 #### ConfigLoader
+
 - **Location**: `crates/config/src/config.rs`
 - **Purpose**: Single entry point for loading and validating configuration
 - **Responsibilities**:
@@ -81,6 +84,7 @@ fn main() {
   - Configuration caching
 
 #### Arc<Config> Pattern
+
 - **Type**: `std::sync::Arc<cuenv_config::Config>`
 - **Benefits**:
   - Thread-safe sharing without cloning data
@@ -89,6 +93,7 @@ fn main() {
 - **Usage**: Passed to all command handlers and protocol servers
 
 #### Protocol Servers (MCP/TSP)
+
 - **Before**: Each protocol server parsed CUE files on every request
 - **After**: Protocol servers accept `Arc<Config>` and use pre-loaded data
 - **Performance Gain**: ~90% reduction in I/O operations for protocol requests
@@ -97,12 +102,12 @@ fn main() {
 
 ### Eliminated Redundant I/O
 
-| Operation | Before | After | Improvement |
-|-----------|--------|-------|-------------|
-| `cuenv task list` | Parse CUE files | Use cached config | ~2x faster |
-| MCP server requests | Parse per request | Use shared config | ~10x faster |
-| Task execution | Parse for each task | Use shared config | ~3x faster |
-| Command completion | Parse for suggestions | Use cached config | ~5x faster |
+| Operation           | Before                | After             | Improvement |
+| ------------------- | --------------------- | ----------------- | ----------- |
+| `cuenv task list`   | Parse CUE files       | Use cached config | ~2x faster  |
+| MCP server requests | Parse per request     | Use shared config | ~10x faster |
+| Task execution      | Parse for each task   | Use shared config | ~3x faster  |
+| Command completion  | Parse for suggestions | Use cached config | ~5x faster  |
 
 ### Memory Efficiency
 
@@ -113,7 +118,7 @@ struct TaskServerProvider {
 }
 
 struct TaskExecutor {
-    tasks: HashMap<String, TaskConfig>, // Copy 2  
+    tasks: HashMap<String, TaskConfig>, // Copy 2
 }
 
 struct CommandHandler {
@@ -150,7 +155,7 @@ impl TaskCommands {
                 list_tasks(config, verbose).await
             }
             TaskCommands::Run { task_name, .. } => {
-                // TaskExecutor uses shared config  
+                // TaskExecutor uses shared config
                 let executor = TaskExecutor::new(config)?;
                 executor.execute_task(&task_name).await
             }
@@ -174,7 +179,7 @@ impl TaskServerProvider {
     pub fn new_stdio(config: Arc<Config>, allow_exec: bool) -> Self {
         Self { config, allow_exec, /* ... */ }
     }
-    
+
     async fn handle_request(&self, request: serde_json::Value) -> serde_json::Value {
         // No I/O - uses pre-loaded config.get_tasks()
         match method {
@@ -192,17 +197,17 @@ impl TaskServerProvider {
 ```mermaid
 sequenceDiagram
     participant CLI as CLI Entry
-    participant CL as ConfigLoader  
+    participant CL as ConfigLoader
     participant TC as TaskCommand
     participant TE as TaskExecutor
-    
+
     CLI->>CL: load_from_directory()
     CL->>CL: Parse CUE files (once)
     CL-->>CLI: Arc<Config>
-    
+
     CLI->>TC: execute(Arc<Config>)
     TC->>TC: Use config.get_tasks()
-    TC->>TE: new(Arc<Config>)  
+    TC->>TE: new(Arc<Config>)
     TE->>TE: Execute with shared config
     TE-->>TC: Result
     TC-->>CLI: Success
@@ -213,17 +218,20 @@ sequenceDiagram
 The centralized architecture maintains cuenv's security model:
 
 ### Directory Validation
+
 - Configuration loading includes directory permission validation
 - `Arc<Config>` contains validated, trusted configuration data
 - All components operate on pre-validated data
 
 ### Capability-based Access
+
 - Capabilities are resolved during configuration loading
 - Components access capability-filtered data through the shared config
 - No runtime capability resolution needed
 
 ### Audit Trail
-- Configuration loading is logged and auditable  
+
+- Configuration loading is logged and auditable
 - All access to configuration data is traceable
 - Security violations are detected at the configuration boundary
 
@@ -243,23 +251,26 @@ When updating cuenv components:
 External tools integrating with cuenv benefit automatically:
 
 - **MCP Clients**: Faster response times from MCP server
-- **devenv Integration**: Improved TSP performance  
+- **devenv Integration**: Improved TSP performance
 - **Shell Hooks**: Quicker environment loading
 - **CI/CD Pipelines**: Reduced startup overhead
 
 ## Future Considerations
 
 ### Caching Strategy
+
 - Configuration caching across cuenv invocations
 - File system watching for automatic cache invalidation
 - Smart dependency tracking for partial reloads
 
 ### Distributed Configuration
+
 - Remote configuration loading
 - Configuration synchronization across environments
 - Conflict resolution for distributed teams
 
 ### Hot Reloading
+
 - Live configuration updates without restart
 - Graceful degradation during config updates
 - Real-time validation feedback
@@ -267,18 +278,20 @@ External tools integrating with cuenv benefit automatically:
 ## Debugging
 
 ### Configuration Loading
+
 ```bash
 # Enable debug output for configuration loading
 CUENV_DEBUG=1 cuenv task list
 
 # Output shows:
-# [DEBUG] ConfigLoader: Loading from /path/to/project  
+# [DEBUG] ConfigLoader: Loading from /path/to/project
 # [DEBUG] CueParser: Parsing env.cue (once)
 # [DEBUG] Config: Created Arc<Config> with 5 tasks, 12 variables
 # [DEBUG] TaskCommand: Using shared config (no I/O)
 ```
 
 ### Performance Monitoring
+
 ```bash
 # Time comparison - old vs new architecture
 time cuenv task list  # ~50ms -> ~20ms

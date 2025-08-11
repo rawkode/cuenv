@@ -12,7 +12,7 @@ This document covers cuenv's centralized configuration API, built around the `Co
 cuenv's configuration system is designed around a single source of truth pattern:
 
 1. **ConfigLoader** - Loads and validates configuration from CUE files
-2. **Config** - Immutable configuration data structure  
+2. **Config** - Immutable configuration data structure
 3. **Arc<Config>** - Thread-safe shared reference for zero-copy access
 
 ## ConfigLoader
@@ -41,14 +41,14 @@ command.execute(Arc::clone(&shared_config)).await?;
 impl ConfigLoader {
     /// Create a new configuration loader
     pub fn new() -> Self
-    
+
     /// Load configuration from a directory containing env.cue
     pub fn load_from_directory(&self, dir: &Path) -> Result<Config>
-    
+
     /// Load with specific runtime options
     pub fn load_with_options(
-        &self, 
-        dir: &Path, 
+        &self,
+        dir: &Path,
         runtime: RuntimeOptions
     ) -> Result<Config>
 }
@@ -94,28 +94,28 @@ let config = Config::new(
 impl Config {
     /// Get all tasks defined in the configuration
     pub fn get_tasks(&self) -> &HashMap<String, TaskConfig>
-    
+
     /// Get all environment variables
     pub fn get_env_vars(&self) -> &HashMap<String, String>
-    
+
     /// Get variable metadata (descriptions, sensitivity, etc.)
     pub fn get_metadata(&self) -> &HashMap<String, VariableMetadata>
-    
+
     /// Get command definitions
     pub fn get_commands(&self) -> &HashMap<String, CommandConfig>
-    
+
     /// Get hooks configuration
     pub fn get_hooks(&self) -> &HashMap<String, Vec<Hook>>
-    
+
     /// Check if a variable is marked as sensitive
     pub fn is_sensitive(&self, var_name: &str) -> bool
-    
+
     /// Get working directory
     pub fn get_working_dir(&self) -> &Path
-    
+
     /// Get environment file path (if any)
     pub fn get_env_file(&self) -> Option<&Path>
-    
+
     /// Get runtime options
     pub fn get_runtime(&self) -> &RuntimeOptions
 }
@@ -167,7 +167,7 @@ async fn concurrent_access(config: Arc<Config>) {
             println!("Task {}: found {} tasks", i, tasks.len());
         })
     });
-    
+
     // Wait for all tasks to complete
     for handle in handles {
         handle.await.unwrap();
@@ -251,7 +251,7 @@ sequenceDiagram
     participant CL as ConfigLoader
     participant CP as CueParser
     participant Config as Config
-    
+
     App->>CL: load_from_directory(path)
     CL->>CL: validate_directory(path)
     CL->>CP: eval_package_with_options(path, "env", options)
@@ -259,7 +259,7 @@ sequenceDiagram
     CP-->>CL: ParseResult
     CL->>Config: new(working_dir, env_file, parse_result, runtime)
     Config->>Config: apply_security_policies()
-    Config->>Config: resolve_environments()  
+    Config->>Config: resolve_environments()
     Config-->>CL: Config
     CL-->>App: Config
     App->>App: Arc::new(config)
@@ -305,26 +305,26 @@ let config = cache.get_or_load(&dir, &runtime_options)?;
 
 ### Performance Characteristics
 
-| Operation | Time Complexity | Memory Usage |
-|-----------|----------------|--------------|
-| `load_from_directory` | O(n) where n = CUE file size | O(n) |
-| `get_tasks` | O(1) | O(1) |
-| `get_env_vars` | O(1) | O(1) |
-| `Arc::clone` | O(1) | O(1) |
-| `is_sensitive` | O(1) | O(1) |
+| Operation             | Time Complexity              | Memory Usage |
+| --------------------- | ---------------------------- | ------------ |
+| `load_from_directory` | O(n) where n = CUE file size | O(n)         |
+| `get_tasks`           | O(1)                         | O(1)         |
+| `get_env_vars`        | O(1)                         | O(1)         |
+| `Arc::clone`          | O(1)                         | O(1)         |
+| `is_sensitive`        | O(1)                         | O(1)         |
 
 ### Memory Efficiency
 
 ```rust
 // BAD: Multiple copies of the same data
 let config1 = load_config(&dir)?; // Copy 1
-let config2 = load_config(&dir)?; // Copy 2  
+let config2 = load_config(&dir)?; // Copy 2
 let config3 = load_config(&dir)?; // Copy 3
 
 // GOOD: Single shared instance
 let config = Arc::new(load_config(&dir)?);
 let config1 = Arc::clone(&config); // Shared reference
-let config2 = Arc::clone(&config); // Shared reference  
+let config2 = Arc::clone(&config); // Shared reference
 let config3 = Arc::clone(&config); // Shared reference
 ```
 
@@ -364,10 +364,10 @@ impl Config {
                 ));
             }
         }
-        
+
         // Validate task dependencies
         self.validate_task_dependencies()?;
-        
+
         Ok(())
     }
 }
@@ -404,13 +404,13 @@ impl CustomCommand {
     pub fn new(config: Arc<Config>) -> Self {
         Self { config }
     }
-    
+
     pub async fn execute(&self) -> Result<()> {
         let tasks = self.config.get_tasks();
         let env_vars = self.config.get_env_vars();
-        
+
         // Use configuration data...
-        
+
         Ok(())
     }
 }
@@ -427,7 +427,7 @@ impl ConfigService {
     pub fn new(config: Arc<Config>) -> Self {
         Self { config }
     }
-    
+
     pub fn get_task_info(&self, task_name: &str) -> Option<TaskInfo> {
         let tasks = self.config.get_tasks();
         tasks.get(task_name).map(|task| TaskInfo {
@@ -465,7 +465,7 @@ let tasks = config.get_tasks();
 let mut tasks = HashMap::new();
 tasks.insert("build".to_string(), build_task_config);
 
-// NEW: Configuration from CUE files  
+// NEW: Configuration from CUE files
 let config = Arc::new(config_loader.load_from_directory(&dir)?);
 let tasks = config.get_tasks(); // Dynamic from CUE files
 ```
