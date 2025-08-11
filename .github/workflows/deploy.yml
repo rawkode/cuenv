@@ -4,17 +4,6 @@ on:
     types: [published]
   workflow_dispatch:
 jobs:
-  crates-io:
-    runs-on: ubuntu-latest
-    steps:
-      - name: git-checkout
-        uses: actions/checkout@v4
-      - name: rust-toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - name: cargo-publish
-        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
   website:
     runs-on: ubuntu-latest
     needs: crates-io
