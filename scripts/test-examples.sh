@@ -102,10 +102,6 @@ EOF
 # Run all tests
 echo -e "${YELLOW}Running cuenv example tests${NC}"
 
-# Use bundled CUE schemas to avoid fetching
-echo -e "${YELLOW}Using bundled CUE schemas (no fetching required)${NC}"
-export CUE_ROOT="$PROJECT_ROOT/cue"
-
 FAILED=0
 
 # Test each example directory

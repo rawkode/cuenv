@@ -12,12 +12,10 @@ mod tasks;
 
 pub use cache::{CacheEnvConfig, TaskCacheConfig};
 pub use commands::CommandConfig;
-pub use hooks::{
-    DevenvConfig, ExecConfig, Hook, HookConfig, HookConstraint, HookType, HookValue, NixFlakeConfig,
-};
+pub use hooks::{Hook, HookConfig, HookConstraint, HookType, HookValue};
 pub(crate) use result::{CueParseResult, HooksConfig};
 pub use security::SecurityConfig;
-pub use tasks::TaskConfig;
+pub use tasks::{TaskConfig, TaskNode};
 
 use serde::{Deserialize, Serialize};
 

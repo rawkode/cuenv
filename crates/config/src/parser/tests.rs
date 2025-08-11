@@ -1,7 +1,9 @@
 //! Tests for the CUE parser module
 
 use super::*;
+use cuenv_core::constants::{CUENV_PACKAGE_VAR, DEFAULT_PACKAGE_NAME};
 use serial_test::serial;
+use std::env;
 use std::fs;
 use tempfile::TempDir;
 
@@ -17,10 +19,19 @@ fn create_test_env(content: &str) -> TempDir {
     temp_dir
 }
 
+/// Get the test package name from environment or use default
+fn test_package_name() -> String {
+    env::var(CUENV_PACKAGE_VAR).unwrap_or_else(|_| DEFAULT_PACKAGE_NAME.to_string())
+}
+
 #[test]
 #[serial]
-fn test_only_env_package_allowed() {
-    // Test that non-env packages are rejected
+fn test_only_configured_package_allowed() {
+    // Set test package name
+    let original = env::var(CUENV_PACKAGE_VAR).ok();
+    env::set_var(CUENV_PACKAGE_VAR, "testpkg");
+
+    // Test that non-configured packages are rejected
     let content = r#"
     package mypackage
 
@@ -32,27 +43,34 @@ fn test_only_env_package_allowed() {
     assert!(result.is_err());
     let err_msg = result.unwrap_err().to_string();
     assert!(
-        err_msg.contains("Only 'env' package is supported"),
+        err_msg.contains("Only 'testpkg' package is supported"),
         "Error message was: {err_msg}"
     );
 
-    // Test that env package is accepted
+    // Test that configured package is accepted
     let content = r#"
-    package env
+    package testpkg
 
     env: {
         DATABASE_URL: "postgresql://localhost/mydb"
     }"#;
     let temp_dir = create_test_env(content);
-    let result = CueParser::eval_package(temp_dir.path(), "env");
+    let result = CueParser::eval_package(temp_dir.path(), "testpkg");
     assert!(result.is_ok());
+
+    // Restore original value
+    if let Some(val) = original {
+        env::set_var(CUENV_PACKAGE_VAR, val);
+    } else {
+        env::remove_var(CUENV_PACKAGE_VAR);
+    }
 }
 
 #[test]
 #[serial]
 fn test_parse_simple_env() {
     let content = r#"
-    package env
+    package cuenv
 
     env: {
         DATABASE_URL: "postgres://localhost/mydb"
@@ -62,7 +80,7 @@ fn test_parse_simple_env() {
     }
     "#;
     let temp_dir = create_test_env(content);
-    let result = CueParser::eval_package(temp_dir.path(), "env").unwrap();
+    let result = CueParser::eval_package(temp_dir.path(), DEFAULT_PACKAGE_NAME).unwrap();
 
     assert_eq!(
         result.get("DATABASE_URL").unwrap(),
@@ -77,7 +95,7 @@ fn test_parse_simple_env() {
 #[serial]
 fn test_parse_with_comments() {
     let content = r#"
-    package env
+    package cuenv
 
     env: {
         // This is a comment
@@ -90,7 +108,7 @@ fn test_parse_with_comments() {
     }
     "#;
     let temp_dir = create_test_env(content);
-    let result = CueParser::eval_package(temp_dir.path(), "env").unwrap();
+    let result = CueParser::eval_package(temp_dir.path(), DEFAULT_PACKAGE_NAME).unwrap();
     assert_eq!(
         result.get("DATABASE_URL").unwrap(),
         "postgres://localhost/mydb"
@@ -103,7 +121,7 @@ fn test_parse_with_comments() {
 #[serial]
 fn test_parse_cue_features() {
     let content = r#"
-    package env
+    package cuenv
 
     env: {
         // CUE supports string interpolation
@@ -118,7 +136,7 @@ fn test_parse_cue_features() {
     }
     "#;
     let temp_dir = create_test_env(content);
-    let result = CueParser::eval_package(temp_dir.path(), "env").unwrap();
+    let result = CueParser::eval_package(temp_dir.path(), DEFAULT_PACKAGE_NAME).unwrap();
     // The CUE parser will evaluate these expressions
     assert!(result.contains_key("BASE_URL"));
     assert!(result.contains_key("PORT"));
@@ -133,7 +151,7 @@ fn test_package_requirement() {
         }
     }"#;
     let temp_dir = create_test_env(content);
-    let result = CueParser::eval_package(temp_dir.path(), "env");
+    let result = CueParser::eval_package(temp_dir.path(), DEFAULT_PACKAGE_NAME);
     assert!(result.is_err());
 }
 
@@ -141,7 +159,7 @@ fn test_package_requirement() {
 #[serial]
 fn test_parse_with_environments() {
     let content = r#"
-    package env
+    package cuenv
 
     env: {
         DATABASE_URL: "postgres://localhost/mydb"
@@ -163,7 +181,7 @@ fn test_parse_with_environments() {
     let temp_dir = create_test_env(content);
 
     // Test default parsing (no environment)
-    let result = CueParser::eval_package(temp_dir.path(), "env").unwrap();
+    let result = CueParser::eval_package(temp_dir.path(), DEFAULT_PACKAGE_NAME).unwrap();
     assert_eq!(
         result.get("DATABASE_URL").unwrap(),
         "postgres://localhost/mydb"
@@ -176,7 +194,7 @@ fn test_parse_with_environments() {
         environment: Some("production".to_string()),
         capabilities: Vec::new(),
     };
-    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
     assert_eq!(
         result.variables.get("DATABASE_URL").unwrap(),
         "postgres://prod.example.com/mydb"
@@ -189,7 +207,7 @@ fn test_parse_with_environments() {
         environment: Some("staging".to_string()),
         capabilities: Vec::new(),
     };
-    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
     assert_eq!(
         result.variables.get("DATABASE_URL").unwrap(),
         "postgres://staging.example.com/mydb"
@@ -202,7 +220,7 @@ fn test_parse_with_environments() {
 #[serial]
 fn test_parse_with_capabilities() {
     let content = r#"
-    package env
+    package cuenv
 
     env: {
         DATABASE_URL: "postgres://localhost/mydb"
@@ -217,7 +235,7 @@ fn test_parse_with_capabilities() {
     let temp_dir = create_test_env(content);
 
     // Test without capability filter
-    let result = CueParser::eval_package(temp_dir.path(), "env").unwrap();
+    let result = CueParser::eval_package(temp_dir.path(), DEFAULT_PACKAGE_NAME).unwrap();
     assert_eq!(result.len(), 2);
     assert!(result.contains_key("DATABASE_URL"));
     assert!(result.contains_key("API_KEY"));
@@ -227,7 +245,7 @@ fn test_parse_with_capabilities() {
         environment: None,
         capabilities: vec!["aws".to_string()],
     };
-    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
     assert_eq!(result.variables.len(), 2); // DATABASE_URL and API_KEY have no capabilities, so they're always included
 
     // Test with non-existent capability
@@ -235,7 +253,7 @@ fn test_parse_with_capabilities() {
         environment: None,
         capabilities: vec!["gcp".to_string()],
     };
-    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
     assert_eq!(result.variables.len(), 2); // DATABASE_URL and API_KEY have no capabilities, so they're always included
 }
 
@@ -243,7 +261,7 @@ fn test_parse_with_capabilities() {
 #[serial]
 fn test_parse_with_commands() {
     let content = r#"
-    package env
+    package cuenv
 
     env: {
         DATABASE_URL: "postgres://localhost/mydb"
@@ -263,7 +281,7 @@ fn test_parse_with_commands() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
 
     assert!(result.commands.contains_key("migrate"));
     assert!(result.commands.contains_key("deploy"));
@@ -293,7 +311,7 @@ fn test_parse_with_commands() {
 #[serial]
 fn test_parse_with_env_and_capabilities() {
     let content = r#"
-    package env
+    package cuenv
 
     env: {
         DATABASE_URL: "postgres://localhost/mydb"
@@ -319,7 +337,7 @@ fn test_parse_with_env_and_capabilities() {
         environment: Some("production".to_string()),
         capabilities: vec!["aws".to_string()],
     };
-    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
     assert_eq!(result.variables.len(), 3);
     assert_eq!(
         result.variables.get("AWS_ACCESS_KEY").unwrap(),
@@ -336,12 +354,12 @@ fn test_parse_with_env_and_capabilities() {
 #[serial]
 fn test_empty_cue_file() {
     let content = r#"
-    package env
+    package cuenv
 
     env: {}
     "#;
     let temp_dir = create_test_env(content);
-    let result = CueParser::eval_package(temp_dir.path(), "env").unwrap();
+    let result = CueParser::eval_package(temp_dir.path(), DEFAULT_PACKAGE_NAME).unwrap();
     assert_eq!(result.len(), 0);
 }
 
@@ -350,7 +368,7 @@ fn test_empty_cue_file() {
 fn test_structured_secrets() {
     // Test with simpler CUE syntax that the parser can handle
     let content = r#"
-    package env
+    package cuenv
 
     env: {
         // Regular variables
@@ -366,7 +384,7 @@ fn test_structured_secrets() {
     }
     "#;
     let temp_dir = create_test_env(content);
-    let result = CueParser::eval_package(temp_dir.path(), "env").unwrap();
+    let result = CueParser::eval_package(temp_dir.path(), DEFAULT_PACKAGE_NAME).unwrap();
 
     // Regular variable
     assert_eq!(
@@ -393,7 +411,7 @@ fn test_structured_secrets() {
 #[serial]
 fn test_parse_with_nested_objects() {
     let content = r#"
-    package env
+    package cuenv
 
     env: {
         DATABASE: {
@@ -404,7 +422,7 @@ fn test_parse_with_nested_objects() {
     "#;
     let temp_dir = create_test_env(content);
     // The parser should skip non-primitive values
-    let result = CueParser::eval_package(temp_dir.path(), "env").unwrap();
+    let result = CueParser::eval_package(temp_dir.path(), DEFAULT_PACKAGE_NAME).unwrap();
     assert_eq!(result.len(), 0);
 }
 
@@ -412,7 +430,7 @@ fn test_parse_with_nested_objects() {
 #[serial]
 fn test_value_types() {
     let content = r#"
-    package env
+    package cuenv
 
     env: {
         STRING_VAL: "hello"
@@ -425,7 +443,7 @@ fn test_value_types() {
     }
     "#;
     let temp_dir = create_test_env(content);
-    let result = CueParser::eval_package(temp_dir.path(), "env").unwrap();
+    let result = CueParser::eval_package(temp_dir.path(), DEFAULT_PACKAGE_NAME).unwrap();
     assert_eq!(result.get("STRING_VAL").unwrap(), "hello");
     assert_eq!(result.get("INT_VAL").unwrap(), "42");
     assert_eq!(result.get("FLOAT_VAL").unwrap(), "3.14");
@@ -440,7 +458,7 @@ fn test_value_types() {
 #[serial]
 fn test_parse_with_hooks() {
     let content = r#"
-    package env
+    package cuenv
 
     hooks: {
         onEnter: {
@@ -459,42 +477,24 @@ fn test_parse_with_hooks() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
 
     assert_eq!(result.hooks.len(), 2);
 
     let on_enter = &result.hooks.get("onEnter").unwrap()[0];
-    match on_enter {
-        Hook::Legacy(hook_config) => {
-            assert_eq!(hook_config.command, "echo");
-            assert_eq!(hook_config.args, vec!["Entering environment"]);
-        }
-        Hook::Exec { exec, .. } => {
-            assert_eq!(exec.command, "echo");
-            assert_eq!(exec.args.as_ref().unwrap(), &vec!["Entering environment"]);
-        }
-        _ => panic!("Expected Legacy or Exec hook"),
-    }
+    assert_eq!(on_enter.command, "echo");
+    assert_eq!(on_enter.args.as_ref().unwrap(), &vec!["Entering environment"]);
 
     let on_exit = &result.hooks.get("onExit").unwrap()[0];
-    match on_exit {
-        Hook::Legacy(hook_config) => {
-            assert_eq!(hook_config.command, "cleanup.sh");
-            assert_eq!(hook_config.args, vec!["--verbose"]);
-        }
-        Hook::Exec { exec, .. } => {
-            assert_eq!(exec.command, "cleanup.sh");
-            assert_eq!(exec.args.as_ref().unwrap(), &vec!["--verbose"]);
-        }
-        _ => panic!("Expected Legacy or Exec hook"),
-    }
+    assert_eq!(on_exit.command, "cleanup.sh");
+    assert_eq!(on_exit.args.as_ref().unwrap(), &vec!["--verbose"]);
 }
 
 #[test]
 #[serial]
 fn test_parse_hooks_with_url() {
     let content = r#"
-    package env
+    package cuenv
 
     hooks: {
         onEnter: {
@@ -510,34 +510,21 @@ fn test_parse_hooks_with_url() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
 
     assert_eq!(result.hooks.len(), 1);
 
     let hook = &result.hooks.get("onEnter").unwrap()[0];
-    match hook {
-        Hook::Legacy(hook_config) => {
-            assert_eq!(hook_config.command, "notify");
-            assert_eq!(hook_config.args, vec!["webhook", "start"]);
-            assert_eq!(
-                hook_config.url,
-                Some("https://example.com/webhook".to_string())
-            );
-        }
-        Hook::Exec { exec, .. } => {
-            assert_eq!(exec.command, "notify");
-            assert_eq!(exec.args.as_ref().unwrap(), &vec!["webhook", "start"]);
-            // TODO: URL support needs to be added to ExecConfig if needed
-        }
-        _ => panic!("Expected Legacy or Exec hook"),
-    }
+    assert_eq!(hook.command, "notify");
+    assert_eq!(hook.args.as_ref().unwrap(), &vec!["webhook", "start"]);
+    // Note: URL support is no longer part of the simplified Hook structure
 }
 
 #[test]
 #[serial]
 fn test_parse_empty_hooks() {
     let content = r#"
-    package env
+    package cuenv
 
     hooks: {}
 
@@ -547,7 +534,7 @@ fn test_parse_empty_hooks() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
 
     assert_eq!(result.hooks.len(), 0);
 }
@@ -556,7 +543,7 @@ fn test_parse_empty_hooks() {
 #[serial]
 fn test_parse_no_hooks() {
     let content = r#"
-    package env
+    package cuenv
 
     env: {
         DATABASE_URL: "postgres://localhost/mydb"
@@ -564,7 +551,7 @@ fn test_parse_no_hooks() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
 
     assert_eq!(result.hooks.len(), 0);
 }
@@ -573,7 +560,7 @@ fn test_parse_no_hooks() {
 #[serial]
 fn test_parse_hooks_with_complex_args() {
     let content = r#"
-    package env
+    package cuenv
 
     hooks: {
         onEnter: {
@@ -592,42 +579,26 @@ fn test_parse_hooks_with_complex_args() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
 
     let on_enter = &result.hooks.get("onEnter").unwrap()[0];
-    match on_enter {
-        Hook::Legacy(hook_config) => {
-            assert_eq!(hook_config.args.len(), 5);
-            assert_eq!(hook_config.args[0], "run");
-            assert_eq!(hook_config.args[4], "postgres:14");
-        }
-        Hook::Exec { exec, .. } => {
-            let args = exec.args.as_ref().unwrap();
-            assert_eq!(args.len(), 5);
-            assert_eq!(args[0], "run");
-            assert_eq!(args[4], "postgres:14");
-        }
-        _ => panic!("Expected Legacy or Exec hook"),
-    }
+    // All hooks are now simple ExecHooks
+    let args = on_enter.args.as_ref().unwrap();
+    assert_eq!(args.len(), 5);
+    assert_eq!(args[0], "run");
+    assert_eq!(args[4], "postgres:14");
 
     let on_exit = &result.hooks.get("onExit").unwrap()[0];
-    match on_exit {
-        Hook::Legacy(hook_config) => {
-            assert_eq!(hook_config.args.len(), 6);
-        }
-        Hook::Exec { exec, .. } => {
-            let args = exec.args.as_ref().unwrap();
-            assert_eq!(args.len(), 6);
-        }
-        _ => panic!("Expected Legacy or Exec hook"),
-    }
+    // All hooks are now simple ExecHooks
+    let args = on_exit.args.as_ref().unwrap();
+    assert_eq!(args.len(), 6);
 }
 
 #[test]
 #[serial]
 fn test_parse_hooks_with_environments() {
     let content = r#"
-    package env
+    package cuenv
 
     hooks: {
         onEnter: {
@@ -650,43 +621,29 @@ fn test_parse_hooks_with_environments() {
 
     // Test with development (default)
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
     assert_eq!(result.hooks.len(), 1);
     let hook = &result.hooks.get("onEnter").unwrap()[0];
-    match hook {
-        Hook::Legacy(hook_config) => {
-            assert_eq!(hook_config.args[0], "Development environment");
-        }
-        Hook::Exec { exec, .. } => {
-            assert_eq!(exec.args.as_ref().unwrap()[0], "Development environment");
-        }
-        _ => panic!("Expected Legacy or Exec hook"),
-    }
+    // All hooks are now simple ExecHooks
+    assert_eq!(hook.args.as_ref().unwrap()[0], "Development environment");
 
     // Test with production environment - hooks should remain the same
     let options = ParseOptions {
         environment: Some("production".to_string()),
         capabilities: Vec::new(),
     };
-    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
     assert_eq!(result.hooks.len(), 1);
     let hook = &result.hooks.get("onEnter").unwrap()[0];
-    match hook {
-        Hook::Legacy(hook_config) => {
-            assert_eq!(hook_config.args[0], "Development environment");
-        }
-        Hook::Exec { exec, .. } => {
-            assert_eq!(exec.args.as_ref().unwrap()[0], "Development environment");
-        }
-        _ => panic!("Expected Legacy or Exec hook"),
-    }
+    // All hooks are now simple ExecHooks
+    assert_eq!(hook.args.as_ref().unwrap()[0], "Development environment");
 }
 
 #[test]
 #[serial]
 fn test_parse_hooks_only_on_enter() {
     let content = r#"
-    package env
+    package cuenv
 
     hooks: {
         onEnter: {
@@ -701,31 +658,23 @@ fn test_parse_hooks_only_on_enter() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
 
     assert_eq!(result.hooks.len(), 1);
     assert!(result.hooks.contains_key("onEnter"));
     assert!(!result.hooks.contains_key("onExit"));
 
     let hook = &result.hooks.get("onEnter").unwrap()[0];
-    match hook {
-        Hook::Legacy(hook_config) => {
-            assert_eq!(hook_config.command, "start-server");
-            assert!(hook_config.args.is_empty());
-        }
-        Hook::Exec { exec, .. } => {
-            assert_eq!(exec.command, "start-server");
-            assert!(exec.args.as_ref().is_none_or(|args| args.is_empty()));
-        }
-        _ => panic!("Expected Legacy or Exec hook"),
-    }
+    // All hooks are now simple ExecHooks
+    assert_eq!(hook.command, "start-server");
+    assert!(hook.args.as_ref().is_none_or(|args| args.is_empty()));
 }
 
 #[test]
 #[serial]
 fn test_parse_hooks_only_on_exit() {
     let content = r#"
-    package env
+    package cuenv
 
     hooks: {
         onExit: {
@@ -740,31 +689,23 @@ fn test_parse_hooks_only_on_exit() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
 
     assert_eq!(result.hooks.len(), 1);
     assert!(!result.hooks.contains_key("onEnter"));
     assert!(result.hooks.contains_key("onExit"));
 
     let hook = &result.hooks.get("onExit").unwrap()[0];
-    match hook {
-        Hook::Legacy(hook_config) => {
-            assert_eq!(hook_config.command, "stop-server");
-            assert_eq!(hook_config.args, vec!["--graceful"]);
-        }
-        Hook::Exec { exec, .. } => {
-            assert_eq!(exec.command, "stop-server");
-            assert_eq!(exec.args.as_ref().unwrap(), &vec!["--graceful"]);
-        }
-        _ => panic!("Expected Legacy or Exec hook"),
-    }
+    // All hooks are now simple ExecHooks
+    assert_eq!(hook.command, "stop-server");
+    assert_eq!(hook.args.as_ref().unwrap(), &vec!["--graceful"]);
 }
 
 #[test]
 #[serial]
 fn test_parse_hooks_with_constraints() {
     let content = r#"
-    package env
+    package cuenv
 
     hooks: {
         onEnter: {
@@ -809,28 +750,28 @@ fn test_parse_hooks_with_constraints() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
 
     assert_eq!(result.hooks.len(), 2);
 
     // Test onEnter hook constraints
     let on_enter = &result.hooks.get("onEnter").unwrap()[0];
     match on_enter {
-        Hook::Legacy(hook_config) => {
+        // All hooks are now simple ExecHooks
             assert_eq!(hook_config.command, "devenv");
             assert_eq!(hook_config.args, vec!["up"]);
             assert_eq!(hook_config.constraints.len(), 2);
         }
-        Hook::Exec { exec, .. } => {
+        // (merged case)
             assert_eq!(exec.command, "devenv");
             assert_eq!(exec.args.as_ref().unwrap(), &vec!["up"]);
         }
-        _ => panic!("Expected Legacy or Exec hook"),
+        // (no longer needed),
     }
 
     // Check constraints (available in both Legacy and Exec formats)
     match on_enter {
-        Hook::Legacy(hook_config) => {
+        // All hooks are now simple ExecHooks
             // Check first constraint - command exists
             if let HookConstraint::CommandExists { command } = &hook_config.constraints[0] {
                 assert_eq!(command, "devenv");
@@ -846,7 +787,7 @@ fn test_parse_hooks_with_constraints() {
                 panic!("Expected ShellCommand constraint");
             }
         }
-        Hook::Exec { exec, .. } => {
+        // (merged case)
             // Check constraints in new format
             assert_eq!(exec.constraints.len(), 2);
 
@@ -863,13 +804,13 @@ fn test_parse_hooks_with_constraints() {
                 panic!("Expected ShellCommand constraint");
             }
         }
-        _ => panic!("Expected Legacy or Exec hook"),
+        // (no longer needed),
     }
 
     // Test onExit hook constraints
     let on_exit = &result.hooks.get("onExit").unwrap()[0];
     match on_exit {
-        Hook::Legacy(hook_config) => {
+        // All hooks are now simple ExecHooks
             assert_eq!(hook_config.command, "cleanup.sh");
             assert!(hook_config.args.is_empty());
             assert_eq!(hook_config.constraints.len(), 2);
@@ -889,7 +830,7 @@ fn test_parse_hooks_with_constraints() {
                 panic!("Expected CommandExists constraint");
             }
         }
-        Hook::Exec { exec, .. } => {
+        // (merged case)
             assert_eq!(exec.command, "cleanup.sh");
             assert!(exec.args.as_ref().is_none_or(|args| args.is_empty()));
             assert_eq!(exec.constraints.len(), 2);
@@ -909,7 +850,7 @@ fn test_parse_hooks_with_constraints() {
                 panic!("Expected CommandExists constraint");
             }
         }
-        _ => panic!("Expected Legacy or Exec hook"),
+        // (no longer needed),
     }
 }
 
@@ -917,7 +858,7 @@ fn test_parse_hooks_with_constraints() {
 #[serial]
 fn test_parse_hooks_with_no_constraints() {
     let content = r#"
-    package env
+    package cuenv
 
     hooks: {
         onEnter: {
@@ -932,21 +873,11 @@ fn test_parse_hooks_with_no_constraints() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
 
     assert_eq!(result.hooks.len(), 1);
     let hook = &result.hooks.get("onEnter").unwrap()[0];
-    match hook {
-        Hook::Legacy(hook_config) => {
-            assert_eq!(hook_config.command, "echo");
-            assert_eq!(hook_config.args, vec!["No constraints"]);
-            assert!(hook_config.constraints.is_empty());
-        }
-        Hook::Exec { exec, .. } => {
-            assert_eq!(exec.command, "echo");
-            assert_eq!(exec.args.as_ref().unwrap(), &vec!["No constraints"]);
-            assert!(exec.constraints.is_empty());
-        }
-        _ => panic!("Expected Legacy or Exec hook"),
-    }
+    // All hooks are now simple ExecHooks
+    assert_eq!(hook.command, "echo");
+    assert_eq!(hook.args.as_ref().unwrap(), &vec!["No constraints"]);
 }

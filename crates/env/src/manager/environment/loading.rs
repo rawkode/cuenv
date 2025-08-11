@@ -107,21 +107,18 @@ fn convert_hooks_to_config(
 ) {
     for (hook_type, hook_vec) in hook_list {
         if let Some(first_hook) = hook_vec.first() {
-            let hook_config = match first_hook {
-                Hook::Legacy(config) => config.clone(),
-                Hook::Exec { exec, .. } => HookConfig {
-                    command: exec.command.clone(),
-                    args: exec.args.clone().unwrap_or_default(),
-                    url: None,
-                    source: exec.source,
-                    constraints: vec![],
-                    hook_type: if hook_type == "onEnter" {
-                        HookType::OnEnter
-                    } else {
-                        HookType::OnExit
-                    },
+            // All hooks are now simple ExecHooks
+            let hook_config = HookConfig {
+                command: first_hook.command.clone(),
+                args: first_hook.args.clone().unwrap_or_default(),
+                url: None,
+                source: first_hook.source,
+                constraints: vec![],
+                hook_type: if hook_type == "onEnter" {
+                    HookType::OnEnter
+                } else {
+                    HookType::OnExit
                 },
-                _ => continue, // Skip other hook types for now
             };
             hooks.insert(hook_type.clone(), hook_config);
         }

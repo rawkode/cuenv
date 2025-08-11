@@ -488,19 +488,49 @@ func extractCueData(v cue.Value) map[string]interface{} {
 
 		// Extract onEnter hook(s) - can be a single hook or an array
 		if onEnterField := hooksField.LookupPath(cue.ParsePath("onEnter")); onEnterField.Exists() {
-			// Try to decode the entire field as a generic interface to detect its type
-			var rawValue interface{}
-			if err := onEnterField.Decode(&rawValue); err == nil {
-				hooks["onEnter"] = rawValue
+			// Check if it's a list
+			if onEnterField.Kind() == cue.ListKind {
+				var hooksList []interface{}
+				iter, _ := onEnterField.List()
+				for iter.Next() {
+					var hook interface{}
+					if err := iter.Value().Decode(&hook); err == nil {
+						hooksList = append(hooksList, hook)
+					}
+				}
+				if len(hooksList) > 0 {
+					hooks["onEnter"] = hooksList
+				}
+			} else {
+				// Single hook value
+				var rawValue interface{}
+				if err := onEnterField.Decode(&rawValue); err == nil {
+					hooks["onEnter"] = rawValue
+				}
 			}
 		}
 
 		// Extract onExit hook(s) - can be a single hook or an array
 		if onExitField := hooksField.LookupPath(cue.ParsePath("onExit")); onExitField.Exists() {
-			// Try to decode the entire field as a generic interface to detect its type
-			var rawValue interface{}
-			if err := onExitField.Decode(&rawValue); err == nil {
-				hooks["onExit"] = rawValue
+			// Check if it's a list
+			if onExitField.Kind() == cue.ListKind {
+				var hooksList []interface{}
+				iter, _ := onExitField.List()
+				for iter.Next() {
+					var hook interface{}
+					if err := iter.Value().Decode(&hook); err == nil {
+						hooksList = append(hooksList, hook)
+					}
+				}
+				if len(hooksList) > 0 {
+					hooks["onExit"] = hooksList
+				}
+			} else {
+				// Single hook value
+				var rawValue interface{}
+				if err := onExitField.Decode(&rawValue); err == nil {
+					hooks["onExit"] = rawValue
+				}
 			}
 		}
 

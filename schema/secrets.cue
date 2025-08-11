@@ -1,8 +1,8 @@
-package cuenv
+package schema
 
-#Resolver: {
-	ref:      string
+#Secret: {
 	resolver: #ExecResolver
+	...
 }
 
 #ExecResolver: {

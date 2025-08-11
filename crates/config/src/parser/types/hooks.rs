@@ -30,9 +30,9 @@ pub enum HookConstraint {
     },
 }
 
-/// Base execution primitive
+/// Hook is now just an ExecHook - a simple command execution primitive
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExecConfig {
+pub struct Hook {
     pub command: String,
     #[serde(default)]
     pub args: Option<Vec<String>>,
@@ -42,67 +42,6 @@ pub struct ExecConfig {
     pub inputs: Option<Vec<String>>,
     #[serde(default)]
     pub source: Option<bool>,
-    #[serde(default)]
-    pub constraints: Vec<HookConstraint>,
-}
-
-/// Nix flake configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NixFlakeConfig {
-    #[serde(default)]
-    pub dir: Option<String>,
-    #[serde(default)]
-    pub reference: Option<String>,
-    #[serde(default)]
-    pub shell: Option<String>,
-    #[serde(default)]
-    pub impure: Option<bool>,
-}
-
-/// Devenv configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DevenvConfig {
-    #[serde(default)]
-    pub dir: Option<String>,
-    #[serde(default)]
-    pub profile: Option<String>,
-    #[serde(default)]
-    pub options: Option<Vec<String>>,
-}
-
-/// Hook types supporting the layered architecture
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Hook {
-    /// Simple nix flake format (just flake field)
-    SimpleNixFlake { flake: NixFlakeConfig },
-    /// Simple devenv format (just devenv field)
-    SimpleDevenv { devenv: DevenvConfig },
-    /// Legacy format for backward compatibility
-    Legacy(HookConfig),
-    /// Basic command execution with type field
-    Exec {
-        #[serde(rename = "type")]
-        hook_type: String,
-        #[serde(flatten)]
-        exec: ExecConfig,
-    },
-    /// Nix flake integration with explicit type
-    NixFlake {
-        #[serde(rename = "type")]
-        hook_type: String,
-        #[serde(flatten)]
-        exec: ExecConfig,
-        flake: NixFlakeConfig,
-    },
-    /// Devenv integration with explicit type
-    Devenv {
-        #[serde(rename = "type")]
-        hook_type: String,
-        #[serde(flatten)]
-        exec: ExecConfig,
-        devenv: DevenvConfig,
-    },
 }
 
 /// Legacy hook config for backward compatibility

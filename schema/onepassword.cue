@@ -1,6 +1,6 @@
-package cuenv
+package schema
 
-#OnePasswordRef: #Resolver & {
+#OnePasswordRef: #Secret & {
 	ref: string
 	resolver: #ExecResolver & {
 		command: "op"
