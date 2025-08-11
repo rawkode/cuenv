@@ -4,7 +4,7 @@
 //! compression, corruption detection, and WAL recovery.
 
 #[cfg(test)]
-mod tests {
+mod storage_tests {
     use crate::errors::CacheError;
     use crate::storage::{CompressionConfig, StorageBackend, StorageHeader};
     use crate::traits::CacheMetadata;
