@@ -37,7 +37,7 @@ pub struct TaskExecutor {
 }
 
 #[cfg(test)]
-mod tests {
+mod executor_tests {
     use super::*;
 
     use std::fs;
