@@ -133,7 +133,7 @@ mod tests {
     fn test_version_check_same() -> Result<()> {
         let temp_dir = TempDir::new()?;
         let version_file = temp_dir.path().join("VERSION");
-        
+
         // Write current version
         fs::write(&version_file, CACHE_VERSION.to_string())?;
 
@@ -151,7 +151,7 @@ mod tests {
     fn test_version_too_new() -> Result<()> {
         let temp_dir = TempDir::new()?;
         let version_file = temp_dir.path().join("VERSION");
-        
+
         // Write newer version
         let newer_version = CACHE_VERSION + 1;
         fs::write(&version_file, newer_version.to_string())?;
@@ -160,7 +160,10 @@ mod tests {
         let result = migrator.check_and_migrate(temp_dir.path());
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("newer than supported"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("newer than supported"));
 
         Ok(())
     }

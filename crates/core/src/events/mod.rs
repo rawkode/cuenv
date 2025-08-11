@@ -26,8 +26,7 @@ pub use global::{
 };
 pub use subscriber::{EnhancedEvent, EventSubscriber};
 pub use types::{
-    CacheEvent, DependencyEvent, EnvEvent, EventSystemError, PipelineEvent, SystemEvent,
-    TaskEvent,
+    CacheEvent, DependencyEvent, EnvEvent, EventSystemError, PipelineEvent, SystemEvent, TaskEvent,
 };
 
 #[cfg(test)]

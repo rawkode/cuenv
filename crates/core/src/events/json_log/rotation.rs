@@ -16,8 +16,8 @@ impl JsonLogSubscriber {
         let write_count = self.write_counter.fetch_add(1, Ordering::Relaxed);
         let cached_size = self.cached_file_size.load(Ordering::Relaxed);
 
-        let should_check_size = write_count % self.config.size_check_interval == 0
-            || cached_size > max_size;
+        let should_check_size =
+            write_count % self.config.size_check_interval == 0 || cached_size > max_size;
 
         if should_check_size {
             // Check actual file size

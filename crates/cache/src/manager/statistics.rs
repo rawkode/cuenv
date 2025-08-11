@@ -137,12 +137,12 @@ mod tests {
     #[test]
     fn test_statistics_tracking() {
         let mut stats = CacheStatistics::new();
-        
+
         stats.record_hit();
         stats.record_hit();
         stats.record_miss();
         stats.record_write();
-        
+
         assert_eq!(stats.hits, 2);
         assert_eq!(stats.misses, 1);
         assert_eq!(stats.writes, 1);
@@ -152,11 +152,11 @@ mod tests {
     #[test]
     fn test_stats_container() {
         let container = StatsContainer::new();
-        
+
         container.record_hit();
         container.record_miss();
         container.record_write();
-        
+
         let snapshot = container.get_snapshot();
         assert_eq!(snapshot.hits, 1);
         assert_eq!(snapshot.misses, 1);

@@ -112,7 +112,7 @@ mod tests {
     fn test_prefetch_no_crash() {
         let value = 42u64;
         let ptr = &value as *const u64;
-        
+
         // These should not crash
         prefetch_read(ptr);
         prefetch_write(ptr);

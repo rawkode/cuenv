@@ -137,12 +137,12 @@ mod tests {
     #[test]
     fn test_stats_operations() {
         let stats = PerfStats::new();
-        
+
         stats.record_hit();
         stats.record_hit();
         stats.record_miss();
         stats.record_write(100);
-        
+
         let snapshot = stats.snapshot();
         assert_eq!(snapshot.hits, 2);
         assert_eq!(snapshot.misses, 1);
@@ -162,7 +162,7 @@ mod tests {
             bytes_written: 0,
             io_operations: 0,
         };
-        
+
         assert_eq!(snapshot.hit_rate(), 75.0);
     }
 }

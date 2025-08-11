@@ -26,8 +26,7 @@ impl EventHandler for TuiApp {
                 self.minimap.build_tree_lines().await;
 
                 // On first failure, jump to the first error to reduce time-to-first-error
-                if matches!(event, TaskEvent::Failed { .. }) && self.minimap.jump_to_first_error()
-                {
+                if matches!(event, TaskEvent::Failed { .. }) && self.minimap.jump_to_first_error() {
                     if let Some(task) = self.minimap.get_selected_task() {
                         self.focus_pane.set_task(task.clone());
                     }
