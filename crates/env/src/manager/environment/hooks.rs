@@ -13,15 +13,14 @@ pub async fn process_sourcing_hooks(
 
     // Process onEnter hooks that provide environment (nix flake, devenv, source hooks)
     let cache = crate::cache::EnvCache::new(dir).ok();
-    
+
     for (hook_type, hook_vec) in hook_list {
         if hook_type == "onEnter" {
             for hook in hook_vec {
                 match hook {
                     Hook::SimpleNixFlake { flake: _ } | Hook::NixFlake { flake: _, .. } => {
                         if let Some(ref cache) = cache {
-                            match hooks::execute_nix_flake_hook("dummy_flake", cache, false).await
-                            {
+                            match hooks::execute_nix_flake_hook("dummy_flake", cache, false).await {
                                 Ok((env_vars, _file_times)) => {
                                     tracing::info!(
                                         "Loaded {} variables from nix flake",

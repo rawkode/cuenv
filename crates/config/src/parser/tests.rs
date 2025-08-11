@@ -176,8 +176,7 @@ fn test_parse_with_environments() {
         environment: Some("production".to_string()),
         capabilities: Vec::new(),
     };
-    let result =
-        CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
     assert_eq!(
         result.variables.get("DATABASE_URL").unwrap(),
         "postgres://prod.example.com/mydb"
@@ -190,8 +189,7 @@ fn test_parse_with_environments() {
         environment: Some("staging".to_string()),
         capabilities: Vec::new(),
     };
-    let result =
-        CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
     assert_eq!(
         result.variables.get("DATABASE_URL").unwrap(),
         "postgres://staging.example.com/mydb"
@@ -229,8 +227,7 @@ fn test_parse_with_capabilities() {
         environment: None,
         capabilities: vec!["aws".to_string()],
     };
-    let result =
-        CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
     assert_eq!(result.variables.len(), 2); // DATABASE_URL and API_KEY have no capabilities, so they're always included
 
     // Test with non-existent capability
@@ -238,8 +235,7 @@ fn test_parse_with_capabilities() {
         environment: None,
         capabilities: vec!["gcp".to_string()],
     };
-    let result =
-        CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
     assert_eq!(result.variables.len(), 2); // DATABASE_URL and API_KEY have no capabilities, so they're always included
 }
 
@@ -267,8 +263,7 @@ fn test_parse_with_commands() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result =
-        CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
 
     assert!(result.commands.contains_key("migrate"));
     assert!(result.commands.contains_key("deploy"));
@@ -324,8 +319,7 @@ fn test_parse_with_env_and_capabilities() {
         environment: Some("production".to_string()),
         capabilities: vec!["aws".to_string()],
     };
-    let result =
-        CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
     assert_eq!(result.variables.len(), 3);
     assert_eq!(
         result.variables.get("AWS_ACCESS_KEY").unwrap(),
@@ -465,8 +459,7 @@ fn test_parse_with_hooks() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result =
-        CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
 
     assert_eq!(result.hooks.len(), 2);
 
@@ -517,8 +510,7 @@ fn test_parse_hooks_with_url() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result =
-        CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
 
     assert_eq!(result.hooks.len(), 1);
 
@@ -555,8 +547,7 @@ fn test_parse_empty_hooks() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result =
-        CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
 
     assert_eq!(result.hooks.len(), 0);
 }
@@ -573,8 +564,7 @@ fn test_parse_no_hooks() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result =
-        CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
 
     assert_eq!(result.hooks.len(), 0);
 }
@@ -602,8 +592,7 @@ fn test_parse_hooks_with_complex_args() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result =
-        CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
 
     let on_enter = &result.hooks.get("onEnter").unwrap()[0];
     match on_enter {
@@ -661,8 +650,7 @@ fn test_parse_hooks_with_environments() {
 
     // Test with development (default)
     let options = ParseOptions::default();
-    let result =
-        CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
     assert_eq!(result.hooks.len(), 1);
     let hook = &result.hooks.get("onEnter").unwrap()[0];
     match hook {
@@ -680,8 +668,7 @@ fn test_parse_hooks_with_environments() {
         environment: Some("production".to_string()),
         capabilities: Vec::new(),
     };
-    let result =
-        CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
     assert_eq!(result.hooks.len(), 1);
     let hook = &result.hooks.get("onEnter").unwrap()[0];
     match hook {
@@ -714,8 +701,7 @@ fn test_parse_hooks_only_on_enter() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result =
-        CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
 
     assert_eq!(result.hooks.len(), 1);
     assert!(result.hooks.contains_key("onEnter"));
@@ -754,8 +740,7 @@ fn test_parse_hooks_only_on_exit() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result =
-        CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
 
     assert_eq!(result.hooks.len(), 1);
     assert!(!result.hooks.contains_key("onEnter"));
@@ -824,8 +809,7 @@ fn test_parse_hooks_with_constraints() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result =
-        CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
 
     assert_eq!(result.hooks.len(), 2);
 
@@ -855,8 +839,7 @@ fn test_parse_hooks_with_constraints() {
             }
 
             // Check second constraint - shell command
-            if let HookConstraint::ShellCommand { command, args } = &hook_config.constraints[1]
-            {
+            if let HookConstraint::ShellCommand { command, args } = &hook_config.constraints[1] {
                 assert_eq!(command, "nix");
                 assert_eq!(args.as_ref().unwrap(), &vec!["--version"]);
             } else {
@@ -892,8 +875,7 @@ fn test_parse_hooks_with_constraints() {
             assert_eq!(hook_config.constraints.len(), 2);
 
             // Check first constraint - shell command
-            if let HookConstraint::ShellCommand { command, args } = &hook_config.constraints[0]
-            {
+            if let HookConstraint::ShellCommand { command, args } = &hook_config.constraints[0] {
                 assert_eq!(command, "test");
                 assert_eq!(args.as_ref().unwrap(), &vec!["-f", "/tmp/cleanup_needed"]);
             } else {
@@ -950,8 +932,7 @@ fn test_parse_hooks_with_no_constraints() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result =
-        CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
+    let result = CueParser::eval_package_with_options(temp_dir.path(), "env", &options).unwrap();
 
     assert_eq!(result.hooks.len(), 1);
     let hook = &result.hooks.get("onEnter").unwrap()[0];

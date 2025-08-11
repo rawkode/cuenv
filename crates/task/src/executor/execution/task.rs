@@ -86,14 +86,7 @@ async fn execute_single_task_async(
         .await
     {
         Ok(status) => {
-            handle_task_success(
-                status,
-                &task_name,
-                start_time,
-                failed_tasks,
-                executed_tasks,
-            )
-            .await
+            handle_task_success(status, &task_name, start_time, failed_tasks, executed_tasks).await
         }
         Err(e) => handle_task_error(e, &task_name, start_time, failed_tasks).await,
     }

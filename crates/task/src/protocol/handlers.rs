@@ -101,7 +101,9 @@ pub async fn handle_mcp_tool_call(
                 })
             }
         }
-        "cuenv.check_directory" => super::handlers_execution::handle_check_directory(arguments, id).await,
+        "cuenv.check_directory" => {
+            super::handlers_execution::handle_check_directory(arguments, id).await
+        }
         _ => serde_json::json!({
             "jsonrpc": "2.0",
             "error": {

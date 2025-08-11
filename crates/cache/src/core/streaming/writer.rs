@@ -137,5 +137,4 @@ impl Cache {
             Ok(total_bytes)
         })
     }
-
 }

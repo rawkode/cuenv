@@ -58,11 +58,7 @@ impl StorageHeader {
         let mut header = Self {
             magic: CACHE_MAGIC,
             version: STORAGE_VERSION,
-            flags: if compressed {
-                Self::FLAG_COMPRESSED
-            } else {
-                0
-            },
+            flags: if compressed { Self::FLAG_COMPRESSED } else { 0 },
             header_crc: 0,
             timestamp: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)

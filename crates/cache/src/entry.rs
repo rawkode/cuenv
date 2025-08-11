@@ -50,7 +50,9 @@ impl InMemoryEntry {
         }
     }
 
-    pub fn deserialize<T: DeserializeOwned>(&self) -> Result<T, Box<dyn std::error::Error + Send + Sync>> {
+    pub fn deserialize<T: DeserializeOwned>(
+        &self,
+    ) -> Result<T, Box<dyn std::error::Error + Send + Sync>> {
         bincode::deserialize(&self.data).map_err(Into::into)
     }
 }

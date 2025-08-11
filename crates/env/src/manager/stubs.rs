@@ -105,7 +105,10 @@ pub struct OutputFilter<W> {
 }
 
 impl<W: std::io::Write> OutputFilter<W> {
-    pub fn new(writer: W, _secrets: std::sync::Arc<std::sync::RwLock<std::collections::HashSet<String>>>) -> Self {
+    pub fn new(
+        writer: W,
+        _secrets: std::sync::Arc<std::sync::RwLock<std::collections::HashSet<String>>>,
+    ) -> Self {
         Self { writer }
     }
 }

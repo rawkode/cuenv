@@ -126,7 +126,6 @@ impl StorageBackend {
         reader::read_data(path, &self.io_semaphore).await
     }
 
-
     /// Get compression statistics
     pub fn compression_stats(&self) -> CompressionStats {
         CompressionStats {

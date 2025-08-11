@@ -76,7 +76,12 @@ pub async fn write_data(
     let data_crc = crc32c(&compressed_data);
 
     // Create header
-    let header = StorageHeader::new(uncompressed_size, compressed_size, data_crc, should_compress);
+    let header = StorageHeader::new(
+        uncompressed_size,
+        compressed_size,
+        data_crc,
+        should_compress,
+    );
 
     // Serialize header
     let header_bytes = match bincode::serialize(&header) {

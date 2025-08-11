@@ -1,4 +1,6 @@
-use cuenv_config::{CommandConfig, CueParser, Hook, HookConfig, HookType, ParseOptions, TaskConfig};
+use cuenv_config::{
+    CommandConfig, CueParser, Hook, HookConfig, HookType, ParseOptions, TaskConfig,
+};
 use cuenv_core::{Error, Result};
 use std::collections::HashMap;
 use std::path::Path;

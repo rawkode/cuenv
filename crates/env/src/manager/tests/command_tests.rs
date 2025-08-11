@@ -30,8 +30,7 @@ env: {
         "sh",
         vec![
             "-c".to_string(),
-            "test \"$TEST_FROM_CUE\" = \"cue_value\" && test -z \"$TEST_PARENT_VAR\""
-                .to_string(),
+            "test \"$TEST_FROM_CUE\" = \"cue_value\" && test -z \"$TEST_PARENT_VAR\"".to_string(),
         ],
     );
 
@@ -72,10 +71,14 @@ env: {
 
     // Run a command that checks the variables
     #[cfg(unix)]
-    let (cmd, args) = ("sh", vec![
-        "-c".to_string(),
-        "test \"$NORMAL_VAR\" = \"normal-value\" && test \"$ANOTHER_VAR\" = \"another-value\"".to_string()
-    ]);
+    let (cmd, args) = (
+        "sh",
+        vec![
+            "-c".to_string(),
+            "test \"$NORMAL_VAR\" = \"normal-value\" && test \"$ANOTHER_VAR\" = \"another-value\""
+                .to_string(),
+        ],
+    );
 
     #[cfg(windows)]
     let (cmd, args) = ("cmd", vec![

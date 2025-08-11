@@ -112,22 +112,14 @@ impl Cache {
             }
         }
 
-        match self
-            .inner
-            .memory_manager
-            .check_disk_quota(data_len as u64)
-        {
+        match self.inner.memory_manager.check_disk_quota(data_len as u64) {
             Ok(_) => {}
             Err(e) => {
                 // Try eviction first
                 match self.evict_entries().await {
                     Ok(()) => {
                         // Retry quota check
-                        match self
-                            .inner
-                            .memory_manager
-                            .check_disk_quota(data_len as u64)
-                        {
+                        match self.inner.memory_manager.check_disk_quota(data_len as u64) {
                             Ok(_) => {}
                             Err(e) => {
                                 tracing::warn!("Disk quota exceeded after eviction: {}", e);

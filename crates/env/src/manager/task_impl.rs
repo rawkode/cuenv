@@ -1,8 +1,8 @@
 use cuenv_config::TaskConfig;
 use std::collections::HashMap;
 
-use super::EnvManager;
 use super::task::TaskSource;
+use super::EnvManager;
 
 // Implement TaskSource trait for EnvManager
 impl TaskSource for EnvManager {

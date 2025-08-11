@@ -34,7 +34,9 @@ pub async fn apply_merged_environment(
                 Err(e) => {
                     // If expansion fails and it's a nix variable, just use it as-is
                     if has_sourced_env && value.contains('$') {
-                        tracing::debug!("Skipping expansion for {key}={value} (will be expanded at runtime)");
+                        tracing::debug!(
+                            "Skipping expansion for {key}={value} (will be expanded at runtime)"
+                        );
                         value.clone()
                     } else {
                         return Err(Error::shell_expansion(

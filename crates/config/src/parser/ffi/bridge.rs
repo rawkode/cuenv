@@ -5,7 +5,9 @@
 use super::memory::CStringPtr;
 use crate::parser::processing::{build_parse_result, ParseOptions, ParseResult};
 use crate::parser::types::CueParseResult;
-use crate::parser::validation::{create_ffi_string, validate_directory_path, validate_package_name};
+use crate::parser::validation::{
+    create_ffi_string, validate_directory_path, validate_package_name,
+};
 use cuenv_core::errors::{Error, Result};
 use cuenv_utils::resilience::suggest_recovery;
 use std::collections::HashMap;

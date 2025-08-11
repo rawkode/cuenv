@@ -21,17 +21,18 @@ pub async fn recover_from_wal(wal: &Arc<WriteAheadLog>, io_semaphore: &Semaphore
 
     // Process operations asynchronously
     for op in operations {
-        let _permit = io_semaphore
-            .acquire()
-            .await
-            .map_err(|_| CacheError::ConcurrencyConflict {
-                key: "wal_recovery".to_string(),
-                operation: "acquire_semaphore",
-                duration: Duration::from_secs(0),
-                recovery_hint: RecoveryHint::Retry {
-                    after: Duration::from_millis(100),
-                },
-            })?;
+        let _permit =
+            io_semaphore
+                .acquire()
+                .await
+                .map_err(|_| CacheError::ConcurrencyConflict {
+                    key: "wal_recovery".to_string(),
+                    operation: "acquire_semaphore",
+                    duration: Duration::from_secs(0),
+                    recovery_hint: RecoveryHint::Retry {
+                        after: Duration::from_millis(100),
+                    },
+                })?;
 
         match op {
             WalOperation::Write {

@@ -50,7 +50,10 @@ impl StorageBackend {
         }
 
         // Write metadata
-        match self.write(metadata_path, &metadata_bytes, Some(metadata)).await {
+        match self
+            .write(metadata_path, &metadata_bytes, Some(metadata))
+            .await
+        {
             Ok(()) => {}
             Err(e) => return Err(e),
         }
