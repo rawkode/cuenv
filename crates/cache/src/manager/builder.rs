@@ -152,7 +152,7 @@ pub async fn initialize_components(config: &CacheConfig) -> Result<CacheComponen
         );
 
     // Initialize cache key generator with configuration
-    let mut key_gen_manager = KeyGenManager::new(config.env_filter.clone())?;
+    let key_gen_manager = KeyGenManager::new(config.env_filter.clone())?;
 
     // Add task-specific configurations
     for (task_name, task_config) in &config.task_env_filters {
