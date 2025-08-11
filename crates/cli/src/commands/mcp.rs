@@ -11,9 +11,6 @@ pub async fn execute(
     socket: Option<PathBuf>,
     allow_exec: bool,
 ) -> Result<()> {
-    // Get internal tasks from config
-    let internal_tasks = config.get_tasks().clone();
-
     // Create the appropriate server based on transport
     let mut provider = match transport.as_str() {
         "stdio" => {
@@ -25,7 +22,7 @@ pub async fn execute(
             );
             println!("Ready for MCP clients (like Claude Code)");
 
-            TaskServerProvider::new_stdio(internal_tasks, allow_exec)
+            TaskServerProvider::new_stdio(Arc::clone(&config), allow_exec)
         }
         "unix" => {
             let socket_path = socket.unwrap_or_else(|| {
@@ -43,7 +40,7 @@ pub async fn execute(
 
             TaskServerProvider::new_with_options(
                 Some(socket_path),
-                internal_tasks,
+                Arc::clone(&config),
                 allow_exec,
                 false,
             )
@@ -66,7 +63,7 @@ pub async fn execute(
 
             TaskServerProvider::new_with_options(
                 Some(temp_socket),
-                internal_tasks,
+                Arc::clone(&config),
                 allow_exec,
                 false,
             )

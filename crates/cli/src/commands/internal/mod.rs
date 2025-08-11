@@ -186,8 +186,25 @@ async fn handle_task_protocol(
         let mut env_manager = EnvManager::new();
         env_manager.load_env(&current_dir).await?;
 
-        // Extract tasks from environment manager
-        let internal_tasks = env_manager.get_tasks().clone();
+        // Create config from environment manager data
+        use cuenv_config::{Config, ParseResult, RuntimeOptions};
+        use std::collections::HashMap;
+        use std::sync::Arc;
+
+        let parse_result = ParseResult {
+            variables: env_manager.get_cue_vars().clone(),
+            metadata: HashMap::new(),
+            commands: HashMap::new(),
+            tasks: env_manager.get_tasks().clone(),
+            hooks: HashMap::new(),
+        };
+
+        let config = Arc::new(Config::new(
+            current_dir.clone(),
+            None, // no env file for internal command
+            parse_result,
+            RuntimeOptions::default(),
+        ));
 
         // Determine socket path
         let socket_path = socket.clone().unwrap_or_else(|| {
@@ -204,7 +221,7 @@ async fn handle_task_protocol(
         // Create and start provider
         let mut provider = TaskServerProvider::new_with_options(
             Some(socket_path.clone()),
-            internal_tasks,
+            config,
             false, // Don't allow execution by default for security
             false, // Not a subprocess
         );

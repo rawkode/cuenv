@@ -1,5 +1,4 @@
 use clap::Subcommand;
-use cuenv_config::{CueParser, ParseOptions};
 use cuenv_core::{Result, CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR};
 use cuenv_env::EnvManager;
 use cuenv_task::TaskExecutor;
@@ -70,9 +69,9 @@ pub enum TaskCommands {
 }
 
 impl TaskCommands {
-    pub async fn execute(self) -> Result<()> {
+    pub async fn execute(self, config: std::sync::Arc<cuenv_config::Config>) -> Result<()> {
         match self {
-            TaskCommands::List { verbose } => list_tasks(verbose).await,
+            TaskCommands::List { verbose } => list_tasks(config, verbose).await,
             TaskCommands::Run {
                 environment,
                 capabilities,
@@ -81,19 +80,29 @@ impl TaskCommands {
                 audit,
                 output: _,
                 trace_output: _,
-            } => execute_task(environment, capabilities, task_name, task_args, audit).await,
+            } => {
+                execute_task(
+                    config.clone(),
+                    environment,
+                    capabilities,
+                    task_name,
+                    task_args,
+                    audit,
+                )
+                .await
+            }
             TaskCommands::Exec {
                 environment,
                 capabilities,
                 command,
                 args,
                 audit,
-            } => execute_command(environment, capabilities, command, args, audit).await,
+            } => execute_command(config, environment, capabilities, command, args, audit).await,
         }
     }
 }
 
-async fn list_tasks(verbose: bool) -> Result<()> {
+async fn list_tasks(config: std::sync::Arc<cuenv_config::Config>, verbose: bool) -> Result<()> {
     let current_dir = env::current_dir()
         .map_err(|e| cuenv_core::Error::file_system(".", "get current directory", e))?;
 
@@ -103,21 +112,16 @@ async fn list_tasks(verbose: bool) -> Result<()> {
         return Ok(());
     }
 
-    // Only parse the CUE file to get task definitions
-    let options = ParseOptions {
-        environment: env::var(CUENV_ENV_VAR).ok(),
-        capabilities: Vec::new(),
-    };
+    // Use config to get task definitions
+    let tasks = config.get_tasks();
 
-    let parse_result = CueParser::eval_package_with_options(&current_dir, "env", &options)?;
-
-    if parse_result.tasks.is_empty() {
+    if tasks.is_empty() {
         println!("No tasks defined in the CUE package");
     } else {
         println!("Available tasks:");
-        for (name, task) in parse_result.tasks {
+        for (name, task) in tasks {
             if verbose {
-                match task.description {
+                match &task.description {
                     Some(desc) => println!("  {name}: {desc}"),
                     None => println!("  {name}"),
                 }
@@ -130,6 +134,7 @@ async fn list_tasks(verbose: bool) -> Result<()> {
 }
 
 async fn execute_task(
+    _config: std::sync::Arc<cuenv_config::Config>,
     environment: Option<String>,
     capabilities: Vec<String>,
     task_name: String,
@@ -193,6 +198,7 @@ async fn execute_task(
 }
 
 async fn execute_command(
+    _config: std::sync::Arc<cuenv_config::Config>,
     environment: Option<String>,
     capabilities: Vec<String>,
     command: String,

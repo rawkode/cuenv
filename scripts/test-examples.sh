@@ -29,11 +29,11 @@ test_cue_dir() {
     
     # Test basic export
     echo -n "  Export test: "
-    if (cd "$dir" && $CUENV export) > /dev/null 2>&1; then
+    if (cd "$dir" && $CUENV env export) > /dev/null 2>&1; then
         echo -e "${GREEN}PASS${NC}"
     else
         echo -e "${RED}FAIL${NC}"
-        (cd "$dir" && $CUENV export) 2>&1 | sed 's/^/    /'
+        (cd "$dir" && $CUENV env export) 2>&1 | sed 's/^/    /'
         return 1
     fi
     

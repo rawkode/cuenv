@@ -10,7 +10,7 @@
 //! - Communication uses JSON-RPC 2.0 with initialize and run methods
 //! - Servers stream back log output and final results
 
-use cuenv_config::TaskConfig;
+use cuenv_config::{Config, TaskConfig};
 use cuenv_core::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -468,29 +468,29 @@ impl TaskServerManager {
 pub struct TaskServerProvider {
     socket_path: Option<PathBuf>,
     listener: Option<UnixListener>,
-    tasks: Arc<HashMap<String, TaskConfig>>,
+    config: Arc<Config>,
     allow_exec: bool,
     use_stdio: bool,
 }
 
 impl TaskServerProvider {
     /// Create a new task server provider for Unix socket
-    pub fn new(socket_path: PathBuf, tasks: HashMap<String, TaskConfig>) -> Self {
+    pub fn new(socket_path: PathBuf, config: Arc<Config>) -> Self {
         Self {
             socket_path: Some(socket_path),
             listener: None,
-            tasks: Arc::new(tasks),
+            config,
             allow_exec: false,
             use_stdio: false,
         }
     }
 
     /// Create a new task server provider for stdio (MCP mode)
-    pub fn new_stdio(tasks: HashMap<String, TaskConfig>, allow_exec: bool) -> Self {
+    pub fn new_stdio(config: Arc<Config>, allow_exec: bool) -> Self {
         Self {
             socket_path: None,
             listener: None,
-            tasks: Arc::new(tasks),
+            config,
             allow_exec,
             use_stdio: true,
         }
@@ -499,14 +499,14 @@ impl TaskServerProvider {
     /// Create a new task server provider with full options
     pub fn new_with_options(
         socket_path: Option<PathBuf>,
-        tasks: HashMap<String, TaskConfig>,
+        config: Arc<Config>,
         allow_exec: bool,
         use_stdio: bool,
     ) -> Self {
         Self {
             socket_path,
             listener: None,
-            tasks: Arc::new(tasks),
+            config,
             allow_exec,
             use_stdio,
         }
@@ -578,7 +578,8 @@ impl TaskServerProvider {
                 .map_err(|e| Error::configuration(format!("Invalid JSON-RPC request: {e}")))?;
 
             // Handle the request
-            let response = Self::handle_request(request, &self.tasks, self.allow_exec).await;
+            let response =
+                Self::handle_request(request, self.config.get_tasks(), self.allow_exec).await;
 
             // Send response
             let response_json = serde_json::to_string(&response)
@@ -610,10 +611,10 @@ impl TaskServerProvider {
         loop {
             match listener.accept().await {
                 Ok((stream, _)) => {
-                    let tasks = Arc::clone(&self.tasks);
+                    let config = Arc::clone(&self.config);
                     let allow_exec = self.allow_exec;
                     tokio::spawn(async move {
-                        if let Err(e) = Self::handle_client(stream, tasks, allow_exec).await {
+                        if let Err(e) = Self::handle_client(stream, config, allow_exec).await {
                             tracing::error!(error = %e, "Client connection error");
                         }
                     });
@@ -629,7 +630,7 @@ impl TaskServerProvider {
     /// Handle a single client connection
     async fn handle_client(
         stream: UnixStream,
-        tasks: Arc<HashMap<String, TaskConfig>>,
+        config: Arc<Config>,
         allow_exec: bool,
     ) -> Result<()> {
         let (read_half, mut write_half) = stream.into_split();
@@ -647,7 +648,7 @@ impl TaskServerProvider {
                 .map_err(|e| Error::configuration(format!("Invalid JSON-RPC request: {e}")))?;
 
             // Handle the request
-            let response = Self::handle_request(request, &tasks, allow_exec).await;
+            let response = Self::handle_request(request, config.get_tasks(), allow_exec).await;
 
             // Send response
             let response_json = serde_json::to_string(&response)
@@ -1443,7 +1444,8 @@ impl TaskServerProvider {
     /// Export tasks to JSON format for static consumption
     pub fn export_tasks_to_json(&self) -> Result<String> {
         let task_definitions: Vec<TaskDefinition> = self
-            .tasks
+            .config
+            .get_tasks()
             .iter()
             .map(|(name, config)| TaskDefinition {
                 name: name.clone(),
@@ -1496,23 +1498,23 @@ pub struct UnifiedTaskManager {
     pub server_manager: TaskServerManager,
     /// Provider for exposing cuenv tasks (optional)
     pub server_provider: Option<TaskServerProvider>,
-    /// Internal task registry
-    pub internal_tasks: HashMap<String, TaskConfig>,
+    /// Configuration containing tasks
+    pub config: Arc<Config>,
 }
 
 impl UnifiedTaskManager {
     /// Create a new unified task manager
-    pub fn new(socket_dir: PathBuf, internal_tasks: HashMap<String, TaskConfig>) -> Self {
+    pub fn new(socket_dir: PathBuf, config: Arc<Config>) -> Self {
         Self {
             server_manager: TaskServerManager::new(socket_dir),
             server_provider: None,
-            internal_tasks,
+            config,
         }
     }
 
     /// Start as a task provider server
     pub async fn start_as_provider(&mut self, socket_path: PathBuf) -> Result<()> {
-        let mut provider = TaskServerProvider::new(socket_path, self.internal_tasks.clone());
+        let mut provider = TaskServerProvider::new(socket_path, Arc::clone(&self.config));
         provider.start().await?;
         self.server_provider = Some(provider);
         Ok(())
@@ -1526,11 +1528,11 @@ impl UnifiedTaskManager {
         let mut all_tasks = Vec::new();
 
         // Add internal tasks
-        for (name, config) in &self.internal_tasks {
+        for (name, task_config) in self.config.get_tasks() {
             all_tasks.push(TaskDefinition {
                 name: format!("cuenv:{name}"),
-                after: config.dependencies.clone().unwrap_or_default(),
-                description: config.description.clone(),
+                after: task_config.dependencies.clone().unwrap_or_default(),
+                description: task_config.description.clone(),
             });
         }
 
@@ -1546,7 +1548,8 @@ impl UnifiedTaskManager {
     /// Export internal tasks as JSON
     pub fn export_tasks_to_json(&self) -> Result<String> {
         let task_definitions: Vec<TaskDefinition> = self
-            .internal_tasks
+            .config
+            .get_tasks()
             .iter()
             .map(|(name, config)| TaskDefinition {
                 name: name.clone(),
@@ -1618,6 +1621,8 @@ mod tests {
     async fn test_task_server_provider_creation() {
         let temp_dir = TempDir::new().unwrap();
         let socket_path = temp_dir.path().join("provider.sock");
+
+        // Create a mock config with tasks
         let mut tasks = HashMap::new();
         tasks.insert(
             "test".to_string(),
@@ -1628,7 +1633,22 @@ mod tests {
             },
         );
 
-        let provider = TaskServerProvider::new(socket_path.clone(), tasks);
+        use cuenv_config::{ParseResult, RuntimeOptions};
+        let parse_result = ParseResult {
+            variables: HashMap::new(),
+            metadata: HashMap::new(),
+            commands: HashMap::new(),
+            tasks,
+            hooks: HashMap::new(),
+        };
+        let config = Arc::new(cuenv_config::Config::new(
+            temp_dir.path().to_path_buf(),
+            None,
+            parse_result,
+            RuntimeOptions::default(),
+        ));
+
+        let provider = TaskServerProvider::new(socket_path.clone(), config);
         assert_eq!(provider.socket_path, Some(socket_path));
         assert!(provider.listener.is_none());
     }
@@ -1645,8 +1665,21 @@ mod tests {
             },
         );
 
-        let manager = UnifiedTaskManager::new(temp_dir.path().to_path_buf(), tasks.clone());
-        assert_eq!(manager.internal_tasks, tasks);
+        let parse_result = cuenv_config::ParseResult {
+            variables: HashMap::new(),
+            metadata: HashMap::new(),
+            commands: HashMap::new(),
+            tasks: tasks.clone(),
+            hooks: HashMap::new(),
+        };
+        let config = Arc::new(cuenv_config::Config::new(
+            temp_dir.path().to_path_buf(),
+            None,
+            parse_result,
+            cuenv_config::RuntimeOptions::default(),
+        ));
+        let manager = UnifiedTaskManager::new(temp_dir.path().to_path_buf(), config.clone());
+        assert_eq!(manager.config.get_tasks(), &tasks);
         assert!(manager.server_provider.is_none());
     }
 
@@ -1663,7 +1696,20 @@ mod tests {
             },
         );
 
-        let manager = UnifiedTaskManager::new(temp_dir.path().to_path_buf(), tasks);
+        let parse_result = cuenv_config::ParseResult {
+            variables: HashMap::new(),
+            metadata: HashMap::new(),
+            commands: HashMap::new(),
+            tasks,
+            hooks: HashMap::new(),
+        };
+        let config = Arc::new(cuenv_config::Config::new(
+            temp_dir.path().to_path_buf(),
+            None,
+            parse_result,
+            cuenv_config::RuntimeOptions::default(),
+        ));
+        let manager = UnifiedTaskManager::new(temp_dir.path().to_path_buf(), config);
         let json = manager.export_tasks_to_json().unwrap();
 
         // Verify JSON contains expected structure

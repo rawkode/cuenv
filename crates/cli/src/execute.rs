@@ -7,7 +7,7 @@ impl Commands {
     pub async fn execute(self, config: Arc<Config>) -> Result<()> {
         match self {
             // These commands don't use config yet, just call their execute
-            Commands::Task { command } => command.execute().await,
+            Commands::Task { command } => command.execute(Arc::clone(&config)).await,
             Commands::Env { command } => command.execute().await,
             Commands::Shell { command } => command.execute().await,
             Commands::Cache { command } => command.execute().await,
@@ -50,11 +50,11 @@ impl Commands {
                         output,
                         trace_output,
                     };
-                    cmd.execute().await
+                    cmd.execute(Arc::clone(&config)).await
                 } else {
                     // No task name, list tasks with descriptions
                     let cmd = crate::commands::task::TaskCommands::List { verbose: true };
-                    cmd.execute().await
+                    cmd.execute(Arc::clone(&config)).await
                 }
             }
             Commands::Exec {
@@ -71,7 +71,7 @@ impl Commands {
                     args,
                     audit: false,
                 };
-                cmd.execute().await
+                cmd.execute(config).await
             }
         }
     }
