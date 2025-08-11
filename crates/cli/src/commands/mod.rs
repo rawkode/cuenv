@@ -14,15 +14,34 @@ use self::cache::CacheCommands;
 use self::env::EnvCommands;
 use self::internal::InternalCommands;
 use self::shell::ShellCommands;
-use self::task::TaskCommands;
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Manage and execute tasks
+    /// List or execute tasks
     #[command(visible_alias = "t")]
     Task {
-        #[command(subcommand)]
-        command: TaskCommands,
+        /// Task or group name (optional - lists all if not provided)
+        task_or_group: Option<String>,
+
+        /// Subtask name (if first arg is a group) or arguments
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+
+        /// Environment to use (e.g., dev, staging, production)
+        #[arg(short = 'e', long = "env")]
+        environment: Option<String>,
+
+        /// Capabilities to enable (can be specified multiple times)
+        #[arg(short = 'c', long = "capability")]
+        capabilities: Vec<String>,
+
+        /// Run in audit mode to see file and network access without restrictions
+        #[arg(long)]
+        audit: bool,
+
+        /// Show detailed descriptions when listing
+        #[arg(short, long)]
+        verbose: bool,
     },
 
     /// Manage environment configuration

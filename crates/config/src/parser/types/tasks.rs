@@ -6,11 +6,10 @@ use std::collections::HashMap;
 use std::fmt;
 
 /// A task node that can be either a single task or a group of tasks
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum TaskNode {
     /// A single task definition
-    Task(TaskConfig),
+    Task(Box<TaskConfig>),
     /// A group of tasks with optional description
     Group {
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -20,30 +19,72 @@ pub enum TaskNode {
     },
 }
 
-impl TaskNode {
-    /// Check if this node is a task (leaf node)
-    pub fn is_task(&self) -> bool {
-        matches!(self, TaskNode::Task(_))
-    }
-    
-    /// Check if this node is a group (has sub-tasks)
-    pub fn is_group(&self) -> bool {
-        matches!(self, TaskNode::Group { .. })
-    }
-    
-    /// Get the task config if this is a task node
-    pub fn as_task(&self) -> Option<&TaskConfig> {
-        match self {
-            TaskNode::Task(config) => Some(config),
-            _ => None,
-        }
-    }
-    
-    /// Get the subtasks if this is a group node
-    pub fn as_group(&self) -> Option<(&Option<String>, &HashMap<String, TaskNode>)> {
-        match self {
-            TaskNode::Group { description, tasks } => Some((description, tasks)),
-            _ => None,
+// Custom deserializer for TaskNode to properly distinguish between Task and Group
+impl<'de> Deserialize<'de> for TaskNode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = serde_json::Value::deserialize(deserializer)?;
+
+        // Check if this looks like a task (has command or script field)
+        if let serde_json::Value::Object(ref map) = value {
+            let has_command = map.contains_key("command");
+            let has_script = map.contains_key("script");
+
+            if has_command || has_script {
+                // It's definitely a Task
+                serde_json::from_value::<TaskConfig>(value)
+                    .map(|config| TaskNode::Task(Box::new(config)))
+                    .map_err(serde::de::Error::custom)
+            } else {
+                // Check if it has any non-task fields (besides description)
+                let task_fields = vec![
+                    "description",
+                    "command",
+                    "script",
+                    "dependencies",
+                    "workingDir",
+                    "shell",
+                    "inputs",
+                    "outputs",
+                    "security",
+                    "cache",
+                    "cacheKey",
+                    "cache_env",
+                    "timeout",
+                    "args",
+                ];
+
+                let has_non_task_fields = map.keys().any(|k| !task_fields.contains(&k.as_str()));
+
+                if has_non_task_fields {
+                    // It's a Group - extract description and other fields as tasks
+                    let description = map
+                        .get("description")
+                        .and_then(|v| v.as_str())
+                        .map(String::from);
+
+                    let mut tasks = HashMap::new();
+                    for (key, val) in map {
+                        if key != "description" {
+                            // Recursively deserialize as TaskNode
+                            if let Ok(node) = serde_json::from_value::<TaskNode>(val.clone()) {
+                                tasks.insert(key.clone(), node);
+                            }
+                        }
+                    }
+
+                    Ok(TaskNode::Group { description, tasks })
+                } else {
+                    // It's a Task with only optional fields
+                    serde_json::from_value::<TaskConfig>(value)
+                        .map(|config| TaskNode::Task(Box::new(config)))
+                        .map_err(serde::de::Error::custom)
+                }
+            }
+        } else {
+            Err(serde::de::Error::custom("Expected an object for TaskNode"))
         }
     }
 }

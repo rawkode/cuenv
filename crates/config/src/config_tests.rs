@@ -194,16 +194,15 @@ mod tests {
         let mut parse_result = create_test_parse_result();
 
         // Add some test hooks
-        use crate::{Hook, HookConfig, HookType};
+        use crate::Hook;
 
-        let hook = Hook::Legacy(HookConfig {
+        let hook = Hook {
             command: "echo".to_string(),
-            args: vec!["test".to_string()],
-            url: None,
+            args: Some(vec!["test".to_string()]),
+            dir: None,
+            inputs: None,
             source: None,
-            constraints: vec![],
-            hook_type: HookType::OnEnter,
-        });
+        };
 
         parse_result.hooks.insert("onEnter".to_string(), vec![hook]);
 

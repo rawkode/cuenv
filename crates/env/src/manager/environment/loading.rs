@@ -2,7 +2,7 @@ use cuenv_config::{
     CommandConfig, CueParser, Hook, HookConfig, HookType, ParseOptions, TaskConfig,
     VariableMetadata,
 };
-use cuenv_core::{Error, Result};
+use cuenv_core::{constants::DEFAULT_PACKAGE_NAME, Error, Result};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -34,7 +34,8 @@ pub async fn load_env_with_options(
         capabilities: Vec::new(), // Empty for now to get all commands
     };
 
-    let parse_result = CueParser::eval_package_with_options(dir, "env", &temp_options)?;
+    let parse_result =
+        CueParser::eval_package_with_options(dir, DEFAULT_PACKAGE_NAME, &temp_options)?;
     context.commands.extend(parse_result.commands.clone());
     context.tasks.extend(parse_result.tasks.clone());
 
@@ -58,16 +59,17 @@ pub async fn load_env_with_options(
     );
 
     // First, parse CUE package to get hooks and initial environment
-    let parse_result = match CueParser::eval_package_with_options(dir, "env", &options) {
-        Ok(result) => result,
-        Err(e) => {
-            return Err(Error::cue_parse_with_source(
-                dir,
-                format!("Failed to evaluate CUE package: {}", dir.display()),
-                e,
-            ));
-        }
-    };
+    let parse_result =
+        match CueParser::eval_package_with_options(dir, DEFAULT_PACKAGE_NAME, &options) {
+            Ok(result) => result,
+            Err(e) => {
+                return Err(Error::cue_parse_with_source(
+                    dir,
+                    format!("Failed to evaluate CUE package: {}", dir.display()),
+                    e,
+                ));
+            }
+        };
 
     // Store commands, tasks and hooks
     context.commands.extend(parse_result.commands.clone());

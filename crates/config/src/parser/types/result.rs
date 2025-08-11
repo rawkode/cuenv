@@ -1,6 +1,6 @@
 //! Result types for CUE parsing
 
-use super::{CommandConfig, HookValue, TaskNode, VariableMetadata};
+use super::{CommandConfig, HookValue, VariableMetadata};
 use serde::Deserialize;
 use std::collections::HashMap;
 

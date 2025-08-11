@@ -159,7 +159,7 @@ impl PackageDiscovery {
                 // Load the package using existing CUE parser
                 match CueParser::eval_package_with_options(
                     package_dir,
-                    "env",
+                    cuenv_core::constants::DEFAULT_PACKAGE_NAME,
                     &ParseOptions::default(),
                 ) {
                     Ok(result) => Some(result),
@@ -201,8 +201,11 @@ impl PackageDiscovery {
             .ok_or_else(|| Error::configuration(format!("Package '{package_name}' not found")))?;
 
         // Load the package
-        let parse_result =
-            CueParser::eval_package_with_options(&package.path, "env", &ParseOptions::default())?;
+        let parse_result = CueParser::eval_package_with_options(
+            &package.path,
+            cuenv_core::constants::DEFAULT_PACKAGE_NAME,
+            &ParseOptions::default(),
+        )?;
 
         Ok(DiscoveredPackage {
             name: package.name,

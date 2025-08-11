@@ -16,7 +16,7 @@ pub async fn execute_hook(
             // Check if cache is still valid based on inputs
             if let Some(inputs) = &hook.inputs {
                 let watch_files: Vec<std::path::PathBuf> =
-                    inputs.iter().map(|f| std::path::PathBuf::from(f)).collect();
+                    inputs.iter().map(std::path::PathBuf::from).collect();
                 let watcher = crate::FileWatcher::new(watch_files);
 
                 if watcher.cache_is_valid(&cache.cache_file()) {
@@ -50,7 +50,7 @@ pub async fn execute_hook(
             cuenv_core::Error::command_execution(
                 hook.command.clone(),
                 hook.args.clone().unwrap_or_default(),
-                format!("Failed to execute hook: {}", e),
+                format!("Failed to execute hook: {e}"),
                 None,
             )
         })?;
@@ -64,18 +64,18 @@ pub async fn execute_hook(
 
         // Save raw output to cache
         cache.save_rc(&stdout).map_err(|e| {
-            cuenv_core::Error::configuration(format!("Failed to save hook output: {}", e))
+            cuenv_core::Error::configuration(format!("Failed to save hook output: {e}"))
         })?;
 
         // Parse environment variables from output
         let env = crate::evaluate_shell_environment(&stdout).map_err(|e| {
-            cuenv_core::Error::configuration(format!("Failed to parse hook output: {}", e))
+            cuenv_core::Error::configuration(format!("Failed to parse hook output: {e}"))
         })?;
 
         // Filter and save to cache
         let env = crate::filter_environment(env);
         cache.save(&env).map_err(|e| {
-            cuenv_core::Error::configuration(format!("Failed to save environment: {}", e))
+            cuenv_core::Error::configuration(format!("Failed to save environment: {e}"))
         })?;
 
         Ok((env, FileTimes::new()))
@@ -85,7 +85,7 @@ pub async fn execute_hook(
             cuenv_core::Error::command_execution(
                 hook.command.clone(),
                 hook.args.clone().unwrap_or_default(),
-                format!("Failed to execute hook: {}", e),
+                format!("Failed to execute hook: {e}"),
                 None,
             )
         })?;

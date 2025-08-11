@@ -7,9 +7,9 @@ pub fn execute_command(mut cmd: Command) -> Result<String> {
         .stderr(Stdio::piped())
         .stdin(Stdio::null());
 
-    let output = cmd.output().map_err(|e| {
-        cuenv_core::Error::configuration(format!("Failed to execute command: {}", e))
-    })?;
+    let output = cmd
+        .output()
+        .map_err(|e| cuenv_core::Error::configuration(format!("Failed to execute command: {e}")))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

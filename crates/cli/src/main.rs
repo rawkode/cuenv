@@ -72,13 +72,15 @@ async fn main() -> eyre::Result<()> {
     }
 
     // Determine the command to execute
-    let command = cli.command.unwrap_or(Commands::Shell {
-        command: crate::commands::shell::ShellCommands::Load {
-            directory: None,
-            environment: cli.environment,
-            capabilities: cli.capabilities,
-        },
-    });
+    let command = match cli.command {
+        Some(cmd) => cmd,
+        None => {
+            // Print help when no command is provided
+            use clap::CommandFactory;
+            Cli::command().print_help()?;
+            return Ok(());
+        }
+    };
 
     // Load configuration once at startup
     let config = ConfigLoader::new()
