@@ -66,7 +66,13 @@ jobs:
         uses: namespacelabs/nscloud-cache-action@v1
         with:
           path: /nix
-      - name: nix-install
+      - name: nix-install (macOS)
+        if: contains(matrix.os, 'macos')
+        uses: DeterminateSystems/nix-installer-action@main
+        with:
+          mac-volume-label: "nix-cache"
+      - name: nix-install (Linux)
+        if: contains(matrix.os, 'linux')
         uses: DeterminateSystems/nix-installer-action@main
       - name: Setup dependencies via Nix
         run: |

@@ -80,7 +80,7 @@ impl Commands {
 async fn complete_tasks(config: Arc<Config>) -> Result<()> {
     // Use config to get tasks
     let tasks = config.get_tasks();
-    for (name, _) in tasks {
+    for name in tasks.keys() {
         println!("{name}");
     }
     Ok(())
