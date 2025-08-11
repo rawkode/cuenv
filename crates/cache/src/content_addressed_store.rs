@@ -393,51 +393,6 @@ impl ContentAddressedStore {
     }
 }
 
-/// Builder for ContentAddressedStore
-#[allow(dead_code)]
-pub struct CASBuilder {
-    base_dir: Option<PathBuf>,
-    inline_threshold: usize,
-}
-
-#[allow(dead_code)]
-impl Default for CASBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl CASBuilder {
-    /// Create a new builder
-    pub fn new() -> Self {
-        Self {
-            base_dir: None,
-            inline_threshold: 4096, // 4KB default
-        }
-    }
-
-    /// Set base directory
-    pub fn base_dir(mut self, dir: PathBuf) -> Self {
-        self.base_dir = Some(dir);
-        self
-    }
-
-    /// Set inline threshold
-    pub fn inline_threshold(mut self, threshold: usize) -> Self {
-        self.inline_threshold = threshold;
-        self
-    }
-
-    /// Build the CAS
-    pub fn build(self) -> Result<ContentAddressedStore> {
-        let base_dir = self
-            .base_dir
-            .ok_or_else(|| Error::configuration("CAS base directory not specified".to_string()))?;
-
-        ContentAddressedStore::new(base_dir, self.inline_threshold)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

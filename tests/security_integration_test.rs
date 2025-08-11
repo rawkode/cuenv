@@ -1,4 +1,3 @@
-#![allow(unused)]
 use cuenv::audit::{init_audit_logger, AuditConfig, AuditLevel};
 use cuenv::command_executor::{CommandExecutor, SystemCommandExecutor};
 use cuenv::hooks::HookManager;

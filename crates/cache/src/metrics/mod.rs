@@ -3,8 +3,6 @@
 //! This module provides comprehensive metrics for cache operations including
 //! hit rates, latencies, storage efficiency, and access patterns.
 
-#![allow(dead_code)]
-
 pub mod endpoint;
 
 use std::collections::HashMap;

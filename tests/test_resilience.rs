@@ -1,4 +1,3 @@
-#![allow(unused)]
 //! Tests for resilience module
 #[cfg(test)]
 mod tests {

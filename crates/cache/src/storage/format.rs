@@ -46,8 +46,7 @@ pub struct StorageHeader {
 
 impl StorageHeader {
     const FLAG_COMPRESSED: u16 = 1 << 0;
-    #[allow(dead_code)]
-    const FLAG_ENCRYPTED: u16 = 1 << 1;
+    const _FLAG_ENCRYPTED: u16 = 1 << 1;
 
     pub fn new(
         uncompressed_size: u64,

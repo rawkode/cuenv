@@ -1,4 +1,3 @@
-#![allow(unused)]
 #[cfg(all(test, target_os = "linux"))]
 mod landlock_edge_cases {
     use cuenv::access_restrictions::AccessRestrictions;

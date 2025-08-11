@@ -46,7 +46,6 @@ use std::io::IsTerminal;
 use std::sync::Arc;
 
 /// Extension trait to add TUI support to TaskExecutor
-#[allow(async_fn_in_trait)]
 pub trait TaskExecutorTui {
     /// Execute tasks with TUI visualization
     async fn execute_with_tui(

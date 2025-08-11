@@ -2,8 +2,6 @@
 //!
 //! Provides background cache warming to preload frequently accessed entries.
 
-#![allow(dead_code)]
-
 mod candidates;
 mod core;
 mod patterns;

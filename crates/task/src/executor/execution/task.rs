@@ -19,7 +19,7 @@ pub struct TaskExecutionParams {
     pub task_args: Vec<String>,
     pub failed_tasks: Arc<Mutex<Vec<(String, i32)>>>,
     pub action_cache: Arc<ActionCache>,
-    pub env_manager: EnvManager,
+    pub _env_manager: EnvManager,
     pub cache_config: CacheConfiguration,
     pub executed_tasks: Arc<Mutex<HashSet<String>>>,
     pub audit_mode: bool,
@@ -43,7 +43,7 @@ async fn execute_single_task_async(params: TaskExecutionParams) -> i32 {
         task_args,
         failed_tasks,
         action_cache,
-        env_manager,
+        _env_manager: _,
         cache_config,
         executed_tasks,
         audit_mode,
@@ -56,9 +56,9 @@ async fn execute_single_task_async(params: TaskExecutionParams) -> i32 {
     publish_task_started(&task_name).await;
 
     // Disabled: Detailed task configuration events (not essential for now)
-    if false {
-        publish_task_config_events(&task_name, &task_definition, &env_manager).await;
-    }
+    // if false {
+    //     publish_task_config_events(&task_name, &task_definition, &env_manager).await;
+    // }
 
     let ctx = TaskExecutionContext {
         cache_config: &cache_config,
@@ -88,46 +88,6 @@ async fn publish_task_started(task_name: &str) {
             },
         ))
         .await;
-}
-
-#[allow(dead_code)]
-async fn publish_task_config_events(
-    _task_name: &str,
-    task_definition: &TaskDefinition,
-    env_manager: &EnvManager,
-) {
-    // Show capabilities for this task's command
-    if let cuenv_core::TaskExecutionMode::Command { command } = &task_definition.execution_mode {
-        let capabilities = env_manager.get_command_capabilities(command);
-        if !capabilities.is_empty() {
-            // Event publishing code commented out for now
-        }
-    }
-
-    if !task_definition.shell.is_empty() {
-        // Event publishing code commented out for now
-    }
-
-    if task_definition.timeout.as_millis() > 0 {
-        // Event publishing code commented out for now
-    }
-
-    if !task_definition.working_directory.as_os_str().is_empty() {
-        // Event publishing code commented out for now
-    }
-
-    if let Some(security) = &task_definition.security {
-        let mut restrictions = Vec::new();
-        if security.restrict_disk {
-            restrictions.push("disk");
-        }
-        if security.restrict_network {
-            restrictions.push("network");
-        }
-        if !restrictions.is_empty() {
-            // Event publishing code commented out for now
-        }
-    }
 }
 
 async fn handle_task_success(

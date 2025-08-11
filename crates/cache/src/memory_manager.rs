@@ -3,8 +3,6 @@
 //! Handles memory pressure, disk quotas, and resource limits
 //! with production-grade reliability.
 
-#![allow(dead_code)]
-
 use crate::errors::{CacheError, RecoveryHint, Result};
 use parking_lot::{Mutex, RwLock};
 use std::collections::HashMap;
@@ -152,10 +150,9 @@ impl MemoryManager {
 
         let usage_ratio = used_memory as f64 / total_memory as f64;
 
-        #[allow(clippy::if_same_then_else)]
-        let pressure = if free_memory < self.thresholds.min_free_memory {
-            MemoryPressure::Critical
-        } else if usage_ratio >= self.thresholds.critical_watermark {
+        let pressure = if free_memory < self.thresholds.min_free_memory
+            || usage_ratio >= self.thresholds.critical_watermark
+        {
             MemoryPressure::Critical
         } else if usage_ratio >= self.thresholds.high_watermark {
             MemoryPressure::High

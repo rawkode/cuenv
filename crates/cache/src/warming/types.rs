@@ -16,6 +16,8 @@ pub struct WarmingConfig {
     pub access_window: Duration,
     /// Enable predictive warming based on patterns
     pub predictive_warming: bool,
+    /// Maximum total size to warm per cycle (0 = unlimited)
+    pub max_warming_size: u64,
 }
 
 impl Default for WarmingConfig {
@@ -26,6 +28,7 @@ impl Default for WarmingConfig {
             min_access_count: 5,
             access_window: Duration::from_secs(3600), // 1 hour
             predictive_warming: true,
+            max_warming_size: 0, // Unlimited by default
         }
     }
 }

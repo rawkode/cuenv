@@ -170,8 +170,8 @@ pub async fn initialize_components(config: &CacheConfig) -> Result<CacheComponen
         engine,
         signer,
         key_gen_manager,
-        operations: None, // Will be created later
-        stats: StatsContainer::new(),
+        _operations: None, // Will be created later
+        _stats: StatsContainer::new(),
     })
 }
 
@@ -182,10 +182,8 @@ pub struct CacheComponents {
     pub engine: Arc<CacheEngine>,
     pub signer: Arc<CacheSigner>,
     pub key_gen_manager: KeyGenManager,
-    #[allow(dead_code)]
-    pub operations: Option<CacheOperations>,
-    #[allow(dead_code)]
-    pub stats: StatsContainer,
+    pub _operations: Option<CacheOperations>,
+    pub _stats: StatsContainer,
 }
 
 #[cfg(test)]

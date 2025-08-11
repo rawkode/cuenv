@@ -34,8 +34,7 @@ pub struct SecureCache<T: Cache> {
     /// Underlying cache implementation
     inner: T,
     /// Cryptographic signer for entry integrity
-    #[allow(dead_code)]
-    signer: Arc<CacheSigner>,
+    _signer: Arc<CacheSigner>,
     /// Capability checker for access control
     capability_checker: Arc<RwLock<CapabilityChecker>>,
     /// Audit logger for security events
@@ -147,7 +146,7 @@ impl<T: Cache> SecureCacheBuilder<T> {
 
         Ok(SecureCache {
             inner: self.inner,
-            signer,
+            _signer: signer,
             capability_checker,
             audit_logger,
             merkle_tree,

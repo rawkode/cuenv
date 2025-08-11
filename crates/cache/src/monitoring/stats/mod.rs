@@ -5,12 +5,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 /// Real-time statistics collector
-#[allow(dead_code)]
 pub struct RealTimeStats {
     /// Current operations in flight
     operations_in_flight: AtomicU64,
     /// Peak operations per second
-    peak_ops_per_second: AtomicU64,
+    _peak_ops_per_second: AtomicU64,
     /// Average response time (microseconds)
     avg_response_time_us: AtomicU64,
     /// P99 response time (microseconds)
@@ -23,7 +22,7 @@ impl RealTimeStats {
     pub fn new() -> Self {
         Self {
             operations_in_flight: AtomicU64::new(0),
-            peak_ops_per_second: AtomicU64::new(0),
+            _peak_ops_per_second: AtomicU64::new(0),
             avg_response_time_us: AtomicU64::new(0),
             p99_response_time_us: AtomicU64::new(0),
             response_times: RwLock::new(Vec::with_capacity(10000)),

@@ -3,8 +3,6 @@
 //! Implements LRU, LFU, and ARC eviction strategies with
 //! production-grade performance and correctness.
 
-#![allow(dead_code)]
-
 mod factory;
 mod policies;
 mod traits;

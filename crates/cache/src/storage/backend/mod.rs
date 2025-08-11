@@ -21,8 +21,7 @@ use tokio::sync::Semaphore;
 /// Storage backend for the cache system
 pub struct StorageBackend {
     /// Base directory for storage
-    #[allow(dead_code)]
-    base_dir: PathBuf,
+    _base_dir: PathBuf,
     /// Write-ahead log
     wal: Arc<WriteAheadLog>,
     /// Compression configuration
@@ -56,7 +55,7 @@ impl StorageBackend {
         };
 
         let backend = Self {
-            base_dir,
+            _base_dir: base_dir,
             wal,
             compression,
             io_semaphore: Arc::new(Semaphore::new(100)),

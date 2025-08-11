@@ -1,4 +1,3 @@
-#![allow(unused)]
 //! Cache invariant tests with comprehensive coverage
 //!
 //! This module implements invariant tests that verify critical cache

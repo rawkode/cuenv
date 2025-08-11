@@ -1,13 +1,11 @@
 //! Batch get operations for improved throughput
 
 /// Batch get operations for improved throughput
-#[allow(dead_code)]
 pub struct BatchGet<'a> {
     keys: Vec<&'a str>,
     results: Vec<Option<Vec<u8>>>,
 }
 
-#[allow(dead_code)]
 impl<'a> BatchGet<'a> {
     pub fn new(capacity: usize) -> Self {
         Self {

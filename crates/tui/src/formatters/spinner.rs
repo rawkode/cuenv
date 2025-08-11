@@ -165,7 +165,7 @@ impl SpinnerFormatter {
         }
 
         // Create display order that respects hierarchy
-        self.build_display_order(plan, &task_depths, &mut task_order);
+        Self::build_display_order(plan, &mut task_order);
         self.task_order = task_order;
 
         // Initialize task displays
@@ -197,31 +197,23 @@ impl SpinnerFormatter {
     }
 
     /// Build display order that groups tasks by their dependencies
-    fn build_display_order(
-        &self,
-        plan: &TaskExecutionPlan,
-        depths: &HashMap<String, usize>,
-        order: &mut Vec<String>,
-    ) {
+    fn build_display_order(plan: &TaskExecutionPlan, order: &mut Vec<String>) {
         // Process tasks level by level
         let mut processed = std::collections::HashSet::new();
 
         for level_tasks in &plan.levels {
             for task_name in level_tasks {
                 if !processed.contains(task_name) {
-                    self.add_task_and_dependents(task_name, plan, depths, order, &mut processed);
+                    Self::add_task_and_dependents(task_name, plan, order, &mut processed);
                 }
             }
         }
     }
 
     /// Recursively add a task and its dependents to the display order
-    #[allow(clippy::only_used_in_recursion)]
     fn add_task_and_dependents(
-        &self,
         task_name: &str,
         plan: &TaskExecutionPlan,
-        _depths: &HashMap<String, usize>,
         order: &mut Vec<String>,
         processed: &mut std::collections::HashSet<String>,
     ) {
@@ -237,7 +229,7 @@ impl SpinnerFormatter {
             let deps = other_config.dependency_names();
             if deps.contains(&task_name.to_string()) && !processed.contains(other_name) {
                 // This task depends on the current one, add it next (with indentation)
-                self.add_task_and_dependents(other_name, plan, _depths, order, processed);
+                Self::add_task_and_dependents(other_name, plan, order, processed);
             }
         }
     }

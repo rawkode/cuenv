@@ -1,13 +1,11 @@
 //! Inline cache for extremely hot values
 
 /// Inline cache for extremely hot values
-#[allow(dead_code)]
 pub struct InlineCache<const N: usize> {
     entries: [(Option<String>, Option<Vec<u8>>); N],
     index: usize,
 }
 
-#[allow(dead_code)]
 impl<const N: usize> Default for InlineCache<N> {
     fn default() -> Self {
         Self::new()

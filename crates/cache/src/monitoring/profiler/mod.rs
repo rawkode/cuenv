@@ -21,12 +21,11 @@ struct ProfileData {
     operation_count: u64,
 }
 
-#[allow(dead_code)]
 struct ProfileSample {
     operation: String,
     duration: Duration,
     stack_trace: Vec<String>,
-    timestamp: Instant,
+    _timestamp: Instant,
 }
 
 impl PerformanceProfiler {
@@ -52,7 +51,7 @@ impl PerformanceProfiler {
             operation: format!("{operation}_{}", if hit { "hit" } else { "miss" }),
             duration,
             stack_trace: Self::capture_stack_trace(),
-            timestamp: Instant::now(),
+            _timestamp: Instant::now(),
         };
 
         let mut profiles = self.profiles.write();

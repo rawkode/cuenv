@@ -1,4 +1,3 @@
-#![allow(unused)]
 use cuenv::config::{CueParser, ParseOptions};
 use std::fs;
 use tempfile::TempDir;

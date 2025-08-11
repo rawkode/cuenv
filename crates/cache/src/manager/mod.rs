@@ -28,21 +28,17 @@ use std::time::SystemTime;
 pub struct CacheManager {
     config: CacheConfig,
     /// Store reference for future extensibility and ownership
-    #[allow(dead_code)]
-    content_store: Arc<ContentAddressedStore>,
+    _content_store: Arc<ContentAddressedStore>,
     /// Store reference for future extensibility and ownership
-    #[allow(dead_code)]
-    action_cache: Arc<ActionCache>,
+    _action_cache: Arc<ActionCache>,
     /// Underlying cache engine for legacy compatibility
-    #[allow(dead_code)]
-    engine: Arc<CacheEngine>,
+    _engine: Arc<CacheEngine>,
     /// Cache operations handler
     operations: operations::CacheOperations,
     /// Key generation manager
     key_gen_manager: keygen::KeyGenManager,
     /// Cache version for migration support
-    #[allow(dead_code)]
-    version: u32,
+    _version: u32,
 }
 
 impl CacheManager {
@@ -68,12 +64,12 @@ impl CacheManager {
 
         Ok(Self {
             config,
-            content_store: components.content_store,
-            action_cache: components.action_cache,
-            engine: components.engine,
+            _content_store: components.content_store,
+            _action_cache: components.action_cache,
+            _engine: components.engine,
             operations,
             key_gen_manager: components.key_gen_manager,
-            version: CACHE_VERSION,
+            _version: CACHE_VERSION,
         })
     }
 

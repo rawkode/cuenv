@@ -219,7 +219,12 @@ mod tests {
         let mut env = HashMap::new();
         env.insert(
             "HOME".to_string(),
-            temp_dir.path().to_string_lossy().to_string(),
+            temp_dir
+                .path()
+                .canonicalize()
+                .unwrap()
+                .to_string_lossy()
+                .to_string(),
         );
 
         // Create the subdir for canonicalization to work

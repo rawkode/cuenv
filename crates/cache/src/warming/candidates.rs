@@ -61,10 +61,16 @@ impl<C: Cache + Clone> CandidateWarmer<C> {
         tracker: &AccessTracker,
         patterns: &WarmingPatterns,
     ) -> Vec<(String, u64)> {
-        let mut candidates = tracker.get_candidates(self.config.min_access_count);
-
-        // Sort by access count (descending)
-        candidates.sort_by(|a, b| b.1.cmp(&a.1));
+        let mut candidates = if self.config.max_warming_size > 0 {
+            // Use size-aware selection if max_warming_size is set
+            tracker.get_candidates_by_size(self.config.max_warming_size)
+        } else {
+            // Use standard access-count based selection
+            let mut c = tracker.get_candidates(self.config.min_access_count);
+            // Sort by access count (descending)
+            c.sort_by(|a, b| b.1.cmp(&a.1));
+            c
+        };
 
         // Add predictive candidates if enabled
         if self.config.predictive_warming {

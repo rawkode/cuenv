@@ -7,7 +7,6 @@ use super::ConcurrentCache;
 use crate::content_addressed_store::ContentAddressedStore;
 use crate::keys::CacheKeyGenerator;
 use crate::security::signing::{CacheSigner, SignedCacheEntry};
-use cuenv_config::TaskConfig;
 use cuenv_core::{Error, Result};
 use cuenv_core::{TaskDefinition, TaskExecutionMode};
 use dashmap::DashMap;
@@ -378,17 +377,6 @@ impl ActionCache {
         self.result_cache.clear();
         self.in_flight.clear();
     }
-}
-
-/// Compute hash of task configuration
-#[allow(dead_code)]
-fn hash_task_config(config: &TaskConfig) -> Result<String> {
-    let serialized = serde_json::to_string(config).map_err(|e| Error::Json {
-        message: "Failed to serialize task config for hashing".to_string(),
-        source: e,
-    })?;
-
-    Ok(compute_hash(serialized.as_bytes()))
 }
 
 /// Compute hash of task definition for cache key
