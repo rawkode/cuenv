@@ -5,10 +5,7 @@ use std::collections::HashMap;
 use super::stubs::{Platform, Shell};
 
 /// Export environment changes for a specific shell
-pub fn export_for_shell(
-    original_env: &HashMap<String, String>,
-    shell: &str,
-) -> Result<String> {
+pub fn export_for_shell(original_env: &HashMap<String, String>, shell: &str) -> Result<String> {
     let current_env: HashMap<String, String> = SyncEnv::vars()
         .map_err(|e| Error::Configuration {
             message: format!("Failed to get environment variables: {e}"),
@@ -33,9 +30,7 @@ pub fn export_for_shell(
 
     // Export new or changed variables
     for (key, value) in &current_env {
-        if !original_env.contains_key(key as &str)
-            || original_env.get(key as &str) != Some(value)
-        {
+        if !original_env.contains_key(key as &str) || original_env.get(key as &str) != Some(value) {
             output.push_str(&format.format_export(key, value));
             output.push('\n');
         }

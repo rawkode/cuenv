@@ -61,32 +61,30 @@ impl Cache {
 
         // Need to check if the disk entry is expired
         // Acquire read semaphore with timeout to prevent deadlocks
-        let _permit = match tokio::time::timeout(
-            Duration::from_secs(5),
-            self.inner.read_semaphore.acquire(),
-        )
-        .await
-        {
-            Ok(Ok(permit)) => permit,
-            Ok(Err(_)) => {
-                return Err(CacheError::StoreUnavailable {
-                    store_type: StoreType::Local,
-                    reason: "Read semaphore closed".to_string(),
-                    recovery_hint: RecoveryHint::Retry {
-                        after: Duration::from_millis(100),
-                    },
-                });
-            }
-            Err(_) => {
-                return Err(CacheError::Timeout {
-                    operation: "acquire read semaphore for contains",
-                    duration: Duration::from_secs(5),
-                    recovery_hint: RecoveryHint::Retry {
-                        after: Duration::from_millis(100),
-                    },
-                });
-            }
-        };
+        let _permit =
+            match tokio::time::timeout(Duration::from_secs(5), self.inner.read_semaphore.acquire())
+                .await
+            {
+                Ok(Ok(permit)) => permit,
+                Ok(Err(_)) => {
+                    return Err(CacheError::StoreUnavailable {
+                        store_type: StoreType::Local,
+                        reason: "Read semaphore closed".to_string(),
+                        recovery_hint: RecoveryHint::Retry {
+                            after: Duration::from_millis(100),
+                        },
+                    });
+                }
+                Err(_) => {
+                    return Err(CacheError::Timeout {
+                        operation: "acquire read semaphore for contains",
+                        duration: Duration::from_secs(5),
+                        recovery_hint: RecoveryHint::Retry {
+                            after: Duration::from_millis(100),
+                        },
+                    });
+                }
+            };
 
         match fs::read(&metadata_path).await {
             Ok(metadata_bytes) => {
@@ -148,5 +146,4 @@ impl Cache {
             }),
         }
     }
-
 }

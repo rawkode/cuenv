@@ -64,8 +64,7 @@ pub fn collect_cue_env_vars(
 
     // Collect variables that were added or modified by CUE
     for (key, value) in &current_env {
-        if !original_env.contains_key(key as &str) || original_env.get(key as &str) != Some(value)
-        {
+        if !original_env.contains_key(key as &str) || original_env.get(key as &str) != Some(value) {
             cue_env_vars.insert(key.clone(), value.clone());
         }
     }

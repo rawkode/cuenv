@@ -18,5 +18,7 @@ mod wal;
 // Re-export public types
 pub use backend::StorageBackend;
 pub use compression::{CompressionConfig, CompressionStats};
-pub use format::{StorageHeader, CACHE_MAGIC, DEFAULT_COMPRESSION_LEVEL, MAX_WAL_SIZE, STORAGE_VERSION};
+pub use format::{
+    StorageHeader, CACHE_MAGIC, DEFAULT_COMPRESSION_LEVEL, MAX_WAL_SIZE, STORAGE_VERSION,
+};
 pub use wal::{WalEntry, WalOperation};

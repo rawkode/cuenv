@@ -40,7 +40,9 @@ impl CacheCleanup {
     }
 
     /// Scan for corrupted files in the cache
-    pub async fn scan_for_corrupted_files(base_dir: &PathBuf) -> Result<Vec<String>, std::io::Error> {
+    pub async fn scan_for_corrupted_files(
+        base_dir: &PathBuf,
+    ) -> Result<Vec<String>, std::io::Error> {
         let mut corrupted_files = Vec::new();
         let objects_dir = base_dir.join("objects");
 
@@ -80,21 +82,32 @@ impl CacheCleanup {
                                         match fs::read(&path).await {
                                             Ok(data) => {
                                                 // Try to deserialize metadata
-                                                if bincode::deserialize::<serde_json::Value>(&data).is_err() {
+                                                if bincode::deserialize::<serde_json::Value>(&data)
+                                                    .is_err()
+                                                {
                                                     if let Some(name) = path.file_name() {
                                                         if let Some(name_str) = name.to_str() {
-                                                            corrupted_files.push(name_str.to_string());
+                                                            corrupted_files
+                                                                .push(name_str.to_string());
                                                         }
                                                     }
                                                 }
                                             }
                                             Err(e) => {
-                                                tracing::warn!("Failed to read file {}: {}", path.display(), e);
+                                                tracing::warn!(
+                                                    "Failed to read file {}: {}",
+                                                    path.display(),
+                                                    e
+                                                );
                                             }
                                         }
                                     }
                                     Err(e) => {
-                                        tracing::warn!("Failed to read file {}: {}", path.display(), e);
+                                        tracing::warn!(
+                                            "Failed to read file {}: {}",
+                                            path.display(),
+                                            e
+                                        );
                                         if let Some(name) = path.file_name() {
                                             if let Some(name_str) = name.to_str() {
                                                 corrupted_files.push(name_str.to_string());
@@ -144,7 +157,9 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let base_dir = temp_dir.path().to_path_buf();
 
-        let corrupted = CacheCleanup::scan_for_corrupted_files(&base_dir).await.unwrap();
+        let corrupted = CacheCleanup::scan_for_corrupted_files(&base_dir)
+            .await
+            .unwrap();
         assert!(corrupted.is_empty());
     }
 
@@ -159,7 +174,9 @@ mod tests {
         let empty_file = objects_dir.join("empty_file");
         fs::write(&empty_file, b"").await.unwrap();
 
-        let corrupted = CacheCleanup::scan_for_corrupted_files(&base_dir).await.unwrap();
+        let corrupted = CacheCleanup::scan_for_corrupted_files(&base_dir)
+            .await
+            .unwrap();
         assert_eq!(corrupted.len(), 1);
         assert_eq!(corrupted[0], "empty_file");
     }

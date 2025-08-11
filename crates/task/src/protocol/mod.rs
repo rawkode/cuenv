@@ -27,8 +27,8 @@ mod mcp;
 
 // Request handlers
 mod handlers;
-mod handlers_tasks;
 mod handlers_execution;
+mod handlers_tasks;
 
 // Provider for exposing cuenv tasks
 mod provider;

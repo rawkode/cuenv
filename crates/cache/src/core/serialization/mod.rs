@@ -1,31 +1,27 @@
 //! Core cache serialization utilities
 
-use crate::errors::{CacheError, Result, SerializationOp, RecoveryHint};
+use crate::errors::{CacheError, RecoveryHint, Result, SerializationOp};
 use serde::{de::DeserializeOwned, Serialize};
 
 /// Serialize a value to bytes for cache storage
 pub fn serialize<T: Serialize>(value: &T) -> Result<Vec<u8>> {
-    bincode::serialize(value).map_err(|e| {
-        CacheError::Serialization {
-            key: String::new(),
-            operation: SerializationOp::Encode,
-            source: Box::new(e),
-            recovery_hint: RecoveryHint::Manual {
-                instructions: "Check that the value is serializable".to_string(),
-            },
-        }
+    bincode::serialize(value).map_err(|e| CacheError::Serialization {
+        key: String::new(),
+        operation: SerializationOp::Encode,
+        source: Box::new(e),
+        recovery_hint: RecoveryHint::Manual {
+            instructions: "Check that the value is serializable".to_string(),
+        },
     })
 }
 
 /// Deserialize bytes to a value from cache storage
 pub fn deserialize<T: DeserializeOwned>(data: &[u8]) -> Result<T> {
-    bincode::deserialize(data).map_err(|e| {
-        CacheError::Serialization {
-            key: String::new(),
-            operation: SerializationOp::Decode,
-            source: Box::new(e),
-            recovery_hint: RecoveryHint::ClearAndRetry,
-        }
+    bincode::deserialize(data).map_err(|e| CacheError::Serialization {
+        key: String::new(),
+        operation: SerializationOp::Decode,
+        source: Box::new(e),
+        recovery_hint: RecoveryHint::ClearAndRetry,
     })
 }
 

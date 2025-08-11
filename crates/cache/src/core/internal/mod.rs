@@ -1,6 +1,6 @@
 //! Internal structures and utilities for the unified cache implementation
 
-use crate::errors::{CacheError, Result, RecoveryHint};
+use crate::errors::{CacheError, RecoveryHint, Result};
 use crate::traits::CacheMetadata;
 use memmap2::{Mmap, MmapOptions};
 use parking_lot::RwLock;
@@ -96,7 +96,11 @@ impl PathUtils {
     pub fn object_path_from_hash(base_dir: &PathBuf, hash: &str) -> PathBuf {
         let prefix = &hash[..2];
         let subdir = &hash[2..4];
-        base_dir.join("objects").join(prefix).join(subdir).join(hash)
+        base_dir
+            .join("objects")
+            .join(prefix)
+            .join(subdir)
+            .join(hash)
     }
 
     /// Generate object path from base directory and key

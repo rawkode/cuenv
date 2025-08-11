@@ -11,8 +11,8 @@ use sha2::{Digest, Sha256};
 use std::sync::atomic::Ordering;
 use std::time::{Duration, SystemTime};
 
-use crate::core::types::Cache;
 use super::utils::serialize;
+use crate::core::types::Cache;
 
 impl Cache {
     /// Put a value into the cache

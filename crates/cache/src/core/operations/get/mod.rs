@@ -9,8 +9,8 @@ use serde::de::DeserializeOwned;
 use std::sync::atomic::Ordering;
 use std::time::{Instant, SystemTime};
 
-use crate::core::types::Cache;
 use super::utils::deserialize;
+use crate::core::types::Cache;
 
 impl Cache {
     /// Get a value from the cache

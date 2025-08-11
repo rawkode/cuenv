@@ -23,9 +23,7 @@ pub async fn execute_single_task(
             };
             (task_definition.shell.clone(), full_command)
         }
-        TaskExecutionMode::Script { content } => {
-            (task_definition.shell.clone(), content.clone())
-        }
+        TaskExecutionMode::Script { content } => (task_definition.shell.clone(), content.clone()),
     };
 
     // Validate for security
@@ -65,8 +63,7 @@ pub async fn execute_single_task(
 fn validate_security(shell: &str, script_content: &str, args: &[String]) -> Result<()> {
     // Use a static set for allowed shells to avoid repeated allocations
     static ALLOWED_SHELLS: &[&str] = &["sh", "bash", "zsh", "fish", "pwsh", "powershell"];
-    let allowed_shells: HashSet<String> =
-        ALLOWED_SHELLS.iter().map(|&s| s.to_string()).collect();
+    let allowed_shells: HashSet<String> = ALLOWED_SHELLS.iter().map(|&s| s.to_string()).collect();
 
     cuenv_security::SecurityValidator::validate_command(shell, &allowed_shells)?;
     cuenv_security::SecurityValidator::validate_shell_expansion(script_content)?;

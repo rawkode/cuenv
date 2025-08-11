@@ -20,32 +20,30 @@ impl Cache {
         let data_path = object_path(&self.inner, key);
 
         // Acquire read semaphore with timeout to prevent deadlocks
-        let permit = match tokio::time::timeout(
-            Duration::from_secs(5),
-            self.inner.read_semaphore.acquire(),
-        )
-        .await
-        {
-            Ok(Ok(permit)) => permit,
-            Ok(Err(_)) => {
-                return Err(CacheError::StoreUnavailable {
-                    store_type: StoreType::Local,
-                    reason: "I/O semaphore closed".to_string(),
-                    recovery_hint: RecoveryHint::Retry {
-                        after: Duration::from_millis(100),
-                    },
-                });
-            }
-            Err(_) => {
-                return Err(CacheError::Timeout {
-                    operation: "acquire read semaphore for get",
-                    duration: Duration::from_secs(5),
-                    recovery_hint: RecoveryHint::Retry {
-                        after: Duration::from_millis(100),
-                    },
-                });
-            }
-        };
+        let permit =
+            match tokio::time::timeout(Duration::from_secs(5), self.inner.read_semaphore.acquire())
+                .await
+            {
+                Ok(Ok(permit)) => permit,
+                Ok(Err(_)) => {
+                    return Err(CacheError::StoreUnavailable {
+                        store_type: StoreType::Local,
+                        reason: "I/O semaphore closed".to_string(),
+                        recovery_hint: RecoveryHint::Retry {
+                            after: Duration::from_millis(100),
+                        },
+                    });
+                }
+                Err(_) => {
+                    return Err(CacheError::Timeout {
+                        operation: "acquire read semaphore for get",
+                        duration: Duration::from_secs(5),
+                        recovery_hint: RecoveryHint::Retry {
+                            after: Duration::from_millis(100),
+                        },
+                    });
+                }
+            };
 
         // Read metadata first
         let metadata_bytes = match fs::read(&metadata_path).await {
