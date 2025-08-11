@@ -4,7 +4,7 @@
 
 use super::memory::CStringPtr;
 use crate::parser::processing::{build_parse_result, ParseOptions, ParseResult};
-use crate::parser::types::CueParseResult;
+use crate::parser::types::{CueParseResult, RawCueResult};
 use crate::parser::validation::{
     create_ffi_string, validate_directory_path, validate_package_name,
 };
@@ -143,6 +143,14 @@ fn get_recovery_hint(error: &str) -> &'static str {
 }
 
 fn deserialize_cue_result(json_value: serde_json::Value) -> Result<CueParseResult> {
+    // Check what's at the top level for error reporting if needed
+
+    // Try to deserialize as raw format first (simplified bridge)
+    if let Ok(raw) = serde_json::from_value::<RawCueResult>(json_value.clone()) {
+        return convert_raw_to_cue_result(raw);
+    }
+
+    // Fallback to old format for compatibility
     serde_json::from_value(json_value).map_err(|e| {
         let error = Error::Json {
             message: "failed to parse CUE result structure".to_string(),
@@ -151,5 +159,97 @@ fn deserialize_cue_result(json_value: serde_json::Value) -> Result<CueParseResul
         log::error!("Failed to deserialize CUE result. This might indicate a version mismatch.");
         log::error!("Recovery suggestion: {}", suggest_recovery(&error));
         error
+    })
+}
+
+fn convert_raw_to_cue_result(raw: RawCueResult) -> Result<CueParseResult> {
+    use crate::parser::types::{CommandConfig, HookValue, HooksConfig};
+
+    let mut variables = HashMap::new();
+    let metadata = HashMap::new();
+    let mut commands = HashMap::new();
+
+    // Extract variables from env field (excluding special keys)
+    for (key, value) in raw.env.variables {
+        if !["environment", "capabilities", "hooks", "tasks"].contains(&key.as_str()) {
+            variables.insert(key.clone(), value);
+            // TODO: Extract @capability attributes if needed
+        }
+    }
+
+    // Extract environment-specific overrides
+    let environments = raw.env.environment;
+
+    // Build command-to-capabilities mapping
+    for (cap_name, cap) in &raw.env.capabilities {
+        for cmd in &cap.commands {
+            commands
+                .entry(cmd.clone())
+                .or_insert_with(|| CommandConfig {
+                    capabilities: Some(vec![]),
+                })
+                .capabilities
+                .as_mut()
+                .unwrap()
+                .push(cap_name.clone());
+        }
+    }
+
+    // Also process top-level capabilities
+    for (cap_name, cap) in &raw.capabilities {
+        for cmd in &cap.commands {
+            commands
+                .entry(cmd.clone())
+                .or_insert_with(|| CommandConfig {
+                    capabilities: Some(vec![]),
+                })
+                .capabilities
+                .as_mut()
+                .unwrap()
+                .push(cap_name.clone());
+        }
+    }
+
+    // Convert hooks
+    let hooks = raw.hooks.map(|h| HooksConfig {
+        on_enter: h.on_enter.map(|v| {
+            if v.is_array() {
+                HookValue::Multiple(
+                    v.as_array()
+                        .unwrap()
+                        .iter()
+                        .filter_map(|hook| serde_json::from_value(hook.clone()).ok())
+                        .collect(),
+                )
+            } else {
+                serde_json::from_value(v)
+                    .map(|hook| HookValue::Single(Box::new(hook)))
+                    .unwrap_or(HookValue::Multiple(vec![]))
+            }
+        }),
+        on_exit: h.on_exit.map(|v| {
+            if v.is_array() {
+                HookValue::Multiple(
+                    v.as_array()
+                        .unwrap()
+                        .iter()
+                        .filter_map(|hook| serde_json::from_value(hook.clone()).ok())
+                        .collect(),
+                )
+            } else {
+                serde_json::from_value(v)
+                    .map(|hook| HookValue::Single(Box::new(hook)))
+                    .unwrap_or(HookValue::Multiple(vec![]))
+            }
+        }),
+    });
+
+    Ok(CueParseResult {
+        variables,
+        metadata,
+        environments,
+        commands,
+        tasks: raw.tasks,
+        hooks,
     })
 }

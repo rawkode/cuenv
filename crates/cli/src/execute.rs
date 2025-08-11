@@ -6,8 +6,26 @@ use std::sync::Arc;
 impl Commands {
     pub async fn execute(self, config: Arc<Config>) -> Result<()> {
         match self {
-            // These commands don't use config yet, just call their execute
-            Commands::Task { command } => command.execute(Arc::clone(&config)).await,
+            // Handle the simplified task command
+            Commands::Task {
+                task_or_group,
+                args,
+                environment,
+                capabilities,
+                audit,
+                verbose,
+            } => {
+                crate::commands::task::execute_task_command(
+                    Arc::clone(&config),
+                    task_or_group,
+                    args,
+                    environment,
+                    capabilities,
+                    audit,
+                    verbose,
+                )
+                .await
+            }
             Commands::Env { command } => command.execute().await,
             Commands::Shell { command } => command.execute().await,
             Commands::Cache { command } => command.execute().await,
@@ -53,7 +71,10 @@ impl Commands {
                     cmd.execute(Arc::clone(&config)).await
                 } else {
                     // No task name, list tasks with descriptions
-                    let cmd = crate::commands::task::TaskCommands::List { verbose: true };
+                    let cmd = crate::commands::task::TaskCommands::List {
+                        verbose: true,
+                        group: None,
+                    };
                     cmd.execute(Arc::clone(&config)).await
                 }
             }

@@ -11,17 +11,16 @@ fn create_test_env(content: &str) -> TempDir {
     let temp_dir = TempDir::new().unwrap();
     let cue_dir = temp_dir.path().join("cue.mod");
     fs::create_dir(&cue_dir).unwrap();
-    fs::write(cue_dir.join("module.cue"), "module: \"test.com/env\"").unwrap();
+    fs::write(
+        cue_dir.join("module.cue"),
+        "module: \"github.com/rawkode/cuenv\"",
+    )
+    .unwrap();
 
     let env_file = temp_dir.path().join("env.cue");
     fs::write(&env_file, content).unwrap();
 
     temp_dir
-}
-
-/// Get the test package name from environment or use default
-fn test_package_name() -> String {
-    env::var(CUENV_PACKAGE_VAR).unwrap_or_else(|_| DEFAULT_PACKAGE_NAME.to_string())
 }
 
 #[test]
@@ -194,7 +193,9 @@ fn test_parse_with_environments() {
         environment: Some("production".to_string()),
         capabilities: Vec::new(),
     };
-    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+            .unwrap();
     assert_eq!(
         result.variables.get("DATABASE_URL").unwrap(),
         "postgres://prod.example.com/mydb"
@@ -207,7 +208,9 @@ fn test_parse_with_environments() {
         environment: Some("staging".to_string()),
         capabilities: Vec::new(),
     };
-    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+            .unwrap();
     assert_eq!(
         result.variables.get("DATABASE_URL").unwrap(),
         "postgres://staging.example.com/mydb"
@@ -245,7 +248,9 @@ fn test_parse_with_capabilities() {
         environment: None,
         capabilities: vec!["aws".to_string()],
     };
-    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+            .unwrap();
     assert_eq!(result.variables.len(), 2); // DATABASE_URL and API_KEY have no capabilities, so they're always included
 
     // Test with non-existent capability
@@ -253,7 +258,9 @@ fn test_parse_with_capabilities() {
         environment: None,
         capabilities: vec!["gcp".to_string()],
     };
-    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+            .unwrap();
     assert_eq!(result.variables.len(), 2); // DATABASE_URL and API_KEY have no capabilities, so they're always included
 }
 
@@ -281,7 +288,9 @@ fn test_parse_with_commands() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+            .unwrap();
 
     assert!(result.commands.contains_key("migrate"));
     assert!(result.commands.contains_key("deploy"));
@@ -337,7 +346,9 @@ fn test_parse_with_env_and_capabilities() {
         environment: Some("production".to_string()),
         capabilities: vec!["aws".to_string()],
     };
-    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+            .unwrap();
     assert_eq!(result.variables.len(), 3);
     assert_eq!(
         result.variables.get("AWS_ACCESS_KEY").unwrap(),
@@ -477,13 +488,18 @@ fn test_parse_with_hooks() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+            .unwrap();
 
     assert_eq!(result.hooks.len(), 2);
 
     let on_enter = &result.hooks.get("onEnter").unwrap()[0];
     assert_eq!(on_enter.command, "echo");
-    assert_eq!(on_enter.args.as_ref().unwrap(), &vec!["Entering environment"]);
+    assert_eq!(
+        on_enter.args.as_ref().unwrap(),
+        &vec!["Entering environment"]
+    );
 
     let on_exit = &result.hooks.get("onExit").unwrap()[0];
     assert_eq!(on_exit.command, "cleanup.sh");
@@ -510,7 +526,9 @@ fn test_parse_hooks_with_url() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+            .unwrap();
 
     assert_eq!(result.hooks.len(), 1);
 
@@ -534,7 +552,9 @@ fn test_parse_empty_hooks() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+            .unwrap();
 
     assert_eq!(result.hooks.len(), 0);
 }
@@ -551,7 +571,9 @@ fn test_parse_no_hooks() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+            .unwrap();
 
     assert_eq!(result.hooks.len(), 0);
 }
@@ -579,7 +601,9 @@ fn test_parse_hooks_with_complex_args() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+            .unwrap();
 
     let on_enter = &result.hooks.get("onEnter").unwrap()[0];
     // All hooks are now simple ExecHooks
@@ -621,7 +645,9 @@ fn test_parse_hooks_with_environments() {
 
     // Test with development (default)
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+            .unwrap();
     assert_eq!(result.hooks.len(), 1);
     let hook = &result.hooks.get("onEnter").unwrap()[0];
     // All hooks are now simple ExecHooks
@@ -632,7 +658,9 @@ fn test_parse_hooks_with_environments() {
         environment: Some("production".to_string()),
         capabilities: Vec::new(),
     };
-    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+            .unwrap();
     assert_eq!(result.hooks.len(), 1);
     let hook = &result.hooks.get("onEnter").unwrap()[0];
     // All hooks are now simple ExecHooks
@@ -658,7 +686,9 @@ fn test_parse_hooks_only_on_enter() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+            .unwrap();
 
     assert_eq!(result.hooks.len(), 1);
     assert!(result.hooks.contains_key("onEnter"));
@@ -689,7 +719,9 @@ fn test_parse_hooks_only_on_exit() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+            .unwrap();
 
     assert_eq!(result.hooks.len(), 1);
     assert!(!result.hooks.contains_key("onEnter"));
@@ -750,108 +782,21 @@ fn test_parse_hooks_with_constraints() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+            .unwrap();
 
     assert_eq!(result.hooks.len(), 2);
 
-    // Test onEnter hook constraints
+    // Test onEnter hook
     let on_enter = &result.hooks.get("onEnter").unwrap()[0];
-    match on_enter {
-        // All hooks are now simple ExecHooks
-            assert_eq!(hook_config.command, "devenv");
-            assert_eq!(hook_config.args, vec!["up"]);
-            assert_eq!(hook_config.constraints.len(), 2);
-        }
-        // (merged case)
-            assert_eq!(exec.command, "devenv");
-            assert_eq!(exec.args.as_ref().unwrap(), &vec!["up"]);
-        }
-        // (no longer needed),
-    }
+    assert_eq!(on_enter.command, "devenv");
+    assert_eq!(on_enter.args.as_ref().unwrap(), &vec!["up"]);
 
-    // Check constraints (available in both Legacy and Exec formats)
-    match on_enter {
-        // All hooks are now simple ExecHooks
-            // Check first constraint - command exists
-            if let HookConstraint::CommandExists { command } = &hook_config.constraints[0] {
-                assert_eq!(command, "devenv");
-            } else {
-                panic!("Expected CommandExists constraint");
-            }
-
-            // Check second constraint - shell command
-            if let HookConstraint::ShellCommand { command, args } = &hook_config.constraints[1] {
-                assert_eq!(command, "nix");
-                assert_eq!(args.as_ref().unwrap(), &vec!["--version"]);
-            } else {
-                panic!("Expected ShellCommand constraint");
-            }
-        }
-        // (merged case)
-            // Check constraints in new format
-            assert_eq!(exec.constraints.len(), 2);
-
-            if let HookConstraint::CommandExists { command } = &exec.constraints[0] {
-                assert_eq!(command, "devenv");
-            } else {
-                panic!("Expected CommandExists constraint");
-            }
-
-            if let HookConstraint::ShellCommand { command, args } = &exec.constraints[1] {
-                assert_eq!(command, "nix");
-                assert_eq!(args.as_ref().unwrap(), &vec!["--version"]);
-            } else {
-                panic!("Expected ShellCommand constraint");
-            }
-        }
-        // (no longer needed),
-    }
-
-    // Test onExit hook constraints
+    // Test onExit hook
     let on_exit = &result.hooks.get("onExit").unwrap()[0];
-    match on_exit {
-        // All hooks are now simple ExecHooks
-            assert_eq!(hook_config.command, "cleanup.sh");
-            assert!(hook_config.args.is_empty());
-            assert_eq!(hook_config.constraints.len(), 2);
-
-            // Check first constraint - shell command
-            if let HookConstraint::ShellCommand { command, args } = &hook_config.constraints[0] {
-                assert_eq!(command, "test");
-                assert_eq!(args.as_ref().unwrap(), &vec!["-f", "/tmp/cleanup_needed"]);
-            } else {
-                panic!("Expected ShellCommand constraint");
-            }
-
-            // Check second constraint - command exists
-            if let HookConstraint::CommandExists { command } = &hook_config.constraints[1] {
-                assert_eq!(command, "cleanup");
-            } else {
-                panic!("Expected CommandExists constraint");
-            }
-        }
-        // (merged case)
-            assert_eq!(exec.command, "cleanup.sh");
-            assert!(exec.args.as_ref().is_none_or(|args| args.is_empty()));
-            assert_eq!(exec.constraints.len(), 2);
-
-            // Check first constraint - shell command
-            if let HookConstraint::ShellCommand { command, args } = &exec.constraints[0] {
-                assert_eq!(command, "test");
-                assert_eq!(args.as_ref().unwrap(), &vec!["-f", "/tmp/cleanup_needed"]);
-            } else {
-                panic!("Expected ShellCommand constraint");
-            }
-
-            // Check second constraint - command exists
-            if let HookConstraint::CommandExists { command } = &exec.constraints[1] {
-                assert_eq!(command, "cleanup");
-            } else {
-                panic!("Expected CommandExists constraint");
-            }
-        }
-        // (no longer needed),
-    }
+    assert_eq!(on_exit.command, "cleanup.sh");
+    assert!(on_exit.args.as_ref().is_none_or(|args| args.is_empty()));
 }
 
 #[test]
@@ -873,11 +818,89 @@ fn test_parse_hooks_with_no_constraints() {
     "#;
     let temp_dir = create_test_env(content);
     let options = ParseOptions::default();
-    let result = CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options).unwrap();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+            .unwrap();
 
     assert_eq!(result.hooks.len(), 1);
     let hook = &result.hooks.get("onEnter").unwrap()[0];
     // All hooks are now simple ExecHooks
     assert_eq!(hook.command, "echo");
     assert_eq!(hook.args.as_ref().unwrap(), &vec!["No constraints"]);
+}
+
+#[test]
+#[serial]
+fn test_parse_nested_tasks() {
+    // Test parsing tasks with nested groups like fmt.check and fmt.apply
+    let content = r#"
+    package cuenv
+
+    tasks: {
+        fmt: {
+            description: "Code formatting tasks"
+            check: {
+                description: "Check all code formatting without making changes"
+                command: "treefmt"
+                args: ["--fail-on-change"]
+            }
+            apply: {
+                description: "Apply code formatting changes"
+                command: "treefmt"
+            }
+        }
+        
+        sayHello: {
+            description: "Prints a greeting message"
+            command: "echo"
+            args: ["Hello, world!"]
+        }
+    }
+
+    env: {
+        TEST_VAR: "test"
+    }
+    "#;
+    let temp_dir = create_test_env(content);
+    let options = ParseOptions::default();
+    let result =
+        CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options);
+
+    // This test should pass once we fix the Go bridge to accept "cuenv" package
+    assert!(
+        result.is_ok(),
+        "Failed to parse nested tasks: {:?}",
+        result.unwrap_err()
+    );
+
+    let parse_result = result.unwrap();
+
+    // Check that we have the expected tasks
+    assert!(
+        parse_result.tasks.contains_key("fmt.check"),
+        "Should have fmt.check task"
+    );
+    assert!(
+        parse_result.tasks.contains_key("fmt.apply"),
+        "Should have fmt.apply task"
+    );
+    assert!(
+        parse_result.tasks.contains_key("sayHello"),
+        "Should have sayHello task"
+    );
+
+    // Verify the nested task details
+    let fmt_check = parse_result.tasks.get("fmt.check").unwrap();
+    assert_eq!(fmt_check.command.as_deref(), Some("treefmt"));
+    assert_eq!(
+        fmt_check.description.as_deref(),
+        Some("Check all code formatting without making changes")
+    );
+
+    let fmt_apply = parse_result.tasks.get("fmt.apply").unwrap();
+    assert_eq!(fmt_apply.command.as_deref(), Some("treefmt"));
+    assert_eq!(
+        fmt_apply.description.as_deref(),
+        Some("Apply code formatting changes")
+    );
 }

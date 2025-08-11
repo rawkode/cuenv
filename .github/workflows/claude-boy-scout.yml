@@ -1,0 +1,66 @@
+name: Claude Boy Scout
+on:
+  schedule:
+    - cron: '0 0,6,12,18 * * *'
+  workflow_dispatch: # Allow manual triggering for testing
+jobs:
+  improve-codebase:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for better context
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+      - name: Run Claude Code for Maintainability Improvements
+        id: claude
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          model: "claude-sonnet-4-20250514"
+          additional_permissions: |
+            actions: read
+          allowed_tools: "Bash(nix develop -c *),Bash(cargo *),Bash(git *),Bash(gh *),Bash(treefmt),Bash(scripts/*),Read,Write,Edit,MultiEdit,Grep,Glob,LS,TodoWrite,Task"
+          custom_instructions: |
+            You are tasked with finding ONE specific area for maintainability improvement in the cuenv codebase.
+
+            Focus on one of these areas:
+            1. Reducing code duplication
+            2. Improving error handling consistency
+            3. Simplifying complex functions (breaking them into smaller ones)
+            4. Improving test coverage for uncovered critical paths
+            5. Refactoring for better modularity
+            6. Fixing TODO comments or technical debt
+            7. Improving type safety
+            8. Removing dead code
+            9. Consolidating similar utilities
+            10. Improving documentation for complex logic
+
+            Process:
+            1. Analyze the codebase to identify ONE specific improvement
+            2. Implement the improvement following all project rules in CLAUDE.md
+            3. Ensure all tests pass
+            4. Run treefmt, cargo clippy --fix, and cargo clippy
+            5. Create a new branch for the changes
+            6. Commit with a clear message explaining the improvement
+            7. Push the branch
+            8. Create a PR with detailed explanation of the improvement
+
+            Important:
+            - Focus on a single, well-scoped improvement
+            - Follow TDD principles
+            - Ensure zero warnings
+            - Use conventional commit format
+            - Make changes that improve long-term maintainability
+            - Avoid cosmetic-only changes
+            - Create a descriptive PR that explains why the change improves maintainability
+          claude_env: |-
+            CGO_ENABLED: 1
+            RUST_BACKTRACE: 1

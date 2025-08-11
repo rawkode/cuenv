@@ -1,0 +1,57 @@
+---
+import type { Props } from '@astrojs/starlight/props';
+import LastUpdated from '@astrojs/starlight/components/LastUpdated.astro';
+import Pagination from '@astrojs/starlight/components/Pagination.astro';
+import EditLink from '@astrojs/starlight/components/EditLink.astro';
+import { useTranslations } from '@astrojs/starlight/utils/translations';
+
+const { hasSidebar } = Astro.props;
+const t = useTranslations(Astro);
+---
+
+<footer class="sl-flex">
+	<div class="sl-flex">
+		<LastUpdated />
+		<EditLink />
+		<a href="/llms.txt">LLM Instructions</a>
+	</div>
+	<Pagination />
+</footer>
+
+<style>
+	footer {
+		flex-direction: column;
+		gap: 1.5rem;
+		border-top: 1px solid var(--sl-color-hairline);
+		padding-top: 2rem;
+		margin-top: 4rem;
+		padding-bottom: 4rem;
+	}
+
+	.sl-flex {
+		flex-direction: column;
+		gap: 1.5rem;
+	}
+
+	a {
+		text-decoration: none;
+		color: var(--sl-color-text-link);
+		font-size: var(--sl-text-sm);
+	}
+
+	a:hover {
+		text-decoration: underline;
+	}
+
+	@media (min-width: 50rem) {
+		footer {
+			flex-direction: row;
+			justify-content: space-between;
+			gap: 2.5rem;
+		}
+		.sl-flex {
+			flex-direction: row;
+			align-items: center;
+		}
+	}
+</style>

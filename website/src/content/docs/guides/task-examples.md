@@ -32,20 +32,34 @@ The build cache system provides enterprise-grade caching with:
 ### List Available Tasks
 
 ```bash
-cuenv run
+cuenv run                    # List all tasks and groups
+cuenv task                   # Alternative command
+```
+
+### List Tasks in a Group
+
+```bash
+cuenv task fmt              # List tasks in the 'fmt' group
 ```
 
 ### Execute a Task (with caching)
 
 ```bash
-cuenv run lint        # First run executes
-cuenv run lint        # Second run uses cache
+cuenv run lint              # First run executes
+cuenv run lint              # Second run uses cache
+```
+
+### Execute a Task from a Group
+
+```bash
+cuenv task fmt check        # Run the 'check' task from 'fmt' group
+cuenv task fmt apply        # Run the 'apply' task from 'fmt' group
 ```
 
 ### Execute Task with Dependencies
 
 ```bash
-cuenv run build      # Executes lint → test → build (if not cached)
+cuenv run build            # Executes lint → test → build (if not cached)
 ```
 
 ### Clear Build Cache
@@ -55,6 +69,8 @@ cuenv clear-cache
 ```
 
 ## Task Definition Schema
+
+### Single Task
 
 ```cue
 tasks: {
@@ -72,6 +88,33 @@ tasks: {
     }
 }
 ```
+
+### Task Groups
+
+Tasks can be organized into groups for better organization:
+
+```cue
+tasks: {
+    fmt: {
+        description: "Code formatting tasks"
+        check: {
+            description: "Check formatting without changes"
+            command: "treefmt"
+            args: ["--fail-on-change"]
+        }
+        apply: {
+            description: "Apply formatting changes"
+            command: "treefmt"
+        }
+    }
+}
+```
+
+This creates:
+
+- `fmt` - A task group with description
+- `fmt.check` - Check formatting (accessed as `cuenv task fmt check`)
+- `fmt.apply` - Apply formatting (accessed as `cuenv task fmt apply`)
 
 ## Example Tasks
 

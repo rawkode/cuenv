@@ -1,0 +1,62 @@
+This file provides context for Large Language Models (LLMs) to understand the `cuenv` project.
+
+# About cuenv
+
+cuenv is a configuration-first, type-safe environment management tool for the command line, written in Rust. It is positioned as a powerful alternative to tools like direnv.
+
+The core philosophy of cuenv is to use the CUE configuration language to define environments, tasks, and secrets in a structured, verifiable, and robust way, moving beyond simple key-value pairs and shell scripts.
+
+# Core Features
+
+- **CUE-based Configuration**: All configuration is done in `.cue` files (typically `env.cue`). This provides type safety, validation, and the ability to define complex, hierarchical configurations.
+- **Environment Management**: Automatically loads and unloads environment variables as you navigate directories in your shell. It supports hierarchical configuration, where child directories inherit and can override parent configurations. It also supports distinct environments like development, staging, and production.
+- **Secret Management**: Native integration with 1Password (`op://...`) and Google Cloud Secret Manager (`gcp-secret://...`). Secrets are resolved at runtime with `cuenv run` and are automatically obfuscated in logs. Custom secret resolvers can also be defined.
+- **Task Runner**: A built-in task runner allows you to define and execute tasks directly from your `env.cue` file. It supports dependencies between tasks.
+- **Bazel-style Caching**: A sophisticated, content-addressed build cache for tasks. It tracks input files and task configuration to avoid re-running work. It can be configured globally and per-task and supports remote cache backends compatible with the Bazel Remote Execution API.
+- **Security**:
+    - **Capabilities**: A system for restricting which environment variables are exposed to which commands. Variables can be tagged with `@capability("aws")`, and these are only loaded for commands mapped to that capability (e.g., `aws`, `terraform`).
+    - **Sandboxing**: On Linux, tasks can be sandboxed using Landlock to restrict filesystem and network access.
+- **Hermetic Execution**: The `cuenv run -- <command>` command executes a command in a clean environment containing only the variables defined in your CUE files, ensuring reproducibility.
+- **Integrations**:
+    - Shells: Bash, Zsh, Fish.
+    - Nix & devenv: Can source environments from `nix develop` or `devenv` as part of its hook system.
+    - MCP (Model Context Protocol): A built-in server allows programmatic access for tools like Claude Code.
+    - GitHub Actions: A dedicated action for setting up cuenv in CI/CD workflows.
+
+# Project Structure (Rust)
+
+`cuenv` is a Rust project with a workspace organized into several crates under the `crates/` directory. Key crates include:
+- `cli`: The main command-line interface application.
+- `core`: Core data structures and error types.
+- `config`: Handles loading, parsing, and validating CUE configuration.
+- `cache`: The implementation of the build cache system.
+- `shell`: Logic for shell integration and hooks.
+- `task`: The task runner and dependency resolver.
+- `security`: Sandboxing and capability implementation.
+- `libcue-ffi-bridge`: A bridge to the Go-based CUE evaluation library.
+
+# For Developers and Contributors
+
+- **Architecture**: The core architecture revolves around a centralized, immutable `Arc<Config>` struct. Configuration is loaded once and then shared across all components (CLI commands, MCP server, task executor) for high performance and to eliminate redundant I/O.
+- **Development Workflow**:
+    1. Make changes to the Rust code in the `crates/` directory.
+    2. Use `cargo build` and `cargo test` to verify changes.
+    3. The project uses `treefmt` for code formatting.
+- **Website**: The documentation website is located in the `website/` directory and is built with Astro and the Starlight theme. To contribute to the docs, edit the Markdown files in `website/src/content/docs/`.
+
+# How to Use cuenv
+
+1.  **Install `cuenv`**.
+2.  **Hook into your shell**: `eval "$(cuenv init bash)"` (or `zsh`, `fish`).
+3.  **Create `env.cue`**: In your project root, create an `env.cue` file.
+    ```cue
+    package env
+
+    env: {
+        APP_NAME: "my-app"
+        PORT: 8080
+    }
+    ```
+4.  **Allow the directory**: `cuenv allow .` (a one-time security step).
+5.  The environment variables will now be available automatically when you `cd` into the directory.
+6.  **Run commands**: `cuenv run -- your_command` to run with the defined environment.

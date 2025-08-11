@@ -6,6 +6,7 @@
 mod cache;
 mod commands;
 mod hooks;
+mod raw;
 mod result;
 mod security;
 mod tasks;
@@ -13,6 +14,7 @@ mod tasks;
 pub use cache::{CacheEnvConfig, TaskCacheConfig};
 pub use commands::CommandConfig;
 pub use hooks::{Hook, HookConfig, HookConstraint, HookType, HookValue};
+pub(crate) use raw::RawCueResult;
 pub(crate) use result::{CueParseResult, HooksConfig};
 pub use security::SecurityConfig;
 pub use tasks::{TaskConfig, TaskNode};

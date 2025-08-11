@@ -62,7 +62,11 @@ pub async fn parse_env_readonly(
         capabilities: capabilities.unwrap_or_default(),
     };
 
-    CueParser::eval_package_with_options(&path, "env", &options)
+    CueParser::eval_package_with_options(
+        &path,
+        cuenv_core::constants::DEFAULT_PACKAGE_NAME,
+        &options,
+    )
 }
 
 /// Handle MCP tool call requests
