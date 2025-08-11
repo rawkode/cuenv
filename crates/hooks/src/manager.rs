@@ -425,6 +425,9 @@ mod tests {
     use std::sync::Arc;
     use tokio::sync::RwLock;
 
+    /// Type alias for the complex test response map type
+    type TestResponseMap = Arc<RwLock<HashMap<(String, Vec<String>), TestResponse>>>;
+
     // Test-specific command executor
     #[derive(Debug)]
     struct TestResponse {
@@ -435,7 +438,7 @@ mod tests {
 
     #[derive(Debug)]
     struct TestCommandExecutor {
-        responses: Arc<RwLock<HashMap<(String, Vec<String>), TestResponse>>>,
+        responses: TestResponseMap,
     }
 
     impl TestCommandExecutor {

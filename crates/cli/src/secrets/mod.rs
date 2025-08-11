@@ -2,15 +2,12 @@
 //!
 //! This module provides a comprehensive secret resolution system that can handle
 //! various secret sources through a pluggable resolver architecture.
-//!
-//! The implementation has been refactored into focused submodules:
-//! - `resolver`: Contains the SecretResolver trait and CommandResolver implementation
-//! - `manager`: Contains the SecretManager and ResolvedSecrets types
-//!
-//! All public APIs remain unchanged to maintain backward compatibility.
 
 mod manager;
 mod resolver;
+
+#[cfg(test)]
+mod tests;
 
 pub use manager::{ResolvedSecrets, SecretManager};
 pub use resolver::{CommandResolver, ResolverConfig, SecretResolver};

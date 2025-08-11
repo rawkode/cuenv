@@ -1,7 +1,7 @@
 //! Tests for the protocol module
 
 #[cfg(test)]
-mod tests {
+mod protocol_tests {
     use super::super::*;
     use std::collections::HashMap;
     use std::fs;

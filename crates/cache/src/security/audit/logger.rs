@@ -1,262 +1,21 @@
-//! Production-grade audit logging for cache operations
-//!
-//! This module provides comprehensive audit logging with tamper-evident logs,
-//! structured event recording, and compliance-ready output formats.
-//!
-//! ## Security Features
-//!
-//! - Append-only log files with integrity protection
-//! - Structured logging with JSON output
-//! - Automatic log rotation and archival
-//! - Tamper detection using cryptographic hashes
-//! - Performance optimized with async I/O
+//! Main audit logger implementation
 
-use crate::errors::{CacheError, RecoveryHint, Result};
+use crate::errors::{CacheError, RecoveryHint, Result, SerializationOp};
 use crate::security::capabilities::{CacheOperation, CapabilityToken};
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
+use chrono::Utc;
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task;
 
-/// Audit event types for cache operations
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "event_type")]
-pub enum AuditEvent {
-    /// Cache read operation
-    CacheRead {
-        key: String,
-        hit: bool,
-        size_bytes: Option<u64>,
-        duration_ms: u64,
-    },
-    /// Cache write operation
-    CacheWrite {
-        key: String,
-        size_bytes: u64,
-        compressed: bool,
-        duration_ms: u64,
-    },
-    /// Cache delete operation
-    CacheDelete {
-        key: String,
-        existed: bool,
-        duration_ms: u64,
-    },
-    /// Cache clear operation
-    CacheClear {
-        entries_removed: u64,
-        bytes_freed: u64,
-        duration_ms: u64,
-    },
-    /// Cache eviction event
-    CacheEviction {
-        key: String,
-        reason: EvictionReason,
-        size_bytes: u64,
-    },
-    /// Authentication attempt
-    Authentication {
-        token_id: String,
-        subject: String,
-        success: bool,
-        failure_reason: Option<String>,
-    },
-    /// Authorization check
-    Authorization {
-        token_id: String,
-        operation: String,
-        target_key: Option<String>,
-        authorized: bool,
-        denial_reason: Option<String>,
-    },
-    /// Configuration change
-    ConfigurationChange {
-        setting: String,
-        old_value: Option<String>,
-        new_value: String,
-        changed_by: String,
-    },
-    /// Security violation detected
-    SecurityViolation {
-        violation_type: SecurityViolationType,
-        details: String,
-        severity: ViolationSeverity,
-    },
-    /// System health check
-    HealthCheck {
-        component: String,
-        status: HealthStatus,
-        metrics: HashMap<String, f64>,
-    },
-    /// Error occurrence
-    Error {
-        error_type: String,
-        message: String,
-        recoverable: bool,
-        context: HashMap<String, String>,
-    },
-}
-
-/// Eviction reasons for audit logging
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum EvictionReason {
-    /// Least Recently Used
-    Lru,
-    /// Least Frequently Used
-    Lfu,
-    /// Time to Live expired
-    TtlExpired,
-    /// Memory pressure
-    MemoryPressure,
-    /// Disk quota exceeded
-    DiskQuota,
-    /// Manual eviction
-    Manual,
-}
-
-/// Security violation types
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SecurityViolationType {
-    /// Invalid signature detected
-    InvalidSignature,
-    /// Expired token used
-    ExpiredToken,
-    /// Revoked token used
-    RevokedToken,
-    /// Insufficient permissions
-    InsufficientPermissions,
-    /// Rate limit exceeded
-    RateLimitExceeded,
-    /// Suspicious access pattern
-    SuspiciousPattern,
-    /// Integrity check failed
-    IntegrityFailure,
-    /// Unauthorized configuration change
-    UnauthorizedConfigChange,
-}
-
-/// Violation severity levels
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ViolationSeverity {
-    Low,
-    Medium,
-    High,
-    Critical,
-}
-
-/// Health status for components
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum HealthStatus {
-    Healthy,
-    Degraded,
-    Unhealthy,
-    Unknown,
-}
-
-impl std::fmt::Display for HealthStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            HealthStatus::Healthy => write!(f, "healthy"),
-            HealthStatus::Degraded => write!(f, "degraded"),
-            HealthStatus::Unhealthy => write!(f, "unhealthy"),
-            HealthStatus::Unknown => write!(f, "unknown"),
-        }
-    }
-}
-
-/// Complete audit log entry with metadata
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuditLogEntry {
-    /// Unique entry identifier
-    pub entry_id: String,
-    /// Event timestamp (ISO 8601 UTC)
-    pub timestamp: DateTime<Utc>,
-    /// The actual audit event
-    pub event: AuditEvent,
-    /// Request/operation context
-    pub context: AuditContext,
-    /// Entry integrity hash
-    pub integrity_hash: String,
-    /// Previous entry hash for chain integrity
-    pub previous_hash: String,
-    /// Log format version
-    pub schema_version: u32,
-}
-
-/// Context information for audit events
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuditContext {
-    /// User/service identifier
-    pub principal: String,
-    /// Source IP address
-    pub source_ip: Option<String>,
-    /// User agent or client identifier
-    pub user_agent: Option<String>,
-    /// Request correlation ID
-    pub correlation_id: Option<String>,
-    /// Session identifier
-    pub session_id: Option<String>,
-    /// Geographic location (country code)
-    pub location: Option<String>,
-    /// Additional context fields
-    pub metadata: HashMap<String, String>,
-}
-
-impl Default for AuditContext {
-    fn default() -> Self {
-        Self {
-            principal: "unknown".to_string(),
-            source_ip: None,
-            user_agent: None,
-            correlation_id: None,
-            session_id: None,
-            location: None,
-            metadata: HashMap::new(),
-        }
-    }
-}
-
-/// Configuration for audit logging
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuditConfig {
-    /// Log file path
-    pub log_file_path: PathBuf,
-    /// Maximum log file size before rotation (bytes)
-    pub max_file_size: u64,
-    /// Number of archived log files to keep
-    pub max_archived_files: u32,
-    /// Enable log compression for archived files
-    pub compress_archived: bool,
-    /// Flush logs to disk immediately
-    pub immediate_flush: bool,
-    /// Buffer size for batched writes
-    pub buffer_size: usize,
-    /// Include stack traces for errors
-    pub include_stack_traces: bool,
-    /// Log level filter
-    pub min_severity: ViolationSeverity,
-}
-
-impl Default for AuditConfig {
-    fn default() -> Self {
-        Self {
-            log_file_path: PathBuf::from("cache_audit.jsonl"),
-            max_file_size: 100 * 1024 * 1024, // 100MB
-            max_archived_files: 10,
-            compress_archived: true,
-            immediate_flush: false,
-            buffer_size: 8192,
-            include_stack_traces: false,
-            min_severity: ViolationSeverity::Low,
-        }
-    }
-}
+use super::config::{AuditConfig, LogIntegrityReport};
+use super::context::AuditContext;
+use super::events::AuditEvent;
+use super::integrity::{compute_entry_hash, compute_genesis_hash};
+use super::types::{AuditLogEntry, SecurityViolationType, ViolationSeverity};
 
 /// High-performance audit logger with tamper-evident logging
 #[derive(Debug)]
@@ -323,7 +82,7 @@ impl AuditLogger {
             file,
         )));
         let current_size = Arc::new(Mutex::new(current_size));
-        let previous_hash = Arc::new(Mutex::new(Self::compute_genesis_hash()));
+        let previous_hash = Arc::new(Mutex::new(compute_genesis_hash()));
         let entry_counter = Arc::new(Mutex::new(0));
 
         Ok(Self {
@@ -473,7 +232,7 @@ impl AuditLogger {
         };
 
         // Compute integrity hash
-        entry.integrity_hash = self.compute_entry_hash(&entry);
+        entry.integrity_hash = compute_entry_hash(&entry);
 
         // Update previous hash for next entry
         let mut prev_hash = self.previous_hash.lock().await;
@@ -489,7 +248,7 @@ impl AuditLogger {
             Err(e) => {
                 return Err(CacheError::Serialization {
                     key: "audit_log_entry".to_string(),
-                    operation: crate::errors::SerializationOp::Encode,
+                    operation: SerializationOp::Encode,
                     source: Box::new(e),
                     recovery_hint: RecoveryHint::Manual {
                         instructions: "Check audit log entry structure".to_string(),
@@ -544,31 +303,6 @@ impl AuditLogger {
         Ok(())
     }
 
-    /// Compute integrity hash for an entry
-    fn compute_entry_hash(&self, entry: &AuditLogEntry) -> String {
-        let mut hasher = Sha256::new();
-
-        // Hash all fields except the integrity_hash itself
-        hasher.update(entry.entry_id.as_bytes());
-        hasher.update(entry.timestamp.to_rfc3339().as_bytes());
-        hasher.update(serde_json::to_vec(&entry.event).unwrap_or_default());
-        hasher.update(serde_json::to_vec(&entry.context).unwrap_or_default());
-        hasher.update(entry.previous_hash.as_bytes());
-        hasher.update(entry.schema_version.to_le_bytes());
-
-        let hash = hasher.finalize();
-        hex::encode(hash)
-    }
-
-    /// Compute genesis hash for the first entry
-    fn compute_genesis_hash() -> String {
-        let mut hasher = Sha256::new();
-        hasher.update(b"CUENV_AUDIT_LOG_GENESIS");
-        hasher.update(Utc::now().timestamp().to_le_bytes());
-        let hash = hasher.finalize();
-        hex::encode(hash)
-    }
-
     /// Verify log integrity by checking hash chain
     pub async fn verify_log_integrity(&self, log_file: &Path) -> Result<LogIntegrityReport> {
         use tokio::io::{AsyncBufReadExt, BufReader};
@@ -586,7 +320,7 @@ impl AuditLogger {
 
         let reader = BufReader::new(file);
         let mut lines = reader.lines();
-        let mut previous_hash = Self::compute_genesis_hash();
+        let mut previous_hash = compute_genesis_hash();
         let mut entry_count = 0;
         let mut corrupted_entries = Vec::new();
 
@@ -615,7 +349,7 @@ impl AuditLogger {
             }
 
             // Verify entry integrity hash
-            let computed_hash = self.compute_entry_hash(&entry);
+            let computed_hash = compute_entry_hash(&entry);
             if computed_hash != entry.integrity_hash {
                 corrupted_entries.push(entry_count);
                 continue;
@@ -631,17 +365,6 @@ impl AuditLogger {
             integrity_verified,
         })
     }
-}
-
-/// Log integrity verification report
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LogIntegrityReport {
-    /// Total number of entries checked
-    pub total_entries: u64,
-    /// List of corrupted entry line numbers
-    pub corrupted_entries: Vec<u64>,
-    /// Whether the entire log passed integrity checks
-    pub integrity_verified: bool,
 }
 
 #[cfg(test)]

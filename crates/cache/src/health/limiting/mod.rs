@@ -9,6 +9,12 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tokio::sync::RwLock;
 
+/// Error type for rate limiting
+#[derive(Debug, Clone)]
+pub struct RateLimitError {
+    pub message: String,
+}
+
 /// Rate limiting information per client
 #[derive(Debug, Clone)]
 struct ClientLimitInfo {
@@ -43,7 +49,11 @@ impl RateLimiter {
     }
 
     /// Check if a client is within rate limits and update their count
-    pub fn check_and_update(&mut self, client_ip: IpAddr, limit_per_minute: u32) -> Result<(), ()> {
+    pub fn check_and_update(
+        &mut self,
+        client_ip: IpAddr,
+        limit_per_minute: u32,
+    ) -> Result<(), RateLimitError> {
         let now = SystemTime::now();
 
         // Clean up old entries every 5 minutes
@@ -72,7 +82,9 @@ impl RateLimiter {
 
         // Check if within limit
         if client_info.count >= limit_per_minute {
-            return Err(());
+            return Err(RateLimitError {
+                message: format!("Rate limit exceeded for IP: {client_ip}"),
+            });
         }
 
         // Increment count
@@ -106,7 +118,9 @@ impl RateLimiterManager {
     /// Check if a client is within rate limits
     pub async fn check_rate_limit(&self, client_ip: IpAddr) -> Result<(), ()> {
         let mut limiter = self.limiter.write().await;
-        limiter.check_and_update(client_ip, self.limit_per_minute)
+        limiter
+            .check_and_update(client_ip, self.limit_per_minute)
+            .map_err(|_| ())
     }
 }
 

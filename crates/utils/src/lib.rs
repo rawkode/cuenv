@@ -24,7 +24,12 @@ pub use directory::*;
 pub use file_times::*;
 pub use limits::*;
 pub use memory::*;
-pub use network::*;
+// Re-export specific network items to avoid conflicts with resilience module
+pub use network::rate_limit::*;
+pub use network::retry::{
+    retry_async as network_retry_async, retry_blocking as network_retry_blocking,
+    RetryConfig as NetworkRetryConfig,
+};
 pub use resilience::*;
 pub use sync::*;
 pub use tracing::*;
