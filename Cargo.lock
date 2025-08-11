@@ -659,7 +659,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv"
-version = "0.4.7"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -700,7 +700,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-cache"
-version = "0.4.7"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -753,7 +753,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-config"
-version = "0.4.7"
+version = "0.5.0"
 dependencies = [
  "cuenv-core",
  "cuenv-libcue-ffi-bridge",
@@ -768,7 +768,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-core"
-version = "0.4.7"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -787,7 +787,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-env"
-version = "0.4.7"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "cuenv-config",
@@ -816,7 +816,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-hooks"
-version = "0.4.7"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -840,7 +840,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-libcue-ffi-bridge"
-version = "0.4.7"
+version = "0.5.0"
 dependencies = [
  "cc",
  "cuenv-core",
@@ -852,7 +852,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-security"
-version = "0.4.7"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -878,7 +878,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-shell"
-version = "0.4.7"
+version = "0.5.0"
 dependencies = [
  "cuenv-core",
  "cuenv-env",
@@ -892,7 +892,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-task"
-version = "0.4.7"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -918,7 +918,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-tui"
-version = "0.4.7"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -942,7 +942,7 @@ dependencies = [
 
 [[package]]
 name = "cuenv-utils"
-version = "0.4.7"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -2390,9 +2390,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.95"
+version = "1.0.96"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02b3e5e68a3a1a02aad3ec490a98007cbc13c37cbe84a3cd7b8e406d76e7f778"
+checksum = "beef09f85ae72cea1ef96ba6870c51e6382ebfa4f0e85b643459331f3daa5be0"
 dependencies = [
  "unicode-ident",
 ]
