@@ -18,6 +18,7 @@ pub mod engine;
 pub mod entry;
 pub mod errors;
 pub mod eviction;
+#[path = "fast-path/mod.rs"]
 pub mod fast_path;
 pub mod hashing;
 pub mod health_endpoint;
@@ -36,6 +37,7 @@ pub mod storage;
 pub mod streaming;
 pub mod traits;
 pub mod types;
+#[path = "warming/mod.rs"]
 pub mod warming;
 
 // Re-export main types and traits selectively to avoid conflicts
