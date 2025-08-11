@@ -9,11 +9,13 @@
 //! - Streaming support
 
 pub mod bridge;
+pub mod cleanup;
 pub mod concurrent;
 pub mod config;
 pub mod content_addressed_store;
 pub mod core;
 pub mod engine;
+pub mod entry;
 pub mod errors;
 pub mod eviction;
 pub mod fast_path;
