@@ -38,3 +38,4 @@ debug/
 # Nix
 result
 
+examples/devenv/.devenv/
