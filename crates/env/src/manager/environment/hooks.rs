@@ -23,7 +23,7 @@ pub async fn process_hooks_with_preload(
                     // Source hooks - execute synchronously
                     tracing::info!("Processing source hook: {}", hook.command);
 
-                    if let Some(cache) = crate::cache::EnvCache::new(dir).ok() {
+                    if let Ok(cache) = crate::cache::EnvCache::new(dir) {
                         match hooks::execute_hook(hook, &cache, false).await {
                             Ok((env_vars, _file_times)) => {
                                 tracing::info!(
