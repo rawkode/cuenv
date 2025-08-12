@@ -1,9 +1,7 @@
 package env
 
-import "github.com/rawkode/cuenv"
-
 // Child configuration
-env: cuenv.#Env & {
+env: {
 	// Child overrides - these will override parent values
 	DATABASE_URL: "postgres://localhost/child-db"
 	API_KEY:      "child-api-key"

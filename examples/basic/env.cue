@@ -1,9 +1,7 @@
 package env
 
-import "github.com/rawkode/cuenv"
-
 // Environment configuration
-env: cuenv.#Env & {
+env: {
 	// Basic environment variables
 	DATABASE_URL: "postgres://localhost/mydb"
 	API_KEY:      "test-api-key"

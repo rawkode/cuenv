@@ -1,7 +1,5 @@
 package env
 
-import "github.com/rawkode/cuenv"
-
 // Source nix develop environment
 hooks: {
 	onEnter: {
@@ -11,7 +9,7 @@ hooks: {
 	}
 }
 
-env: cuenv.#Env & {
+env: {
 	// Application-specific variables
 	APP_NAME:     "my-rust-app"
 	RUST_LOG:     "debug"

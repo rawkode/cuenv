@@ -1,7 +1,5 @@
 package env
 
-import "github.com/rawkode/cuenv"
-
 // Source nix develop environment for seamless integration
 hooks: {
 	onEnter: {
@@ -11,7 +9,7 @@ hooks: {
 	}
 }
 
-env: cuenv.#Env & {
+env: {
 	// CUE-defined variables (take precedence over sourced ones)
 	APP_ENV: "development"
 	PROJECT: "nix-cuenv-integration"

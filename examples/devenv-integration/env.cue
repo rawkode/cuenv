@@ -1,7 +1,5 @@
 package env
 
-import "github.com/rawkode/cuenv"
-
 // Source devenv environment for seamless nix integration
 hooks: {
 	onEnter: {
@@ -11,7 +9,7 @@ hooks: {
 	}
 }
 
-env: cuenv.#Env & {
+env: {
 	// CUE-defined variables (take precedence over sourced ones)
 	APP_ENV:      "development"
 	DATABASE_URL: "postgres://localhost/myapp_dev"

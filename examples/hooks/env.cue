@@ -1,7 +1,5 @@
 package env
 
-import "github.com/rawkode/cuenv"
-
 // Hook definitions
 hooks: {
 	// Hook that runs when entering the environment
@@ -17,7 +15,7 @@ hooks: {
 	}
 }
 
-env: cuenv.#Env & {
+env: {
 	// Regular environment variables
 	DATABASE_URL: "postgres://localhost/mydb"
 	API_KEY:      "secret123"

@@ -1,7 +1,5 @@
 package env
 
-import "github.com/rawkode/cuenv"
-
 // Test devenv integration with layered hooks
 hooks: {
 	onEnter: [
@@ -20,7 +18,7 @@ hooks: {
 	]
 }
 
-env: cuenv.#Env & {
+env: {
 	PROJECT_TYPE: "devenv-test"
 	BUILD_ENV:    "development"
 }

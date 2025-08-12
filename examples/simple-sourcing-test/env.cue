@@ -1,7 +1,5 @@
 package env
 
-import "github.com/rawkode/cuenv"
-
 // Test environment sourcing with a simple shell script
 hooks: {
 	onEnter: {
@@ -11,11 +9,11 @@ hooks: {
 	}
 }
 
-env: cuenv.#Env & {
-	// CUE-defined variables (take precedence over sourced ones)
+env: {
+	// CUE-defined variables
 	APP_ENV: "test"
-	// This will override any sourced TEST_VAR
-	TEST_VAR: "cue_overrides_sourced"
+	// TEST_VAR will come from the sourced environment
+	// ANOTHER_VAR will also come from the sourced environment
 }
 
 tasks: {
