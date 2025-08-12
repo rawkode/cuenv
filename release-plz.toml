@@ -34,11 +34,11 @@ semver_check = true
 # - fix: patch version bump  
 # - feat!: or BREAKING CHANGE: major version bump
 
-# Package-specific configuration - only publish the main CLI crate
+# Package-specific configuration - don't publish to crates.io
 [[package]]
 name = "cuenv"
-# This is the main binary - publish to crates.io
-publish = true
+# Don't publish to crates.io - project uses GitHub releases only
+publish = false
 
 # Don't publish internal workspace crates to crates.io
 [[package]]
