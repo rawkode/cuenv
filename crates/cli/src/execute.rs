@@ -14,6 +14,8 @@ impl Commands {
                 capabilities,
                 audit,
                 verbose,
+                output,
+                trace_output,
             } => {
                 crate::commands::task::execute_task_command(
                     Arc::clone(&config),
@@ -23,6 +25,8 @@ impl Commands {
                     capabilities,
                     audit,
                     verbose,
+                    output,
+                    trace_output,
                 )
                 .await
             }

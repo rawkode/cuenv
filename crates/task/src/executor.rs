@@ -3,7 +3,7 @@ mod builder;
 mod cache;
 mod context;
 mod dependency;
-mod execution;
+pub mod execution;
 mod graph;
 mod management;
 mod plan;

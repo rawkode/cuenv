@@ -60,4 +60,15 @@ impl TaskExecutor {
         self.execute_tasks_with_dependencies_internal(task_names, args, audit_mode, false)
             .await
     }
+
+    /// Execute multiple tasks with their dependencies and output capture
+    pub async fn execute_tasks_with_capture(
+        &self,
+        task_names: &[String],
+        args: &[String],
+        audit_mode: bool,
+    ) -> Result<i32> {
+        self.execute_tasks_with_dependencies_internal(task_names, args, audit_mode, true)
+            .await
+    }
 }

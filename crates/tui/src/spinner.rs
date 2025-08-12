@@ -26,7 +26,6 @@ struct TaskDisplay {
     state: TaskState,
     message: Option<String>,
     progress: Option<f32>,
-    depth: usize,
     dependencies: Vec<String>,
     start_time: Option<Instant>,
     end_time: Option<Instant>,
@@ -37,13 +36,12 @@ struct TaskDisplay {
 }
 
 impl TaskDisplay {
-    fn new(name: String, depth: usize, dependencies: Vec<String>) -> Self {
+    fn new(name: String, _depth: usize, dependencies: Vec<String>) -> Self {
         Self {
             name,
             state: TaskState::Queued,
             message: None,
             progress: None,
-            depth,
             dependencies,
             start_time: None,
             end_time: None,
@@ -51,6 +49,15 @@ impl TaskDisplay {
             spinner_frame: 0,
             is_skipped: false,
             skip_reason: None,
+        }
+    }
+
+    /// Get the display name (last part after final dot)
+    fn display_name(&self) -> String {
+        if let Some(last_dot) = self.name.rfind('.') {
+            self.name[last_dot + 1..].to_string()
+        } else {
+            self.name.clone()
         }
     }
 
@@ -196,42 +203,22 @@ impl SpinnerFormatter {
         Ok(())
     }
 
-    /// Build display order that groups tasks by their dependencies
+    /// Build display order that groups tasks by their hierarchy (dot notation)
     fn build_display_order(plan: &TaskExecutionPlan, order: &mut Vec<String>) {
-        // Process tasks level by level
-        let mut processed = std::collections::HashSet::new();
+        // Collect all task names and sort them to group by hierarchy
+        let mut all_tasks: Vec<String> = plan.tasks.keys().cloned().collect();
+        all_tasks.sort();
 
-        for level_tasks in &plan.levels {
-            for task_name in level_tasks {
-                if !processed.contains(task_name) {
-                    Self::add_task_and_dependents(task_name, plan, order, &mut processed);
-                }
-            }
-        }
-    }
+        // This will naturally group tasks like:
+        // ci
+        // ci.build
+        // ci.quality
+        // ci.quality.audit
+        // ci.quality.format
+        // ci.test
+        // ci.test.examples
 
-    /// Recursively add a task and its dependents to the display order
-    fn add_task_and_dependents(
-        task_name: &str,
-        plan: &TaskExecutionPlan,
-        order: &mut Vec<String>,
-        processed: &mut std::collections::HashSet<String>,
-    ) {
-        if processed.contains(task_name) {
-            return;
-        }
-
-        order.push(task_name.to_string());
-        processed.insert(task_name.to_string());
-
-        // Find tasks that depend on this one
-        for (other_name, other_config) in &plan.tasks {
-            let deps = other_config.dependency_names();
-            if deps.contains(&task_name.to_string()) && !processed.contains(other_name) {
-                // This task depends on the current one, add it next (with indentation)
-                Self::add_task_and_dependents(other_name, plan, order, processed);
-            }
-        }
+        *order = all_tasks;
     }
 
     /// Draw all tasks
@@ -283,17 +270,19 @@ impl SpinnerFormatter {
             stdout.execute(MoveTo(0, line))?;
             stdout.execute(Clear(ClearType::CurrentLine))?;
 
-            // Indentation based on depth
-            let indent = " ".repeat(task.depth * 2);
+            // Calculate indentation based on dot count in name for hierarchical display
+            let dot_count = task.name.matches('.').count();
+            let indent = "  ".repeat(dot_count);
             write!(stdout, "{indent}")?;
 
             // Status icon
             stdout.execute(SetForegroundColor(task.status_color()))?;
             write!(stdout, "{} ", task.status_icon())?;
 
-            // Task name
+            // Task name (show only the last part after the final dot)
             stdout.execute(SetAttribute(Attribute::Bold))?;
-            write!(stdout, "{:<20}", task.name)?;
+            let padding = 20_usize.saturating_sub(dot_count * 2);
+            write!(stdout, "{:<width$}", task.display_name(), width = padding)?;
             stdout.execute(SetAttribute(Attribute::Reset))?;
 
             // Progress bar or status message

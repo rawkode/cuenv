@@ -42,6 +42,14 @@ pub enum Commands {
         /// Show detailed descriptions when listing
         #[arg(short, long)]
         verbose: bool,
+
+        /// Output format for task execution (tui, simple, or spinner)
+        #[arg(long, value_name = "FORMAT", default_value = "spinner")]
+        output: String,
+
+        /// Generate Chrome trace output file
+        #[arg(long)]
+        trace_output: bool,
     },
 
     /// Manage environment configuration
@@ -113,7 +121,7 @@ pub enum Commands {
         audit: bool,
 
         /// Output format for task execution (tui, simple, or spinner)
-        #[arg(long, value_name = "FORMAT", default_value = "tui")]
+        #[arg(long, value_name = "FORMAT", default_value = "spinner")]
         output: String,
 
         /// Generate Chrome trace output file

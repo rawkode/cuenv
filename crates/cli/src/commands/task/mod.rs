@@ -1,4 +1,5 @@
 mod display;
+mod formatter;
 
 use clap::Subcommand;
 use cuenv_config::{Config, TaskGroupMode, TaskNode};
@@ -11,6 +12,7 @@ use std::sync::Arc;
 use self::display::{display_group_contents, display_task_tree};
 
 /// Execute the simplified task command
+#[allow(clippy::too_many_arguments)]
 pub async fn execute_task_command(
     config: Arc<Config>,
     task_or_group: Option<String>,
@@ -19,6 +21,8 @@ pub async fn execute_task_command(
     capabilities: Vec<String>,
     audit: bool,
     verbose: bool,
+    output_format: String,
+    trace_output: bool,
 ) -> Result<()> {
     match task_or_group {
         None => {
@@ -32,7 +36,17 @@ pub async fn execute_task_command(
             // First check if it's a direct task
             if tasks.contains_key(&name) {
                 // It's a task - run it
-                execute_task(config, environment, capabilities, name, args, audit).await
+                execute_task(
+                    config,
+                    environment,
+                    capabilities,
+                    name,
+                    args,
+                    audit,
+                    output_format.clone(),
+                    trace_output,
+                )
+                .await
             } else if args.is_empty() {
                 // No additional args - check if it's a group
                 let prefix = format!("{name}.");
@@ -57,6 +71,8 @@ pub async fn execute_task_command(
                                     capabilities,
                                     name,
                                     audit,
+                                    output_format,
+                                    trace_output,
                                 )
                                 .await
                             }
@@ -85,12 +101,24 @@ pub async fn execute_task_command(
                         subtask_name,
                         remaining_args,
                         audit,
+                        output_format.clone(),
+                        trace_output,
                     )
                     .await
                 } else {
                     // Try running the original name as a task with all args
                     if tasks.contains_key(&name) {
-                        execute_task(config, environment, capabilities, name, args, audit).await
+                        execute_task(
+                            config,
+                            environment,
+                            capabilities,
+                            name,
+                            args,
+                            audit,
+                            output_format,
+                            trace_output,
+                        )
+                        .await
                     } else {
                         eprintln!("Task '{name}' not found");
                         eprintln!("Run 'cuenv task' to see available tasks");
@@ -138,7 +166,7 @@ pub enum TaskCommands {
         audit: bool,
 
         /// Output format for task execution (tui, simple, or spinner)
-        #[arg(long, value_name = "FORMAT", default_value = "tui")]
+        #[arg(long, value_name = "FORMAT", default_value = "spinner")]
         output: String,
 
         /// Generate Chrome trace output file
@@ -179,8 +207,8 @@ impl TaskCommands {
                 task_name,
                 task_args,
                 audit,
-                output: _,
-                trace_output: _,
+                output,
+                trace_output,
             } => {
                 execute_task(
                     config.clone(),
@@ -189,6 +217,8 @@ impl TaskCommands {
                     task_name,
                     task_args,
                     audit,
+                    output,
+                    trace_output,
                 )
                 .await
             }
@@ -261,6 +291,7 @@ async fn list_tasks(
 
 // Display functions moved to display module
 
+#[allow(clippy::too_many_arguments)]
 async fn execute_task(
     _config: std::sync::Arc<cuenv_config::Config>,
     environment: Option<String>,
@@ -268,6 +299,8 @@ async fn execute_task(
     task_name: String,
     task_args: Vec<String>,
     audit: bool,
+    output_format: String,
+    trace_output: bool,
 ) -> Result<()> {
     let current_dir = env::current_dir()
         .map_err(|e| cuenv_core::Error::file_system(".", "get current directory", e))?;
@@ -338,15 +371,16 @@ async fn execute_task(
     } else if env_manager.get_task(&actual_task_name).is_some() {
         // Execute the specified task
         let executor = TaskExecutor::new(env_manager, current_dir).await?;
-        let status = if audit {
-            executor
-                .execute_task_with_audit(&actual_task_name, &actual_args)
-                .await?
-        } else {
-            executor
-                .execute_task(&actual_task_name, &actual_args)
-                .await?
-        };
+        // Use the formatter module to execute with the appropriate output format
+        let status = formatter::execute_with_formatter(
+            &executor,
+            &actual_task_name,
+            &actual_args,
+            audit,
+            &output_format,
+            trace_output,
+        )
+        .await?;
         std::process::exit(status);
     } else {
         // Check if this might be a task group
@@ -379,6 +413,8 @@ async fn execute_task_group(
     capabilities: Vec<String>,
     group_name: String,
     audit: bool,
+    output_format: String,
+    trace_output: bool,
 ) -> Result<()> {
     let current_dir = env::current_dir()
         .map_err(|e| cuenv_core::Error::file_system(".", "get current directory", e))?;
@@ -435,47 +471,42 @@ async fn execute_task_group(
 
     match mode {
         TaskGroupMode::Sequential => {
-            // Execute tasks one by one
+            // Execute tasks one by one with formatter support
             for task_name in &group_tasks {
-                println!("Running task: {}", task_name);
-                let status = if audit {
-                    executor.execute_task_with_audit(task_name, &[]).await?
-                } else {
-                    executor.execute_task(task_name, &[]).await?
-                };
+                let status = formatter::execute_with_formatter(
+                    &executor,
+                    task_name,
+                    &[],
+                    audit,
+                    &output_format,
+                    trace_output,
+                )
+                .await?;
                 if status != 0 {
-                    eprintln!("Task '{}' failed with status {}", task_name, status);
+                    eprintln!("Task '{task_name}' failed with status {status}");
                     std::process::exit(status);
                 }
             }
         }
-        TaskGroupMode::Parallel => {
-            // Execute all tasks in parallel
-            println!("Running {} tasks in parallel", group_tasks.len());
-            let status = executor
-                .execute_tasks_with_dependencies(&group_tasks, &[], audit)
-                .await?;
-            if status != 0 {
-                std::process::exit(status);
-            }
-        }
-        TaskGroupMode::Workflow => {
-            // Execute based on dependencies
-            println!("Running tasks based on dependencies");
-            let status = executor
-                .execute_tasks_with_dependencies(&group_tasks, &[], audit)
-                .await?;
+        TaskGroupMode::Parallel | TaskGroupMode::Workflow => {
+            // Execute with dependencies using formatter
+            let status = formatter::execute_tasks_with_formatter(
+                &executor,
+                &group_tasks,
+                &[],
+                audit,
+                &output_format,
+                trace_output,
+            )
+            .await?;
             if status != 0 {
                 std::process::exit(status);
             }
         }
         TaskGroupMode::Group => {
             // This shouldn't happen as we filter this out earlier, but handle it anyway
-            eprintln!(
-                "Group '{}' is for organization only and cannot be executed",
-                group_name
-            );
-            eprintln!("Run 'cuenv task {}' to see available tasks", group_name);
+            eprintln!("Group '{group_name}' is for organization only and cannot be executed");
+            eprintln!("Run 'cuenv task {group_name}' to see available tasks");
             std::process::exit(1);
         }
     }
