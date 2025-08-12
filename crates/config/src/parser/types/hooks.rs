@@ -42,6 +42,8 @@ pub struct Hook {
     pub inputs: Option<Vec<String>>,
     #[serde(default)]
     pub source: Option<bool>,
+    #[serde(default)]
+    pub preload: Option<bool>,
 }
 
 /// Legacy hook config for backward compatibility
