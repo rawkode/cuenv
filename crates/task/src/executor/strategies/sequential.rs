@@ -30,8 +30,7 @@ impl GroupExecutionStrategy for SequentialStrategy {
         let mut prev_task_id = start_barrier_id;
 
         // Convert to BTreeMap to ensure deterministic ordering for sequential execution
-        let ordered_tasks: BTreeMap<&String, &TaskNode> =
-            tasks.iter().collect();
+        let ordered_tasks: BTreeMap<&String, &TaskNode> = tasks.iter().collect();
 
         // Process tasks in deterministic order
         for (task_name, node) in ordered_tasks {

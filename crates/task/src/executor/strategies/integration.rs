@@ -16,7 +16,7 @@ pub fn process_task_group(
 ) -> Result<TaskGroupExecutionPlan> {
     let strategy = get_cached_strategy(mode);
     let flattened_tasks = strategy.process_group(group_name, tasks, vec![])?;
-    
+
     // Build the execution plan from flattened tasks
     let mut plan = TaskGroupExecutionPlan {
         group_name: group_name.to_string(),
@@ -24,7 +24,7 @@ pub fn process_task_group(
         tasks: Vec::new(),
         dependencies: HashMap::new(),
     };
-    
+
     for task in flattened_tasks {
         // Use all fields of FlattenedTask to build the plan
         let task_info = ProcessedTaskInfo {
@@ -34,12 +34,12 @@ pub fn process_task_group(
             is_barrier: task.is_barrier,
             node: task.node.clone(),
         };
-        
+
         // Store dependencies for topological sorting
         plan.dependencies.insert(task.id.clone(), task.dependencies);
         plan.tasks.push(task_info);
     }
-    
+
     Ok(plan)
 }
 
@@ -76,12 +76,12 @@ impl ProcessedTaskInfo {
     pub fn full_path(&self) -> String {
         self.group_path.join(".")
     }
-    
+
     /// Check if this task is executable (not a barrier)
     pub fn is_executable(&self) -> bool {
         !self.is_barrier && matches!(self.node, TaskNode::Task(_))
     }
-    
+
     /// Get the task definition if this is an executable task
     pub fn get_task_definition(&self) -> Option<&cuenv_config::TaskConfig> {
         match &self.node {
@@ -94,27 +94,21 @@ impl ProcessedTaskInfo {
 impl TaskGroupExecutionPlan {
     /// Get all executable tasks (non-barriers)
     pub fn executable_tasks(&self) -> Vec<&ProcessedTaskInfo> {
-        self.tasks
-            .iter()
-            .filter(|t| t.is_executable())
-            .collect()
+        self.tasks.iter().filter(|t| t.is_executable()).collect()
     }
-    
+
     /// Get all barrier tasks
     pub fn barrier_tasks(&self) -> Vec<&ProcessedTaskInfo> {
-        self.tasks
-            .iter()
-            .filter(|t| t.is_barrier)
-            .collect()
+        self.tasks.iter().filter(|t| t.is_barrier).collect()
     }
-    
+
     /// Build a topologically sorted execution order
     pub fn build_execution_order(&self) -> Result<Vec<String>> {
         use crate::executor::graph::topological_sort;
-        
+
         let levels = topological_sort(&self.dependencies)?;
         let mut order = Vec::new();
-        
+
         for level in levels {
             for task_id in level {
                 // Only include executable tasks in the final order
@@ -125,7 +119,7 @@ impl TaskGroupExecutionPlan {
                 }
             }
         }
-        
+
         Ok(order)
     }
 }
@@ -134,7 +128,7 @@ impl TaskGroupExecutionPlan {
 mod tests {
     use super::*;
     use cuenv_config::TaskConfig;
-    
+
     #[test]
     fn test_process_task_group() {
         let mut tasks = HashMap::new();
@@ -154,16 +148,16 @@ mod tests {
                 ..Default::default()
             })),
         );
-        
+
         let plan = process_task_group("ci", &TaskGroupMode::Sequential, &tasks).unwrap();
-        
+
         assert_eq!(plan.group_name, "ci");
         assert_eq!(plan.mode, TaskGroupMode::Sequential);
-        
+
         // Check that all tasks are processed
         let executable = plan.executable_tasks();
         assert_eq!(executable.len(), 2);
-        
+
         // Verify task information is properly captured
         for task in &plan.tasks {
             if !task.is_barrier {
@@ -173,7 +167,7 @@ mod tests {
             }
         }
     }
-    
+
     #[test]
     fn test_execution_plan_methods() {
         let mut tasks = HashMap::new();
@@ -184,17 +178,17 @@ mod tests {
                 ..Default::default()
             })),
         );
-        
+
         let plan = process_task_group("test", &TaskGroupMode::Parallel, &tasks).unwrap();
-        
+
         // Test executable_tasks method
         let executable = plan.executable_tasks();
         assert!(executable.iter().all(|t| t.is_executable()));
-        
+
         // Test barrier_tasks method
         let barriers = plan.barrier_tasks();
         assert!(barriers.iter().all(|t| t.is_barrier));
-        
+
         // Test that barriers and executable tasks are disjoint
         for task in &plan.tasks {
             assert!(task.is_barrier != task.is_executable());
