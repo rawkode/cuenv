@@ -2,7 +2,10 @@ use cuenv_config::{
     CommandConfig, CueParser, Hook, HookConfig, HookType, ParseOptions, TaskConfig, TaskNode,
     VariableMetadata,
 };
-use cuenv_core::{constants::DEFAULT_PACKAGE_NAME, Error, Result};
+use cuenv_core::{
+    constants::{CUENV_PACKAGE_VAR, DEFAULT_PACKAGE_NAME},
+    Error, Result,
+};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -29,6 +32,10 @@ pub async fn load_env_with_options(
     original_env: &HashMap<String, String>,
     context: &mut LoadEnvironmentContext<'_>,
 ) -> Result<()> {
+    // Get the package name from environment or use default
+    let package_name =
+        std::env::var(CUENV_PACKAGE_VAR).unwrap_or_else(|_| DEFAULT_PACKAGE_NAME.to_string());
+
     // First pass: load package to get command mappings
     let temp_options = ParseOptions {
         environment: environment.clone(),
@@ -36,7 +43,7 @@ pub async fn load_env_with_options(
     };
 
     let parse_result =
-        CueParser::eval_package_with_options(dir, DEFAULT_PACKAGE_NAME, &temp_options)?;
+        CueParser::eval_package_with_options(dir, &package_name, &temp_options)?;
     context.commands.extend(parse_result.commands.clone());
     context.tasks.extend(parse_result.tasks.clone());
     context.task_nodes.extend(parse_result.task_nodes.clone());
@@ -62,7 +69,7 @@ pub async fn load_env_with_options(
 
     // First, parse CUE package to get hooks and initial environment
     let parse_result =
-        match CueParser::eval_package_with_options(dir, DEFAULT_PACKAGE_NAME, &options) {
+        match CueParser::eval_package_with_options(dir, &package_name, &options) {
             Ok(result) => result,
             Err(e) => {
                 return Err(Error::cue_parse_with_source(

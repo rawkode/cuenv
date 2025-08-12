@@ -33,12 +33,18 @@ func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
 	}()
 
 	goDir := C.GoString(dirPath)
-	// Package name is ignored - we always load from the current directory
-	_ = C.GoString(packageName)
+	goPackageName := C.GoString(packageName)
 
 	// Validate inputs
 	if goDir == "" {
 		errMsg := map[string]string{"error": "Directory path cannot be empty"}
+		errBytes, _ := json.Marshal(errMsg)
+		result = C.CString(string(errBytes))
+		return result
+	}
+
+	if goPackageName == "" {
+		errMsg := map[string]string{"error": "Package name cannot be empty"}
 		errBytes, _ := json.Marshal(errMsg)
 		result = C.CString(string(errBytes))
 		return result
@@ -64,11 +70,11 @@ func cue_eval_package(dirPath *C.char, packageName *C.char) *C.char {
 	// Create CUE context
 	ctx := cuecontext.New()
 
-	// Load the CUE package from the current directory
-	// We always load from "." because the package name is just for validation
-	// The actual package directive is in the .cue files
+	// Load the specific CUE package by name
+	// This matches the behavior of "cue export .:package-name"
 	var instances []*build.Instance
-	instances = load.Instances([]string{"."}, nil)
+	packagePath := ".:" + goPackageName
+	instances = load.Instances([]string{packagePath}, nil)
 
 	if len(instances) == 0 {
 		errMsg := map[string]string{"error": "No CUE instances found"}
