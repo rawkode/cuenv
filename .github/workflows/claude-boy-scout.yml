@@ -33,11 +33,12 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           mode: agent
           model: "claude-opus-4-20250514"
+          allowed_tools: "Bash(git:*),Bash(gh:*),Bash(nix:*),Edit,Read,Write,Grep,Glob,LS"
           additional_permissions: |
             contents: write
             pull-requests: write
             actions: read
-          override_prompt: |
+          direct_prompt: |
             Your task is to analyze the current state of the cuenv project and identify ONE specific documentation improvement that would help users better understand or use the project.
 
             Steps to follow:
