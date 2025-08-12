@@ -195,6 +195,7 @@ async fn handle_task_protocol(
             tasks: env_manager.get_tasks().clone(),
             task_nodes: HashMap::new(), // Empty for internal commands
             hooks: HashMap::new(),
+            config: None,
         };
 
         let config = Arc::new(Config::new(

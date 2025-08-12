@@ -2,8 +2,8 @@
 
 use crate::parser::ffi::CueParser;
 use crate::parser::types::{
-    CommandConfig, CueParseResult, Hook, HookValue, HooksConfig, TaskConfig, TaskNode,
-    VariableMetadata,
+    CommandConfig, ConfigSettings, CueParseResult, Hook, HookValue, HooksConfig, TaskConfig,
+    TaskNode, VariableMetadata,
 };
 use cuenv_core::errors::Result;
 use serde::{Deserialize, Serialize};
@@ -23,6 +23,7 @@ pub struct ParseResult {
     pub tasks: HashMap<String, TaskConfig>,
     pub task_nodes: HashMap<String, TaskNode>, // Preserve task structure
     pub hooks: HashMap<String, Vec<Hook>>,
+    pub config: Option<ConfigSettings>,
 }
 
 /// Builds the final parse result from CUE data
@@ -34,6 +35,13 @@ pub fn build_parse_result(
     let hooks = extract_hooks(cue_result.hooks);
     let (tasks, task_nodes) = process_tasks_with_structure(cue_result.tasks);
 
+    // Validate config if present
+    if let Some(ref config) = cue_result.config {
+        config
+            .validate()
+            .map_err(|e| cuenv_core::Error::configuration(&e))?;
+    }
+
     Ok(ParseResult {
         variables: final_vars,
         metadata: std::mem::take(&mut cue_result.metadata),
@@ -41,6 +49,7 @@ pub fn build_parse_result(
         tasks,
         task_nodes,
         hooks,
+        config: cue_result.config,
     })
 }
 

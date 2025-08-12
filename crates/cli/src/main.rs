@@ -37,6 +37,14 @@ struct Cli {
     #[arg(long, global = true)]
     audit: bool,
 
+    /// Output format for task execution (tui, spinner, simple, tree)
+    #[arg(long, value_parser = ["tui", "spinner", "simple", "tree"])]
+    output_format: Option<String>,
+
+    /// Enable Chrome trace output
+    #[arg(long)]
+    trace_output: Option<bool>,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -53,6 +61,8 @@ async fn main() -> eyre::Result<()> {
         audit_mode: cli.audit,
         cache_mode: cli.cache.clone(),
         cache_enabled: cli.cache_enabled.unwrap_or(true),
+        output_format: cli.output_format.clone(),
+        trace_output: cli.trace_output,
     };
 
     // Set cache environment variables if provided

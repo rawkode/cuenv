@@ -251,5 +251,6 @@ fn convert_raw_to_cue_result(raw: RawCueResult) -> Result<CueParseResult> {
         commands,
         tasks: raw.tasks,
         hooks,
+        config: raw.config,
     })
 }
