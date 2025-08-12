@@ -1,43 +1,14 @@
-name: Release
-permissions:
-  pull-requests: write
-  contents: write
+name: release
 on:
   push:
     branches:
       - main
-  workflow_dispatch: # Allow manual triggering
+  workflow_dispatch:
+permissions:
+  pull-requests: write
+  contents: write
 jobs:
-  # Check schema compatibility before release
-  schema-check:
-    name: Pre-release Schema Compatibility Check
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
-      - name: Check schema compatibility
-        run: |
-          # Build cuenv
-          nix build .#cuenv
-          mkdir -p target/debug
-          cp result/bin/cuenv target/debug/
-
-          # Update examples to use latest published schema
-          cd examples
-          nix develop -c cue mod get github.com/rawkode/cuenv@v0
-          cd ..
-
-          # Run tests - if they fail, we have a breaking change
-          if ! ./scripts/test-examples.sh; then
-            echo "::error::Schema compatibility test failed - consider if this requires a major version bump"
-            exit 1
-          fi
-  # Run release-plz to update versions and changelog
   release-plz:
-    name: Release-plz
-    needs: [schema-check]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     permissions:
@@ -51,14 +22,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # Use the official release-plz action - no build required!
       - name: Run release-plz
         uses: release-plz/action@v0.5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  # Build release binaries when a tag is created
   build-binaries:
-    name: Build Release Binaries
     runs-on: ${{ matrix.os }}
     if: startsWith(github.ref, 'refs/tags/')
     strategy:

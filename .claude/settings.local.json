@@ -18,7 +18,8 @@
       "WebFetch(domain:docs.rs)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:release-plz.dev)",
-      "Bash(gemini:*)"
+      "Bash(gemini:*)",
+      "Bash(../../target/debug/cuenv env --help)"
     ],
     "deny": []
   },
