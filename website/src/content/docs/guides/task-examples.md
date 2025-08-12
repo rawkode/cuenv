@@ -68,6 +68,69 @@ cuenv run build            # Executes lint → test → build (if not cached)
 cuenv clear-cache
 ```
 
+## Task Execution Modes
+
+Task groups can now have different execution modes that control how subtasks are run:
+
+- **workflow** (or **dag**): Tasks execute based on their dependency relationships
+- **sequential**: Tasks execute one after another in definition order
+- **parallel**: All tasks execute simultaneously
+- **group** (default): Simple collection of tasks with no special behavior
+
+### Example: Workflow Mode
+
+```cue
+tasks: {
+    "ci": {
+        description: "CI workflow"
+        mode: "workflow"  // Tasks run based on dependencies
+
+        "lint": {
+            command: "cargo clippy"
+        }
+        "test": {
+            command: "cargo test"
+            dependencies: ["lint"]  // Runs after lint
+        }
+        "build": {
+            command: "cargo build --release"
+            dependencies: ["test"]  // Runs after test
+        }
+    }
+}
+```
+
+### Example: Sequential Mode
+
+```cue
+tasks: {
+    "deploy": {
+        description: "Deployment process"
+        mode: "sequential"  // Tasks run one after another
+
+        "backup": { command: "pg_dump mydb > backup.sql" }
+        "upload": { command: "rsync -av dist/ server:/app/" }
+        "migrate": { command: "ssh server 'cd /app && migrate up'" }
+        "verify": { command: "curl -f https://myapp.com/health" }
+    }
+}
+```
+
+### Example: Parallel Mode
+
+```cue
+tasks: {
+    "assets": {
+        description: "Build assets in parallel"
+        mode: "parallel"  // All tasks run simultaneously
+
+        "css": { command: "sass compile styles.scss" }
+        "js": { command: "esbuild bundle app.js" }
+        "images": { command: "imagemin optimize images/*" }
+    }
+}
+```
+
 ## Task Definition Schema
 
 ### Single Task
@@ -91,12 +154,13 @@ tasks: {
 
 ### Task Groups
 
-Tasks can be organized into groups for better organization:
+Tasks can be organized into groups with different execution modes:
 
 ```cue
 tasks: {
     fmt: {
         description: "Code formatting tasks"
+        mode: "sequential"  // Optional: specify execution mode
         check: {
             description: "Check formatting without changes"
             command: "treefmt"
@@ -112,9 +176,41 @@ tasks: {
 
 This creates:
 
-- `fmt` - A task group with description
+- `fmt` - A task group that runs tasks sequentially
 - `fmt.check` - Check formatting (accessed as `cuenv task fmt check`)
 - `fmt.apply` - Apply formatting (accessed as `cuenv task fmt apply`)
+
+### Nested Task Groups
+
+Task groups can be nested to create complex workflows:
+
+```cue
+tasks: {
+    "release": {
+        mode: "workflow"
+
+        "quality": {
+            mode: "parallel"  // Run all quality checks in parallel
+            "lint": { command: "cargo clippy" }
+            "test": { command: "cargo test" }
+            "audit": { command: "cargo audit" }
+        }
+
+        "build": {
+            dependencies: ["quality"]  // Wait for all quality checks
+            command: "cargo build --release"
+        }
+    }
+}
+```
+
+### Dependency Resolution with Groups
+
+When referencing dependencies:
+
+- Use task name for tasks in the same group: `dependencies: ["lint"]`
+- Use group name to depend on entire group completion: `dependencies: ["quality"]`
+- Use qualified name for specific task in a group: `dependencies: ["quality:lint"]`
 
 ## Example Tasks
 

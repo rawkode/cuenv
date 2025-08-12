@@ -1,5 +1,5 @@
 use clap::Subcommand;
-use cuenv_config::{Config, TaskConfig};
+use cuenv_config::{Config, TaskGroupMode, TaskNode};
 use cuenv_core::{Result, CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR};
 use cuenv_env::EnvManager;
 use cuenv_task::TaskExecutor;
@@ -183,134 +183,107 @@ async fn list_tasks(
     let _current_dir = env::current_dir()
         .map_err(|e| cuenv_core::Error::file_system(".", "get current directory", e))?;
 
-    // Always use config to get task definitions for the current directory
-    // Monorepo discovery is only for cross-package task execution, not listing
-    let tasks = config.get_tasks();
+    // Get task nodes to display with execution modes
+    let task_nodes = config.get_task_nodes();
 
-    if tasks.is_empty() {
+    if task_nodes.is_empty() {
         println!("No tasks defined in the CUE package");
         return Ok(());
     }
 
-    // If a group filter is specified, only show tasks in that group
+    // If a group filter is specified, show that specific group
     if let Some(ref group) = group_filter {
-        let prefix = format!("{group}.");
-        let mut group_tasks = Vec::new();
-
-        for (name, task) in tasks.iter() {
-            if name.starts_with(&prefix) {
-                let task_name = &name[prefix.len()..];
-                group_tasks.push((task_name, task));
-            }
-        }
-
-        if group_tasks.is_empty() {
-            println!("No tasks found in group '{group}'");
-            println!("Run 'cuenv task list' to see all available tasks");
-        } else {
-            println!("Tasks in '{group}' group:");
-            for (task_name, task) in group_tasks {
-                if verbose {
-                    match &task.description {
-                        Some(desc) => println!("  {task_name}: {desc}"),
-                        None => println!("  {task_name}"),
+        if let Some(node) = task_nodes.get(group) {
+            match node {
+                TaskNode::Group {
+                    description,
+                    mode,
+                    tasks,
+                } => {
+                    let mode_str = format_execution_mode(mode);
+                    println!("Tasks in '{group}' group {mode_str}:");
+                    if let Some(desc) = description {
+                        println!("  Description: {desc}");
                     }
-                } else {
-                    println!("  {task_name}");
+                    println!();
+                    display_task_nodes(tasks, verbose, 1);
+                    println!();
+                    println!("Run 'cuenv task {group} <task>' to execute a task");
+                }
+                TaskNode::Task(config) => {
+                    println!("'{group}' is a single task, not a group");
+                    if let Some(desc) = &config.description {
+                        println!("  Description: {desc}");
+                    }
                 }
             }
-            println!();
-            println!("Run 'cuenv task {group} <task>' to execute a task");
+        } else {
+            println!("No task or group named '{group}' found");
+            println!("Run 'cuenv task list' to see all available tasks");
         }
         return Ok(());
     }
 
     println!("Available tasks:");
+    display_task_nodes(task_nodes, verbose, 0);
+    Ok(())
+}
 
-    // Build a hierarchical structure from the flattened tasks
-    let mut root_tasks = std::collections::BTreeMap::new();
-    let mut grouped_tasks = std::collections::BTreeMap::new();
-
-    for (name, task) in tasks.iter() {
-        if name.contains('.') {
-            // This is a nested task (using dots now)
-            grouped_tasks.insert(name.clone(), task);
-        } else {
-            // This is a root-level task
-            root_tasks.insert(name.clone(), task);
-        }
+fn format_execution_mode(mode: &TaskGroupMode) -> String {
+    match mode {
+        TaskGroupMode::Workflow => "[→]".to_string(), // Arrow for workflow/DAG
+        TaskGroupMode::Sequential => "[↓]".to_string(), // Down arrow for sequential
+        TaskGroupMode::Parallel => "[⇉]".to_string(), // Parallel lines for parallel
+        TaskGroupMode::Group => "[◊]".to_string(),    // Diamond for group (no execution)
     }
+}
 
-    // Display all tasks, including groups without root tasks
-    let mut displayed_groups = std::collections::HashSet::new();
+fn display_task_nodes(
+    nodes: &std::collections::HashMap<String, TaskNode>,
+    verbose: bool,
+    indent_level: usize,
+) {
+    use std::collections::BTreeMap;
 
-    // First display root tasks and their subtasks
-    for (name, task) in &root_tasks {
-        if verbose {
-            match &task.description {
-                Some(desc) => println!("  {name}: {desc}"),
-                None => println!("  {name}"),
-            }
-        } else {
-            println!("  {name}");
-        }
+    // Sort tasks for consistent display
+    let sorted: BTreeMap<_, _> = nodes.iter().collect();
 
-        // Display any subtasks for this root task
-        let prefix = format!("{name}.");
-        for (sub_name, sub_task) in &grouped_tasks {
-            if sub_name.starts_with(&prefix) {
-                displayed_groups.insert(sub_name.clone());
-                // Extract the relative name (without the parent prefix)
-                let relative_name = &sub_name[prefix.len()..];
-                let indent_level = relative_name.matches('.').count() + 1;
-                let indent = "  ".repeat(indent_level + 1);
+    for (name, node) in sorted {
+        let indent = "  ".repeat(indent_level + 1);
 
+        match node {
+            TaskNode::Task(config) => {
                 if verbose {
-                    match &sub_task.description {
-                        Some(desc) => println!("{indent}{relative_name}: {desc}"),
-                        None => println!("{indent}{relative_name}"),
+                    if let Some(desc) = &config.description {
+                        println!("{indent}{name}: {desc}");
+                    } else {
+                        println!("{indent}{name}");
                     }
                 } else {
-                    println!("{indent}{relative_name}");
+                    println!("{indent}{name}");
                 }
             }
-        }
-    }
-
-    // Now display grouped tasks that don't have a root task
-    // Group them by their prefix
-    let mut task_groups: std::collections::BTreeMap<String, Vec<(String, &TaskConfig)>> =
-        std::collections::BTreeMap::new();
-
-    for (name, task) in &grouped_tasks {
-        if !displayed_groups.contains(name) {
-            // Extract the group name (everything before the first dot)
-            if let Some(dot_pos) = name.find('.') {
-                let group_name = &name[..dot_pos];
-                let task_name = &name[dot_pos + 1..];
-                task_groups
-                    .entry(group_name.to_string())
-                    .or_default()
-                    .push((task_name.to_string(), task));
-            }
-        }
-    }
-
-    // Display the grouped tasks
-    for (group_name, tasks) in &task_groups {
-        println!("  {group_name}");
-        for (task_name, task) in tasks {
-            if verbose {
-                match &task.description {
-                    Some(desc) => println!("    {task_name}: {desc}"),
-                    None => println!("    {task_name}"),
+            TaskNode::Group {
+                description,
+                mode,
+                tasks,
+            } => {
+                let mode_str = format_execution_mode(mode);
+                if verbose {
+                    if let Some(desc) = description {
+                        println!("{indent}{name} {mode_str}: {desc}");
+                    } else {
+                        println!("{indent}{name} {mode_str}");
+                    }
+                } else {
+                    println!("{indent}{name} {mode_str}");
                 }
-            } else {
-                println!("    {task_name}");
+
+                // Recursively display subtasks
+                display_task_nodes(tasks, verbose, indent_level + 1);
             }
         }
     }
-    Ok(())
 }
 
 async fn execute_task(

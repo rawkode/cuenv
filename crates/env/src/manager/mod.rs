@@ -1,4 +1,4 @@
-use cuenv_config::{CommandConfig, HookConfig, TaskConfig};
+use cuenv_config::{CommandConfig, HookConfig, TaskConfig, TaskNode};
 use cuenv_core::{Error, Result};
 use cuenv_utils::sync::env::SyncEnv;
 use std::collections::HashMap;
@@ -23,6 +23,7 @@ pub struct EnvManager {
     cue_vars_metadata: HashMap<String, cuenv_config::VariableMetadata>,
     commands: HashMap<String, CommandConfig>,
     tasks: HashMap<String, TaskConfig>,
+    task_nodes: HashMap<String, TaskNode>, // Preserve task structure
     hooks: HashMap<String, HookConfig>,
 }
 
@@ -35,6 +36,7 @@ impl EnvManager {
             cue_vars_metadata: HashMap::with_capacity(50),
             commands: HashMap::with_capacity(20),
             tasks: HashMap::with_capacity(20),
+            task_nodes: HashMap::with_capacity(20),
             hooks: HashMap::with_capacity(4),
         }
     }
@@ -64,6 +66,7 @@ impl EnvManager {
         let mut context = environment::LoadEnvironmentContext {
             commands: &mut self.commands,
             tasks: &mut self.tasks,
+            task_nodes: &mut self.task_nodes,
             hooks: &mut self.hooks,
             cue_vars: &mut self.cue_vars,
             cue_vars_metadata: &mut self.cue_vars_metadata,

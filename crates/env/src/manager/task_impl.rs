@@ -1,4 +1,4 @@
-use cuenv_config::TaskConfig;
+use cuenv_config::{TaskConfig, TaskNode};
 use std::collections::HashMap;
 
 use super::task::TaskSource;
@@ -24,5 +24,12 @@ impl TaskSource for EnvManager {
 
     fn get_filtered_vars(&self, capabilities: &[String]) -> HashMap<String, String> {
         self.get_filtered_vars(capabilities)
+    }
+}
+
+impl EnvManager {
+    /// Get task nodes (preserving group structure)
+    pub fn get_task_nodes(&self) -> &HashMap<String, TaskNode> {
+        &self.task_nodes
     }
 }

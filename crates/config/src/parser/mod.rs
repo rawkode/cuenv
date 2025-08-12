@@ -12,7 +12,7 @@ pub use ffi::CueParser;
 pub use processing::{ParseOptions, ParseResult};
 pub use types::{
     CacheEnvConfig, CommandConfig, Hook, HookConfig, HookConstraint, HookType, HookValue,
-    SecurityConfig, TaskCacheConfig, TaskConfig, VariableMetadata,
+    SecurityConfig, TaskCacheConfig, TaskConfig, TaskGroupMode, TaskNode, VariableMetadata,
 };
 
 #[cfg(test)]

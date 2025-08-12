@@ -123,6 +123,11 @@ impl Config {
         self.parse_result.tasks.get(name)
     }
 
+    /// Get task nodes (preserving group structure with execution modes)
+    pub fn get_task_nodes(&self) -> &HashMap<String, crate::TaskNode> {
+        &self.parse_result.task_nodes
+    }
+
     /// Get commands available in the configuration
     pub fn get_commands(&self) -> &HashMap<String, CommandConfig> {
         &self.parse_result.commands

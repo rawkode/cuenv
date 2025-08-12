@@ -8,6 +8,7 @@ mod graph;
 mod management;
 mod plan;
 mod runner;
+mod strategies;
 
 pub use context::TaskExecutionContext;
 pub use plan::TaskExecutionPlan;

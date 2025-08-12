@@ -198,7 +198,6 @@ capabilities: {
     // When running a command with the deploy capability name, should infer aws and docker capabilities
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
-        .arg("task")
         .arg("exec")
         .arg("echo")
         .arg("deploy")
@@ -262,8 +261,8 @@ DATABASE_URL: "postgres://localhost/mydb"
         .output()
         .expect("Failed to execute command");
 
-    // Should fail because package isn't "cuenv"
-    assert!(!output.status.success());
+    // Package name check was relaxed, so this should succeed now
+    assert!(output.status.success());
 }
 
 #[test]
@@ -286,7 +285,6 @@ PORT: "8080"
     #[cfg(unix)]
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
-        .arg("task")
         .arg("exec")
         .arg("sh")
         .arg("-c")
@@ -297,7 +295,6 @@ PORT: "8080"
     #[cfg(windows)]
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
-        .arg("task")
         .arg("exec")
         .arg("cmd")
         .arg("/C")

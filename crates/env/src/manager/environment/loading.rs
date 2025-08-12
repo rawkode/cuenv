@@ -1,5 +1,5 @@
 use cuenv_config::{
-    CommandConfig, CueParser, Hook, HookConfig, HookType, ParseOptions, TaskConfig,
+    CommandConfig, CueParser, Hook, HookConfig, HookType, ParseOptions, TaskConfig, TaskNode,
     VariableMetadata,
 };
 use cuenv_core::{constants::DEFAULT_PACKAGE_NAME, Error, Result};
@@ -13,6 +13,7 @@ use super::hooks::process_sourcing_hooks;
 pub struct LoadEnvironmentContext<'a> {
     pub commands: &'a mut HashMap<String, CommandConfig>,
     pub tasks: &'a mut HashMap<String, TaskConfig>,
+    pub task_nodes: &'a mut HashMap<String, TaskNode>,
     pub hooks: &'a mut HashMap<String, HookConfig>,
     pub cue_vars: &'a mut HashMap<String, String>,
     pub cue_vars_metadata: &'a mut HashMap<String, VariableMetadata>,
@@ -38,6 +39,7 @@ pub async fn load_env_with_options(
         CueParser::eval_package_with_options(dir, DEFAULT_PACKAGE_NAME, &temp_options)?;
     context.commands.extend(parse_result.commands.clone());
     context.tasks.extend(parse_result.tasks.clone());
+    context.task_nodes.extend(parse_result.task_nodes.clone());
 
     // Convert Vec<Hook> to HookConfig for compatibility with TUI architecture
     convert_hooks_to_config(&parse_result.hooks, context.hooks);
@@ -74,6 +76,7 @@ pub async fn load_env_with_options(
     // Store commands, tasks and hooks
     context.commands.extend(parse_result.commands.clone());
     context.tasks.extend(parse_result.tasks.clone());
+    context.task_nodes.extend(parse_result.task_nodes.clone());
     convert_hooks_to_config(&parse_result.hooks, context.hooks);
 
     // Execute sourcing hooks first to capture additional environment variables

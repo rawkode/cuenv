@@ -5,15 +5,37 @@ use serde::{de::MapAccess, de::Visitor, Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 
+/// Task group execution mode
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TaskGroupMode {
+    /// Execute tasks based on dependency graph (DAG)
+    Workflow,
+    /// Execute tasks one after another in definition order
+    Sequential,
+    /// Execute all tasks simultaneously
+    Parallel,
+    /// Simple collection of tasks (default)
+    Group,
+}
+
+impl Default for TaskGroupMode {
+    fn default() -> Self {
+        Self::Group
+    }
+}
+
 /// A task node that can be either a single task or a group of tasks
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum TaskNode {
     /// A single task definition
     Task(Box<TaskConfig>),
-    /// A group of tasks with optional description
+    /// A group of tasks with optional description and execution mode
     Group {
         #[serde(skip_serializing_if = "Option::is_none")]
         description: Option<String>,
+        #[serde(default)]
+        mode: TaskGroupMode,
         #[serde(flatten)]
         tasks: HashMap<String, TaskNode>,
     },
@@ -38,9 +60,10 @@ impl<'de> Deserialize<'de> for TaskNode {
                     .map(|config| TaskNode::Task(Box::new(config)))
                     .map_err(serde::de::Error::custom)
             } else {
-                // Check if it has any non-task fields (besides description)
+                // Check if it has any non-task fields (besides description and mode)
                 let task_fields = vec![
                     "description",
+                    "mode",
                     "command",
                     "script",
                     "dependencies",
@@ -59,15 +82,20 @@ impl<'de> Deserialize<'de> for TaskNode {
                 let has_non_task_fields = map.keys().any(|k| !task_fields.contains(&k.as_str()));
 
                 if has_non_task_fields {
-                    // It's a Group - extract description and other fields as tasks
+                    // It's a Group - extract description, mode and other fields as tasks
                     let description = map
                         .get("description")
                         .and_then(|v| v.as_str())
                         .map(String::from);
 
+                    let mode = map
+                        .get("mode")
+                        .and_then(|v| serde_json::from_value::<TaskGroupMode>(v.clone()).ok())
+                        .unwrap_or_default();
+
                     let mut tasks = HashMap::new();
                     for (key, val) in map {
-                        if key != "description" {
+                        if key != "description" && key != "mode" {
                             // Recursively deserialize as TaskNode
                             if let Ok(node) = serde_json::from_value::<TaskNode>(val.clone()) {
                                 tasks.insert(key.clone(), node);
@@ -75,7 +103,11 @@ impl<'de> Deserialize<'de> for TaskNode {
                         }
                     }
 
-                    Ok(TaskNode::Group { description, tasks })
+                    Ok(TaskNode::Group {
+                        description,
+                        mode,
+                        tasks,
+                    })
                 } else {
                     // It's a Task with only optional fields
                     serde_json::from_value::<TaskConfig>(value)
