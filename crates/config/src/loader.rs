@@ -95,8 +95,15 @@ impl ConfigLoader {
                 tasks: HashMap::new(),
                 task_nodes: HashMap::new(),
                 hooks: HashMap::new(),
+                config: None,
             }
         };
+
+        // Merge config settings with runtime options (CLI takes precedence)
+        let mut runtime = self.runtime.clone();
+        if let Some(ref config_settings) = parse_result.config {
+            runtime.merge_with_config(config_settings);
+        }
 
         // Extract security configuration from parse result
         let security = self.extract_security_config(&parse_result);
@@ -112,7 +119,7 @@ impl ConfigLoader {
         let mut builder = ConfigBuilder::new()
             .working_dir(working_dir)
             .parse_result(parse_result)
-            .runtime(self.runtime)
+            .runtime(runtime)
             .security(security);
 
         if let Some(env_path) = env_file {

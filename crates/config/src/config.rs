@@ -4,7 +4,9 @@
 //! configuration data loaded at startup, eliminating the need for components
 //! to perform their own file I/O or parsing.
 
-use crate::{CommandConfig, Hook, ParseResult, SecurityConfig, TaskConfig, VariableMetadata};
+use crate::{
+    CommandConfig, ConfigSettings, Hook, ParseResult, SecurityConfig, TaskConfig, VariableMetadata,
+};
 use cuenv_core::{Error, Result};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -23,6 +25,10 @@ pub struct RuntimeOptions {
     pub cache_enabled: bool,
     /// Audit mode for security tracking
     pub audit_mode: bool,
+    /// Output format for tasks
+    pub output_format: Option<String>,
+    /// Trace output (Chrome trace generation)
+    pub trace_output: Option<bool>,
 }
 
 impl Default for RuntimeOptions {
@@ -33,6 +39,49 @@ impl Default for RuntimeOptions {
             cache_mode: None,
             cache_enabled: true,
             audit_mode: false,
+            output_format: None,
+            trace_output: None,
+        }
+    }
+}
+
+impl RuntimeOptions {
+    /// Merge with config settings, with CLI options taking precedence
+    pub fn merge_with_config(&mut self, config: &ConfigSettings) {
+        // CLI args take precedence, so only use config values if CLI didn't provide them
+
+        if self.environment.is_none() {
+            self.environment = config.default_environment.clone();
+        }
+
+        if self.capabilities.is_empty() {
+            if let Some(caps) = &config.default_capabilities {
+                self.capabilities = caps.clone();
+            }
+        }
+
+        if self.cache_mode.is_none() {
+            self.cache_mode = config.cache_mode.clone();
+        }
+
+        // For cache_enabled, only use config if it's explicitly set and CLI didn't override
+        if let Some(config_enabled) = config.cache_enabled {
+            self.cache_enabled = config_enabled;
+        }
+
+        // For audit_mode, only use config if CLI didn't set it to true
+        if !self.audit_mode {
+            if let Some(config_audit) = config.audit_mode {
+                self.audit_mode = config_audit;
+            }
+        }
+
+        if self.output_format.is_none() {
+            self.output_format = config.output_format.clone();
+        }
+
+        if self.trace_output.is_none() {
+            self.trace_output = config.trace_output;
         }
     }
 }

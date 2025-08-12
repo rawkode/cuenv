@@ -80,6 +80,7 @@ mod protocol_tests {
             tasks,
             task_nodes: HashMap::new(),
             hooks: HashMap::new(),
+            config: None,
         };
         let config = Arc::new(cuenv_config::Config::new(
             temp_dir.path().to_path_buf(),
@@ -112,6 +113,7 @@ mod protocol_tests {
             tasks: tasks.clone(),
             task_nodes: HashMap::new(),
             hooks: HashMap::new(),
+            config: None,
         };
         let config = Arc::new(cuenv_config::Config::new(
             temp_dir.path().to_path_buf(),
@@ -144,6 +146,7 @@ mod protocol_tests {
             tasks,
             task_nodes: HashMap::new(),
             hooks: HashMap::new(),
+            config: None,
         };
         let config = Arc::new(cuenv_config::Config::new(
             temp_dir.path().to_path_buf(),

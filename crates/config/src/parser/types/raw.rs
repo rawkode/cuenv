@@ -1,5 +1,6 @@
 //! Raw types for direct CUE JSON deserialization
 
+use super::ConfigSettings;
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -14,6 +15,8 @@ pub(crate) struct RawCueResult {
     pub hooks: Option<RawHooks>,
     #[serde(default)]
     pub capabilities: HashMap<String, RawCapability>,
+    #[serde(default)]
+    pub config: Option<ConfigSettings>,
     // Catch-all for other fields including sayHello at top level
     #[serde(flatten)]
     pub _other: HashMap<String, serde_json::Value>,

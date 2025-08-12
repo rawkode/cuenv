@@ -11,8 +11,9 @@ mod validation;
 pub use ffi::CueParser;
 pub use processing::{ParseOptions, ParseResult};
 pub use types::{
-    CacheEnvConfig, CommandConfig, Hook, HookConfig, HookConstraint, HookType, HookValue,
-    SecurityConfig, TaskCacheConfig, TaskConfig, TaskGroupMode, TaskNode, VariableMetadata,
+    CacheEnvConfig, CommandConfig, ConfigSettings, Hook, HookConfig, HookConstraint, HookType,
+    HookValue, SecurityConfig, TaskCacheConfig, TaskConfig, TaskGroupMode, TaskNode,
+    VariableMetadata,
 };
 
 #[cfg(test)]

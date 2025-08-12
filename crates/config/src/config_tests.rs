@@ -35,6 +35,7 @@ mod tests {
             tasks: HashMap::new(),
             task_nodes: HashMap::new(),
             hooks: HashMap::new(),
+            config: None,
         }
     }
 
