@@ -30,8 +30,8 @@ impl GroupExecutionStrategy for SequentialStrategy {
         let mut prev_task_id = start_barrier_id;
 
         // Convert to BTreeMap to ensure deterministic ordering for sequential execution
-        let ordered_tasks: BTreeMap<String, &TaskNode> =
-            tasks.iter().map(|(k, v)| (k.clone(), v)).collect();
+        let ordered_tasks: BTreeMap<&String, &TaskNode> =
+            tasks.iter().collect();
 
         // Process tasks in deterministic order
         for (task_name, node) in ordered_tasks {
@@ -54,11 +54,11 @@ impl GroupExecutionStrategy for SequentialStrategy {
                         }
                     }
 
-                    let task_id = create_task_id(&group_path, &task_name);
+                    let task_id = create_task_id(&group_path, task_name);
                     flattened.push(FlattenedTask {
                         id: task_id.clone(),
                         group_path: group_path.clone(),
-                        name: task_name.to_string(),
+                        name: task_name.clone(),
                         dependencies: deps,
                         node: node.clone(),
                         is_barrier: false,
@@ -84,7 +84,7 @@ impl GroupExecutionStrategy for SequentialStrategy {
                     let strategy = super::create_strategy(mode);
                     let subtask_path = group_path.clone();
                     let mut subgroup_tasks =
-                        strategy.process_group(&task_name, subtasks, subtask_path)?;
+                        strategy.process_group(task_name, subtasks, subtask_path)?;
 
                     // Update first task in subgroup to depend on subgroup start
                     if let Some(first) = subgroup_tasks.first_mut() {
