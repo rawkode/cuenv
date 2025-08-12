@@ -201,7 +201,7 @@ tasks: {
 		
 		build: {
 			description: "Build release artifacts"
-			dependencies: ["test"]
+			dependencies: ["test.unit"]
 			command: "cargo"
 			args: ["build", "--release"]
 			outputs: ["target/release/cuenv"]
