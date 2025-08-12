@@ -119,7 +119,13 @@ impl MiniMap {
             Style::default().fg(icon_color),
         ));
 
-        // Task name
+        // Task name (show only the last part after the final dot)
+        let display_name = if let Some(last_dot) = tree_line.task_name.rfind('.') {
+            tree_line.task_name[last_dot + 1..].to_string()
+        } else {
+            tree_line.task_name.clone()
+        };
+
         let name_style = if is_selected {
             Style::default()
                 .fg(Color::White)
@@ -128,7 +134,7 @@ impl MiniMap {
         } else {
             Style::default().fg(Color::White)
         };
-        spans.push(Span::styled(tree_line.task_name.clone(), name_style));
+        spans.push(Span::styled(display_name, name_style));
 
         Line::from(spans)
     }

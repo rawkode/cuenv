@@ -17,7 +17,7 @@ impl TaskState {
         match self {
             Self::Queued => "◌",
             Self::Running => "▣",
-            Self::Completed => "■",
+            Self::Completed => "✓",
             Self::Failed => "✖",
             Self::Cancelled => "⊘",
         }

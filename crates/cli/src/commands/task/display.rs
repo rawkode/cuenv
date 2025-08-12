@@ -30,109 +30,135 @@ pub fn count_tasks(node: &TaskNode) -> usize {
 pub fn display_task_tree(nodes: &HashMap<String, TaskNode>, verbose: bool, use_color: bool) {
     // Sort for consistent display
     let sorted: BTreeMap<_, _> = nodes.iter().collect();
-    let total = sorted.len();
 
-    // Header
+    // Simple, clean header
+    println!();
     if use_color {
-        println!("{}", "Available Tasks:".bold());
-        println!("{}", "═".repeat(50).dark_grey());
-        println!();
+        println!("{}", "Tasks".bold());
     } else {
-        println!("Available Tasks:");
-        println!("{}", "=".repeat(50));
-        println!();
+        println!("Tasks");
     }
 
-    // Display each top-level item
-    let mut count = 0;
-    let mut standalone_tasks = Vec::new();
-
+    // Display all tasks in a unified format
     for (name, node) in sorted {
-        count += 1;
-        let is_last = count == total;
-
         match node {
-            TaskNode::Task(config) => {
-                // Collect standalone tasks to display at the end
-                standalone_tasks.push((name.clone(), config.description.clone()));
+            TaskNode::Task(_config) => {
+                // Display single task with a simple bullet
+                if use_color {
+                    println!("  {} {}", "•".dark_grey(), name);
+                } else {
+                    println!("  • {name}");
+                }
             }
             TaskNode::Group {
-                description,
+                description: _,
                 mode,
                 tasks,
             } => {
-                display_group(
-                    name,
-                    description.as_deref(),
-                    mode,
-                    tasks,
-                    verbose,
-                    use_color,
-                    0,
-                    "",
-                );
-
-                // Add spacing between groups
-                if !is_last {
-                    println!();
-                }
-            }
-        }
-    }
-
-    // Display standalone tasks if any
-    if !standalone_tasks.is_empty() {
-        if use_color {
-            println!("{}", "─".repeat(50).dark_grey());
-            println!("{}", "Standalone Tasks:".dark_grey());
-        } else {
-            println!("{}", "-".repeat(50));
-            println!("Standalone Tasks:");
-        }
-
-        for (name, desc) in standalone_tasks {
-            if verbose {
-                if let Some(d) = desc {
-                    println!("  • {} {}", name, format!("({})", d).dark_grey());
+                if verbose {
+                    // Verbose mode: show tree structure
+                    display_group(
+                        name, None, // Don't show descriptions in list view
+                        mode, tasks, verbose, use_color, 0, "",
+                    );
                 } else {
-                    println!("  • {}", name);
+                    // Compact mode: single line per group
+                    display_group_compact(name, mode, tasks, use_color);
                 }
-            } else {
-                println!("  • {}", name);
             }
         }
     }
 
-    // Footer with usage hints
+    // Footer
     println!();
+    if verbose {
+        // Full footer with hints
+        if use_color {
+            println!("{}", "─".repeat(40).dark_grey());
+            println!("Usage: cuenv task <name> [args...]");
+            println!();
+            println!(
+                "{}",
+                "Task groups can be executed directly or you can run specific subtasks."
+                    .dark_grey()
+            );
+        } else {
+            println!("{}", "-".repeat(40));
+            println!("Usage: cuenv task <name> [args...]");
+            println!();
+            println!("Task groups can be executed directly or you can run specific subtasks.");
+        }
+    } else {
+        // Minimal footer with icon key
+        if use_color {
+            println!("{}", "─".repeat(40).dark_grey());
+            println!(
+                "{} workflow  {} sequential  {} parallel  {} group  {} single",
+                "⚡".cyan(),
+                "⇢".yellow(),
+                "⇉".green(),
+                "◉".white(),
+                "•".dark_grey()
+            );
+            println!();
+            println!("Run: cuenv task <name>  •  Use {} for details", "-v".cyan());
+        } else {
+            println!("{}", "-".repeat(40));
+            println!("Run: cuenv task <name>  •  Use -v for details");
+        }
+    }
+}
+
+/// Display a group in compact format (single line)
+fn display_group_compact(
+    name: &str,
+    mode: &TaskGroupMode,
+    tasks: &HashMap<String, TaskNode>,
+    use_color: bool,
+) {
+    // Get list of subtask names (just the last part after dots)
+    let mut subtask_names: Vec<String> = tasks
+        .keys()
+        .map(|k| {
+            // Get just the last part of the name for cleaner display
+            if let Some(last_dot) = k.rfind('.') {
+                k[last_dot + 1..].to_string()
+            } else {
+                k.clone()
+            }
+        })
+        .collect();
+    subtask_names.sort();
+
+    // Create task list display
+    let task_list = if subtask_names.len() > 4 {
+        format!("{} …", subtask_names[..4].join(" "))
+    } else {
+        subtask_names.join(" ")
+    };
+
     if use_color {
-        println!("{}", "═".repeat(50).dark_grey());
-        println!("{}", "Hints:".bold());
+        // Distinct icons for each mode
+        let (symbol, color) = match mode {
+            TaskGroupMode::Workflow => ("⚡", name.cyan()),
+            TaskGroupMode::Sequential => ("⇢", name.yellow()),
+            TaskGroupMode::Parallel => ("⇉", name.green()),
+            TaskGroupMode::Group => ("◉", name.white()),
+        };
+
         println!(
-            "  {} = Select a specific task to run",
-            "[GROUP]".dark_grey()
-        );
-        println!(
-            "  {} = Execute all tasks",
-            "[PARALLEL/SEQUENTIAL/WORKFLOW]".green()
-        );
-        println!();
-        println!(
-            "{}: cuenv task <name> {}",
-            "Usage".dark_grey(),
-            "[args...]".dark_grey()
+            "  {} {} {}",
+            symbol,
+            color.bold(),
+            format!("[{task_list}]").dark_grey()
         );
     } else {
-        println!("{}", "=".repeat(50));
-        println!("Hints:");
-        println!("  [GROUP] = Select a specific task to run");
-        println!("  [PARALLEL/SEQUENTIAL/WORKFLOW] = Execute all tasks");
-        println!();
-        println!("Usage: cuenv task <name> [args...]");
+        println!("  {name} [{task_list}]");
     }
 }
 
 /// Display a group and its contents
+#[allow(clippy::too_many_arguments)]
 fn display_group(
     name: &str,
     description: Option<&str>,
@@ -165,12 +191,12 @@ fn display_group(
             prefix,
             name.bold().cyan(),
             mode_badge,
-            format!("({} tasks)", task_count).dark_grey()
+            format!("({task_count} tasks)").dark_grey()
         )
     } else {
-        format!("{}{} {} ({} tasks)", prefix, name, mode_badge, task_count)
+        format!("{prefix}{name} {mode_badge} ({task_count} tasks)")
     };
-    println!("{}", group_line);
+    println!("{group_line}");
 
     // Display description if verbose
     if verbose {
@@ -178,9 +204,9 @@ fn display_group(
             let desc_line = if use_color {
                 format!("{}  {}", prefix, desc.dark_grey())
             } else {
-                format!("{}  {}", prefix, desc)
+                format!("{prefix}  {desc}")
             };
-            println!("{}", desc_line);
+            println!("{desc_line}");
         }
     }
 
@@ -204,9 +230,9 @@ fn display_tree_children_with_prefix(
         count += 1;
         let is_last = count == total;
         let connector = if is_last {
-            format!("{}{}", prefix, TREE_LAST)
+            format!("{prefix}{TREE_LAST}")
         } else {
-            format!("{}{}", prefix, TREE_BRANCH)
+            format!("{prefix}{TREE_BRANCH}")
         };
 
         match node {
@@ -218,11 +244,11 @@ fn display_tree_children_with_prefix(
                     verbose,
                     use_color,
                 );
-                println!("{}", task_line);
+                println!("{task_line}");
             }
             TaskNode::Group { .. } => {
                 // For nested groups, just show a placeholder for now
-                println!("{}{} [...]", connector, name);
+                println!("{connector}{name} [...]");
             }
         }
     }
@@ -248,7 +274,7 @@ fn format_task_line(
             format!("{}{} – {}", connector, name, description.unwrap())
         }
     } else {
-        format!("{}{}", connector, name)
+        format!("{connector}{name}")
     }
 }
 
@@ -278,7 +304,7 @@ fn display_tree_children(
                     verbose,
                     use_color,
                 );
-                println!("{}", task_line);
+                println!("{task_line}");
             }
             TaskNode::Group {
                 description,
@@ -303,7 +329,7 @@ fn display_tree_children(
                         verbose,
                         use_color,
                         depth + 1,
-                        &child_prefix,
+                        child_prefix,
                     );
                 }
             }
@@ -338,14 +364,14 @@ pub fn display_group_contents(
     if use_color {
         println!("{} {}", group_name.bold().cyan(), mode_badge);
     } else {
-        println!("{} {}", group_name, mode_badge);
+        println!("{group_name} {mode_badge}");
     }
 
     if let Some(desc) = description {
         if use_color {
             println!("  {}", desc.dark_grey());
         } else {
-            println!("  {}", desc);
+            println!("  {desc}");
         }
     }
 
@@ -358,34 +384,22 @@ pub fn display_group_contents(
     println!();
     let action_hint = match mode {
         TaskGroupMode::Group => {
-            format!(
-                "Run 'cuenv task {} <task>' to execute a specific task",
-                group_name
-            )
+            format!("Run 'cuenv task {group_name} <task>' to execute a specific task")
         }
         TaskGroupMode::Parallel => {
-            format!(
-                "Run 'cuenv task {}' to execute all tasks in parallel",
-                group_name
-            )
+            format!("Run 'cuenv task {group_name}' to execute all tasks in parallel")
         }
         TaskGroupMode::Sequential => {
-            format!(
-                "Run 'cuenv task {}' to execute all tasks sequentially",
-                group_name
-            )
+            format!("Run 'cuenv task {group_name}' to execute all tasks sequentially")
         }
         TaskGroupMode::Workflow => {
-            format!(
-                "Run 'cuenv task {}' to execute tasks based on dependencies",
-                group_name
-            )
+            format!("Run 'cuenv task {group_name}' to execute tasks based on dependencies")
         }
     };
 
     if use_color {
         println!("{}", action_hint.dark_grey());
     } else {
-        println!("{}", action_hint);
+        println!("{action_hint}");
     }
 }

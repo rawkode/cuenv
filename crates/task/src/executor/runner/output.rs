@@ -1,6 +1,7 @@
 use cuenv_core::{Error, Result};
 use cuenv_utils::cleanup::handler::ProcessGuard;
 use std::process::Command;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 /// Execute command with output handling
@@ -22,11 +23,15 @@ pub async fn execute_with_output_handling(
         )
     })?;
 
-    // Handle output streaming if capturing
-    let (stdout_handle, stderr_handle) = if capture_output {
-        handle_captured_output(&mut child, task_name)
+    // Handle output capturing if needed
+    let (stdout_handle, stderr_handle, captured_output) = if capture_output {
+        let output = Arc::new(Mutex::new(CapturedOutput::default()));
+        let task_name_clone = task_name.to_string();
+        let (stdout_h, stderr_h) =
+            handle_captured_output(&mut child, &task_name_clone, Arc::clone(&output));
+        (stdout_h, stderr_h, Some(output))
     } else {
-        (None, None)
+        (None, None, None)
     };
 
     // Use ProcessGuard for automatic cleanup
@@ -36,7 +41,7 @@ pub async fn execute_with_output_handling(
     let status = guard.wait_with_timeout_async().await.map_err(|e| {
         Error::command_execution(
             shell,
-            vec!["-c".to_string(), script_content],
+            vec!["-c".to_string(), script_content.clone()],
             e.to_string(),
             None,
         )
@@ -50,12 +55,69 @@ pub async fn execute_with_output_handling(
         let _ = handle.join();
     }
 
-    Ok(status.code().unwrap_or(1))
+    let exit_code = status.code().unwrap_or(1);
+
+    // If the task failed and we captured output, send it through the event system
+    // This ensures TUI can display it properly without corrupting the terminal
+    if exit_code != 0 {
+        if let Some(output) = captured_output {
+            // Extract the captured output to avoid holding the lock across await
+            let (stdout_lines, stderr_lines) = {
+                if let Ok(captured) = output.lock() {
+                    (captured.stdout.clone(), captured.stderr.clone())
+                } else {
+                    (vec![], vec![])
+                }
+            };
+
+            if !stdout_lines.is_empty() || !stderr_lines.is_empty() {
+                // Send output through event system for proper TUI handling
+                let event_bus = cuenv_core::events::global_event_bus();
+
+                // Send stdout as TaskOutput events
+                if !stdout_lines.is_empty() {
+                    let combined_stdout = stdout_lines.join("\n");
+                    let _ = event_bus
+                        .publish(cuenv_core::SystemEvent::Task(
+                            cuenv_core::TaskEvent::TaskOutput {
+                                task_name: task_name.to_string(),
+                                task_id: task_name.to_string(),
+                                output: combined_stdout,
+                            },
+                        ))
+                        .await;
+                }
+
+                // Send stderr as TaskError events
+                if !stderr_lines.is_empty() {
+                    let combined_stderr = stderr_lines.join("\n");
+                    let _ = event_bus
+                        .publish(cuenv_core::SystemEvent::Task(
+                            cuenv_core::TaskEvent::TaskError {
+                                task_name: task_name.to_string(),
+                                task_id: task_name.to_string(),
+                                error: combined_stderr,
+                            },
+                        ))
+                        .await;
+                }
+            }
+        }
+    }
+
+    Ok(exit_code)
+}
+
+#[derive(Default)]
+struct CapturedOutput {
+    stdout: Vec<String>,
+    stderr: Vec<String>,
 }
 
 fn handle_captured_output(
     child: &mut std::process::Child,
-    task_name: &str,
+    _task_name: &str,
+    captured_output: Arc<Mutex<CapturedOutput>>,
 ) -> (
     Option<std::thread::JoinHandle<()>>,
     Option<std::thread::JoinHandle<()>>,
@@ -66,69 +128,34 @@ fn handle_captured_output(
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
 
-    let _task_name_stdout = task_name.to_string();
-    let _task_name_stderr = task_name.to_string();
-
     // Spawn thread to read stdout
     let stdout_handle = stdout.map(|stdout| {
+        let output_clone = Arc::clone(&captured_output);
         std::thread::spawn(move || {
-            // Create a tokio runtime for this thread
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build();
-
-            if let Ok(_rt) = rt {
-                let reader = BufReader::new(stdout);
-                for _line in reader.lines().map_while(|result| result.ok()) {
-                    // Try to publish to event bus
-                    // TODO: Add event publishing through proper abstraction
-                    if false {
-                        // let task_name = task_name_stdout.clone();
-                        // let event = TaskEvent::Log {
-                        //     task_name,
-                        //     stream: LogStream::Stdout,
-                        //     content: line,
-                        // };
-                        //
-                        // // Use spawn instead of block_on to avoid blocking the runtime
-                        // let event_bus_clone = event_bus.clone();
-                        // rt.spawn(async move {
-                        //     event_bus_clone.publish(event).await;
-                        // });
-                    }
+            let reader = BufReader::new(stdout);
+            for line in reader.lines().map_while(|result| result.ok()) {
+                // Store for potential error display
+                if let Ok(mut output) = output_clone.lock() {
+                    output.stdout.push(line);
                 }
+                // Note: Real-time event sending removed as it's not working reliably
+                // Events will be sent after task completion
             }
         })
     });
 
     // Spawn thread to read stderr
     let stderr_handle = stderr.map(|stderr| {
+        let output_clone = Arc::clone(&captured_output);
         std::thread::spawn(move || {
-            // Create a tokio runtime for this thread
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build();
-
-            if let Ok(_rt) = rt {
-                let reader = BufReader::new(stderr);
-                for _line in reader.lines().map_while(|result| result.ok()) {
-                    // Try to publish to event bus
-                    // TODO: Add event publishing through proper abstraction
-                    if false {
-                        // let task_name = task_name_stderr.clone();
-                        // let event = TaskEvent::Log {
-                        //     task_name,
-                        //     stream: LogStream::Stderr,
-                        //     content: line,
-                        // };
-                        //
-                        // // Use spawn instead of block_on to avoid blocking the runtime
-                        // let event_bus_clone = event_bus.clone();
-                        // rt.spawn(async move {
-                        //     event_bus_clone.publish(event).await;
-                        // });
-                    }
+            let reader = BufReader::new(stderr);
+            for line in reader.lines().map_while(|result| result.ok()) {
+                // Store for potential error display
+                if let Ok(mut output) = output_clone.lock() {
+                    output.stderr.push(line);
                 }
+                // Note: Real-time event sending removed as it's not working reliably
+                // Events will be sent after task completion
             }
         })
     });

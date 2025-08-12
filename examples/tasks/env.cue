@@ -64,4 +64,8 @@ tasks: {
 			echo "Script output" > build/script-output.txt
 			"""
 	}
+	"fail": {
+		description: "Task that fails for testing"
+		command: "sh -c 'echo \"Starting task...\"; echo \"ERROR: Something went wrong!\" >&2; exit 1'"
+	}
 }
