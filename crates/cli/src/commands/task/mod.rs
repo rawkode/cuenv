@@ -35,8 +35,32 @@ pub async fn execute_task_command(
                 let has_subtasks = tasks.keys().any(|k| k.starts_with(&prefix));
 
                 if has_subtasks {
-                    // It's a group - list its tasks
-                    list_tasks(config, verbose, Some(name)).await
+                    // It's a group - check its mode to decide whether to execute or list
+                    let task_nodes = config.get_task_nodes();
+                    if let Some(TaskNode::Group { mode, .. }) = task_nodes.get(&name) {
+                        match mode {
+                            TaskGroupMode::Group => {
+                                // Group mode: just list tasks
+                                list_tasks(config, verbose, Some(name)).await
+                            }
+                            TaskGroupMode::Parallel
+                            | TaskGroupMode::Sequential
+                            | TaskGroupMode::Workflow => {
+                                // Executable modes: run all tasks in the group
+                                execute_task_group(
+                                    config.clone(),
+                                    environment,
+                                    capabilities,
+                                    name,
+                                    audit,
+                                )
+                                .await
+                            }
+                        }
+                    } else {
+                        // Fallback to listing if we can't determine the mode
+                        list_tasks(config, verbose, Some(name)).await
+                    }
                 } else {
                     // Not found as task or group
                     eprintln!("Task or group '{name}' not found");
@@ -200,15 +224,30 @@ async fn list_tasks(
                     mode,
                     tasks,
                 } => {
-                    let mode_str = format_execution_mode(mode);
-                    println!("Tasks in '{group}' group {mode_str}:");
+                    let mode_icon = format_execution_mode(mode);
+                    let action_hint = match mode {
+                        TaskGroupMode::Group => {
+                            format!("Run 'cuenv task {group} <task>' to execute a specific task")
+                        }
+                        TaskGroupMode::Parallel => {
+                            format!("Run 'cuenv task {group}' to execute all tasks in parallel")
+                        }
+                        TaskGroupMode::Sequential => {
+                            format!("Run 'cuenv task {group}' to execute all tasks sequentially")
+                        }
+                        TaskGroupMode::Workflow => format!(
+                            "Run 'cuenv task {group}' to execute tasks based on dependencies"
+                        ),
+                    };
+
+                    println!("{group} {mode_icon}");
                     if let Some(desc) = description {
-                        println!("  Description: {desc}");
+                        println!("  {desc}");
                     }
                     println!();
                     display_task_nodes(tasks, verbose, 1);
                     println!();
-                    println!("Run 'cuenv task {group} <task>' to execute a task");
+                    println!("{action_hint}");
                 }
                 TaskNode::Task(config) => {
                     println!("'{group}' is a single task, not a group");
@@ -229,12 +268,12 @@ async fn list_tasks(
     Ok(())
 }
 
-fn format_execution_mode(mode: &TaskGroupMode) -> String {
+fn format_execution_mode(mode: &TaskGroupMode) -> &'static str {
     match mode {
-        TaskGroupMode::Workflow => "[→]".to_string(), // Arrow for workflow/DAG
-        TaskGroupMode::Sequential => "[↓]".to_string(), // Down arrow for sequential
-        TaskGroupMode::Parallel => "[⇉]".to_string(), // Parallel lines for parallel
-        TaskGroupMode::Group => "[◊]".to_string(),    // Diamond for group (no execution)
+        TaskGroupMode::Workflow => "→",   // Arrow for workflow/DAG
+        TaskGroupMode::Sequential => "↓", // Down arrow for sequential
+        TaskGroupMode::Parallel => "⇉",   // Parallel lines for parallel
+        TaskGroupMode::Group => "◊",      // Diamond for group (no execution)
     }
 }
 
@@ -249,18 +288,17 @@ fn display_task_nodes(
     let sorted: BTreeMap<_, _> = nodes.iter().collect();
 
     for (name, node) in sorted {
-        let indent = "  ".repeat(indent_level + 1);
+        let indent = "  ".repeat(indent_level);
 
         match node {
             TaskNode::Task(config) => {
-                if verbose {
-                    if let Some(desc) = &config.description {
-                        println!("{indent}{name}: {desc}");
-                    } else {
-                        println!("{indent}{name}");
-                    }
+                if verbose && config.description.is_some() {
+                    println!(
+                        "{indent}  {name:<20} {}",
+                        config.description.as_ref().unwrap()
+                    );
                 } else {
-                    println!("{indent}{name}");
+                    println!("{indent}  {name}");
                 }
             }
             TaskNode::Group {
@@ -268,15 +306,20 @@ fn display_task_nodes(
                 mode,
                 tasks,
             } => {
-                let mode_str = format_execution_mode(mode);
+                let mode_icon = format_execution_mode(mode);
+
+                // Format the group header
+                if indent_level == 0 {
+                    println!();
+                    println!("{indent}{name} {mode_icon}");
+                } else {
+                    println!("{indent}{name} {mode_icon}");
+                }
+
                 if verbose {
                     if let Some(desc) = description {
-                        println!("{indent}{name} {mode_str}: {desc}");
-                    } else {
-                        println!("{indent}{name} {mode_str}");
+                        println!("{indent}  {desc}");
                     }
-                } else {
-                    println!("{indent}{name} {mode_str}");
                 }
 
                 // Recursively display subtasks
@@ -396,6 +439,116 @@ async fn execute_task(
         }
         std::process::exit(1);
     }
+}
+
+async fn execute_task_group(
+    config: std::sync::Arc<cuenv_config::Config>,
+    environment: Option<String>,
+    capabilities: Vec<String>,
+    group_name: String,
+    audit: bool,
+) -> Result<()> {
+    let current_dir = env::current_dir()
+        .map_err(|e| cuenv_core::Error::file_system(".", "get current directory", e))?;
+    let mut env_manager = EnvManager::new();
+
+    let env_name = environment.or_else(|| env::var(CUENV_ENV_VAR).ok());
+    let mut caps = capabilities;
+
+    // Add capabilities from environment variable if set
+    if let Ok(env_caps) = env::var(CUENV_CAPABILITIES_VAR) {
+        caps.extend(env_caps.split(',').map(|s| s.trim().to_string()));
+    }
+
+    // Load the environment with applied environment and capabilities
+    env_manager
+        .load_env_with_options(&current_dir, env_name, caps, None)
+        .await?;
+
+    // Get all tasks in the group
+    let prefix = format!("{group_name}.");
+    let all_tasks = config.get_tasks();
+    let group_tasks: Vec<String> = all_tasks
+        .keys()
+        .filter(|name| name.starts_with(&prefix))
+        .cloned()
+        .collect();
+
+    if group_tasks.is_empty() {
+        eprintln!("No tasks found in group '{group_name}'");
+        std::process::exit(1);
+    }
+
+    // Get the group's execution mode
+    let task_nodes = config.get_task_nodes();
+    let mode = if let Some(TaskNode::Group { mode, .. }) = task_nodes.get(&group_name) {
+        mode.clone()
+    } else {
+        TaskGroupMode::Parallel // Default to parallel if we can't determine
+    };
+
+    println!(
+        "Executing group '{}' in {} mode",
+        group_name,
+        match &mode {
+            TaskGroupMode::Workflow => "workflow",
+            TaskGroupMode::Sequential => "sequential",
+            TaskGroupMode::Parallel => "parallel",
+            TaskGroupMode::Group => "group",
+        }
+    );
+
+    // Create executor and run based on mode
+    let executor = TaskExecutor::new(env_manager, current_dir).await?;
+
+    match mode {
+        TaskGroupMode::Sequential => {
+            // Execute tasks one by one
+            for task_name in &group_tasks {
+                println!("Running task: {}", task_name);
+                let status = if audit {
+                    executor.execute_task_with_audit(task_name, &[]).await?
+                } else {
+                    executor.execute_task(task_name, &[]).await?
+                };
+                if status != 0 {
+                    eprintln!("Task '{}' failed with status {}", task_name, status);
+                    std::process::exit(status);
+                }
+            }
+        }
+        TaskGroupMode::Parallel => {
+            // Execute all tasks in parallel
+            println!("Running {} tasks in parallel", group_tasks.len());
+            let status = executor
+                .execute_tasks_with_dependencies(&group_tasks, &[], audit)
+                .await?;
+            if status != 0 {
+                std::process::exit(status);
+            }
+        }
+        TaskGroupMode::Workflow => {
+            // Execute based on dependencies
+            println!("Running tasks based on dependencies");
+            let status = executor
+                .execute_tasks_with_dependencies(&group_tasks, &[], audit)
+                .await?;
+            if status != 0 {
+                std::process::exit(status);
+            }
+        }
+        TaskGroupMode::Group => {
+            // This shouldn't happen as we filter this out earlier, but handle it anyway
+            eprintln!(
+                "Group '{}' is for organization only and cannot be executed",
+                group_name
+            );
+            eprintln!("Run 'cuenv task {}' to see available tasks", group_name);
+            std::process::exit(1);
+        }
+    }
+
+    Ok(())
 }
 
 async fn execute_command(
