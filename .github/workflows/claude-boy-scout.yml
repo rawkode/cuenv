@@ -24,6 +24,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate branch name
+        id: branch
+        run: |
+          # Generate branch name with timestamp
+          BRANCH_NAME="docs/auto-improve-$(date +%Y%m%d-%H%M)"
+          echo "name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+      - name: Create and checkout feature branch
+        run: |
+          git config --global user.name 'claude-automated[bot]'
+          git config --global user.email 'claude-automated[bot]@users.noreply.github.com'
+          git checkout -b "${{ steps.branch.outputs.name }}"
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
       - name: Run Claude Code
@@ -33,7 +45,8 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           mode: agent
           model: "claude-opus-4-20250514"
-          allowed_tools: "Bash(git:*),Bash(gh:*),Bash(nix:*),Edit,Read,Write,Grep,Glob,LS"
+          max_turns: "5"
+          allowed_tools: "Bash(git:*),Bash(gh:*),Bash(nix:*),Edit,Read,Write(website/**),Write(*.md),Write(docs/**),Grep,Glob,LS"
           additional_permissions: |
             contents: write
             pull-requests: write
@@ -45,13 +58,8 @@ jobs:
             1. Analyze the codebase thoroughly - read source files, tests, examples, and existing documentation
             2. Identify gaps between what the code does and what the documentation explains
             3. Find ONE specific, focused documentation improvement (e.g., missing usage example, unclear configuration option, undocumented feature, outdated information)
-            4. Create a new branch with name format: docs/auto-improve-YYYYMMDD-HHMM
-            5. Make the documentation improvement - be specific and helpful
-            6. Commit with message: "docs: [specific description of improvement]"
-            7. Create a pull request with:
-               - Clear title describing the improvement
-               - Body explaining what was missing/unclear and how this helps users
-               - Label the PR with "documentation" if possible
+            4. Make the documentation improvement - be specific and helpful
+            5. Do not commit the changes - the workflow will handle that
 
             Focus on practical improvements that directly help users:
             - Missing examples for common use cases
@@ -65,3 +73,78 @@ jobs:
             - Add unnecessary verbose explanations
             - Change code, only documentation
             - Create multiple improvements - focus on ONE high-value change
+            - Commit or push changes - the workflow will handle git operations
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes detected"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected"
+          fi
+      - name: Commit changes
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          git add .
+          IMPROVEMENT_DESC=$(git diff --cached --name-only | head -1 | xargs basename | sed 's/\.[^.]*$//')
+          git commit -m "docs: improve documentation for $IMPROVEMENT_DESC" \
+            -m "Automated documentation improvement via Claude Boy Scout" \
+            -m "Generated with Claude Code automation"
+      - name: Push feature branch
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          git push origin "${{ steps.branch.outputs.name }}"
+      - name: Create Pull Request
+        if: steps.changes.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branchName = `${{ steps.branch.outputs.name }}`;
+
+            const { data: pr } = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `📚 Documentation Improvement - ${new Date().toISOString().split('T')[0]}`,
+              head: branchName,
+              base: 'main',
+              body: [
+                '## Automated Documentation Improvement',
+                '',
+                'This PR was automatically created by the Claude Boy Scout workflow to improve project documentation.',
+                '',
+                '### Changes Made',
+                'Claude Code analyzed the codebase and identified a documentation gap that needed addressing.',
+                '',
+                '### Review Notes',
+                '- Please review the documentation changes for accuracy',
+                '- Verify that the improvement helps users understand the project better',
+                '- Check for any technical inaccuracies',
+                '',
+                '---',
+                '*Generated automatically by Claude Boy Scout workflow*'
+              ].join('\n')
+            });
+
+            // Add documentation label if possible
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: ['documentation']
+              });
+            } catch (e) {
+              console.log('Could not add label:', e.message);
+            }
+
+            console.log(`Created PR #${pr.number}: ${pr.html_url}`);
+      - name: Output results
+        run: |-
+          if [ "${{ steps.changes.outputs.has_changes }}" == "true" ]; then
+            echo "✅ Claude Boy Scout executed successfully and created a documentation PR"
+            echo "Branch: ${{ steps.branch.outputs.name }}"
+          else
+            echo "ℹ️ Claude Boy Scout executed but no documentation improvements were needed"
+          fi
