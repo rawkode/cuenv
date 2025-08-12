@@ -203,6 +203,7 @@ mod tests {
             dir: None,
             inputs: None,
             source: None,
+            preload: None,
         };
 
         parse_result.hooks.insert("onEnter".to_string(), vec![hook]);

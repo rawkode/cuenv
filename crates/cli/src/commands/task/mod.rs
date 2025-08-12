@@ -264,6 +264,9 @@ async fn execute_task(
         .load_env_with_options(&current_dir, env_name, caps, None)
         .await?;
 
+    // Wait for preload hooks to complete before executing the task
+    env_manager.wait_for_preload_hooks().await?;
+
     // Check if this might be a group/subtask pattern (e.g., "fmt" with first arg "check")
     // First try the task as-is, then try as group.subtask if not found
     let actual_task_name;
@@ -374,6 +377,9 @@ async fn execute_task_group(
     env_manager
         .load_env_with_options(&current_dir, env_name, caps, None)
         .await?;
+
+    // Wait for preload hooks to complete before executing the task group
+    env_manager.wait_for_preload_hooks().await?;
 
     // Get all tasks in the group
     let prefix = format!("{group_name}.");

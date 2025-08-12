@@ -1,0 +1,44 @@
+package cuenv
+
+// Example with Nix preload hook for real-world usage
+env: {
+	PROJECT_NAME: "nix-preload-example"
+	NODE_ENV:     "development"
+}
+
+hooks: onEnter: [
+	// Quick setup message - blocks briefly
+	{
+		command: "echo"
+		args: ["Entering Nix project..."]
+	},
+
+	// Preload Nix development shell in background
+	// This typically takes 10-30 seconds but won't block the shell
+	{
+		command: "nix"
+		args: ["develop", "--command", "echo", "Nix environment ready"]
+		preload: true
+	},
+
+	// Source the Nix environment variables
+	// This must run synchronously to capture the environment
+	{
+		command: "nix"
+		args: ["develop", "--command", "sh", "-c", "export"]
+		source: true
+	},
+]
+
+tasks: {
+	"build": {
+		command: "nix"
+		args: ["build"]
+		description: "Build the Nix package"
+	}
+	"dev": {
+		command: "nix"
+		args: ["develop"]
+		description: "Enter Nix development shell"
+	}
+}

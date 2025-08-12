@@ -1,18 +1,105 @@
 ---
-title: Hook Constraints
-description: Hook constraints for conditional execution based on user environment
+title: Hooks
+description: Environment hooks and constraints for setup and teardown operations
 ---
 
-# Hook Constraints
+# Hooks
 
-Hook constraints provide a way to ensure hooks only execute when required tools are available in the end user's environment. This is particularly useful for:
+Hooks allow you to run commands when entering or exiting a directory. They support background execution (preload), environment sourcing, and conditional execution based on constraints.
 
-- Running setup hooks only when required tools are installed (e.g., devenv, nix, flox)
-- Avoiding errors when dependencies are missing from the user's system
-- Creating portable environments that gracefully handle missing tools
-- Checking complex environment conditions with custom shell commands
+## Hook Types
 
-Since cuenv runs tasks in an isolated environment where files and environment variables are already defined, constraints focus on validating the external user environment rather than checking internal state.
+### onEnter Hooks
+
+Execute when entering a directory with an `env.cue` file.
+
+### onExit Hooks
+
+Execute when leaving a directory (changing to a different directory).
+
+## Hook Execution Modes
+
+### Regular Hooks (default)
+
+Execute synchronously, blocking the shell until completion.
+
+```cue
+hooks: onEnter: [
+    {
+        command: "echo"
+        args: ["Setting up environment"]
+    }
+]
+```
+
+### Preload Hooks
+
+Execute in the background without blocking the shell. The shell remains responsive for commands like `ls` and `cat`, but `cuenv exec` and `cuenv task` commands wait for preload completion.
+
+```cue
+hooks: onEnter: [
+    {
+        command: "nix"
+        args: ["develop", "--command", "true"]
+        preload: true  // Runs in background
+    }
+]
+```
+
+### Source Hooks
+
+Execute synchronously to capture environment variables. Source hooks ignore the preload flag.
+
+```cue
+hooks: onEnter: [
+    {
+        command: "devenv"
+        args: ["shell", "dump"]
+        source: true  // Captures environment variables
+    }
+]
+```
+
+## Preload Hooks (Background Execution)
+
+Preload hooks solve the problem of slow environment preparation (e.g., Nix environments taking 30+ seconds) by running in the background.
+
+### Benefits
+
+- **No blocking**: Shell returns immediately after `cd`
+- **Responsive shell**: Run `ls`, `cat`, etc. without waiting
+- **Automatic waiting**: `cuenv exec` and `cuenv task` wait for completion
+- **Cancellation**: Previous preload hooks cancel when changing directories
+
+### Example
+
+```cue
+hooks: onEnter: [
+    // Quick message - blocks briefly
+    {
+        command: "echo"
+        args: ["Entering project..."]
+    },
+
+    // Slow preparation - runs in background
+    {
+        command: "nix"
+        args: ["develop", "--command", "echo", "Ready"]
+        preload: true
+    },
+
+    // Source environment - runs synchronously
+    {
+        command: "nix"
+        args: ["develop", "--command", "sh", "-c", "export"]
+        source: true
+    }
+]
+```
+
+## Hook Constraints
+
+Hook constraints provide conditional execution based on the user's environment:
 
 ## Constraint Types
 
