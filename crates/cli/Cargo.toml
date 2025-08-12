@@ -65,6 +65,10 @@ log = { workspace = true }
 once_cell = { workspace = true }
 tempfile = { workspace = true }
 
+# Terminal UI
+crossterm = { workspace = true }
+atty = { workspace = true }
+
 [features]
 default = []
 nix-build = []

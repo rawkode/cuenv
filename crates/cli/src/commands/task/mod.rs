@@ -1,3 +1,5 @@
+mod display;
+
 use clap::Subcommand;
 use cuenv_config::{Config, TaskGroupMode, TaskNode};
 use cuenv_core::{Result, CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR};
@@ -5,6 +7,8 @@ use cuenv_env::EnvManager;
 use cuenv_task::TaskExecutor;
 use std::env;
 use std::sync::Arc;
+
+use self::display::{display_group_contents, display_task_tree};
 
 /// Execute the simplified task command
 pub async fn execute_task_command(
@@ -215,6 +219,9 @@ async fn list_tasks(
         return Ok(());
     }
 
+    // Check if terminal supports colors
+    let use_color = atty::is(atty::Stream::Stdout);
+
     // If a group filter is specified, show that specific group
     if let Some(ref group) = group_filter {
         if let Some(node) = task_nodes.get(group) {
@@ -224,30 +231,14 @@ async fn list_tasks(
                     mode,
                     tasks,
                 } => {
-                    let mode_icon = format_execution_mode(mode);
-                    let action_hint = match mode {
-                        TaskGroupMode::Group => {
-                            format!("Run 'cuenv task {group} <task>' to execute a specific task")
-                        }
-                        TaskGroupMode::Parallel => {
-                            format!("Run 'cuenv task {group}' to execute all tasks in parallel")
-                        }
-                        TaskGroupMode::Sequential => {
-                            format!("Run 'cuenv task {group}' to execute all tasks sequentially")
-                        }
-                        TaskGroupMode::Workflow => format!(
-                            "Run 'cuenv task {group}' to execute tasks based on dependencies"
-                        ),
-                    };
-
-                    println!("{group} {mode_icon}");
-                    if let Some(desc) = description {
-                        println!("  {desc}");
-                    }
-                    println!();
-                    display_task_nodes(tasks, verbose, 1);
-                    println!();
-                    println!("{action_hint}");
+                    display_group_contents(
+                        group,
+                        description.as_deref(),
+                        mode,
+                        tasks,
+                        verbose,
+                        use_color,
+                    );
                 }
                 TaskNode::Task(config) => {
                     println!("'{group}' is a single task, not a group");
@@ -258,76 +249,17 @@ async fn list_tasks(
             }
         } else {
             println!("No task or group named '{group}' found");
-            println!("Run 'cuenv task list' to see all available tasks");
+            println!("Run 'cuenv task' to see all available tasks");
         }
         return Ok(());
     }
 
-    println!("Available tasks:");
-    display_task_nodes(task_nodes, verbose, 0);
+    // Display all tasks in tree format
+    display_task_tree(task_nodes, verbose, use_color);
     Ok(())
 }
 
-fn format_execution_mode(mode: &TaskGroupMode) -> &'static str {
-    match mode {
-        TaskGroupMode::Workflow => "→",   // Arrow for workflow/DAG
-        TaskGroupMode::Sequential => "↓", // Down arrow for sequential
-        TaskGroupMode::Parallel => "⇉",   // Parallel lines for parallel
-        TaskGroupMode::Group => "◊",      // Diamond for group (no execution)
-    }
-}
-
-fn display_task_nodes(
-    nodes: &std::collections::HashMap<String, TaskNode>,
-    verbose: bool,
-    indent_level: usize,
-) {
-    use std::collections::BTreeMap;
-
-    // Sort tasks for consistent display
-    let sorted: BTreeMap<_, _> = nodes.iter().collect();
-
-    for (name, node) in sorted {
-        let indent = "  ".repeat(indent_level);
-
-        match node {
-            TaskNode::Task(config) => {
-                if verbose && config.description.is_some() {
-                    println!(
-                        "{indent}  {name:<20} {}",
-                        config.description.as_ref().unwrap()
-                    );
-                } else {
-                    println!("{indent}  {name}");
-                }
-            }
-            TaskNode::Group {
-                description,
-                mode,
-                tasks,
-            } => {
-                let mode_icon = format_execution_mode(mode);
-
-                // Format the group header
-                if indent_level == 0 {
-                    println!();
-                    println!("{indent}{name} {mode_icon}");
-                } else {
-                    println!("{indent}{name} {mode_icon}");
-                }
-
-                if verbose {
-                    if let Some(desc) = description {
-                        println!("{indent}  {desc}");
-                    }
-                }
-
-                // Recursively display subtasks
-                display_task_nodes(tasks, verbose, indent_level + 1);
-            }
-        }
-    }
-}
+// Display functions moved to display module
 
 async fn execute_task(
     _config: std::sync::Arc<cuenv_config::Config>,
