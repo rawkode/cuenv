@@ -9,6 +9,9 @@ mod parallel;
 mod sequential;
 mod workflow;
 
+#[cfg(test)]
+mod tests;
+
 pub use group::GroupStrategy;
 pub use parallel::ParallelStrategy;
 pub use sequential::SequentialStrategy;
@@ -27,9 +30,8 @@ pub trait GroupExecutionStrategy {
 
 /// A flattened task with resolved dependencies
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct FlattenedTask {
-    /// Full task identifier (e.g., "ci.prepare:clean")
+    /// Full task identifier (e.g., "ci.prepare:clean")  
     pub id: String,
     /// Path components (e.g., ["ci", "prepare"])
     pub group_path: Vec<String>,
