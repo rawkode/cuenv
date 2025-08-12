@@ -1,7 +1,5 @@
 package env
 
-import "github.com/rawkode/cuenv"
-
 // Test the new layered hook system
 hooks: {
 	onEnter: [
@@ -27,7 +25,7 @@ hooks: {
 	]
 }
 
-env: cuenv.#Env & {
+env: {
 	PROJECT_NAME: "layered-hooks-test"
 	ENVIRONMENT:  "development"
 }

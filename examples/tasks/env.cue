@@ -1,9 +1,5 @@
 package env
 
-import "github.com/rawkode/cuenv"
-
-cuenv.#Env
-
 capabilities: {
 	secrets: {
 		commands: ["ls", "terraform"]

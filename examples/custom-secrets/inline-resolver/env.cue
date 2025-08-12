@@ -1,11 +1,9 @@
 package env
 
-import "github.com/rawkode/cuenv"
-
 // Example: Custom command resolver for HashiCorp Vault
-env: cuenv.#Env & {
+env: {
 	// Inline custom resolver
-	DATABASE_PASSWORD: cuenv.#Secret & {
+	DATABASE_PASSWORD: {
 		resolver: {
 			command: "vault"
 			args: ["kv", "get", "-field=password", "secret/myapp/database"]

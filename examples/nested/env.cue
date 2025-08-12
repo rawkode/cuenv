@@ -1,9 +1,7 @@
 package env
 
-import "github.com/rawkode/cuenv"
-
 // Root-level configuration
-env: cuenv.#Env & {
+env: {
 	// Root-level environment variables
 	APP_NAME:  "MyApp"
 	LOG_LEVEL: "info"

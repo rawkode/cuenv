@@ -1,9 +1,7 @@
 package env
 
-import "github.com/rawkode/cuenv"
-
 // Define a reusable resolver for HashiCorp Vault
-#VaultRef: cuenv.#Secret & {
+#VaultRef: {
 	path:  string
 	field: string
 	resolver: {
@@ -13,7 +11,7 @@ import "github.com/rawkode/cuenv"
 }
 
 // Example: Using the reusable VaultRef resolver
-env: cuenv.#Env & {
+env: {
 	// Use the reusable resolver
 	DATABASE_PASSWORD: #VaultRef & {
 		path:  "secret/myapp/database"

@@ -1,9 +1,5 @@
 package env
 
-import "github.com/rawkode/cuenv"
-
-cuenv.#Env
-
 env: {
 	DATABASE_URL: "postgres://localhost/myapp"
 	API_KEY:      "test-api-key"
