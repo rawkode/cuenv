@@ -37,7 +37,7 @@ jobs:
             contents: write
             pull-requests: write
             actions: read
-          custom_instructions: |
+          override_prompt: |
             Your task is to analyze the current state of the cuenv project and identify ONE specific documentation improvement that would help users better understand or use the project.
 
             Steps to follow:
