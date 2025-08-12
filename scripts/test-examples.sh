@@ -2,6 +2,9 @@
 
 set -euo pipefail
 
+# Set CUENV_PACKAGE for all tests
+export CUENV_PACKAGE=examples
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -69,7 +72,7 @@ test_secret_resolution() {
     # Create a temporary test file
     TEMP_DIR=$(mktemp -d)
     cat > "$TEMP_DIR/env.cue" << 'EOF'
-package env
+package examples
 
 env: {
     NORMAL_VAR: "plain-value"

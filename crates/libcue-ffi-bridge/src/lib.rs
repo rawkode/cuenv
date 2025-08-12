@@ -233,7 +233,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
 
         // Create a simple valid CUE file
-        let cue_content = r#"package env
+        let cue_content = r#"package cuenv
 
 env: {
     TEST_VAR: "test_value"
@@ -244,7 +244,7 @@ env: {
 
         // This test depends on the Go FFI being available
         // In a real environment, this should work
-        let result = evaluate_cue_package(temp_dir.path(), "env");
+        let result = evaluate_cue_package(temp_dir.path(), "cuenv");
 
         // The result depends on whether the FFI bridge is properly built
         // In CI this might fail if Go dependencies aren't available
@@ -266,14 +266,14 @@ env: {
         let temp_dir = TempDir::new().unwrap();
 
         // Create an invalid CUE file
-        let invalid_cue = r#"package env
+        let invalid_cue = r#"package cuenv
 
 this is not valid CUE syntax {
     missing quotes and wrong structure
 "#;
         fs::write(temp_dir.path().join("env.cue"), invalid_cue).unwrap();
 
-        let result = evaluate_cue_package(temp_dir.path(), "env");
+        let result = evaluate_cue_package(temp_dir.path(), "cuenv");
 
         // The behavior depends on the Go CUE implementation and FFI availability
         // In CI environments, the FFI bridge may be more lenient or handle errors differently
@@ -314,12 +314,12 @@ this is not valid CUE syntax {
         let temp_dir = TempDir::new().unwrap();
 
         // Create a simple CUE file
-        let cue_content = "package env\nenv: { TEST: \"value\" }";
+        let cue_content = "package cuenv\nenv: { TEST: \"value\" }";
         fs::write(temp_dir.path().join("env.cue"), cue_content).unwrap();
 
         // Call FFI function multiple times to test memory management
         for i in 0..100 {
-            let result = evaluate_cue_package(temp_dir.path(), "env");
+            let result = evaluate_cue_package(temp_dir.path(), "cuenv");
 
             // Each call should be independent and not cause memory issues
             if result.is_ok() {

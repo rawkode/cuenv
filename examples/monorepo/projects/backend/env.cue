@@ -1,4 +1,4 @@
-package env
+package examples
 
 env: {
 	GO_ENV:       "development"

@@ -22,7 +22,7 @@ async fn test_resolve_cross_package_dependencies() {
     fs::create_dir_all(root.join("frontend")).unwrap();
     fs::write(
         root.join("frontend/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { FRONTEND: "true" }
 tasks: {
     "build": {
@@ -42,7 +42,7 @@ tasks: {
     fs::create_dir_all(root.join("backend")).unwrap();
     fs::write(
         root.join("backend/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { BACKEND: "true" }
 tasks: {
     "build": {
@@ -64,7 +64,7 @@ tasks: {
     // Deploy package that depends on both
     fs::write(
         root.join("env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { ROOT: "true" }
 tasks: {
     "deploy": {
@@ -117,7 +117,7 @@ async fn test_resolve_missing_outputs() {
     // Package with declared but missing outputs
     fs::write(
         root.join("env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { ROOT: "true" }
 tasks: {
     "build": {
@@ -159,7 +159,7 @@ async fn test_access_cross_package_outputs() {
     fs::create_dir_all(root.join("lib")).unwrap();
     fs::write(
         root.join("lib/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { LIB: "true" }
 tasks: {
     "build": {
@@ -178,7 +178,7 @@ tasks: {
     fs::create_dir_all(root.join("app")).unwrap();
     fs::write(
         root.join("app/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { APP: "true" }
 tasks: {
     "build": {
@@ -247,7 +247,7 @@ async fn test_circular_dependencies() {
     fs::create_dir_all(root.join("a")).unwrap();
     fs::write(
         root.join("a/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { A: "true" }
 tasks: {
     "build": {
@@ -262,7 +262,7 @@ tasks: {
     fs::create_dir_all(root.join("b")).unwrap();
     fs::write(
         root.join("b/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { B: "true" }
 tasks: {
     "build": {
@@ -303,7 +303,7 @@ async fn test_transitive_dependencies() {
     fs::create_dir_all(root.join("c")).unwrap();
     fs::write(
         root.join("c/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { C: "true" }
 tasks: {
     "build": {
@@ -319,7 +319,7 @@ tasks: {
     fs::create_dir_all(root.join("b")).unwrap();
     fs::write(
         root.join("b/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { B: "true" }
 tasks: {
     "build": {
@@ -337,7 +337,7 @@ tasks: {
     fs::create_dir_all(root.join("a")).unwrap();
     fs::write(
         root.join("a/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { A: "true" }
 tasks: {
     "build": {

@@ -1,4 +1,4 @@
-package env
+package examples
 
 env: {
 	NODE_ENV:      "development"

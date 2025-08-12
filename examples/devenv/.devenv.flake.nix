@@ -1,14 +1,14 @@
 {
   inputs =
     let
-      version = "1.8.0";
+      version = "1.8.1";
       system = "x86_64-linux";
-      devenv_root = "/home/rawkode/Code/src/github.com/rawkode/cuenv/examples/devenv-integration";
+      devenv_root = "/home/rawkode/Code/src/github.com/rawkode/cuenv/examples/devenv";
       devenv_dotfile = ./.devenv;
       devenv_dotfile_string = ".devenv";
       container_name = null;
       devenv_tmpdir = "/run/user/1000";
-      devenv_runtime = "/run/user/1000/devenv-f769f26";
+      devenv_runtime = "/run/user/1000/devenv-cc42644";
       devenv_istesting = false;
       devenv_direnvrc_latest_version = 1;
 
@@ -25,14 +25,14 @@
 
   outputs = { nixpkgs, ... }@inputs:
     let
-      version = "1.8.0";
+      version = "1.8.1";
       system = "x86_64-linux";
-      devenv_root = "/home/rawkode/Code/src/github.com/rawkode/cuenv/examples/devenv-integration";
+      devenv_root = "/home/rawkode/Code/src/github.com/rawkode/cuenv/examples/devenv";
       devenv_dotfile = ./.devenv;
       devenv_dotfile_string = ".devenv";
       container_name = null;
       devenv_tmpdir = "/run/user/1000";
-      devenv_runtime = "/run/user/1000/devenv-f769f26";
+      devenv_runtime = "/run/user/1000/devenv-cc42644";
       devenv_istesting = false;
       devenv_direnvrc_latest_version = 1;
 

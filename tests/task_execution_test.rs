@@ -20,7 +20,7 @@ async fn test_execute_simple_task() {
     // Create a package with a simple task
     fs::write(
         root.join("env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { ROOT: "true" }
 tasks: {
     "hello": {
@@ -64,7 +64,7 @@ async fn test_execute_with_dependencies() {
     // Create a package with dependent tasks
     fs::write(
         root.join("env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { ROOT: "true" }
 tasks: {
     "prepare": {
@@ -120,7 +120,7 @@ async fn test_cross_package_execution() {
     fs::create_dir_all(root.join("lib")).unwrap();
     fs::write(
         root.join("lib/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { LIB: "true" }
 tasks: {
     "build": {
@@ -135,7 +135,7 @@ tasks: {
     fs::create_dir_all(root.join("app")).unwrap();
     fs::write(
         root.join("app/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { APP: "true" }
 tasks: {
     "build": {
@@ -182,7 +182,7 @@ async fn test_execution_order() {
     fs::create_dir_all(root.join("a")).unwrap();
     fs::write(
         root.join("a/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { A: "true" }
 tasks: {
     "build": {
@@ -196,7 +196,7 @@ tasks: {
     fs::create_dir_all(root.join("b")).unwrap();
     fs::write(
         root.join("b/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { B: "true" }
 tasks: {
     "build": {
@@ -210,7 +210,7 @@ tasks: {
     fs::create_dir_all(root.join("c")).unwrap();
     fs::write(
         root.join("c/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { C: "true" }
 tasks: {
     "build": {
@@ -250,7 +250,7 @@ async fn test_task_caching() {
     // Create a package with diamond dependency: D depends on B and C, both depend on A
     fs::write(
         root.join("env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { ROOT: "true" }
 tasks: {
     "a": {

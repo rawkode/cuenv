@@ -39,7 +39,7 @@ async fn should_load_environment_variables_from_cue_file() {
     // Given: A directory with a CUE file containing environment variables
     let temp_dir = TempDir::new().unwrap();
     let cue_content = r#"
-package env
+package cuenv
 
 env: {
 DATABASE_URL: "postgres://localhost:5432/mydb"
@@ -108,7 +108,7 @@ async fn should_override_global_variables_with_environment_specific() {
     // Given: A CUE file with global and environment-specific variables
     let temp_dir = TempDir::new().unwrap();
     let cue_content = r#"
-package env
+package cuenv
 
 env: {
 // Global variables
@@ -151,7 +151,7 @@ async fn should_filter_variables_based_on_capabilities() {
     // Given: A CUE file with capability-gated variables
     let temp_dir = TempDir::new().unwrap();
     let cue_content = r#"
-package env
+package cuenv
 
 env: {
 // Always included
@@ -250,7 +250,7 @@ async fn should_provide_resolved_environment_to_commands() {
     // Given: A CUE file with environment variables and commands
     let temp_dir = TempDir::new().unwrap();
     let cue_content = r#"
-package env
+package cuenv
 
 env: {
 DATABASE_URL: "postgres://localhost:5432/mydb"
@@ -317,7 +317,7 @@ async fn should_inherit_required_system_variables() {
     // Given: A minimal CUE file
     let temp_dir = TempDir::new().unwrap();
     let cue_content = r#"
-package env
+package cuenv
 
 env: {
 MY_VAR: "my-value"

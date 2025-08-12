@@ -9,7 +9,7 @@ async fn test_run_command_hermetic() {
     let env_file = temp_dir.path().join("env.cue");
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {
     TEST_FROM_CUE: "cue_value"
@@ -57,7 +57,7 @@ async fn test_run_command_with_secret_refs() {
     // We can't test actual secret resolution without mocking the secret managers
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {
     NORMAL_VAR: "normal-value"
@@ -97,7 +97,7 @@ async fn test_run_command_preserves_path_and_home() {
     let env_file = temp_dir.path().join("env.cue");
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {
     TEST_VAR: "test"
@@ -138,7 +138,7 @@ async fn test_run_command_with_restrictions() {
     let env_file = temp_dir.path().join("env.cue");
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {
     TEST_VAR: "test"

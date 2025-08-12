@@ -1,4 +1,4 @@
-package env
+package examples
 
 // Test environment sourcing with a simple shell script
 hooks: {

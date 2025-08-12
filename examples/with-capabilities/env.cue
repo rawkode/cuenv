@@ -1,4 +1,4 @@
-package env
+package examples
 
 // Environment configuration with capabilities
 env: {

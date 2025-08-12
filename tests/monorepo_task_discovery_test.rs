@@ -17,7 +17,7 @@ fn create_test_monorepo(root: &Path) -> Vec<(&'static str, &'static str)> {
     // Create root env.cue with tasks
     fs::write(
         root.join("env.cue"),
-        r#"package env
+        r#"package cuenv
 
 env: {
     ROOT_VAR: "root"
@@ -35,7 +35,7 @@ tasks: {
     fs::create_dir_all(root.join("projects/frontend")).unwrap();
     fs::write(
         root.join("projects/frontend/env.cue"),
-        r#"package env
+        r#"package cuenv
 
 env: {
     FRONTEND_VAR: "frontend"
@@ -58,7 +58,7 @@ tasks: {
     fs::create_dir_all(root.join("projects/backend")).unwrap();
     fs::write(
         root.join("projects/backend/env.cue"),
-        r#"package env
+        r#"package cuenv
 
 env: {
     BACKEND_VAR: "backend"
@@ -80,7 +80,7 @@ tasks: {
     fs::create_dir_all(root.join("tools/ci")).unwrap();
     fs::write(
         root.join("tools/ci/env.cue"),
-        r#"package env
+        r#"package cuenv
 
 env: {
     CI_VAR: "ci"
@@ -325,7 +325,7 @@ async fn test_registry_with_missing_package() {
     // Create one package with dependency on non-existent package
     fs::write(
         root.join("env.cue"),
-        r#"package env
+        r#"package cuenv
 
 tasks: {
     "deploy": {

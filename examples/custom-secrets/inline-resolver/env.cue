@@ -1,4 +1,4 @@
-package env
+package examples
 
 // Example: Custom command resolver for HashiCorp Vault
 env: {

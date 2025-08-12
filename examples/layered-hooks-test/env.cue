@@ -1,4 +1,4 @@
-package env
+package examples
 
 // Test the new layered hook system
 hooks: {

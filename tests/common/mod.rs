@@ -95,7 +95,7 @@ pub fn setup_test_project_structure() -> Result<TempDir, std::io::Error> {
     fs::write(temp_dir.path().join("README.md"), "# Test Project")?;
 
     // Create env.cue with basic configuration
-    let cue_content = r#"package env
+    let cue_content = r#"package cuenv
 
 env: {
     PROJECT_NAME: "test_project"
@@ -121,7 +121,7 @@ tasks: {
 
 /// Helper to create a CUE file with environment variables
 pub fn create_env_cue_with_vars(vars: &[(&str, &str)]) -> String {
-    let mut content = String::from("package env\n\nenv: {\n");
+    let mut content = String::from("package cuenv\n\nenv: {\n");
 
     for (key, value) in vars {
         content.push_str(&format!("    {}: \"{}\"\n", key, value));
@@ -133,7 +133,7 @@ pub fn create_env_cue_with_vars(vars: &[(&str, &str)]) -> String {
 
 /// Helper to create a CUE file with tasks
 pub fn create_env_cue_with_tasks(tasks: &[(&str, &str)]) -> String {
-    let mut content = String::from("package env\n\ntasks: {\n");
+    let mut content = String::from("package cuenv\n\ntasks: {\n");
 
     for (name, command) in tasks {
         content.push_str(&format!(
@@ -308,7 +308,7 @@ mod tests {
 
     #[test]
     fn test_setup_test_env_with_cue() {
-        let cue_content = "package env\nenv: { TEST: \"value\" }";
+        let cue_content = "package cuenv\nenv: { TEST: \"value\" }";
         let temp_dir = setup_test_env_with_cue(cue_content).expect("Should create test env");
 
         let env_file = temp_dir.path().join("env.cue");
@@ -355,7 +355,7 @@ mod tests {
 
         assert!(cue_content.contains("KEY1: \"value1\""));
         assert!(cue_content.contains("KEY2: \"value2\""));
-        assert!(cue_content.contains("package env"));
+        assert!(cue_content.contains("package cuenv"));
 
         let tasks = [("build", "cargo build"), ("test", "cargo test")];
         let task_cue = create_env_cue_with_tasks(&tasks);

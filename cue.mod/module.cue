@@ -1,4 +1,4 @@
 module: "github.com/rawkode/cuenv"
 language: {
-	version: "v0.14.0"
+	version: "v0.13.0"
 }

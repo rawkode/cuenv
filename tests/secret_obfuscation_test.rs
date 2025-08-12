@@ -15,7 +15,7 @@ fn test_secret_obfuscation_in_output() {
     // Create a CUE file with a value that looks like a secret
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {
 // Normal environment variables
@@ -90,7 +90,7 @@ fn test_secret_obfuscation_preserves_functionality() {
 
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {
 TEST_VAR: "test-value"

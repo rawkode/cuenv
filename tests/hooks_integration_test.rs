@@ -7,7 +7,7 @@ fn test_hooks_integration() {
     let dir = TempDir::new().unwrap();
     let cue_file = dir.path().join("test.cue");
 
-    let content = r#"package env
+    let content = r#"package cuenv
 
 hooks: {
     onEnter: {

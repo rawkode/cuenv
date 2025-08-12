@@ -9,7 +9,7 @@ async fn test_load_and_unload_env() {
     let env_file = temp_dir.path().join("env.cue");
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {
     CUENV_TEST_VAR_UNIQUE: "test_value"

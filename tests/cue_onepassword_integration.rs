@@ -79,7 +79,7 @@ fn test_cue_file_with_onepassword_secrets() {
     // Write a CUE file with 1Password references
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {
 import "github.com/rawkode/cuenv/onepassword"
@@ -121,7 +121,7 @@ fn test_cue_file_with_inline_resolver_format() {
     // Alternative CUE format using direct resolver structure
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {
 // Using the resolver structure directly without import
@@ -155,7 +155,7 @@ async fn test_onepassword_integration_with_cue() {
     let env_file = temp_dir.path().join("env.cue");
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {
 import (

@@ -247,7 +247,7 @@ mod comprehensive_concurrent_tests {
         // A -> B -> D
         // A -> C -> D
         // E -> D
-        let tasks_cue = r#"package env
+        let tasks_cue = r#"package cuenv
 env: {}
 tasks: {
     "A": {
@@ -362,7 +362,7 @@ tasks: {
         .unwrap();
 
         // Create failing task configuration
-        let tasks_cue = r#"package env
+        let tasks_cue = r#"package cuenv
 env: {}
 tasks: {
     "setup": {

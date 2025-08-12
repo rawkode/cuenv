@@ -130,7 +130,7 @@ fn check_for_error_response(json_value: &serde_json::Value, dir: &Path) -> Resul
 
 fn get_recovery_hint(error: &str) -> &'static str {
     if error.contains("cannot find package") {
-        "Ensure your .cue files have 'package env' at the top"
+        "Ensure your .cue files have 'package cuenv' at the top"
     } else if error.contains("expected") || error.contains("syntax") {
         "Check for missing commas, brackets, or quotes in your CUE file"
     } else if error.contains("cycle") {

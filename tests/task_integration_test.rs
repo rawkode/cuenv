@@ -46,7 +46,7 @@ fn test_task_listing() {
 
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {
     APP_NAME: "test-app"
@@ -92,7 +92,7 @@ fn test_task_execution() {
 
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {
     APP_NAME: "test-app"
@@ -138,7 +138,7 @@ fn test_task_with_dependencies() {
 
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {}
 
@@ -185,7 +185,7 @@ fn test_missing_task_error() {
 
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {}
 
@@ -227,7 +227,7 @@ fn test_task_with_script() {
 
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {
     TEST_VAR: "script-test"

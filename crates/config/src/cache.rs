@@ -126,7 +126,7 @@ mod tests {
     fn test_cache_save_and_get() -> std::io::Result<()> {
         let temp_dir = TempDir::new()?;
         let cue_file = temp_dir.path().join("test.cue");
-        fs::write(&cue_file, "package env")?;
+        fs::write(&cue_file, "package cuenv")?;
 
         // Create a parse result
         let mut result = ParseResult::default();
@@ -148,7 +148,7 @@ mod tests {
     fn test_cache_invalidation() -> std::io::Result<()> {
         let temp_dir = TempDir::new()?;
         let cue_file = temp_dir.path().join("test.cue");
-        fs::write(&cue_file, "package env")?;
+        fs::write(&cue_file, "package cuenv")?;
 
         // Create and save a parse result
         let result = ParseResult::default();
@@ -156,7 +156,7 @@ mod tests {
 
         // Modify the file (with a small delay to ensure different mtime)
         std::thread::sleep(std::time::Duration::from_millis(10));
-        fs::write(&cue_file, "package env\n// modified")?;
+        fs::write(&cue_file, "package cuenv\n// modified")?;
 
         // Cache should be invalidated
         assert!(CueCache::get(&cue_file).is_none());

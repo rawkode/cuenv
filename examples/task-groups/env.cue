@@ -1,4 +1,4 @@
-package env
+package examples
 
 env: {
 	DATABASE_URL: "postgres://localhost/myapp"
@@ -12,7 +12,7 @@ tasks: {
 	"ci": {
 		description: "CI workflow with dependency graph"
 		mode: "workflow"
-		
+
 		"lint": {
 			description: "Run linters"
 			command: "echo 'Running linters...'"
@@ -42,7 +42,7 @@ tasks: {
 	"deploy": {
 		description: "Deployment process"
 		mode: "sequential"
-		
+
 		"backup": {
 			description: "Backup current deployment"
 			command: "echo 'Creating backup...'"
@@ -69,7 +69,7 @@ tasks: {
 	"assets": {
 		description: "Build all assets in parallel"
 		mode: "parallel"
-		
+
 		"css": {
 			description: "Compile CSS"
 			command: "echo 'Compiling CSS...'"
@@ -100,7 +100,7 @@ tasks: {
 	"utils": {
 		description: "Utility tasks"
 		// mode: "group" is default, no need to specify
-		
+
 		"clean": {
 			description: "Clean build artifacts"
 			command: "echo 'Cleaning...'"
@@ -121,11 +121,11 @@ tasks: {
 	"release": {
 		description: "Full release process"
 		mode: "workflow"
-		
+
 		"quality": {
 			description: "Quality checks"
 			mode: "parallel"
-			
+
 			"lint": {
 				command: "echo 'Linting...'"
 			}
@@ -136,12 +136,12 @@ tasks: {
 				command: "echo 'Security audit...'"
 			}
 		}
-		
+
 		"build": {
 			description: "Build for all platforms"
 			mode: "parallel"
 			dependencies: ["quality"]
-			
+
 			"linux": {
 				command: "echo 'Building for Linux...'"
 				outputs: ["target/linux/app"]
@@ -155,12 +155,12 @@ tasks: {
 				outputs: ["target/windows/app.exe"]
 			}
 		}
-		
+
 		"publish": {
 			description: "Publish release"
 			mode: "sequential"
 			dependencies: ["build"]
-			
+
 			"tag": {
 				command: "echo 'Creating git tag...'"
 			}

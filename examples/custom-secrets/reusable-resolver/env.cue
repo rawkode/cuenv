@@ -1,4 +1,4 @@
-package env
+package examples
 
 // Define a reusable resolver for HashiCorp Vault
 #VaultRef: {

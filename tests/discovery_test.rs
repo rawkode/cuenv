@@ -19,7 +19,7 @@ language: {
     // Create root env.cue
     fs::write(
         root.join("env.cue"),
-        r#"package env
+        r#"package cuenv
 
 env: {
     ROOT_VAR: "root_value"
@@ -31,7 +31,7 @@ env: {
     fs::create_dir_all(root.join("projects/frontend")).unwrap();
     fs::write(
         root.join("projects/frontend/env.cue"),
-        r#"package env
+        r#"package cuenv
 
 env: {
     FRONTEND_VAR: "frontend_value"
@@ -42,7 +42,7 @@ env: {
     fs::create_dir_all(root.join("projects/backend")).unwrap();
     fs::write(
         root.join("projects/backend/env.cue"),
-        r#"package env
+        r#"package cuenv
 
 env: {
     BACKEND_VAR: "backend_value"
@@ -54,7 +54,7 @@ env: {
     fs::create_dir_all(root.join("tools/ci")).unwrap();
     fs::write(
         root.join("tools/ci/env.cue"),
-        r#"package env
+        r#"package cuenv
 
 env: {
     CI_VAR: "ci_value"
@@ -65,7 +65,7 @@ env: {
     fs::create_dir_all(root.join("tools/scripts")).unwrap();
     fs::write(
         root.join("tools/scripts/env.cue"),
-        r#"package env
+        r#"package cuenv
 
 env: {
     SCRIPTS_VAR: "scripts_value"
@@ -81,7 +81,7 @@ env: {
     }
     fs::write(
         deep_path.join("env.cue"),
-        r#"package env
+        r#"package cuenv
 
 env: {
     DEEP_VAR: "deep_value"
@@ -391,7 +391,7 @@ async fn test_discovery_with_invalid_cue_files() {
     // Create valid env.cue
     fs::write(
         root.join("env.cue"),
-        r#"package env
+        r#"package cuenv
 env: {
     VALID: "yes"
 }"#,
@@ -402,7 +402,7 @@ env: {
     fs::create_dir_all(root.join("broken")).unwrap();
     fs::write(
         root.join("broken/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: {
     INVALID: "missing closing brace"
 "#,

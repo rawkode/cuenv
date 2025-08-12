@@ -1,4 +1,4 @@
-package env
+package examples
 
 // Source nix develop environment
 hooks: {

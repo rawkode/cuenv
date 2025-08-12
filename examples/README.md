@@ -4,7 +4,7 @@ This directory contains examples demonstrating different features of cuenv using
 
 ## Structure
 
-All examples use the `package env` declaration and the `cuenv.#Env` schema:
+All examples use the `package examples` declaration and the `cuenv.#Env` schema:
 
 - **basic/** - Simple environment variables with CUE interpolation
 - **with-capabilities/** - Capability-based variable filtering and commands
@@ -35,7 +35,7 @@ eval $(cuenv load)
 The standard structure for a cuenv file is:
 
 ```cue
-package env
+package examples
 
 import "github.com/rawkode/cuenv"
 
@@ -81,7 +81,7 @@ env: cuenv.#Env & {
 
 ## Key Points
 
-1. **Package Declaration**: Always use `package env`
+1. **Package Declaration**: Always use `package examples`
 2. **Import Schema**: Import `"github.com/rawkode/cuenv"` for the `#Env` schema
 3. **Environment Block**: Define all configuration within `env: cuenv.#Env & { ... }`
 4. **Type Safety**: The `#Env` schema provides validation and structure

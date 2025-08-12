@@ -28,7 +28,7 @@ fn valid_capability_name() -> impl Strategy<Value = String> {
 
 /// Generate a simple CUE file content with environment variables
 fn cue_env_content(vars: Vec<(String, String)>) -> String {
-    let mut content = String::from("package env\n\nenv: {\n");
+    let mut content = String::from("package cuenv\n\nenv: {\n");
 
     for (key, value) in vars {
         content.push_str(&format!(
@@ -44,7 +44,7 @@ fn cue_env_content(vars: Vec<(String, String)>) -> String {
 
 /// Generate a CUE file with capabilities
 fn cue_with_capabilities(vars: Vec<(String, String, Option<String>)>) -> String {
-    let mut content = String::from("package env\n\nenv: {\n");
+    let mut content = String::from("package cuenv\n\nenv: {\n");
 
     for (key, value, capability) in vars {
         if let Some(cap) = capability {
@@ -72,7 +72,7 @@ fn cue_with_environments(
     global_vars: Vec<(String, String)>,
     environments: HashMap<String, Vec<(String, String)>>,
 ) -> String {
-    let mut content = String::from("package env\n\nenv: {\n");
+    let mut content = String::from("package cuenv\n\nenv: {\n");
 
     // Global variables
     for (key, value) in global_vars {
@@ -108,7 +108,7 @@ fn cue_with_environments(
 fn test_parse_empty_file_is_valid() {
     let temp_dir = TempDir::new().unwrap();
     let cue_file = temp_dir.path().join("env.cue");
-    let content = "package env\n";
+    let content = "package cuenv\n";
     fs::write(&cue_file, content).unwrap();
 
     let options = ParseOptions::default();
@@ -431,7 +431,7 @@ proptest! {
             .replace('\n', "\\n")
             .replace('\t', "\\t");
 
-        let content = format!("package env\n\nenv: {{\n    {key}: \"{escaped_value}\"\n}}\n");
+        let content = format!("package cuenv\n\nenv: {{\n    {key}: \"{escaped_value}\"\n}}\n");
         fs::write(&cue_file, content).unwrap();
 
         let options = ParseOptions::default();
@@ -472,7 +472,7 @@ proptest! {
         let temp_dir = TempDir::new().unwrap();
         let cue_file = temp_dir.path().join("env.cue");
 
-        let mut content = String::from("package env\n\nenv: {\n");
+        let mut content = String::from("package cuenv\n\nenv: {\n");
 
         // Write base variables
         for (key, value) in &base_vars {

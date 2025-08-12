@@ -295,15 +295,15 @@ mod tests {
         fs::create_dir(&cue_mod_dir).unwrap();
 
         // Create env.cue files in various locations
-        fs::write(temp_dir.path().join("env.cue"), "package env\n").unwrap();
+        fs::write(temp_dir.path().join("env.cue"), "package cuenv\n").unwrap();
 
         let projects_dir = temp_dir.path().join("projects");
         fs::create_dir(&projects_dir).unwrap();
-        fs::write(projects_dir.join("env.cue"), "package env\n").unwrap();
+        fs::write(projects_dir.join("env.cue"), "package cuenv\n").unwrap();
 
         let backend_dir = projects_dir.join("backend");
         fs::create_dir(&backend_dir).unwrap();
-        fs::write(backend_dir.join("env.cue"), "package env\n").unwrap();
+        fs::write(backend_dir.join("env.cue"), "package cuenv\n").unwrap();
 
         let mut discovery = PackageDiscovery::new(32);
         let env_files = discovery.discover_env_files(temp_dir.path()).unwrap();

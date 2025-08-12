@@ -1,0 +1,5 @@
+/home/rawkode/Code/src/github.com/rawkode/cuenv/examples/devenv/.devenv/flake.json
+/home/rawkode/Code/src/github.com/rawkode/cuenv/examples/devenv/.devenv.flake.nix
+/home/rawkode/Code/src/github.com/rawkode/cuenv/examples/devenv/devenv.lock
+/home/rawkode/Code/src/github.com/rawkode/cuenv/examples/devenv/devenv.nix
+/home/rawkode/Code/src/github.com/rawkode/cuenv/examples/devenv/devenv.yaml

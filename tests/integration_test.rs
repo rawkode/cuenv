@@ -10,7 +10,7 @@ fn test_cuenv_run_with_cue_file() {
 
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {
 APP_NAME: "integration-test"
@@ -52,7 +52,7 @@ fn test_cuenv_run_hermetic_environment() {
 
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {
 FROM_CUE: "cue-value"
@@ -90,7 +90,7 @@ fn test_cuenv_run_preserves_required_vars() {
 
     fs::write(
         &env_file,
-        r#"package env
+        r#"package cuenv
 
 env: {
 TEST: "value"

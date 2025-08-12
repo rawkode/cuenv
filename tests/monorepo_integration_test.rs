@@ -34,7 +34,7 @@ fn test_monorepo_discover_command() {
     // Root package
     fs::write(
         root.join("env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { ROOT: "true" }
 tasks: {
     "deploy": {
@@ -49,7 +49,7 @@ tasks: {
     fs::create_dir_all(root.join("frontend")).unwrap();
     fs::write(
         root.join("frontend/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { FRONTEND: "true" }
 tasks: {
     "build": {
@@ -64,7 +64,7 @@ tasks: {
     fs::create_dir_all(root.join("backend")).unwrap();
     fs::write(
         root.join("backend/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { BACKEND: "true" }
 tasks: {
     "build": {
@@ -126,7 +126,7 @@ fn test_monorepo_task_execution() {
     // Root package (required for discovery to work)
     fs::write(
         root.join("env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { ROOT: "true" }"#,
     )
     .unwrap();
@@ -135,7 +135,7 @@ env: { ROOT: "true" }"#,
     fs::create_dir_all(root.join("lib")).unwrap();
     fs::write(
         root.join("lib/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { LIB: "true" }
 tasks: {
     "build": {
@@ -151,7 +151,7 @@ tasks: {
     fs::create_dir_all(root.join("app")).unwrap();
     fs::write(
         root.join("app/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { APP: "true" }
 tasks: {
     "build": {
@@ -204,7 +204,7 @@ fn test_monorepo_task_list() {
     // Create multiple packages with tasks
     fs::write(
         root.join("env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { ROOT: "true" }
 tasks: {
     "clean": {
@@ -218,7 +218,7 @@ tasks: {
     fs::create_dir_all(root.join("services/api")).unwrap();
     fs::write(
         root.join("services/api/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { API: "true" }
 tasks: {
     "test": {
@@ -277,7 +277,7 @@ fn test_run_task_from_subdirectory() {
     // Root package (required for discovery to work)
     fs::write(
         root.join("env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { ROOT: "true" }"#,
     )
     .unwrap();
@@ -286,7 +286,7 @@ env: { ROOT: "true" }"#,
     fs::create_dir_all(root.join("packages/web")).unwrap();
     fs::write(
         root.join("packages/web/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { WEB: "true" }
 tasks: {
     "build": {
@@ -300,7 +300,7 @@ tasks: {
     fs::create_dir_all(root.join("packages/api")).unwrap();
     fs::write(
         root.join("packages/api/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { API: "true" }
 tasks: {
     "build": {
@@ -350,7 +350,7 @@ fn test_circular_dependency_detection() {
     // Root package (required for discovery to work)
     fs::write(
         root.join("env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { ROOT: "true" }"#,
     )
     .unwrap();
@@ -358,7 +358,7 @@ env: { ROOT: "true" }"#,
     fs::create_dir_all(root.join("a")).unwrap();
     fs::write(
         root.join("a/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { A: "true" }
 tasks: {
     "build": {
@@ -372,7 +372,7 @@ tasks: {
     fs::create_dir_all(root.join("b")).unwrap();
     fs::write(
         root.join("b/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { B: "true" }
 tasks: {
     "build": {
@@ -416,7 +416,7 @@ fn test_task_with_cross_package_outputs() {
     // Root package (required for discovery to work)
     fs::write(
         root.join("env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { ROOT: "true" }"#,
     )
     .unwrap();
@@ -425,7 +425,7 @@ env: { ROOT: "true" }"#,
     fs::create_dir_all(root.join("generator")).unwrap();
     fs::write(
         root.join("generator/env.cue"),
-        r#"package env
+        r#"package cuenv
 env: { GENERATOR: "true" }
 tasks: {
     "generate": {
@@ -482,7 +482,7 @@ fi
     fs::write(
         root.join("processor/env.cue"),
         format!(
-            r#"package env
+            r#"package cuenv
 env: {{ PROCESSOR: "true" }}
 tasks: {{
     "process": {{

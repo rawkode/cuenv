@@ -56,7 +56,7 @@ mod executor_tests {
 
     #[tokio::test]
     async fn test_simple_task_discovery() {
-        let tasks_cue = r#"package env
+        let tasks_cue = r#"package cuenv
 
 env: {
     DATABASE_URL: "test"
@@ -97,7 +97,7 @@ tasks: {
 
     #[tokio::test]
     async fn test_task_dependency_resolution() {
-        let tasks_cue = r#"package env
+        let tasks_cue = r#"package cuenv
 
 env: {}
 
@@ -139,7 +139,7 @@ tasks: {
 
     #[tokio::test]
     async fn test_circular_dependency_detection() {
-        let tasks_cue = r#"package env
+        let tasks_cue = r#"package cuenv
 
 env: {}
 
@@ -178,7 +178,7 @@ tasks: {
 
     #[tokio::test]
     async fn test_missing_task_error() {
-        let tasks_cue = r#"package env
+        let tasks_cue = r#"package cuenv
 
 env: {}
 
@@ -209,7 +209,7 @@ tasks: {
 
     #[tokio::test]
     async fn test_missing_dependency_error() {
-        let tasks_cue = r#"package env
+        let tasks_cue = r#"package cuenv
 
 env: {}
 
@@ -241,7 +241,7 @@ tasks: {
 
     #[tokio::test]
     async fn test_complex_dependency_graph() {
-        let tasks_cue = r#"package env
+        let tasks_cue = r#"package cuenv
 
 env: {}
 

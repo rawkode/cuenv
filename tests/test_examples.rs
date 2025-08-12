@@ -10,8 +10,8 @@ fn get_cuenv_binary() -> PathBuf {
 fn test_basic_env_loading() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create a basic env.cue file in package env
-    let env_content = r#"package env
+    // Create a basic env.cue file in package examples
+    let env_content = r#"package examples
 
 env: {
     DATABASE_URL: "postgres://localhost/mydb"
@@ -27,6 +27,7 @@ env: {
         .env_clear() // Clear all environment variables to ensure clean test
         .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
         .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string())) // CUE needs HOME
+        .env("CUENV_PACKAGE", "examples") // Set package name for tests
         .output()
         .expect("Failed to execute command");
 
@@ -46,7 +47,7 @@ env: {
 fn test_capabilities_filtering() {
     let temp_dir = TempDir::new().unwrap();
 
-    let env_content = r#"package env
+    let env_content = r#"package examples
 
 env: {
     DATABASE_URL: "postgres://localhost/mydb"
@@ -65,6 +66,7 @@ env: {
         .env_clear() // Clear all environment variables to ensure clean test
         .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
         .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string())) // CUE needs HOME
+        .env("CUENV_PACKAGE", "examples") // Set package name for tests
         .output()
         .expect("Failed to execute command");
 
@@ -95,7 +97,7 @@ env: {
 fn test_environment_overrides() {
     let temp_dir = TempDir::new().unwrap();
 
-    let env_content = r#"package env
+    let env_content = r#"package examples
 
 env: {
     DATABASE_URL: "postgres://localhost/mydb"
@@ -137,7 +139,7 @@ env: {
 fn test_secret_references() {
     let temp_dir = TempDir::new().unwrap();
 
-    let env_content = r#"package env
+    let env_content = r#"package examples
 
 env: {
 DATABASE_URL: "postgres://localhost/mydb"
@@ -153,6 +155,7 @@ GITHUB_TOKEN: "github://myorg/myrepo/GITHUB_TOKEN"
         .env_clear() // Clear all environment variables to ensure clean test
         .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
         .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string())) // CUE needs HOME
+        .env("CUENV_PACKAGE", "examples") // Set package name for tests
         .output()
         .expect("Failed to execute command");
 
@@ -168,7 +171,7 @@ GITHUB_TOKEN: "github://myorg/myrepo/GITHUB_TOKEN"
 fn test_command_capability_inference() {
     let temp_dir = TempDir::new().unwrap();
 
-    let env_content = r#"package env
+    let env_content = r#"package examples
 
 env: {
 DATABASE_URL: "postgres://localhost/mydb"
@@ -209,7 +212,7 @@ capabilities: {
 fn test_invalid_cue_syntax() {
     let temp_dir = TempDir::new().unwrap();
 
-    let invalid_content = r#"package env
+    let invalid_content = r#"package examples
 
 env: {
 INVALID_SYNTAX: {
@@ -224,6 +227,7 @@ INVALID_SYNTAX: {
         .env_clear() // Clear all environment variables to ensure clean test
         .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
         .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string())) // CUE needs HOME
+        .env("CUENV_PACKAGE", "examples") // Set package name for tests
         .output()
         .expect("Failed to execute command");
 
@@ -248,10 +252,11 @@ DATABASE_URL: "postgres://localhost/mydb"
         .env_clear() // Clear all environment variables to ensure clean test
         .env("PATH", std::env::var("PATH").unwrap_or_default()) // Keep PATH for binary lookup
         .env("HOME", std::env::var("HOME").unwrap_or("/tmp".to_string())) // CUE needs HOME
+        .env("CUENV_PACKAGE", "examples") // Set package name for tests
         .output()
         .expect("Failed to execute command");
 
-    // Should fail because package isn't "env"
+    // Should fail because package isn't "examples"
     assert!(!output.status.success());
 }
 
@@ -259,7 +264,7 @@ DATABASE_URL: "postgres://localhost/mydb"
 fn test_run_command_hermetic() {
     let temp_dir = TempDir::new().unwrap();
 
-    let env_content = r#"package env
+    let env_content = r#"package examples
 
 env: {
 TEST_FROM_CUE: "cue_value"
