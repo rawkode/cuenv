@@ -33,6 +33,7 @@ mod tests {
             metadata,
             commands: HashMap::new(),
             tasks: HashMap::new(),
+            task_nodes: HashMap::new(),
             hooks: HashMap::new(),
         }
     }

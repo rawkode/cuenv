@@ -21,6 +21,7 @@ pub struct ParseResult {
     pub metadata: HashMap<String, VariableMetadata>,
     pub commands: HashMap<String, CommandConfig>,
     pub tasks: HashMap<String, TaskConfig>,
+    pub task_nodes: HashMap<String, TaskNode>, // Preserve task structure
     pub hooks: HashMap<String, Vec<Hook>>,
 }
 
@@ -31,13 +32,14 @@ pub fn build_parse_result(
 ) -> Result<ParseResult> {
     let final_vars = build_filtered_variables(&cue_result, options);
     let hooks = extract_hooks(cue_result.hooks);
-    let tasks = process_tasks(cue_result.tasks);
+    let (tasks, task_nodes) = process_tasks_with_structure(cue_result.tasks);
 
     Ok(ParseResult {
         variables: final_vars,
         metadata: std::mem::take(&mut cue_result.metadata),
         commands: std::mem::take(&mut cue_result.commands),
         tasks,
+        task_nodes,
         hooks,
     })
 }
@@ -132,22 +134,29 @@ fn extract_hooks(hooks_config: Option<HooksConfig>) -> HashMap<String, Vec<Hook>
     hooks
 }
 
-/// Processes the hierarchical task structure into a flat map
-fn process_tasks(raw_tasks: HashMap<String, serde_json::Value>) -> HashMap<String, TaskConfig> {
-    let mut result = HashMap::new();
+/// Processes tasks while preserving the hierarchical structure
+fn process_tasks_with_structure(
+    raw_tasks: HashMap<String, serde_json::Value>,
+) -> (HashMap<String, TaskConfig>, HashMap<String, TaskNode>) {
+    let mut flat_tasks = HashMap::new();
+    let mut task_nodes = HashMap::new();
 
     for (name, value) in raw_tasks {
         // Try to deserialize as TaskNode
         if let Ok(node) = serde_json::from_value::<TaskNode>(value.clone()) {
-            // Flatten the hierarchical structure
-            flatten_task_node(&name, &node, &mut result, vec![]);
+            // Store the node structure
+            task_nodes.insert(name.clone(), node.clone());
+            // Also flatten for backwards compatibility
+            flatten_task_node(&name, &node, &mut flat_tasks, vec![]);
         } else if let Ok(task) = serde_json::from_value::<TaskConfig>(value.clone()) {
             // Fallback to direct TaskConfig (for backwards compatibility)
-            result.insert(name, task);
+            flat_tasks.insert(name.clone(), task.clone());
+            // Also store as a simple Task node
+            task_nodes.insert(name.clone(), TaskNode::Task(Box::new(task)));
         }
     }
 
-    result
+    (flat_tasks, task_nodes)
 }
 
 /// Recursively flattens a task node hierarchy

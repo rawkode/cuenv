@@ -78,6 +78,7 @@ mod protocol_tests {
             metadata: HashMap::new(),
             commands: HashMap::new(),
             tasks,
+            task_nodes: HashMap::new(),
             hooks: HashMap::new(),
         };
         let config = Arc::new(cuenv_config::Config::new(
@@ -109,6 +110,7 @@ mod protocol_tests {
             metadata: HashMap::new(),
             commands: HashMap::new(),
             tasks: tasks.clone(),
+            task_nodes: HashMap::new(),
             hooks: HashMap::new(),
         };
         let config = Arc::new(cuenv_config::Config::new(
@@ -140,6 +142,7 @@ mod protocol_tests {
             metadata: HashMap::new(),
             commands: HashMap::new(),
             tasks,
+            task_nodes: HashMap::new(),
             hooks: HashMap::new(),
         };
         let config = Arc::new(cuenv_config::Config::new(
