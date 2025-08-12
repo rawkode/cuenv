@@ -4,6 +4,7 @@ use std::path::PathBuf;
 pub mod cache;
 pub mod discover;
 pub mod env;
+pub mod exec;
 pub mod init;
 pub mod internal;
 pub mod mcp;
@@ -95,6 +96,27 @@ pub enum Commands {
     Completion {
         /// Shell to generate completion for
         shell: String,
+    },
+
+    /// Execute a command with the loaded environment
+    Exec {
+        /// Environment to use (e.g., dev, staging, production)
+        #[arg(short = 'e', long = "env")]
+        environment: Option<String>,
+
+        /// Capabilities to enable (can be specified multiple times)
+        #[arg(short = 'c', long = "capability")]
+        capabilities: Vec<String>,
+
+        /// Command to run
+        command: String,
+
+        /// Arguments to pass to the command
+        args: Vec<String>,
+
+        /// Run in audit mode to see file and network access without restrictions
+        #[arg(long)]
+        audit: bool,
     },
 
     // Internal commands

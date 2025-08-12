@@ -42,6 +42,23 @@ impl Commands {
                 dump,
             } => crate::commands::discover::execute(config, max_depth, load, dump).await,
             Commands::Completion { shell } => crate::completion::generate_completion(&shell),
+            Commands::Exec {
+                environment,
+                capabilities,
+                command,
+                args,
+                audit,
+            } => {
+                crate::commands::exec::execute(
+                    config,
+                    environment,
+                    capabilities,
+                    command,
+                    args,
+                    audit,
+                )
+                .await
+            }
             Commands::CompleteTasks => complete_tasks(config).await,
             Commands::CompleteEnvironments => complete_environments(config).await,
             Commands::CompleteHosts => complete_hosts().await,

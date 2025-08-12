@@ -173,28 +173,6 @@ pub enum TaskCommands {
         #[arg(long)]
         trace_output: bool,
     },
-
-    /// Execute a command directly with the loaded environment
-    #[command(visible_alias = "e")]
-    Exec {
-        /// Environment to use (e.g., dev, staging, production)
-        #[arg(short = 'e', long = "env")]
-        environment: Option<String>,
-
-        /// Capabilities to enable (can be specified multiple times)
-        #[arg(short = 'c', long = "capability")]
-        capabilities: Vec<String>,
-
-        /// Command to run
-        command: String,
-
-        /// Arguments to pass to the command
-        args: Vec<String>,
-
-        /// Run in audit mode to see file and network access without restrictions
-        #[arg(long)]
-        audit: bool,
-    },
 }
 
 async fn list_tasks(
