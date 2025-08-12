@@ -3,7 +3,7 @@
 use super::{create_barrier_task, create_task_id, FlattenedTask, GroupExecutionStrategy};
 use cuenv_config::TaskNode;
 use cuenv_core::Result;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// Sequential execution strategy - tasks run one after another
 pub struct SequentialStrategy;
@@ -29,9 +29,12 @@ impl GroupExecutionStrategy for SequentialStrategy {
 
         let mut prev_task_id = start_barrier_id;
 
-        // Process tasks in order (HashMap iteration order is not guaranteed,
-        // but CUE preserves definition order in the JSON output)
-        for (task_name, node) in tasks {
+        // Convert to BTreeMap to ensure deterministic ordering for sequential execution
+        let ordered_tasks: BTreeMap<String, &TaskNode> =
+            tasks.iter().map(|(k, v)| (k.clone(), v)).collect();
+
+        // Process tasks in deterministic order
+        for (task_name, node) in ordered_tasks {
             match node {
                 TaskNode::Task(config) => {
                     // In sequential mode, each task depends on the previous one
@@ -51,7 +54,7 @@ impl GroupExecutionStrategy for SequentialStrategy {
                         }
                     }
 
-                    let task_id = create_task_id(&group_path, task_name);
+                    let task_id = create_task_id(&group_path, &task_name);
                     flattened.push(FlattenedTask {
                         id: task_id.clone(),
                         group_path: group_path.clone(),
@@ -81,7 +84,7 @@ impl GroupExecutionStrategy for SequentialStrategy {
                     let strategy = super::create_strategy(mode);
                     let subtask_path = group_path.clone();
                     let mut subgroup_tasks =
-                        strategy.process_group(task_name, subtasks, subtask_path)?;
+                        strategy.process_group(&task_name, subtasks, subtask_path)?;
 
                     // Update first task in subgroup to depend on subgroup start
                     if let Some(first) = subgroup_tasks.first_mut() {
