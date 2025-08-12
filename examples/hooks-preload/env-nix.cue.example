@@ -1,4 +1,4 @@
-package cuenv
+package examples
 
 // Example with Nix preload hook for real-world usage
 env: {

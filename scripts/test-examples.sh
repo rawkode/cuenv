@@ -43,7 +43,7 @@ test_cue_dir() {
     # Test with environment if the file has environment configs
     if grep -q "environment:" "$dir/env.cue" 2>/dev/null; then
         echo -n "  Environment test (production): "
-        if (cd "$dir" && $CUENV run --env production -- echo "test") > /dev/null 2>&1; then
+        if (cd "$dir" && $CUENV exec --env production echo "test") > /dev/null 2>&1; then
             echo -e "${GREEN}PASS${NC}"
         else
             echo -e "${RED}FAIL${NC}"
@@ -54,7 +54,7 @@ test_cue_dir() {
     # Test with capabilities if the file has capability tags
     if grep -q "@capability" "$dir/env.cue" 2>/dev/null; then
         echo -n "  Capability test (aws): "
-        if (cd "$dir" && $CUENV run --capability aws -- echo "test") > /dev/null 2>&1; then
+        if (cd "$dir" && $CUENV exec --capability aws echo "test") > /dev/null 2>&1; then
             echo -e "${GREEN}PASS${NC}"
         else
             echo -e "${RED}FAIL${NC}"

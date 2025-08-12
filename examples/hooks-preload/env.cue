@@ -1,4 +1,4 @@
-package cuenv
+package examples
 
 env: {
 	// Basic environment variables
