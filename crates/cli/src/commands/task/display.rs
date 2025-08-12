@@ -188,6 +188,64 @@ fn display_group(
     display_tree_children(tasks, verbose, use_color, depth);
 }
 
+/// Helper function to display tree children with a specific prefix
+fn display_tree_children_with_prefix(
+    tasks: &HashMap<String, TaskNode>,
+    verbose: bool,
+    use_color: bool,
+    depth: usize,
+    prefix: &str,
+) {
+    let sorted: BTreeMap<_, _> = tasks.iter().collect();
+    let total = sorted.len();
+    let mut count = 0;
+
+    for (name, node) in sorted {
+        count += 1;
+        let is_last = count == total;
+        let connector = if is_last { 
+            format!("{}{}", prefix, TREE_LAST)
+        } else { 
+            format!("{}{}", prefix, TREE_BRANCH)
+        };
+
+        match node {
+            TaskNode::Task(config) => {
+                let task_line = format_task_line(name, config.description.as_deref(), &connector, verbose, use_color);
+                println!("{}", task_line);
+            }
+            TaskNode::Group { .. } => {
+                // For nested groups, just show a placeholder for now
+                println!("{}{} [...]", connector, name);
+            }
+        }
+    }
+}
+
+/// Helper to format a task line consistently
+fn format_task_line(
+    name: &str,
+    description: Option<&str>,
+    connector: &str,
+    verbose: bool,
+    use_color: bool,
+) -> String {
+    if verbose && description.is_some() {
+        if use_color {
+            format!(
+                "{}{} {}",
+                connector,
+                name,
+                format!("– {}", description.unwrap()).dark_grey()
+            )
+        } else {
+            format!("{}{} – {}", connector, name, description.unwrap())
+        }
+    } else {
+        format!("{}{}", connector, name)
+    }
+}
+
 /// Display children with tree structure
 fn display_tree_children(
     nodes: &HashMap<String, TaskNode>,
@@ -207,25 +265,7 @@ fn display_tree_children(
 
         match node {
             TaskNode::Task(config) => {
-                let task_line = if verbose && config.description.is_some() {
-                    if use_color {
-                        format!(
-                            "{}{} {}",
-                            connector,
-                            name,
-                            format!("– {}", config.description.as_ref().unwrap()).dark_grey()
-                        )
-                    } else {
-                        format!(
-                            "{}{} – {}",
-                            connector,
-                            name,
-                            config.description.as_ref().unwrap()
-                        )
-                    }
-                } else {
-                    format!("{}{}", connector, name)
-                };
+                let task_line = format_task_line(name, config.description.as_deref(), connector, verbose, use_color);
                 println!("{}", task_line);
             }
             TaskNode::Group {
@@ -244,48 +284,9 @@ fn display_tree_children(
                     connector,
                 );
 
-                // Add continuation lines for nested content
+                // Recursively display nested content with proper indentation
                 if !tasks.is_empty() {
-                    for (inner_name, inner_node) in tasks.iter() {
-                        let sorted_inner: BTreeMap<_, _> = tasks.iter().collect();
-                        let is_inner_last = sorted_inner.keys().last() == Some(&inner_name);
-                        let inner_connector = if is_inner_last {
-                            format!("{}{}", child_prefix, TREE_LAST)
-                        } else {
-                            format!("{}{}", child_prefix, TREE_BRANCH)
-                        };
-
-                        match inner_node {
-                            TaskNode::Task(config) => {
-                                let task_line = if verbose && config.description.is_some() {
-                                    if use_color {
-                                        format!(
-                                            "{}{} {}",
-                                            inner_connector,
-                                            inner_name,
-                                            format!("– {}", config.description.as_ref().unwrap())
-                                                .dark_grey()
-                                        )
-                                    } else {
-                                        format!(
-                                            "{}{} – {}",
-                                            inner_connector,
-                                            inner_name,
-                                            config.description.as_ref().unwrap()
-                                        )
-                                    }
-                                } else {
-                                    format!("{}{}", inner_connector, inner_name)
-                                };
-                                println!("{}", task_line);
-                            }
-                            TaskNode::Group { .. } => {
-                                // For nested groups, we'd need to recurse further
-                                // For now, just show the name
-                                println!("{}{} [...]", inner_connector, inner_name);
-                            }
-                        }
-                    }
+                    display_tree_children_with_prefix(tasks, verbose, use_color, depth + 1, &child_prefix);
                 }
             }
         }

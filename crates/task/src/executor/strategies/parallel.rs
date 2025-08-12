@@ -56,7 +56,7 @@ impl GroupExecutionStrategy for ParallelStrategy {
                     flattened.push(FlattenedTask {
                         id: task_id,
                         group_path: group_path.clone(),
-                        name: task_name.to_string(),
+                        name: task_name.clone(),
                         dependencies: deps,
                         node: node.clone(),
                         is_barrier: false,

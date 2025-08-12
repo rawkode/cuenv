@@ -5,6 +5,7 @@ use cuenv_core::Result;
 use std::collections::HashMap;
 
 mod group;
+mod integration;
 mod parallel;
 mod sequential;
 mod workflow;
@@ -13,6 +14,7 @@ mod workflow;
 mod tests;
 
 pub use group::GroupStrategy;
+pub use integration::{process_task_group, TaskGroupExecutionPlan};
 pub use parallel::ParallelStrategy;
 pub use sequential::SequentialStrategy;
 pub use workflow::WorkflowStrategy;
@@ -45,7 +47,23 @@ pub struct FlattenedTask {
     pub is_barrier: bool,
 }
 
-/// Create a strategy based on the group mode
+use std::sync::Arc;
+
+/// Get a cached strategy based on the group mode
+/// 
+/// Strategies are stateless and can be safely shared across threads.
+/// This function returns Arc-wrapped instances to avoid repeated allocations.
+pub fn get_cached_strategy(mode: &TaskGroupMode) -> Arc<dyn GroupExecutionStrategy> {
+    match mode {
+        TaskGroupMode::Workflow => Arc::new(WorkflowStrategy),
+        TaskGroupMode::Sequential => Arc::new(SequentialStrategy),
+        TaskGroupMode::Parallel => Arc::new(ParallelStrategy),
+        TaskGroupMode::Group => Arc::new(GroupStrategy),
+    }
+}
+
+/// Create a strategy based on the group mode (for backward compatibility)
+#[inline]
 pub fn create_strategy(mode: &TaskGroupMode) -> Box<dyn GroupExecutionStrategy> {
     match mode {
         TaskGroupMode::Workflow => Box::new(WorkflowStrategy),

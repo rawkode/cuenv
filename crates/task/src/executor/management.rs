@@ -1,4 +1,6 @@
 use super::TaskExecutor;
+use super::strategies::{process_task_group, TaskGroupExecutionPlan};
+use cuenv_config::{TaskGroupMode, TaskNode};
 use cuenv_core::Result;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -66,5 +68,34 @@ impl TaskExecutor {
     pub fn cleanup_cache(&self, _max_age: Duration) -> Result<(usize, u64)> {
         self.cache_manager.cleanup_stale_entries()?;
         Ok((0, 0)) // Return dummy values for now
+    }
+    
+    /// Process a task group and get its execution plan
+    pub fn get_task_group_plan(
+        &self,
+        group_name: &str,
+        mode: &TaskGroupMode,
+        tasks: &HashMap<String, TaskNode>,
+    ) -> Result<TaskGroupExecutionPlan> {
+        let plan = process_task_group(group_name, mode, tasks)?;
+        
+        // Validate that all tasks in the plan are executable
+        for task_info in plan.executable_tasks() {
+            // Access all fields to ensure they're used
+            log::debug!(
+                "Task {} in group {} at path {:?} (barrier: {})",
+                task_info.name,
+                group_name,
+                task_info.group_path,
+                task_info.is_barrier
+            );
+            
+            // Validate task node
+            if let TaskNode::Task(config) = &task_info.node {
+                log::debug!("Task {} has command: {:?}", task_info.id, config.command);
+            }
+        }
+        
+        Ok(plan)
     }
 }
