@@ -1,0 +1,22 @@
+name: Publish CUE Module
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup CUE
+        uses: cue-lang/setup-cue@v1
+        with:
+          version: 'v0.13.0'
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=v${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      - name: Publish CUE module
+        run: cue mod publish ${{ steps.version.outputs.VERSION }}
+        env:
+          CUE_REGISTRY_TOKEN: ${{ secrets.CUE_REGISTRY_TOKEN }}
