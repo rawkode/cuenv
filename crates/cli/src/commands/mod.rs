@@ -97,60 +97,6 @@ pub enum Commands {
         shell: String,
     },
 
-    // Legacy compatibility aliases (hidden)
-    /// Run a task or command with the loaded environment (alias to task run)
-    #[command(hide = true)]
-    Run {
-        /// Environment to use (e.g., dev, staging, production)
-        #[arg(short = 'e', long = "env")]
-        environment: Option<String>,
-
-        /// Capabilities to enable (can be specified multiple times)
-        #[arg(short = 'c', long = "capability")]
-        capabilities: Vec<String>,
-
-        /// Task name to execute
-        task_name: Option<String>,
-
-        /// Arguments to pass to the task (after --)
-        #[arg(last = true)]
-        task_args: Vec<String>,
-
-        /// Run in audit mode to see file and network access without restrictions
-        #[arg(long)]
-        audit: bool,
-
-        /// Output format for task execution (tui, simple, or spinner)
-        #[arg(long, value_name = "FORMAT", default_value = "spinner")]
-        output: String,
-
-        /// Generate Chrome trace output file
-        #[arg(long)]
-        trace_output: bool,
-    },
-
-    /// Execute a command directly with the loaded environment (alias to task exec)
-    #[command(hide = true)]
-    Exec {
-        /// Environment to use (e.g., dev, staging, production)
-        #[arg(short = 'e', long = "env")]
-        environment: Option<String>,
-
-        /// Capabilities to enable (can be specified multiple times)
-        #[arg(short = 'c', long = "capability")]
-        capabilities: Vec<String>,
-
-        /// Command to run
-        command: String,
-
-        /// Arguments to pass to the command
-        args: Vec<String>,
-
-        /// Run in audit mode to see file and network access without restrictions
-        #[arg(long)]
-        audit: bool,
-    },
-
     // Internal commands
     /// Internal completion helper - complete task names
     #[command(name = "_complete_tasks", hide = true)]

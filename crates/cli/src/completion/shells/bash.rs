@@ -12,7 +12,7 @@ _cuenv_completion() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     # Main commands
-    local commands="task init status allow deny run exec export dump prune cache shell completion help"
+    local commands="task env init discover cache shell completion help"
     
     # Task subcommands
     local task_commands="list run exec"
@@ -50,12 +50,6 @@ _cuenv_completion() {
             COMPREPLY=($(compgen -W "$(cuenv _complete_tasks 2>/dev/null)" -- ${cur}))
             return 0
         fi
-    fi
-    
-    # Handle task completion for 'run' command (legacy)
-    if [[ "${COMP_WORDS[1]}" == "run" ]] && [[ ${COMP_CWORD} == 2 ]]; then
-        COMPREPLY=($(compgen -W "$(cuenv _complete_tasks 2>/dev/null)" -- ${cur}))
-        return 0
     fi
     
     # Complete flags for all commands

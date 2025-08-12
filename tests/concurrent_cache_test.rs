@@ -69,16 +69,17 @@ mod concurrent_cache_tests {
                     let task_config = create_test_task("concurrent_test", true);
 
                     // Generate cache key
+                    let env_vars = std::collections::HashMap::new();
                     let cache_key = cache
-                        .generate_cache_key_legacy("test_task", &task_config, &working_dir)
+                        .generate_cache_key("test_task", &task_config, &env_vars, &working_dir)
                         .unwrap();
 
                     // Try to get cached result
-                    match cache.get_cached_result_legacy(&cache_key, &task_config, &working_dir) {
-                        Ok(Some(_)) => {
+                    match cache.get_cached_result(&cache_key) {
+                        Some(_) => {
                             cache_hits.fetch_add(1, Ordering::SeqCst);
                         }
-                        Ok(None) => {
+                        None => {
                             cache_misses.fetch_add(1, Ordering::SeqCst);
 
                             // Simulate task execution
@@ -86,12 +87,15 @@ mod concurrent_cache_tests {
                             fs::write(&output_file, "test output").ok();
 
                             // Save to cache
-                            cache
-                                .save_result(&cache_key, &task_config, &working_dir, 0)
-                                .ok();
-                        }
-                        Err(e) => {
-                            eprintln!("Cache error: {e}");
+                            let result = cuenv::cache::CachedTaskResult {
+                                cache_key: cache_key.clone(),
+                                executed_at: std::time::SystemTime::now(),
+                                exit_code: 0,
+                                stdout: None,
+                                stderr: None,
+                                output_files: std::collections::HashMap::new(),
+                            };
+                            cache.store_result(cache_key.clone(), result).ok();
                         }
                     }
                 })
@@ -139,8 +143,9 @@ mod concurrent_cache_tests {
                     let cache = create_test_cache_manager();
                     let task_config = create_test_task("key_test", true);
 
+                    let env_vars = std::collections::HashMap::new();
                     let cache_key = cache
-                        .generate_cache_key_legacy("stable_task", &task_config, &working_dir)
+                        .generate_cache_key("stable_task", &task_config, &env_vars, &working_dir)
                         .unwrap();
 
                     keys.lock().unwrap().push((i, cache_key));
@@ -188,16 +193,23 @@ mod concurrent_cache_tests {
             let task_config = create_test_task("invalidation_test", true);
 
             // Generate initial key
+            let env_vars = std::collections::HashMap::new();
             let key1 = cache
-                .generate_cache_key_legacy("test", &task_config, &working_dir1)
+                .generate_cache_key("test", &task_config, &env_vars, &working_dir1)
                 .unwrap();
 
             // Create output and save to cache
             let output_file = working_dir1.join("build/output.txt");
             fs::write(&output_file, "output v1").unwrap();
-            cache
-                .save_result(&key1, &task_config, &working_dir1, 0)
-                .unwrap();
+            let result = cuenv::cache::CachedTaskResult {
+                cache_key: key1.clone(),
+                executed_at: std::time::SystemTime::now(),
+                exit_code: 0,
+                stdout: None,
+                stderr: None,
+                output_files: std::collections::HashMap::new(),
+            };
+            cache.store_result(key1.clone(), result).unwrap();
 
             // Signal thread 2
             barrier1.wait();
@@ -206,8 +218,9 @@ mod concurrent_cache_tests {
             thread::sleep(Duration::from_millis(150));
 
             // Generate key after modification
+            let env_vars = std::collections::HashMap::new();
             let key2 = cache
-                .generate_cache_key_legacy("test", &task_config, &working_dir1)
+                .generate_cache_key("test", &task_config, &env_vars, &working_dir1)
                 .unwrap();
 
             (key1, key2)
@@ -284,24 +297,25 @@ mod concurrent_cache_tests {
                         task_config.inputs = Some(vec![format!("src/input{}.txt", task_id)]);
                         task_config.outputs = Some(vec![format!("build/output{}.txt", task_id)]);
 
+                        let env_vars = std::collections::HashMap::new();
                         let cache_key = cache
-                            .generate_cache_key_legacy(
+                            .generate_cache_key(
                                 &format!("task_{task_id}"),
                                 &task_config,
+                                &env_vars,
                                 &working_dir,
                             )
                             .unwrap();
 
                         // Try to get from cache
-                        match cache.get_cached_result_legacy(&cache_key, &task_config, &working_dir)
-                        {
-                            Ok(Some(result)) => {
+                        match cache.get_cached_result(&cache_key) {
+                            Some(result) => {
                                 // Verify cached data integrity
                                 if result.exit_code != 0 {
                                     errors.fetch_add(1, Ordering::SeqCst);
                                 }
                             }
-                            Ok(None) => {
+                            None => {
                                 // Create output
                                 let output_file =
                                     working_dir.join(format!("build/output{task_id}.txt"));
@@ -312,15 +326,17 @@ mod concurrent_cache_tests {
                                 .unwrap();
 
                                 // Save to cache
-                                if cache
-                                    .save_result(&cache_key, &task_config, &working_dir, 0)
-                                    .is_err()
-                                {
+                                let result = cuenv::cache::CachedTaskResult {
+                                    cache_key: cache_key.clone(),
+                                    executed_at: std::time::SystemTime::now(),
+                                    exit_code: 0,
+                                    stdout: None,
+                                    stderr: None,
+                                    output_files: std::collections::HashMap::new(),
+                                };
+                                if cache.store_result(cache_key.clone(), result).is_err() {
                                     errors.fetch_add(1, Ordering::SeqCst);
                                 }
-                            }
-                            Err(_) => {
-                                errors.fetch_add(1, Ordering::SeqCst);
                             }
                         }
 

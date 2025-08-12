@@ -34,7 +34,6 @@ mod concurrent;
 mod metrics;
 mod security;
 
-// Legacy implementations (deprecated - will be removed)
 mod content_addressed_store;
 
 // Public exports - new unified API

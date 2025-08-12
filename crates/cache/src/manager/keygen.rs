@@ -54,18 +54,6 @@ impl KeyGenManager {
             .map_err(Into::into)
     }
 
-    /// Legacy API for backward compatibility with tests
-    pub fn generate_cache_key_legacy(
-        &self,
-        task_name: &str,
-        task_config: &TaskConfig,
-        working_dir: &Path,
-    ) -> Result<String> {
-        // Use empty env vars for deterministic testing
-        let env_vars = HashMap::new();
-        self.generate_cache_key(task_name, task_config, &env_vars, working_dir)
-    }
-
     /// Apply task-specific cache environment configurations
     pub fn apply_task_configs(
         &mut self,
@@ -147,7 +135,9 @@ mod tests {
             ..Default::default()
         };
 
-        let key = manager.generate_cache_key_legacy("test_task", &config, Path::new("/test"))?;
+        let env_vars = HashMap::new();
+        let key =
+            manager.generate_cache_key("test_task", &config, &env_vars, Path::new("/test"))?;
 
         assert!(!key.is_empty());
         // The key is a hash, so it won't contain the literal task name

@@ -22,7 +22,6 @@ use cuenv_core::Result;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::SystemTime;
 
 /// Unified cache manager that provides access to cache components
 pub struct CacheManager {
@@ -31,7 +30,7 @@ pub struct CacheManager {
     _content_store: Arc<ContentAddressedStore>,
     /// Store reference for future extensibility and ownership
     _action_cache: Arc<ActionCache>,
-    /// Underlying cache engine for legacy compatibility
+    /// Underlying cache engine
     _engine: Arc<CacheEngine>,
     /// Cache operations handler
     operations: operations::CacheOperations,
@@ -118,46 +117,6 @@ impl CacheManager {
     ) -> Result<String> {
         self.key_gen_manager
             .generate_cache_key(task_name, task_config, env_vars, working_dir)
-    }
-
-    /// Legacy API for backward compatibility with tests
-    pub fn generate_cache_key_legacy(
-        &self,
-        task_name: &str,
-        task_config: &TaskConfig,
-        working_dir: &Path,
-    ) -> Result<String> {
-        self.key_gen_manager
-            .generate_cache_key_legacy(task_name, task_config, working_dir)
-    }
-
-    /// Legacy API for backward compatibility with tests
-    pub fn save_result(
-        &self,
-        cache_key: &str,
-        _task_config: &TaskConfig,
-        _working_dir: &Path,
-        exit_code: i32,
-    ) -> Result<()> {
-        let result = CachedTaskResult {
-            cache_key: cache_key.to_string(),
-            executed_at: SystemTime::now(),
-            exit_code,
-            stdout: None,
-            stderr: None,
-            output_files: std::collections::HashMap::new(),
-        };
-        self.store_result(cache_key.to_string(), result)
-    }
-
-    /// Legacy API for backward compatibility with tests
-    pub fn get_cached_result_legacy(
-        &self,
-        cache_key: &str,
-        _task_config: &TaskConfig,
-        _working_dir: &Path,
-    ) -> Result<Option<CachedTaskResult>> {
-        Ok(self.get_cached_result(cache_key))
     }
 
     /// Cleanup stale cache entries

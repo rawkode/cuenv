@@ -51,53 +51,6 @@ impl Commands {
                 socket,
                 allow_exec,
             } => crate::commands::mcp::execute(config, transport, port, socket, allow_exec).await,
-
-            // Legacy aliases
-            Commands::Run {
-                environment: _,
-                capabilities: _,
-                task_name,
-                task_args,
-                audit: _,
-                output,
-                trace_output,
-            } => {
-                if let Some(task_name) = task_name {
-                    let cmd = crate::commands::task::TaskCommands::Run {
-                        environment: None,
-                        capabilities: vec![],
-                        task_name,
-                        task_args,
-                        audit: false,
-                        output,
-                        trace_output,
-                    };
-                    cmd.execute(Arc::clone(&config)).await
-                } else {
-                    // No task name, list tasks with descriptions
-                    let cmd = crate::commands::task::TaskCommands::List {
-                        verbose: true,
-                        group: None,
-                    };
-                    cmd.execute(Arc::clone(&config)).await
-                }
-            }
-            Commands::Exec {
-                environment: _,
-                capabilities: _,
-                command,
-                args,
-                audit: _,
-            } => {
-                let cmd = crate::commands::task::TaskCommands::Exec {
-                    environment: None,
-                    capabilities: vec![],
-                    command,
-                    args,
-                    audit: false,
-                };
-                cmd.execute(config).await
-            }
         }
     }
 }

@@ -19,15 +19,9 @@ end
 
 # Main commands
 complete -f -c cuenv -n "test (count (commandline -opc)) = 1" -a "task t" -d "Manage and execute tasks"
+complete -f -c cuenv -n "test (count (commandline -opc)) = 1" -a "env e" -d "Manage environment configuration"
 complete -f -c cuenv -n "test (count (commandline -opc)) = 1" -a "init" -d "Initialize a new env.cue file"
-complete -f -c cuenv -n "test (count (commandline -opc)) = 1" -a "status" -d "Display current environment status"
-complete -f -c cuenv -n "test (count (commandline -opc)) = 1" -a "allow" -d "Allow cuenv in a directory"
-complete -f -c cuenv -n "test (count (commandline -opc)) = 1" -a "deny" -d "Deny cuenv in a directory"
-complete -f -c cuenv -n "test (count (commandline -opc)) = 1" -a "run" -d "Run a task with the environment"
-complete -f -c cuenv -n "test (count (commandline -opc)) = 1" -a "exec" -d "Execute a command with the environment"
-complete -f -c cuenv -n "test (count (commandline -opc)) = 1" -a "export" -d "Export environment variables"
-complete -f -c cuenv -n "test (count (commandline -opc)) = 1" -a "dump" -d "Dump complete environment"
-complete -f -c cuenv -n "test (count (commandline -opc)) = 1" -a "prune" -d "Prune stale state"
+complete -f -c cuenv -n "test (count (commandline -opc)) = 1" -a "discover" -d "Discover all CUE packages"
 complete -f -c cuenv -n "test (count (commandline -opc)) = 1" -a "cache" -d "Cache management"
 complete -f -c cuenv -n "test (count (commandline -opc)) = 1" -a "shell" -d "Shell integration"
 complete -f -c cuenv -n "test (count (commandline -opc)) = 1" -a "completion" -d "Generate completion scripts"
@@ -39,9 +33,6 @@ complete -f -c cuenv -n "__fish_cuenv_using_command task; or __fish_cuenv_using_
 
 # Task names for task run
 complete -f -c cuenv -n "__fish_cuenv_using_task_subcommand run; or __fish_cuenv_using_task_subcommand r" -a "(cuenv _complete_tasks 2>/dev/null)"
-
-# Task names for legacy run command
-complete -f -c cuenv -n "__fish_cuenv_using_command run" -a "(cuenv _complete_tasks 2>/dev/null)"
 
 # Global options
 complete -f -c cuenv -s h -l help -d "Print help information"

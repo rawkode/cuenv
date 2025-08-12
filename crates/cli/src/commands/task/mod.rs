@@ -197,42 +197,6 @@ pub enum TaskCommands {
     },
 }
 
-impl TaskCommands {
-    pub async fn execute(self, config: std::sync::Arc<cuenv_config::Config>) -> Result<()> {
-        match self {
-            TaskCommands::List { verbose, group } => list_tasks(config, verbose, group).await,
-            TaskCommands::Run {
-                environment,
-                capabilities,
-                task_name,
-                task_args,
-                audit,
-                output,
-                trace_output,
-            } => {
-                execute_task(
-                    config.clone(),
-                    environment,
-                    capabilities,
-                    task_name,
-                    task_args,
-                    audit,
-                    output,
-                    trace_output,
-                )
-                .await
-            }
-            TaskCommands::Exec {
-                environment,
-                capabilities,
-                command,
-                args,
-                audit,
-            } => execute_command(config, environment, capabilities, command, args, audit).await,
-        }
-    }
-}
-
 async fn list_tasks(
     config: std::sync::Arc<cuenv_config::Config>,
     verbose: bool,
@@ -512,46 +476,4 @@ async fn execute_task_group(
     }
 
     Ok(())
-}
-
-async fn execute_command(
-    _config: std::sync::Arc<cuenv_config::Config>,
-    environment: Option<String>,
-    capabilities: Vec<String>,
-    command: String,
-    args: Vec<String>,
-    audit: bool,
-) -> Result<()> {
-    let current_dir = env::current_dir()
-        .map_err(|e| cuenv_core::Error::file_system(".", "get current directory", e))?;
-    let mut env_manager = EnvManager::new();
-
-    let env_name = environment.or_else(|| env::var(CUENV_ENV_VAR).ok());
-    let mut caps = capabilities;
-    if caps.is_empty() {
-        if let Ok(env_caps) = env::var(CUENV_CAPABILITIES_VAR) {
-            caps = env_caps
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-        }
-    }
-
-    env_manager
-        .load_env_with_options(&current_dir, env_name, caps, None)
-        .await?;
-
-    if audit {
-        use cuenv_security::AccessRestrictions;
-        let _restrictions = AccessRestrictions::default();
-
-        println!("🔍 Running command in audit mode...");
-        println!("⚠️  Basic audit mode - run with task definition for full system call monitoring");
-        let status = env_manager.run_command(&command, &args)?;
-        std::process::exit(status);
-    } else {
-        let status = env_manager.run_command(&command, &args)?;
-        std::process::exit(status);
-    }
 }
