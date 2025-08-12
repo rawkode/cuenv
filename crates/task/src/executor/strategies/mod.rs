@@ -50,7 +50,7 @@ pub struct FlattenedTask {
 use std::sync::Arc;
 
 /// Get a cached strategy based on the group mode
-/// 
+///
 /// Strategies are stateless and can be safely shared across threads.
 /// This function returns Arc-wrapped instances to avoid repeated allocations.
 pub fn get_cached_strategy(mode: &TaskGroupMode) -> Arc<dyn GroupExecutionStrategy> {

@@ -193,7 +193,7 @@ fn display_tree_children_with_prefix(
     tasks: &HashMap<String, TaskNode>,
     verbose: bool,
     use_color: bool,
-    depth: usize,
+    _depth: usize,
     prefix: &str,
 ) {
     let sorted: BTreeMap<_, _> = tasks.iter().collect();
@@ -203,15 +203,21 @@ fn display_tree_children_with_prefix(
     for (name, node) in sorted {
         count += 1;
         let is_last = count == total;
-        let connector = if is_last { 
+        let connector = if is_last {
             format!("{}{}", prefix, TREE_LAST)
-        } else { 
+        } else {
             format!("{}{}", prefix, TREE_BRANCH)
         };
 
         match node {
             TaskNode::Task(config) => {
-                let task_line = format_task_line(name, config.description.as_deref(), &connector, verbose, use_color);
+                let task_line = format_task_line(
+                    name,
+                    config.description.as_deref(),
+                    &connector,
+                    verbose,
+                    use_color,
+                );
                 println!("{}", task_line);
             }
             TaskNode::Group { .. } => {
@@ -265,7 +271,13 @@ fn display_tree_children(
 
         match node {
             TaskNode::Task(config) => {
-                let task_line = format_task_line(name, config.description.as_deref(), connector, verbose, use_color);
+                let task_line = format_task_line(
+                    name,
+                    config.description.as_deref(),
+                    connector,
+                    verbose,
+                    use_color,
+                );
                 println!("{}", task_line);
             }
             TaskNode::Group {
@@ -286,7 +298,13 @@ fn display_tree_children(
 
                 // Recursively display nested content with proper indentation
                 if !tasks.is_empty() {
-                    display_tree_children_with_prefix(tasks, verbose, use_color, depth + 1, &child_prefix);
+                    display_tree_children_with_prefix(
+                        tasks,
+                        verbose,
+                        use_color,
+                        depth + 1,
+                        &child_prefix,
+                    );
                 }
             }
         }
