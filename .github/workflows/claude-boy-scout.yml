@@ -1,10 +1,17 @@
-name: Claude Boy Scout
+name: claude-boy-scout
 on:
+  workflow_dispatch: {}
   schedule:
-    - cron: '0 0,6,12,18 * * *'
-  workflow_dispatch: # Allow manual triggering for testing
+    # Run at 8am, 10am, 12pm, 2pm, 4pm, 6pm, 8pm UTC
+    - cron: '0 8 * * *'
+    - cron: '0 10 * * *'
+    - cron: '0 12 * * *'
+    - cron: '0 14 * * *'
+    - cron: '0 16 * * *'
+    - cron: '0 18 * * *'
+    - cron: '0 20 * * *'
 jobs:
-  improve-codebase:
+  make-one-improvement:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -16,51 +23,44 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Full history for better context
+          fetch-depth: 0
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
-      - name: Run Claude Code for Maintainability Improvements
+      - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@beta
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          model: "claude-sonnet-4-20250514"
+          mode: agent
+          model: "claude-opus-4-20250514"
           additional_permissions: |
+            contents: write
+            pull-requests: write
             actions: read
-          allowed_tools: "Bash(nix develop -c *),Bash(cargo *),Bash(git *),Bash(gh *),Bash(treefmt),Bash(scripts/*),Read,Write,Edit,MultiEdit,Grep,Glob,LS,TodoWrite,Task"
           custom_instructions: |
-            You are tasked with finding ONE specific area for maintainability improvement in the cuenv codebase.
+            Your task is to analyze the current state of the cuenv project and identify ONE specific documentation improvement that would help users better understand or use the project.
 
-            Focus on one of these areas:
-            1. Reducing code duplication
-            2. Improving error handling consistency
-            3. Simplifying complex functions (breaking them into smaller ones)
-            4. Improving test coverage for uncovered critical paths
-            5. Refactoring for better modularity
-            6. Fixing TODO comments or technical debt
-            7. Improving type safety
-            8. Removing dead code
-            9. Consolidating similar utilities
-            10. Improving documentation for complex logic
+            Steps to follow:
+            1. Analyze the codebase thoroughly - read source files, tests, examples, and existing documentation
+            2. Identify gaps between what the code does and what the documentation explains
+            3. Find ONE specific, focused documentation improvement (e.g., missing usage example, unclear configuration option, undocumented feature, outdated information)
+            4. Create a new branch with name format: docs/auto-improve-YYYYMMDD-HHMM
+            5. Make the documentation improvement - be specific and helpful
+            6. Commit with message: "docs: [specific description of improvement]"
+            7. Create a pull request with:
+               - Clear title describing the improvement
+               - Body explaining what was missing/unclear and how this helps users
+               - Label the PR with "documentation" if possible
 
-            Process:
-            1. Analyze the codebase to identify ONE specific improvement
-            2. Implement the improvement following all project rules in CLAUDE.md
-            3. Ensure all tests pass
-            4. Run treefmt, cargo clippy --fix, and cargo clippy
-            5. Create a new branch for the changes
-            6. Commit with a clear message explaining the improvement
-            7. Push the branch
-            8. Create a PR with detailed explanation of the improvement
+            Focus on practical improvements that directly help users:
+            - Missing examples for common use cases
+            - Clarifying confusing configuration options
+            - Documenting discovered but undocumented features
+            - Fixing inconsistencies between code behavior and docs
+            - Adding helpful troubleshooting information
 
-            Important:
-            - Focus on a single, well-scoped improvement
-            - Follow TDD principles
-            - Ensure zero warnings
-            - Use conventional commit format
-            - Make changes that improve long-term maintainability
-            - Avoid cosmetic-only changes
-            - Create a descriptive PR that explains why the change improves maintainability
-          claude_env: |-
-            CGO_ENABLED: 1
-            RUST_BACKTRACE: 1
+            Do NOT:
+            - Make trivial changes like fixing typos only
+            - Add unnecessary verbose explanations
+            - Change code, only documentation
+            - Create multiple improvements - focus on ONE high-value change
