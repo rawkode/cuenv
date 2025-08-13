@@ -36,7 +36,7 @@
 - Test with: cargo nextest run
 - Test CI profile: cargo nextest run --profile ci
 - Test coverage: cargo llvm-cov nextest --lcov --output-path lcov.info
-- Test examples: scripts/test-examples.sh
+- Test examples: cargo test --test examples
 
 ## Build Commands
 

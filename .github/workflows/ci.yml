@@ -47,7 +47,7 @@ jobs:
           cp result/bin/cuenv target/debug/
 
           # Run the example tests directly
-          ./scripts/test-examples.sh
+          nix develop --command cargo test --test examples
   schema-compatibility:
     name: Test Schema Compatibility
     runs-on: ubuntu-latest
@@ -68,7 +68,7 @@ jobs:
           cd ..
 
           # Run tests - if they fail, we have a breaking change
-          ./scripts/test-examples.sh
+          nix develop --command cargo test --test examples
         continue-on-error: true
       - name: Report compatibility status
         if: failure()
