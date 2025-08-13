@@ -11,6 +11,7 @@ package schema
 	command: "devenv"
 	args: [ "print-dev-env" ]
 	source: true
+        preload: bool | *false
 	inputs: ["devenv.nix", "devenv.lock", "devenv.yaml"]
 }
 

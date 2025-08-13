@@ -226,6 +226,40 @@ cuenv mcp --allow-exec
 
 This allows Claude Code to programmatically manage environments and execute tasks in your projects.
 
+### Starship Integration
+
+cuenv provides real-time hook progress tracking that integrates with [Starship prompt](https://starship.rs/):
+
+**Add to your `starship.toml`:**
+
+```toml
+[custom.cuenv_hooks]
+command = "cuenv env status --hooks --format=starship"
+when = """ test -n "$CUENV_DIR" """
+format = "$output"
+disabled = false
+```
+
+**Features:**
+
+- **Real-time progress**: Shows `⏳ 2/3 hooks (15s)` while hooks run
+- **Success indicator**: Displays `✅ Hooks ready` when complete
+- **Error alerts**: Shows `⚠️ 1 hook failed` on failures
+- **Auto-hide**: Disappears 5 seconds after completion
+- **Non-intrusive**: Only visible during hook execution
+
+**Advanced configuration:**
+
+```toml
+# Verbose mode - shows individual hook details
+[custom.cuenv_hooks_verbose]
+command = "cuenv env status --hooks --format=starship --verbose"
+when = """ test -n "$CUENV_DIR" """
+format = "$output"  # Shows: 🔄 nix develop (12s)
+```
+
+See [examples/starship-module](examples/starship-module/) for more configuration options and customization examples.
+
 ## Contributing
 
 1. Enter the development environment: `nix develop`

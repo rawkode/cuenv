@@ -1,0 +1,72 @@
+# Example Starship configuration for cuenv hooks status module
+# Add this to your ~/.config/starship.toml
+
+# Basic configuration - shows aggregated hook progress
+[custom.cuenv_hooks]
+command = "cuenv env status --hooks --format=starship"
+when = """ test -n "$CUENV_DIR" """
+format = "$output"
+disabled = false
+description = "cuenv hooks status"
+
+# Verbose configuration - shows individual hook details
+[custom.cuenv_hooks_verbose]
+command = "cuenv env status --hooks --format=starship --verbose"
+when = """ test -n "$CUENV_DIR" """
+format = "$output"
+disabled = true                                                  # Enable this instead of the basic one if you prefer verbose output
+description = "cuenv hooks status (verbose)"
+
+# Right-prompt configuration (alternative placement)
+# If you want the status on the right side of your prompt
+[custom.cuenv_hooks_right]
+command = "cuenv env status --hooks --format=starship"
+when = """ test -n "$CUENV_DIR" """
+format = "[$output]($style)"
+style = "dimmed"
+disabled = true                                        # Enable this if you prefer right-side placement
+
+# Configuration with custom colors
+[custom.cuenv_hooks_colored]
+command = "cuenv env status --hooks --format=starship"
+when = """ test -n "$CUENV_DIR" """
+format = "[$output]($style) "
+style = "bold yellow"                                  # Customize the color here
+disabled = true                                        # Enable this for colored output
+
+# Advanced configuration with conditional styling
+# This example changes color based on the output
+[custom.cuenv_hooks_advanced]
+command = """
+output=$(cuenv env status --hooks --format=starship)
+if [[ "$output" == *"⚠️"* ]]; then
+    echo "⚠️ $output"
+elif [[ "$output" == *"✅"* ]]; then
+    echo "✅ $output"
+elif [[ "$output" == *"⏳"* ]]; then
+    echo "⏳ $output"
+else
+    echo "$output"
+fi
+"""
+when = """ test -n "$CUENV_DIR" """
+format = "$output"
+shell = ["bash", "--noprofile", "--norc"]
+disabled = true # Enable for advanced conditional styling
+
+# Tips:
+# - Only enable ONE of these configurations at a time
+# - The module only shows output when hooks are running or just completed
+# - Empty output means no hooks are currently active
+# - The module automatically hides after hooks complete (5 second grace period)
+#
+# Output states:
+# ⏳ 2/3 hooks (15s)  - Hooks are running
+# ✅ Hooks ready      - Just completed successfully (shows for 5s)
+# ⚠️ 1 hook failed    - One or more hooks failed (shows for 5s)
+# (empty)            - No hooks running or display timeout expired
+#
+# Testing:
+# You can test the output directly with:
+# $ cuenv env status --hooks --format=starship
+# $ cuenv env status --hooks --format=starship --verbose

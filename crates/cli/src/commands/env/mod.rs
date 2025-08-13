@@ -22,7 +22,19 @@ pub enum EnvCommands {
     },
 
     /// Display current environment status and changes
-    Status,
+    Status {
+        /// Show hooks status
+        #[arg(long)]
+        hooks: bool,
+
+        /// Output format (default: human, options: human, starship, json)
+        #[arg(short, long, default_value = "human")]
+        format: String,
+
+        /// Show verbose output (for starship format)
+        #[arg(short, long)]
+        verbose: bool,
+    },
 
     /// Export environment variables for the current directory
     Export {
@@ -44,7 +56,11 @@ impl EnvCommands {
         match self {
             EnvCommands::Allow { directory } => allow::execute(directory).await,
             EnvCommands::Deny { directory } => deny::execute(directory).await,
-            EnvCommands::Status => status::execute().await,
+            EnvCommands::Status {
+                hooks,
+                format,
+                verbose,
+            } => status::execute(hooks, format, verbose).await,
             EnvCommands::Export { shell, all } => export::execute(shell, all).await,
             EnvCommands::Prune => prune::execute().await,
         }

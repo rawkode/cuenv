@@ -16,6 +16,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::{RwLock, Semaphore};
 use url::Url;
 
+use cuenv_utils::hooks_status::HooksStatusManager;
+
 const DEFAULT_CACHE_SIZE: usize = 100;
 const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(300); // 5 minutes
 const DEFAULT_HTTP_TIMEOUT: Duration = Duration::from_secs(30);
@@ -43,6 +45,7 @@ pub struct HookManager<E: CommandExecutor + Send + Sync> {
     audit_logger: Option<Arc<AuditLogger>>,
     _circuit_breaker: Arc<CircuitBreaker>,
     _retry_config: RetryConfig,
+    status_manager: Option<Arc<HooksStatusManager>>,
 }
 
 impl<E: CommandExecutor + Send + Sync> HookManager<E> {
@@ -79,6 +82,7 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
             audit_logger: audit_logger(),
             _circuit_breaker: Arc::new(CircuitBreaker::new(circuit_breaker_config)),
             _retry_config: retry_config,
+            status_manager: None,
         })
     }
 
@@ -86,6 +90,35 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
     pub fn with_rate_limiter(mut self, rate_limiter: Arc<RateLimitManager>) -> Self {
         self.rate_limiter = Some(rate_limiter);
         self
+    }
+
+    /// Set the status manager for progress tracking
+    pub fn with_status_manager(mut self, status_manager: Arc<HooksStatusManager>) -> Self {
+        self.status_manager = Some(status_manager);
+        self
+    }
+
+    /// Execute multiple hooks with progress tracking
+    pub async fn execute_hooks(
+        &self,
+        hooks: &[HookConfig],
+        env_vars: &HashMap<String, String>,
+    ) -> Result<()> {
+        // Initialize status tracking if available
+        if let Some(ref status_manager) = self.status_manager {
+            let hook_names: Vec<String> = hooks
+                .iter()
+                .map(|h| format!("{:?}:{}", h.hook_type, h.command))
+                .collect();
+            let _ = status_manager.initialize_hooks(hook_names);
+        }
+
+        // Execute hooks sequentially
+        for hook in hooks {
+            self.execute_hook(hook, env_vars).await?;
+        }
+
+        Ok(())
     }
 
     pub async fn execute_hook(
@@ -124,6 +157,15 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
             hook_config.constraints
         );
 
+        // Generate a hook name for status tracking
+        let hook_name = format!("{:?}:{}", hook_config.hook_type, hook_config.command);
+
+        // Mark hook as started in status manager
+        if let Some(ref status_manager) = self.status_manager {
+            let pid = std::process::id();
+            let _ = status_manager.mark_hook_started(&hook_name, pid);
+        }
+
         // Check constraints before executing hook
         if !self
             .check_constraints(&hook_config.constraints, env_vars)
@@ -133,6 +175,12 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
                 "Skipping hook '{}' due to unmet constraints",
                 hook_config.command
             );
+
+            // Mark as completed (skipped due to constraints)
+            if let Some(ref status_manager) = self.status_manager {
+                let _ = status_manager.mark_hook_completed(&hook_name);
+            }
+
             return Ok(());
         }
 
@@ -143,6 +191,18 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
             self.execute_local_hook(hook_config, env_vars).await
         };
         let duration_ms = start_time.elapsed().as_millis() as u64;
+
+        // Update status based on result
+        if let Some(ref status_manager) = self.status_manager {
+            match &result {
+                Ok(_) => {
+                    let _ = status_manager.mark_hook_completed(&hook_name);
+                }
+                Err(e) => {
+                    let _ = status_manager.mark_hook_failed(&hook_name, e.to_string());
+                }
+            }
+        }
 
         // Log the hook execution
         if let Some(ref logger) = self.audit_logger {
