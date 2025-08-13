@@ -75,10 +75,10 @@ env: {
     assert!(stdout.contains("export DATABASE_URL="));
     assert!(stdout.contains("export API_KEY="));
 
-    // Test with aws capability - use run command for capability filtering
+    // Test with aws capability - use exec command for capability filtering
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
-        .arg("run")
+        .arg("exec")
         .arg("--capability")
         .arg("aws")
         .arg("--")
@@ -116,10 +116,10 @@ env: {
 "#;
     std::fs::write(temp_dir.path().join("env.cue"), env_content).unwrap();
 
-    // Test with production environment - use run command for environment selection
+    // Test with production environment - use exec command for environment selection
     let output = Command::new(get_cuenv_binary())
         .current_dir(temp_dir.path())
-        .arg("run")
+        .arg("exec")
         .arg("--env")
         .arg("production")
         .arg("--")

@@ -182,7 +182,7 @@ echo 'export TEST_VAR2="value2"'
 }
 
 #[tokio::test]
-#[ignore = "Flaky in CI - needs investigation"]  
+#[ignore = "Flaky in CI - needs investigation"]
 async fn test_supervisor_background_mode() {
     let hooks = vec![create_test_hook(
         "echo",
