@@ -71,12 +71,25 @@ impl PreloadHookManager {
     pub async fn execute_preload_hooks(&self, hooks: Vec<Hook>) -> Result<()> {
         let mut running = self.inner.running_hooks.lock().await;
 
+        // Count preload hooks
+        let preload_count = hooks.iter().filter(|h| h.preload.unwrap_or(false)).count();
+
+        if preload_count > 0 {
+            eprintln!("# cuenv: Starting {preload_count} preload hook(s) in background...");
+        }
+
         // Initialize status tracking if available
         if let Some(ref status_manager) = self.inner.status_manager {
             let hook_names: Vec<String> = hooks
                 .iter()
-                .filter(|h| h.preload.unwrap_or(false) && !h.source.unwrap_or(false))
-                .map(|h| format!("{} {:?}", h.command, h.args))
+                .filter(|h| h.preload.unwrap_or(false))
+                .map(|h| {
+                    if let Some(args) = &h.args {
+                        format!("{} {:?}", h.command, args)
+                    } else {
+                        h.command.clone()
+                    }
+                })
                 .collect();
 
             if !hook_names.is_empty() {
@@ -85,12 +98,17 @@ impl PreloadHookManager {
         }
 
         for hook in hooks {
-            if hook.preload.unwrap_or(false) && !hook.source.unwrap_or(false) {
-                let hook_key = format!("{} {:?}", hook.command, hook.args);
+            if hook.preload.unwrap_or(false) {
+                let hook_key = if let Some(args) = &hook.args {
+                    format!("{} {:?}", hook.command, args)
+                } else {
+                    hook.command.clone()
+                };
                 let hook_clone = hook.clone();
                 let status_manager = self.inner.status_manager.clone();
 
                 tracing::info!("Starting preload hook in background: {}", hook_key);
+                eprintln!("# cuenv: Running preload hook: {}", hook.command);
 
                 // Mark hook as started
                 if let Some(ref sm) = status_manager {
@@ -107,6 +125,10 @@ impl PreloadHookManager {
                         match &result {
                             Ok(_) => {
                                 tracing::info!("Preload hook completed: {}", hook_clone.command);
+                                eprintln!(
+                                    "# cuenv: Preload hook completed: {}",
+                                    hook_clone.command
+                                );
                                 let _ = sm.mark_hook_completed(&hook_key_clone);
                             }
                             Err(e) => {
@@ -115,6 +137,10 @@ impl PreloadHookManager {
                                     hook_clone.command,
                                     e
                                 );
+                                eprintln!(
+                                    "# cuenv: Preload hook failed: {}: {}",
+                                    hook_clone.command, e
+                                );
                                 let _ = sm.mark_hook_failed(&hook_key_clone, e.to_string());
                             }
                         }
@@ -122,10 +148,22 @@ impl PreloadHookManager {
                         // Fallback logging if no status manager
                         match result {
                             Ok(_) => {
-                                tracing::info!("Preload hook completed: {}", hook_clone.command)
+                                tracing::info!("Preload hook completed: {}", hook_clone.command);
+                                eprintln!(
+                                    "# cuenv: Preload hook completed: {}",
+                                    hook_clone.command
+                                );
                             }
                             Err(e) => {
-                                tracing::warn!("Preload hook failed: {}: {}", hook_clone.command, e)
+                                tracing::warn!(
+                                    "Preload hook failed: {}: {}",
+                                    hook_clone.command,
+                                    e
+                                );
+                                eprintln!(
+                                    "# cuenv: Preload hook failed: {}: {}",
+                                    hook_clone.command, e
+                                );
                             }
                         }
                     }
@@ -211,6 +249,8 @@ impl PreloadHookManager {
 
 /// Execute a hook asynchronously
 async fn execute_hook_async(hook: &Hook) -> Result<()> {
+    use std::process::Stdio;
+
     let mut cmd = tokio::process::Command::new(&hook.command);
 
     if let Some(args) = &hook.args {
@@ -221,17 +261,57 @@ async fn execute_hook_async(hook: &Hook) -> Result<()> {
         cmd.current_dir(dir);
     }
 
-    let status = cmd.status().await.map_err(|e| {
-        cuenv_core::Error::command_execution(
-            hook.command.clone(),
-            hook.args.clone().unwrap_or_default(),
-            format!("Failed to execute preload hook: {e}"),
-            None,
-        )
-    })?;
+    // Capture all output to prevent it from appearing in terminal
+    cmd.stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .stdin(Stdio::null());
 
-    if !status.success() {
-        tracing::warn!("Preload hook failed with status: {:?}", status.code());
+    if hook.source.unwrap_or(false) {
+        // For source hooks, we need to capture and parse the output
+        let output = cmd.output().await.map_err(|e| {
+            cuenv_core::Error::command_execution(
+                hook.command.clone(),
+                hook.args.clone().unwrap_or_default(),
+                format!("Failed to execute preload hook: {e}"),
+                None,
+            )
+        })?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            tracing::warn!("Preload source hook failed: {}", stderr);
+        } else {
+            // Parse and apply environment variables
+            let stdout = String::from_utf8_lossy(&output.stdout);
+
+            // Try to parse environment variables from output
+            if let Ok(env_vars) = crate::source_parser::evaluate_shell_environment(&stdout) {
+                let filtered = crate::source_parser::filter_environment(env_vars);
+
+                // Apply the environment variables to the current process
+                // Note: This only affects the cuenv process, not the parent shell
+                // The shell hook mechanism will handle propagating these to the shell
+                for (key, value) in filtered {
+                    std::env::set_var(&key, &value);
+                    tracing::debug!("Set env var from preload source hook: {}={}", key, value);
+                }
+            }
+        }
+    } else {
+        // For non-source hooks, just run and discard output
+        let output = cmd.output().await.map_err(|e| {
+            cuenv_core::Error::command_execution(
+                hook.command.clone(),
+                hook.args.clone().unwrap_or_default(),
+                format!("Failed to execute preload hook: {e}"),
+                None,
+            )
+        })?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            tracing::warn!("Preload hook failed: {}", stderr);
+        }
     }
 
     Ok(())
