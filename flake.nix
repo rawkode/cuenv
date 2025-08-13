@@ -29,7 +29,83 @@
     , treefmt-nix
     ,
     }:
-    (flake-utils.lib.eachDefaultSystem (
+    {
+      # Home Manager module for cuenv
+      homeManagerModules.default = { config, pkgs, lib, ... }:
+        let
+          cfg = config.programs.cuenv;
+          inherit (lib) mkIf mkOption types;
+        in
+        {
+          meta.maintainers = with lib.maintainers; [ ];
+
+          options.programs.cuenv = {
+            enable = lib.mkEnableOption "cuenv - A direnv alternative that uses CUE files";
+
+            package = lib.mkPackageOption pkgs "cuenv" { };
+
+            enableBashIntegration = lib.hm.shell.mkBashIntegrationOption {
+              inherit config;
+              extraDescription = "Enables cuenv shell hooks for Bash.";
+            };
+
+            enableZshIntegration = lib.hm.shell.mkZshIntegrationOption {
+              inherit config;
+              extraDescription = "Enables cuenv shell hooks for Zsh.";
+            };
+
+            enableFishIntegration = lib.hm.shell.mkFishIntegrationOption {
+              inherit config;
+              extraDescription = "Enables cuenv shell hooks for Fish.";
+            };
+
+            enableNushellIntegration = lib.hm.shell.mkNushellIntegrationOption {
+              inherit config;
+              extraDescription = "Enables cuenv shell hooks for Nushell.";
+            };
+
+          };
+
+          config = mkIf cfg.enable (lib.mkMerge [
+            {
+              # Always add the configured cuenv package
+              home.packages = [ cfg.package ];
+
+              # Shell integrations
+              programs.bash.initExtra = mkIf cfg.enableBashIntegration ''
+                if [[ -n "''${BASH_VERSION:-}" ]]; then
+                  eval "$(${lib.getExe cfg.package} shell init bash)"
+                fi
+              '';
+
+              programs.zsh.initExtra = mkIf cfg.enableZshIntegration ''
+                if [[ -n "''${ZSH_VERSION:-}" ]]; then
+                  eval "$(${lib.getExe cfg.package} shell init zsh)"
+                fi
+              '';
+
+              programs.fish.interactiveShellInit = mkIf cfg.enableFishIntegration ''
+                ${lib.getExe cfg.package} shell init fish | source
+              '';
+
+              programs.nushell = mkIf cfg.enableNushellIntegration {
+                extraConfig = ''
+                  source ${
+                    pkgs.runCommand "cuenv-nushell-config.nu"
+                      {
+                        nativeBuildInputs = [ cfg.package ];
+                      }
+                      ''
+                        ${lib.getExe cfg.package} shell init nushell > "$out"
+                      ''
+                  }
+                '';
+              };
+            }
+          ]);
+        };
+    }
+    // (flake-utils.lib.eachDefaultSystem (
       system:
       let
         overlays = [ (import rust-overlay) ];
