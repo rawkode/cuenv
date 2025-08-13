@@ -32,8 +32,8 @@ impl ConfigSettings {
                 "tui" | "spinner" | "simple" | "tree" => {}
                 _ => {
                     return Err(format!(
-                        "Invalid output format: '{format}'. Must be one of: tui, spinner, simple, tree"
-                    ))
+                    "Invalid output format: '{format}'. Must be one of: tui, spinner, simple, tree"
+                ))
                 }
             }
         }
