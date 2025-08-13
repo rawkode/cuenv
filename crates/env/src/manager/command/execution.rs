@@ -14,6 +14,14 @@ pub fn setup_command_environment(
     cue_vars: &HashMap<String, String>,
     original_env: &HashMap<String, String>,
 ) -> HashMap<String, String> {
+    // Debug: check what's in sourced_env
+    eprintln!("DEBUG: sourced_env has {} variables", sourced_env.len());
+    for (key, _value) in sourced_env {
+        if key.contains("NIXOS") || key.contains("__fish") || key.contains("NIX_GSETTINGS") {
+            eprintln!("DEBUG: Found {} in sourced_env", key);
+        }
+    }
+
     // Start with sourced environment (from nix, devenv, etc.)
     let mut base_env = sourced_env.clone();
 
@@ -55,6 +63,13 @@ pub fn setup_command_environment(
     // Ensure HOME is set on all platforms for compatibility
     if let Some(home) = original_env.get("HOME") {
         final_env.insert("HOME".to_string(), home.clone());
+    }
+
+    // Debug: log what's in final_env
+    for (key, _value) in &final_env {
+        if key.contains("NIXOS") || key.contains("__fish") || key.contains("NIX_GSETTINGS") {
+            eprintln!("DEBUG: Found {} in final_env", key);
+        }
     }
 
     final_env

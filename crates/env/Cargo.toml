@@ -49,6 +49,10 @@ shell-words.workspace = true
 # Crypto
 sha2.workspace = true
 
+# File patterns
+globset.workspace = true
+walkdir.workspace = true
+
 # Async
 futures.workspace = true
 

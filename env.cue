@@ -5,7 +5,7 @@ import "github.com/rawkode/cuenv/schema"
 schema.#Cuenv
 
 hooks: onEnter: [
-	schema.#NixFlake,
+	schema.#NixFlake & { preload: true },
 	{command: "echo", args: ["Hello!"]},
 ]
 

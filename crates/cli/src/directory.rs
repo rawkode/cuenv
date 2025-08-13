@@ -132,10 +132,12 @@ impl DirectoryManager {
                     let env_cue = canonical_dir.join("env.cue");
                     if env_cue.exists() {
                         let actual_hash = self.calculate_file_hash(&env_cue)?;
-                        return Ok(actual_hash == expected_hash);
+                        if actual_hash == expected_hash {
+                            return Ok(true);
+                        }
+                        // Hash doesn't match, continue checking other entries
                     } else {
-                        // env.cue doesn't exist but hash was expected
-                        return Ok(false);
+                        // env.cue doesn't exist but hash was expected, continue checking
                     }
                 } else {
                     // No hash requirement, directory is allowed

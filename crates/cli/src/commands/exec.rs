@@ -32,9 +32,6 @@ pub async fn execute(
         .load_env_with_options(&current_dir, env_name, caps, None)
         .await?;
 
-    // Wait for preload hooks to complete before executing the command
-    env_manager.wait_for_preload_hooks().await?;
-
     // For exec, we just run the command with the loaded environment
     // No restrictions are applied - this is the simple pass-through mode
     let exit_code = env_manager.run_command(&command, &args)?;
