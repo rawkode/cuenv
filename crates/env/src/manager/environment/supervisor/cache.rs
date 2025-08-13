@@ -22,10 +22,7 @@ pub struct CapturedEnvironment {
 }
 
 /// Load cached environment from disk
-pub fn load_cached_environment(
-    cache_dir: &Path,
-    input_hash: &str,
-) -> Result<CapturedEnvironment> {
+pub fn load_cached_environment(cache_dir: &Path, input_hash: &str) -> Result<CapturedEnvironment> {
     let cache_file = cache_dir.join(format!("{input_hash}.json"));
 
     if !cache_file.exists() {
@@ -60,11 +57,8 @@ pub fn save_cached_environment(
     }
 
     // Estimate memory usage
-    let estimated_size: usize = env_vars
-        .iter()
-        .map(|(k, v)| k.len() + v.len())
-        .sum();
-    
+    let estimated_size: usize = env_vars.iter().map(|(k, v)| k.len() + v.len()).sum();
+
     if estimated_size > MAX_CACHE_SIZE {
         return Err(cuenv_core::Error::configuration(format!(
             "Environment too large to cache: ~{estimated_size} bytes (max: {MAX_CACHE_SIZE} bytes)"
@@ -155,7 +149,9 @@ pub fn calculate_input_hash(hooks: &[Hook]) -> Result<String> {
                 if pattern.contains('*') || pattern.contains('?') {
                     // Use glob pattern to find matching files
                     let glob = Glob::new(pattern)
-                        .map_err(|e| cuenv_core::Error::configuration(format!("Invalid glob pattern: {e}")))?
+                        .map_err(|e| {
+                            cuenv_core::Error::configuration(format!("Invalid glob pattern: {e}"))
+                        })?
                         .compile_matcher();
 
                     // Walk the current directory and hash all matching paths
