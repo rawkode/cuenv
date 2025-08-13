@@ -93,16 +93,23 @@ impl Drop for DirectoryLock {
 
 /// Check if a process with the given PID is running
 fn is_process_running(pid: u32) -> bool {
+    // If it's the current process, it's definitely running
+    if pid == std::process::id() {
+        return true;
+    }
+
     #[cfg(unix)]
     {
-        std::path::Path::new(&format!("/proc/{pid}")).exists()
+        // Try using kill with signal 0 to check if process exists
+        // This is more reliable than checking /proc which might not be available in sandboxes
+        unsafe { libc::kill(pid as libc::pid_t, 0) == 0 }
     }
 
     #[cfg(not(unix))]
     {
-        // For non-Unix systems, conservatively assume it's not running
-        // This will allow stale locks to be cleaned up
-        false
+        // For non-Unix systems, conservatively assume it's running
+        // This prevents accidental lock stealing
+        true
     }
 }
 
