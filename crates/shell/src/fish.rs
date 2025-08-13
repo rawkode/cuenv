@@ -6,7 +6,7 @@ impl Shell for FishShell {
     fn hook(&self) -> String {
         r#"function _cuenv_hook --on-variable PWD --description 'cuenv hook'
   set -l prev_status $status
-  cuenv hook fish | source
+  cuenv shell hook fish | source
   if test $prev_status -ne 0
     return $prev_status
   end

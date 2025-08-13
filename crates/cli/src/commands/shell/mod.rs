@@ -118,6 +118,9 @@ impl ShellCommands {
                 }
             }
             ShellCommands::Hook { shell } => {
+                // Set environment variable to indicate we're in shell hook mode
+                env::set_var("CUENV_SHELL_HOOK", "1");
+
                 let shell_type = match shell {
                     Some(s) => ShellType::from_name(&s),
                     None => {

@@ -73,6 +73,8 @@ pub async fn process_hooks_with_preload(
 
 /// Execute a regular (non-source, non-preload) hook synchronously
 async fn execute_regular_hook(hook: &Hook) -> cuenv_core::Result<()> {
+    use std::process::Stdio;
+
     let mut cmd = tokio::process::Command::new(&hook.command);
 
     if let Some(args) = &hook.args {
@@ -81,6 +83,12 @@ async fn execute_regular_hook(hook: &Hook) -> cuenv_core::Result<()> {
 
     if let Some(dir) = &hook.dir {
         cmd.current_dir(dir);
+    }
+
+    // If we're in shell hook mode, redirect stdout to stderr to prevent
+    // hook output from interfering with shell export commands
+    if std::env::var("CUENV_SHELL_HOOK").is_ok() {
+        cmd.stdout(Stdio::from(std::io::stderr()));
     }
 
     let status = cmd.status().await.map_err(|e| {
