@@ -142,6 +142,7 @@ impl ShellCommands {
                 let shell_impl = shell_type.as_shell();
                 let current_dir = env::current_dir()?;
 
+                // First check if we need to unload
                 if StateManager::should_unload(&current_dir) {
                     if let Ok(Some(diff)) = StateManager::get_diff() {
                         for key in diff.removed() {
@@ -160,12 +161,28 @@ impl ShellCommands {
                     StateManager::unload().await.map_err(|e| {
                         cuenv_core::Error::configuration(format!("Failed to unload state: {e}"))
                     })?;
-                } else if current_dir.join(ENV_CUE_FILENAME).exists() {
+                }
+
+                // Then check if current directory has an environment to load
+                if current_dir.join(ENV_CUE_FILENAME).exists() {
                     let dir_manager = DirectoryManager::new();
                     if dir_manager
                         .is_directory_allowed(&current_dir)
                         .unwrap_or(false)
                     {
+                        // Check for completed background hooks ONLY if directory is allowed
+                        if let Some(completed_env) =
+                            cuenv_env::manager::environment::hooks::load_captured_environment()
+                        {
+                            // Apply newly available environment
+                            for (key, value) in completed_env {
+                                println!("{}", shell_impl.export(&key, &value));
+                            }
+
+                            // Show subtle notification
+                            eprintln!("# cuenv: ✓ Background hooks completed, environment updated");
+                        }
+
                         if StateManager::files_changed() || StateManager::should_load(&current_dir)
                         {
                             let mut env_manager = EnvManager::new();
@@ -182,8 +199,7 @@ impl ShellCommands {
                         }
                     } else {
                         eprintln!(
-                            "# cuenv: Directory not allowed. Run 'cuenv allow {}' to allow this directory.",
-                            current_dir.display()
+                            "# cuenv: Directory not allowed. Run 'cuenv env allow' to allow this directory.",
                         );
                     }
                 }

@@ -16,9 +16,9 @@ pub fn setup_command_environment(
 ) -> HashMap<String, String> {
     // Debug: check what's in sourced_env
     eprintln!("DEBUG: sourced_env has {} variables", sourced_env.len());
-    for (key, _value) in sourced_env {
+    for key in sourced_env.keys() {
         if key.contains("NIXOS") || key.contains("__fish") || key.contains("NIX_GSETTINGS") {
-            eprintln!("DEBUG: Found {} in sourced_env", key);
+            eprintln!("DEBUG: Found {key} in sourced_env");
         }
     }
 
@@ -66,9 +66,9 @@ pub fn setup_command_environment(
     }
 
     // Debug: log what's in final_env
-    for (key, _value) in &final_env {
+    for key in final_env.keys() {
         if key.contains("NIXOS") || key.contains("__fish") || key.contains("NIX_GSETTINGS") {
-            eprintln!("DEBUG: Found {} in final_env", key);
+            eprintln!("DEBUG: Found {key} in final_env");
         }
     }
 

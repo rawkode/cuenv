@@ -70,11 +70,12 @@ impl Commands {
             } => crate::commands::mcp::execute(config, transport, port, socket, allow_exec).await,
             Commands::Supervisor { hooks } => {
                 // Parse hooks from JSON
-                let hooks: Vec<cuenv_config::Hook> = serde_json::from_str(&hooks)
-                    .map_err(|e| cuenv_core::Error::configuration(format!("Invalid hooks JSON: {}", e)))?;
-                
+                let hooks: Vec<cuenv_config::Hook> = serde_json::from_str(&hooks).map_err(|e| {
+                    cuenv_core::Error::configuration(format!("Invalid hooks JSON: {e}"))
+                })?;
+
                 // Run the supervisor
-                cuenv_env::manager::environment::preload_supervisor::run_supervisor(hooks).await
+                cuenv_env::manager::environment::supervisor::run_supervisor(hooks).await
             }
         }
     }

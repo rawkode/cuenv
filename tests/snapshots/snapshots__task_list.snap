@@ -1,0 +1,5 @@
+---
+source: crates/cli/tests/snapshots.rs
+expression: normalized
+---
+No tasks defined in the CUE package

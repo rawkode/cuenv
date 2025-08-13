@@ -3,35 +3,56 @@ use cuenv_env::EnvManager;
 use cuenv_utils::hooks_status::{
     calculate_elapsed, should_show_completed_status, HookState, HooksStatusManager,
 };
+use std::env;
 
 pub async fn execute(hooks: bool, format: String, verbose: bool) -> Result<()> {
-    // If hooks flag is not set, show environment diff as before
-    if !hooks {
-        let env_manager = EnvManager::new();
-        env_manager.print_env_diff()?;
-        return Ok(());
-    }
+    // Get status for current directory (directory-aware)
+    let current_dir = env::current_dir().map_err(|e| {
+        cuenv_core::Error::file_system(&std::path::PathBuf::from("."), "get current directory", e)
+    })?;
 
-    // Read hooks status from file
-    let status = match HooksStatusManager::read_status_from_file() {
-        Ok(s) => s,
-        Err(_) => {
-            // No status file means no hooks running
-            if format == "starship" {
-                // Empty output for Starship when no hooks
-                return Ok(());
-            } else {
-                println!("No hooks currently running");
-                return Ok(());
-            }
-        }
-    };
+    // Try directory-specific status first, then fall back to legacy
+    let status = HooksStatusManager::read_status_for_directory(&current_dir)
+        .ok()
+        .flatten()
+        .or_else(|| HooksStatusManager::read_status_from_file().ok());
 
     // Format output based on requested format
     match format.as_str() {
-        "starship" => format_starship_output(&status, verbose),
-        "json" => format_json_output(&status),
-        _ => format_human_output(&status),
+        "starship" => {
+            if let Some(status) = status {
+                format_starship_output(&status, verbose);
+            }
+            // Empty output for Starship when no hooks
+        }
+        "json" => {
+            if let Some(status) = status {
+                format_json_output(&status);
+            } else {
+                // Output empty status for consistency
+                println!("{{}}");
+            }
+        }
+        _ => {
+            // Human-readable format: show both hooks and environment
+            if let Some(status) = status {
+                // Show which directory if available
+                if let Some(ref dir) = status.directory {
+                    println!("Directory: {}", dir);
+                    println!();
+                }
+                format_human_output(&status);
+                println!(); // Add spacing
+            }
+
+            // Also show environment diff unless hooks flag is set
+            if !hooks {
+                println!("Environment Status");
+                println!("==================");
+                let env_manager = EnvManager::new();
+                env_manager.print_env_diff()?;
+            }
+        }
     }
 
     Ok(())

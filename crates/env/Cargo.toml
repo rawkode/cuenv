@@ -56,6 +56,9 @@ walkdir.workspace = true
 # Async
 futures.workspace = true
 
+# Terminal interaction
+crossterm = "0.28"
+
 [dev-dependencies]
 tempfile.workspace = true
 uuid.workspace = true

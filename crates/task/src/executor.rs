@@ -49,8 +49,39 @@ mod executor_tests {
         let env_file = temp_dir.path().join("env.cue");
         fs::write(&env_file, tasks_cue).unwrap();
 
+        // Save the current directory before calling CueParser
+        let saved_dir = std::env::current_dir().unwrap();
+
+        // Create a manager and directly populate tasks without going through load_env
+        // which would set global environment variables
         let mut manager = EnvManager::new();
-        manager.load_env(temp_dir.path()).await.unwrap();
+
+        // Parse the CUE directly to get tasks without setting global state
+        use cuenv_config::{CueParser, ParseOptions};
+        use cuenv_core::constants::DEFAULT_PACKAGE_NAME;
+
+        let options = ParseOptions {
+            environment: None,
+            capabilities: Vec::new(),
+        };
+
+        // Change to the temp dir for CUE evaluation
+        std::env::set_current_dir(temp_dir.path()).unwrap();
+
+        let parse_result =
+            CueParser::eval_package_with_options(temp_dir.path(), DEFAULT_PACKAGE_NAME, &options)
+                .unwrap();
+
+        // Restore the original directory
+        std::env::set_current_dir(saved_dir).unwrap();
+
+        // Populate the manager's tasks directly using the test-only method
+        manager.set_tasks_for_testing(
+            parse_result.tasks,
+            parse_result.task_nodes,
+            parse_result.variables,
+        );
+
         (manager, temp_dir)
     }
 

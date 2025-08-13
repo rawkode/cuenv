@@ -75,3 +75,7 @@ nix-build = []
 
 [dev-dependencies]
 tempfile = { workspace = true }
+insta = { workspace = true }
+cucumber = { workspace = true }
+futures = { workspace = true }
+regex = { workspace = true }
