@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
 pub struct ConfigSettings {
     #[serde(rename = "outputFormat")]
     pub output_format: Option<String>,
@@ -24,7 +23,6 @@ pub struct ConfigSettings {
     #[serde(rename = "defaultCapabilities")]
     pub default_capabilities: Option<Vec<String>>,
 }
-
 
 impl ConfigSettings {
     pub fn validate(&self) -> Result<(), String> {

@@ -64,10 +64,10 @@ impl RuntimeOptions {
             self.cache_mode = config.cache_mode.clone();
         }
 
-        // For cache_enabled, only use config if it's explicitly set and CLI didn't override
-        if let Some(config_enabled) = config.cache_enabled {
-            self.cache_enabled = config_enabled;
-        }
+        // For cache_enabled, we cannot reliably determine if CLI explicitly set it
+        // since RuntimeOptions.cache_enabled is bool, not Option<bool>
+        // To maintain CLI precedence, we skip config merging for this field
+        // This is consistent with the principle that CLI args should always take precedence
 
         // For audit_mode, only use config if CLI didn't set it to true
         if !self.audit_mode {
