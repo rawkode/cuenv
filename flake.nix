@@ -124,6 +124,7 @@
             cue
             gopls
             gotools
+            nodejs
             rust-analyzer
             treefmt.config.build.wrapper
             prettier
@@ -132,11 +133,29 @@
             grpcurl
             netcat
             jq
+
+            # Shells for testing
+            bash
+            zsh
+            fish
+            nushell
+            elvish
+            dash
           ]
           ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
             # cargo-llvm-cov only works on Linux
             cargo-llvm-cov
           ];
+
+        # Shells available for testing
+        testShells = with pkgs; {
+          bash = bash;
+          zsh = zsh;
+          fish = fish;
+          nushell = nushell;
+          elvish = elvish;
+          dash = dash;
+        };
 
         # Read version from Cargo.toml
         cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
@@ -465,7 +484,7 @@
               cargoClippyExtraArgs = "-- -D warnings";
               preBuild = ''
                 export CUE_ROOT="$PWD/cue"
-                
+
                 # Use pre-compiled Go bridge to avoid build failures
                 mkdir -p crates/libcue-ffi-bridge/target/debug
                 mkdir -p crates/libcue-ffi-bridge/target/release
@@ -484,7 +503,7 @@
               cargoClippyExtraArgs = "-- -D warnings";
               preBuild = ''
                 export CUE_ROOT="$PWD/cue"
-                
+
                 # Use pre-compiled Go bridge to avoid build failures
                 mkdir -p crates/libcue-ffi-bridge/target/debug
                 mkdir -p crates/libcue-ffi-bridge/target/release
@@ -503,7 +522,7 @@
               cargoClippyExtraArgs = "-- -D warnings";
               preBuild = ''
                 export CUE_ROOT="$PWD/cue"
-                
+
                 # Use pre-compiled Go bridge to avoid build failures
                 mkdir -p crates/libcue-ffi-bridge/target/debug
                 mkdir -p crates/libcue-ffi-bridge/target/release
@@ -522,7 +541,7 @@
               cargoClippyExtraArgs = "-- -D warnings";
               preBuild = ''
                 export CUE_ROOT="$PWD/cue"
-                
+
                 # Use pre-compiled Go bridge to avoid build failures
                 mkdir -p crates/libcue-ffi-bridge/target/debug
                 mkdir -p crates/libcue-ffi-bridge/target/release

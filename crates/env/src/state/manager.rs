@@ -315,39 +315,15 @@ impl StateManager {
 
     /// Unload the current environment with transactional semantics
     pub async fn unload() -> Result<()> {
-        // Get current state and diff before acquiring lock to avoid deadlock
+        // Get current state before acquiring lock to avoid deadlock
         let current_state = Self::get_state()?;
-        let diff_opt = Self::get_diff()?;
 
         // Log the unload operation (do async work before acquiring lock)
         Self::log_unload(&current_state).await?;
 
-        // Create a transaction that includes both state vars and environment vars
-        let mut all_keys = Self::state_var_names();
-
-        // Also snapshot environment variables that might be modified
-        if let Some(diff) = &diff_opt {
-            // Add keys that will be modified by the reverse diff
-            // Pre-allocate capacity for all keys
-            let additional_keys = diff.added_or_changed().len() + diff.removed().len();
-            all_keys.reserve(additional_keys);
-
-            for key in diff.added_or_changed().keys() {
-                all_keys.push(key.to_string());
-            }
-            for key in diff.removed() {
-                all_keys.push(key.to_string());
-            }
-        }
-
+        // Create a transaction for state vars only
+        let all_keys = Self::state_var_names();
         let mut transaction = StateTransaction::new(&all_keys)?;
-
-        // Restore original environment
-        if let Some(diff) = diff_opt {
-            // Apply the reverse diff to restore original environment
-            let reversed_diff = diff.reverse();
-            reversed_diff.apply()?;
-        }
 
         // Remove all cuenv state variables
         for var_name in Self::state_var_names() {
@@ -411,8 +387,11 @@ impl StateManager {
     pub fn should_unload(current_dir: &Path) -> bool {
         let _guard = STATE_LOCK.read().ok();
         if let Some(loaded_dir) = Self::current_dir() {
-            // Unload if we're no longer in the loaded directory or its subdirectories
-            !current_dir.starts_with(&loaded_dir)
+            // Unload if:
+            // 1. We moved to a parent directory (going up)
+            // 2. We moved to a sibling or unrelated directory
+            // Keep loaded only if we're in a subdirectory of the loaded dir
+            loaded_dir != current_dir && !current_dir.starts_with(&loaded_dir)
         } else {
             false
         }

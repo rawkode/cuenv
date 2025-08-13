@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::diff::EnvDiff;
-use crate::manager::stubs::StateManager;
+use crate::state::StateManager;
 
 /// Apply merged environment variables (sourced + CUE)
 pub async fn apply_merged_environment(
@@ -57,7 +57,7 @@ pub async fn apply_merged_environment(
     }
 
     // Create environment diff
-    let _diff = EnvDiff::new(original_env.clone(), new_env);
+    let diff = EnvDiff::new(original_env.clone(), new_env);
 
     // Create file watches
     let mut watches = FileTimes::new();
@@ -66,8 +66,24 @@ pub async fn apply_merged_environment(
         watches.watch(&env_cue);
     }
 
-    // Save state
-    StateManager::load(dir)?;
+    // Save state with all required parameters
+    let environment = SyncEnv::var("CUENV_ENV")
+        .map_err(|e| Error::Configuration {
+            message: format!("Failed to get CUENV_ENV: {e}"),
+        })?
+        .or_else(|| Some("default".to_string()));
+
+    let capabilities = Vec::new(); // TODO: get actual capabilities from context
+
+    StateManager::load(
+        dir,
+        &env_cue,
+        environment.as_deref(),
+        &capabilities,
+        &diff,
+        &watches,
+    )
+    .await?;
 
     Ok(())
 }

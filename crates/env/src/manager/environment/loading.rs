@@ -10,8 +10,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use super::apply::apply_merged_environment;
-use super::hooks::process_hooks_with_preload;
-use super::preload::PreloadHookManager;
+use super::hooks::process_all_hooks;
 
 /// Context for loading environment with all the mutable maps
 pub struct LoadEnvironmentContext<'a> {
@@ -22,7 +21,6 @@ pub struct LoadEnvironmentContext<'a> {
     pub cue_vars: &'a mut HashMap<String, String>,
     pub cue_vars_metadata: &'a mut HashMap<String, VariableMetadata>,
     pub sourced_env: &'a mut HashMap<String, String>,
-    pub preload_manager: &'a mut Option<PreloadHookManager>,
 }
 
 /// Load environment with given options
@@ -86,18 +84,8 @@ pub async fn load_env_with_options(
     context.task_nodes.extend(parse_result.task_nodes.clone());
     convert_hooks_to_config(&parse_result.hooks, context.hooks);
 
-    // Process all hooks: source hooks synchronously, start preload hooks in background
-    let (mut sourced_env_vars, preload_manager) =
-        process_hooks_with_preload(dir, &parse_result.hooks).await;
-
-    // Store the preload manager
-    *context.preload_manager = Some(preload_manager);
-    
-    // Also check for captured environment from previous supervisor runs
-    if let Some(captured_env) = super::hooks::load_captured_environment() {
-        tracing::info!("Loading {} captured environment variables from supervisor", captured_env.len());
-        sourced_env_vars.extend(captured_env);
-    }
+    // Process all hooks using the new supervisor-based model
+    let sourced_env_vars = process_all_hooks(dir, &parse_result.hooks).await?;
 
     // Store the sourced environment
     let has_sourced_env = !sourced_env_vars.is_empty();

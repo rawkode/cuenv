@@ -6,7 +6,17 @@ schema.#Cuenv
 
 hooks: onEnter: [
 	schema.#NixFlake & { preload: true },
-	{command: "echo", args: ["Hello!"]},
+	{command: "sleep", args: ["31"], preload: true },
+                    {
+                                // This hook sleeps for 5 seconds then exports TEST_BG_VAR
+                                command: "bash"
+                                args: ["-c", """
+                                        sleep 10
+                                        echo 'export TEST_BG_VAR="background_hook_completed"'
+                                        echo 'export TEST_TIMESTAMP="'$(date +%s)'"'
+                                        """]
+                                source: true  // Capture the exported environment
+                        },
 ]
 
 hooks: onExit: [{command: "echo", args: ["Goodbye!"]}]
@@ -61,11 +71,41 @@ tasks: {
 	test: {
 		description: "Testing commands"
 		mode: "parallel"  // Run tests in parallel for speed
-		unit: {
-			description: "Run unit tests"
+		all: {
+			description: "Run all tests"
 			command:     "cargo"
 			args: ["nextest", "run"]
 			inputs: ["src/**/*.rs", "tests/**/*.rs", "Cargo.toml"]
+		}
+		unit: {
+			description: "Run unit tests only"
+			command:     "cargo"
+			args: ["nextest", "run", "--lib"]
+			inputs: ["src/**/*.rs", "Cargo.toml"]
+		}
+		integration: {
+			description: "Run integration tests only"
+			command:     "cargo"
+			args: ["nextest", "run", "--tests"]
+			inputs: ["tests/**/*.rs", "Cargo.toml"]
+		}
+		bdd: {
+			description: "Run BDD behavior tests"
+			command:     "cargo"
+			args: ["test", "--test", "behaviours"]
+			inputs: ["tests/behaviours/**/*", "Cargo.toml"]
+		}
+		shells: {
+			description: "Run shell integration tests"
+			command:     "cargo"
+			args: ["test", "--test", "shells"]
+			inputs: ["tests/shells/**/*.rs", "Cargo.toml"]
+		}
+		examples: {
+			description: "Test example configurations"
+			command:     "cargo"
+			args: ["test", "--test", "examples"]
+			inputs: ["examples/**/*", "tests/examples/**/*.rs"]
 		}
 		ci: {
 			description: "Run tests with CI profile"
@@ -78,11 +118,6 @@ tasks: {
 			command:     "cargo"
 			args: ["llvm-cov", "nextest", "--lcov", "--output-path", "lcov.info"]
 			inputs: ["src/**/*.rs", "tests/**/*.rs", "Cargo.toml"]
-		}
-		examples: {
-			description: "Test example configurations"
-			command:     "scripts/test-examples.sh"
-			inputs: ["examples/**/*", "src/**/*.rs"]
 		}
 	}
 
@@ -185,17 +220,23 @@ tasks: {
 			
 			unit: {
 				command: "cargo"
-				args: ["nextest", "run"]
-				inputs: ["src/**/*.rs", "tests/**/*.rs"]
+				args: ["nextest", "run", "--lib"]
+				inputs: ["src/**/*.rs"]
 			}
 			integration: {
 				command: "cargo"
-				args: ["test", "--test", "*"]
+				args: ["nextest", "run", "--tests"]
 				inputs: ["tests/**/*.rs"]
 			}
+			bdd: {
+				command: "cargo"
+				args: ["test", "--test", "behaviours"]
+				inputs: ["tests/behaviours/**/*"]
+			}
 			examples: {
-				command: "scripts/test-examples.sh"
-				inputs: ["examples/**/*"]
+				command: "cargo"
+				args: ["test", "--test", "examples"]
+				inputs: ["examples/**/*", "tests/examples/**/*.rs"]
 			}
 		}
 		
@@ -235,3 +276,5 @@ tasks: {
 		}
 	}
 }
+
+// test change to invalidate cache

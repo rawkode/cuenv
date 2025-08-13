@@ -19,7 +19,14 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:release-plz.dev)",
       "Bash(gemini:*)",
-      "Bash(../../target/debug/cuenv env --help)"
+      "Bash(../../target/debug/cuenv env --help)",
+      "Bash(export)",
+      "Bash(../../target/debug/cuenv hook bash:*)",
+      "Bash(cargo build:*)",
+      "Bash(target/debug/cuenv:*)",
+      "Bash(printenv)",
+      "Bash(cargo test:*)",
+      "Bash(cargo insta test:*)"
     ],
     "deny": []
   },

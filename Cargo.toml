@@ -150,6 +150,23 @@ cuenv-tui = { path = "crates/tui" }
 cuenv-hooks = { path = "crates/hooks" }
 cuenv-utils = { path = "crates/utils" }
 
+# Test dependencies
+insta = { version = "1.40", features = ["yaml", "json", "toml"] }
+cucumber = "0.21"
+
+[workspace.dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
+proptest = "1.5"
+expectrl = "0.7"
+serial_test = "3.1"
+rstest = "0.23"
+
+# Test utilities
+wiremock = "0.6"
+mockall = "0.13"
+predicates = "3.1"
+assert_cmd = "2.0"
+assert_fs = "1.1"
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [

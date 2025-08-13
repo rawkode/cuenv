@@ -21,11 +21,7 @@ mod tests {
         }
     }
 
-    fn create_test_hook_with_inputs(
-        command: &str,
-        args: Vec<String>,
-        inputs: Vec<String>,
-    ) -> Hook {
+    fn create_test_hook_with_inputs(command: &str, args: Vec<String>, inputs: Vec<String>) -> Hook {
         Hook {
             command: command.to_string(),
             args: Some(args),
@@ -91,8 +87,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_calculate_input_hash_changes_with_inputs() {
-        let hooks1 = vec![create_test_hook("echo", vec!["hello".to_string()], true, false)];
-        let hooks2 = vec![create_test_hook("echo", vec!["world".to_string()], true, false)];
+        let hooks1 = vec![create_test_hook(
+            "echo",
+            vec!["hello".to_string()],
+            true,
+            false,
+        )];
+        let hooks2 = vec![create_test_hook(
+            "echo",
+            vec!["world".to_string()],
+            true,
+            false,
+        )];
 
         let hash1 = calculate_input_hash(&hooks1).unwrap();
         let hash2 = calculate_input_hash(&hooks2).unwrap();
@@ -185,13 +191,13 @@ mod tests {
         let script_path = temp_dir.path().join("source.sh");
         fs::write(
             &script_path,
-            r#"#!/bin/sh
-echo "export FOO=bar"
-echo "export BAZ=qux"
-echo "# This is a comment"
-echo ""
-echo "HELLO=world"
-"#,
+            "#!/bin/sh
+echo \"export FOO=bar\"
+echo \"export BAZ=qux\"
+echo \"# This is a comment\"
+echo \"\"
+echo \"HELLO=world\"
+",
         )
         .unwrap();
 
@@ -232,10 +238,13 @@ echo "HELLO=world"
             create_test_hook("echo", vec!["test".to_string()], false, false), // Not a preload hook
         ];
 
-        let supervisor = PreloadSupervisor::new(hooks).unwrap();
+        let supervisor = Supervisor::new(hooks, SupervisorMode::Background).unwrap();
         let result = supervisor.run().await;
 
-        assert!(result.is_ok(), "Supervisor should succeed with no preload hooks");
+        assert!(
+            result.is_ok(),
+            "Supervisor should succeed with no preload hooks"
+        );
     }
 
     #[tokio::test]
@@ -251,12 +260,12 @@ echo "HELLO=world"
         )];
 
         // First run - should execute hooks
-        let supervisor1 = PreloadSupervisor::new(hooks.clone()).unwrap();
+        let supervisor1 = Supervisor::new(hooks.clone(), SupervisorMode::Background).unwrap();
         let result1 = supervisor1.run().await;
         assert!(result1.is_ok());
 
         // Second run with same inputs - should use cache
-        let supervisor2 = PreloadSupervisor::new(hooks.clone()).unwrap();
+        let supervisor2 = Supervisor::new(hooks.clone(), SupervisorMode::Background).unwrap();
         let result2 = supervisor2.run().await;
         assert!(result2.is_ok());
 
@@ -264,7 +273,7 @@ echo "HELLO=world"
         fs::write(&test_file, "modified content").unwrap();
 
         // Third run with modified inputs - should re-execute
-        let supervisor3 = PreloadSupervisor::new(hooks).unwrap();
+        let supervisor3 = Supervisor::new(hooks, SupervisorMode::Background).unwrap();
         let result3 = supervisor3.run().await;
         assert!(result3.is_ok());
     }
@@ -277,8 +286,8 @@ echo "HELLO=world"
             create_test_hook("echo", vec!["3".to_string()], true, false),
         ];
 
-        let supervisor = PreloadSupervisor::new(hooks).unwrap();
-        
+        let supervisor = Supervisor::new(hooks, SupervisorMode::Background).unwrap();
+
         // Check initial status
         let initial_status = supervisor.status_manager.get_current_status();
         assert_eq!(initial_status.total, 0);
@@ -288,7 +297,10 @@ echo "HELLO=world"
 
         // After completion, status should be cleared
         let final_status = supervisor.status_manager.get_current_status();
-        assert_eq!(final_status.total, 0, "Status should be cleared after completion");
+        assert_eq!(
+            final_status.total, 0,
+            "Status should be cleared after completion"
+        );
     }
 
     #[tokio::test]
@@ -299,11 +311,14 @@ echo "HELLO=world"
             create_test_hook("echo", vec!["after_failure".to_string()], true, false),
         ];
 
-        let supervisor = PreloadSupervisor::new(hooks).unwrap();
+        let supervisor = Supervisor::new(hooks, SupervisorMode::Background).unwrap();
         let result = supervisor.run().await;
 
         // Supervisor should continue despite individual hook failures
-        assert!(result.is_ok(), "Supervisor should complete even with failed hooks");
+        assert!(
+            result.is_ok(),
+            "Supervisor should complete even with failed hooks"
+        );
     }
 
     #[tokio::test]

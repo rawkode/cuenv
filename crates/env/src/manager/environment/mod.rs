@@ -1,8 +1,9 @@
 mod apply;
-mod hooks;
-mod loading;
+pub mod hooks;
+pub mod interactive;
+pub mod loading;
 pub mod preload;
-pub mod preload_supervisor;
+pub mod supervisor;
 mod unload;
 
 pub use hooks::execute_on_enter_hooks;

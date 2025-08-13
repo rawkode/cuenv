@@ -1,0 +1,2 @@
+snapshot_path: tests/snapshots
+require_full_match: true

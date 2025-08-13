@@ -25,7 +25,6 @@ pub struct EnvManager {
     tasks: HashMap<String, TaskConfig>,
     task_nodes: HashMap<String, TaskNode>, // Preserve task structure
     hooks: HashMap<String, HookConfig>,
-    preload_manager: Option<environment::PreloadHookManager>,
 }
 
 impl EnvManager {
@@ -39,7 +38,6 @@ impl EnvManager {
             tasks: HashMap::with_capacity(20),
             task_nodes: HashMap::with_capacity(20),
             hooks: HashMap::with_capacity(4),
-            preload_manager: None,
         }
     }
 }
@@ -73,7 +71,6 @@ impl EnvManager {
             cue_vars: &mut self.cue_vars,
             cue_vars_metadata: &mut self.cue_vars_metadata,
             sourced_env: &mut self.sourced_env,
-            preload_manager: &mut self.preload_manager,
         };
 
         environment::load_env_with_options(
@@ -116,34 +113,6 @@ impl EnvManager {
 
     pub fn export_for_shell(&self, shell: &str) -> Result<String> {
         export::export_for_shell(&self.original_env, shell)
-    }
-
-    /// Wait for all preload hooks to complete before running a command
-    pub async fn wait_for_preload_hooks(&self) -> Result<()> {
-        if let Some(ref manager) = self.preload_manager {
-            if manager.has_running_hooks().await {
-                tracing::info!("Waiting for preload hooks to complete...");
-                manager.wait_for_completion().await?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Get status of preload hooks
-    pub async fn get_preload_hooks_status(&self) -> Vec<String> {
-        if let Some(ref manager) = self.preload_manager {
-            manager.get_status().await
-        } else {
-            Vec::new()
-        }
-    }
-
-    /// Cancel all running preload hooks (when changing directories)
-    pub async fn cancel_preload_hooks(&mut self) {
-        if let Some(ref manager) = self.preload_manager {
-            manager.cancel_all().await;
-        }
-        self.preload_manager = None;
     }
 
     pub fn run_command(&self, command: &str, args: &[String]) -> Result<i32> {
@@ -228,6 +197,21 @@ impl EnvManager {
             })
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect()
+    }
+
+    /// Test-only method to populate tasks directly without setting global state
+    /// This is marked as doc(hidden) so it doesn't appear in public documentation
+    /// but is available for test usage across crates
+    #[doc(hidden)]
+    pub fn set_tasks_for_testing(
+        &mut self,
+        tasks: HashMap<String, TaskConfig>,
+        task_nodes: HashMap<String, TaskNode>,
+        cue_vars: HashMap<String, String>,
+    ) {
+        self.tasks = tasks;
+        self.task_nodes = task_nodes;
+        self.cue_vars = cue_vars;
     }
 }
 

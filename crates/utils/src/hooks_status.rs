@@ -1,11 +1,14 @@
 //! Hook status tracking and state management
 
-use crate::paths::{ensure_status_dir_exists, get_hooks_status_file_path};
+use crate::paths::{
+    ensure_state_dir_exists, ensure_status_dir_exists, get_hooks_status_file_path,
+    get_hooks_status_file_path_for_dir,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -54,6 +57,12 @@ pub struct HooksStatus {
     pub start_time: u64,
     /// Last update time
     pub last_update: u64,
+    /// Directory this status is for (optional for backwards compatibility)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub directory: Option<String>,
+    /// PID of the supervisor that owns this status
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supervisor_pid: Option<u32>,
 }
 
 impl Default for HooksStatus {
@@ -70,7 +79,48 @@ impl Default for HooksStatus {
             failed: 0,
             start_time: now,
             last_update: now,
+            directory: None,
+            supervisor_pid: None,
         }
+    }
+}
+
+impl HooksStatus {
+    /// Clean up stale hooks (marked as running but process is dead)
+    pub fn cleanup_stale_hooks(&mut self) {
+        for (_name, hook) in self.hooks.iter_mut() {
+            if matches!(hook.status, HookState::Running) {
+                if let Some(pid) = hook.pid {
+                    if !is_process_running(pid) {
+                        // Mark as completed since process is dead
+                        hook.status = HookState::Completed;
+                        self.completed += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Check if there are actually running hooks
+    pub fn has_actually_running_hooks(&self) -> bool {
+        self.hooks.values().any(|h| {
+            matches!(h.status, HookState::Running | HookState::Pending)
+                && h.pid.is_none_or(is_process_running)
+        })
+    }
+}
+
+/// Check if a process with the given PID is running
+fn is_process_running(pid: u32) -> bool {
+    #[cfg(unix)]
+    {
+        std::path::Path::new(&format!("/proc/{pid}")).exists()
+    }
+
+    #[cfg(not(unix))]
+    {
+        // For non-Unix systems, conservatively assume it's not running
+        false
     }
 }
 
@@ -81,7 +131,7 @@ pub struct HooksStatusManager {
 }
 
 impl HooksStatusManager {
-    /// Create a new status manager
+    /// Create a new status manager (legacy mode for backwards compatibility)
     pub fn new() -> io::Result<Self> {
         ensure_status_dir_exists()?;
         let status_file = get_hooks_status_file_path();
@@ -95,6 +145,36 @@ impl HooksStatusManager {
         } else {
             HooksStatus::default()
         };
+
+        Ok(Self {
+            status: Arc::new(Mutex::new(status)),
+            status_file,
+        })
+    }
+
+    /// Create a new status manager for a specific directory
+    pub fn new_for_directory(directory: &Path) -> io::Result<Self> {
+        ensure_state_dir_exists(directory)?;
+        let status_file = get_hooks_status_file_path_for_dir(directory);
+
+        // Try to load existing status or create new
+        let mut status = if status_file.exists() {
+            match fs::read_to_string(&status_file) {
+                Ok(content) => {
+                    let mut s: HooksStatus = serde_json::from_str(&content).unwrap_or_default();
+                    // Clean up stale hooks on load
+                    s.cleanup_stale_hooks();
+                    s
+                }
+                Err(_) => HooksStatus::default(),
+            }
+        } else {
+            HooksStatus::default()
+        };
+
+        // Set directory and supervisor PID
+        status.directory = Some(directory.to_string_lossy().to_string());
+        status.supervisor_pid = Some(std::process::id());
 
         Ok(Self {
             status: Arc::new(Mutex::new(status)),
@@ -227,6 +307,7 @@ impl HooksStatusManager {
 
     /// Read status from file
     pub fn read_status_from_file() -> io::Result<HooksStatus> {
+        ensure_status_dir_exists()?;
         let status_file = get_hooks_status_file_path();
         if !status_file.exists() {
             return Ok(HooksStatus::default());
@@ -234,6 +315,21 @@ impl HooksStatusManager {
 
         let content = fs::read_to_string(status_file)?;
         serde_json::from_str(&content).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    }
+
+    /// Read status for a specific directory (static method)
+    pub fn read_status_for_directory(directory: &Path) -> io::Result<Option<HooksStatus>> {
+        let status_file = get_hooks_status_file_path_for_dir(directory);
+
+        if !status_file.exists() {
+            return Ok(None);
+        }
+
+        let content = fs::read_to_string(&status_file)?;
+        let mut status: HooksStatus = serde_json::from_str(&content)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        status.cleanup_stale_hooks();
+        Ok(Some(status))
     }
 }
 
@@ -263,12 +359,12 @@ mod tests {
     use super::*;
     use std::thread;
     use std::time::Duration;
+    use tempfile::TempDir;
 
     #[test]
     fn test_status_manager_creation() {
-        let manager = HooksStatusManager::new().unwrap();
-        // Clear any existing status first
-        let _ = manager.clear_status();
+        let temp_dir = TempDir::new().unwrap();
+        let manager = HooksStatusManager::new_for_directory(temp_dir.path()).unwrap();
 
         let status = manager.get_current_status();
         assert_eq!(status.total, 0);
@@ -278,10 +374,8 @@ mod tests {
 
     #[test]
     fn test_initialize_hooks() {
-        // Ensure status directory exists
-        let _ = ensure_status_dir_exists();
-
-        let manager = HooksStatusManager::new().unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let manager = HooksStatusManager::new_for_directory(temp_dir.path()).unwrap();
         let hooks = vec!["hook1".to_string(), "hook2".to_string()];
         manager.initialize_hooks(hooks).unwrap();
 
@@ -294,7 +388,8 @@ mod tests {
 
     #[test]
     fn test_hook_lifecycle() {
-        let manager = HooksStatusManager::new().unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let manager = HooksStatusManager::new_for_directory(temp_dir.path()).unwrap();
         manager
             .initialize_hooks(vec!["test_hook".to_string()])
             .unwrap();
@@ -316,7 +411,8 @@ mod tests {
 
     #[test]
     fn test_hook_failure() {
-        let manager = HooksStatusManager::new().unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let manager = HooksStatusManager::new_for_directory(temp_dir.path()).unwrap();
         manager
             .initialize_hooks(vec!["failing_hook".to_string()])
             .unwrap();
@@ -337,17 +433,24 @@ mod tests {
 
     #[test]
     fn test_persistence_and_reload() {
-        // Create and populate manager
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create and populate manager - use current process PID so it exists
+        let current_pid = std::process::id();
         {
-            let manager = HooksStatusManager::new().unwrap();
+            let manager = HooksStatusManager::new_for_directory(temp_dir.path()).unwrap();
             manager
                 .initialize_hooks(vec!["persistent_hook".to_string()])
                 .unwrap();
-            manager.mark_hook_started("persistent_hook", 9999).unwrap();
+            manager
+                .mark_hook_started("persistent_hook", current_pid)
+                .unwrap();
         }
 
-        // Read from file
-        let status = HooksStatusManager::read_status_from_file().unwrap();
+        // Read from file using the directory-specific method
+        let status = HooksStatusManager::read_status_for_directory(temp_dir.path())
+            .unwrap()
+            .unwrap();
         assert_eq!(status.total, 1);
         assert!(status.hooks.contains_key("persistent_hook"));
         assert_eq!(status.hooks["persistent_hook"].status, HookState::Running);
@@ -355,7 +458,8 @@ mod tests {
 
     #[test]
     fn test_clear_status() {
-        let manager = HooksStatusManager::new().unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let manager = HooksStatusManager::new_for_directory(temp_dir.path()).unwrap();
         manager
             .initialize_hooks(vec!["hook1".to_string(), "hook2".to_string()])
             .unwrap();
