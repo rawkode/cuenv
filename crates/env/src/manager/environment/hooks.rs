@@ -112,32 +112,27 @@ pub fn execute_on_enter_hooks(hooks: &HashMap<String, HookConfig>) -> cuenv_core
 
 /// Spawn the preload supervisor as a background process
 pub async fn spawn_supervisor(hooks: Vec<Hook>) {
-    // Serialize hooks to pass to supervisor process
-    let _hooks_json = match serde_json::to_string(&hooks) {
-        Ok(json) => json,
-        Err(e) => {
-            tracing::error!("Failed to serialize hooks: {}", e);
-            return;
-        }
-    };
-
-    // Get the current executable path
-    let _exe_path = match std::env::current_exe() {
-        Ok(path) => path,
-        Err(e) => {
-            tracing::error!("Failed to get current executable: {}", e);
-            return;
-        }
-    };
-
-    // In a production build, run the supervisor and block
+    // In a production build, run the supervisor in background mode
     #[cfg(not(debug_assertions))]
     {
         tokio::spawn(async move {
-            if let Err(e) = supervisor::run_supervisor(hooks).await {
-                tracing::error!("Supervisor failed: {}", e);
+            match Supervisor::new(hooks, SupervisorMode::Background) {
+                Ok(supervisor) => {
+                    if let Err(e) = supervisor.run().await {
+                        tracing::error!("Supervisor failed: {}", e);
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to create supervisor: {}", e);
+                }
             }
         });
+    }
+
+    // In debug builds, log what would happen
+    #[cfg(debug_assertions)]
+    {
+        tracing::debug!("Would spawn supervisor with {} hooks", hooks.len());
     }
 }
 

@@ -74,8 +74,10 @@ impl Commands {
                     cuenv_core::Error::configuration(format!("Invalid hooks JSON: {e}"))
                 })?;
 
-                // Run the supervisor
-                cuenv_env::manager::environment::supervisor::run_supervisor(hooks).await
+                // Run the supervisor using the new API
+                use cuenv_env::manager::environment::supervisor::{Supervisor, SupervisorMode};
+                let supervisor = Supervisor::new(hooks, SupervisorMode::Foreground)?;
+                supervisor.run().await
             }
         }
     }

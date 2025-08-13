@@ -79,8 +79,7 @@ comm -z -13 "$TEMP_BEFORE" "$TEMP_AFTER"
             if !output.status.success() {
                 eprintln!(
                     "# cuenv: Hook {} failed with status: {}",
-                    hook.command,
-                    output.status
+                    hook.command, output.status
                 );
                 if !output.stderr.is_empty() {
                     eprintln!(
@@ -145,8 +144,7 @@ async fn execute_regular_hook(
             if !output.status.success() {
                 eprintln!(
                     "# cuenv: Hook {} failed with status: {}",
-                    hook.command,
-                    output.status
+                    hook.command, output.status
                 );
                 if !output.stderr.is_empty() {
                     eprintln!(
