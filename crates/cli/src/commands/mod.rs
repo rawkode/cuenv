@@ -157,4 +157,12 @@ pub enum Commands {
         #[arg(long)]
         allow_exec: bool,
     },
+    
+    /// Internal preload supervisor (hidden from user)
+    #[command(name = "supervisor", hide = true)]
+    Supervisor {
+        /// JSON-encoded hooks to execute
+        #[arg(long)]
+        hooks: String,
+    },
 }

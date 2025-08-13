@@ -87,11 +87,17 @@ pub async fn load_env_with_options(
     convert_hooks_to_config(&parse_result.hooks, context.hooks);
 
     // Process all hooks: source hooks synchronously, start preload hooks in background
-    let (sourced_env_vars, preload_manager) =
+    let (mut sourced_env_vars, preload_manager) =
         process_hooks_with_preload(dir, &parse_result.hooks).await;
 
     // Store the preload manager
     *context.preload_manager = Some(preload_manager);
+    
+    // Also check for captured environment from previous supervisor runs
+    if let Some(captured_env) = super::hooks::load_captured_environment() {
+        tracing::info!("Loading {} captured environment variables from supervisor", captured_env.len());
+        sourced_env_vars.extend(captured_env);
+    }
 
     // Store the sourced environment
     let has_sourced_env = !sourced_env_vars.is_empty();

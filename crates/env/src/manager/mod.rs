@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 mod command;
-mod environment;
+pub mod environment;
 mod export;
 mod hooks;
 mod secrets;
