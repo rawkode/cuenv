@@ -8,15 +8,16 @@ cuenv is a direnv alternative using CUE (Configure, Unify, Execute) files for ty
 
 ### Essential Development Environment
 
-**NEVER CANCEL: Initial `nix develop` setup takes 15-20 minutes on first run**
+**NEVER CANCEL: Initial `nix develop` setup takes 15-20 minutes on first run (VALIDATED)**
 - Enter development environment: `nix develop` (Set timeout to 30+ minutes, NEVER CANCEL)
+- Downloads ~4GB of dependencies on first run (VALIDATED: 3853.2 MiB seen in testing)
 - All development must happen within the nix development shell
 - Exit and re-enter with `exit` then `nix develop` if needed
 
 ### Core Build Commands
 
-**NEVER CANCEL: Build operations take significant time**
-1. `nix build` - Build the entire project (Set timeout to 60+ minutes, NEVER CANCEL)
+**NEVER CANCEL: Build operations take significant time (VALIDATED)**
+1. `nix build` - Build the entire project (Set timeout to 60+ minutes, NEVER CANCEL - VALIDATED: 5+ minutes ongoing)
 2. `nix flake check` - Run all checks including build, tests, and linting (Set timeout to 90+ minutes, NEVER CANCEL)
 
 ### Required Pre-Commit Workflow
