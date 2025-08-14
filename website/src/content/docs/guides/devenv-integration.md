@@ -18,12 +18,12 @@ This example shows how to use cuenv with devenv for seamless Nix development env
 
 ```bash
 # Allow the directory
-cuenv allow .
+cuenv env allow .
 
 # Run tasks with devenv environment
-cuenv run dev     # Start development server
-cuenv run test    # Run tests
-cuenv run build   # Build with full toolchain
+cuenv task dev     # Start development server
+cuenv task test    # Run tests
+cuenv task build   # Build with full toolchain
 
 # Execute commands with environment
 cuenv exec node --version  # Uses devenv's Node.js

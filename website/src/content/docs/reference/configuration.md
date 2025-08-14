@@ -511,7 +511,7 @@ cd /project && cuenv load
 
 cuenv uses SHA256 hashing for secure approval:
 
-- Run `cuenv allow` once per directory
+- Run `cuenv env allow` once per directory
 - SHA256 hash tracks file content changes
 - Approved files reload automatically on changes
 - More secure than path-based approval

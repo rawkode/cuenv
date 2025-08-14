@@ -372,8 +372,8 @@ cuenv uses standard exit codes:
 - `CUENV_FILE` - Custom filename (default: `env.cue`)
 - `CUENV_DEBUG` - Enable debug output
 - `CUENV_DISABLE_AUTO` - Disable automatic loading
-- `CUENV_ENV` - Default environment for `cuenv run`
-- `CUENV_CAPABILITIES` - Default capabilities for `cuenv run`
+- `CUENV_ENV` - Default environment for `cuenv exec`
+- `CUENV_CAPABILITIES` - Default capabilities for `cuenv exec`
 
 ## Examples
 
