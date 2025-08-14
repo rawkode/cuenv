@@ -54,18 +54,13 @@ cargo build --release
    env: {
        NODE_ENV: "development"
        API_URL: "http://localhost:3000"
-       SECRET_KEY: {
-           resolver: {
-               command: "op"
-               args: ["read", "op://vault/item/password"]
-           }
-       }
    }
    ```
 
-3. **Load** the environment:
+3. **Allow and load** the environment:
    ```bash
-   cuenv status  # Check what would be loaded
+   cuenv env allow  # Allow this directory
+   cuenv env status  # Check what would be loaded
    ```
 
 ## Development
@@ -157,14 +152,13 @@ CUE provides compile-time validation of your environment configuration.
 
 ### Secret Management
 
-Integrate with password managers and secret stores:
+Integrate with external secret systems:
 
 ```cue
 env: SECRET: {
-    resolver: {
-        command: "op"
-        args: ["read", "op://vault/item/password"]
-    }
+    // Custom secret resolution via external commands
+    command: "op"
+    args: ["read", "op://vault/item/password"]
 }
 ```
 
@@ -179,6 +173,12 @@ tasks: {
         dependencies: ["build"]
     }
 }
+```
+
+Execute tasks:
+
+```bash
+cuenv task test
 ```
 
 ### Security

@@ -45,10 +45,10 @@ env: {
 
 ## Step 2: Allow the Directory
 
-For security, you need to explicitly allow cuenv to load environments. Run `cuenv allow` in your project directory:
+For security, you need to explicitly allow cuenv to load environments. Run `cuenv env allow` in your project directory:
 
 ```bash
-cuenv allow
+cuenv env allow
 ```
 
 This only needs to be done once for each directory you trust.
@@ -128,65 +128,75 @@ echo $NEW_VAR
 # Output: added
 ```
 
-## Step 4: Using Secrets (Production)
+## Step 4: Using Tasks
 
-For production environments, use secret references instead of hardcoded values:
+cuenv also supports defining and executing tasks alongside your environment configuration:
 
 ```cue
 package env
 
-import "github.com/rawkode/cuenv"
+env: {
+    APP_NAME: "My Awesome App"
+    PORT: 3000
+}
 
-// ... other config ...
-
-// 1Password secret reference
-DATABASE_PASSWORD: cuenv.#OnePasswordRef & {ref: "op://Personal/myapp-db/password"}
-
-// GCP Secret Manager reference
-API_SECRET: cuenv.#GCPSecretRef & {ref: "gcp-secret://my-project/api-secret-key"}
-
-// Composed with resolved secrets
-DATABASE_URL: "postgres://\(DATABASE_USER):\(DATABASE_PASSWORD)@\(DATABASE_HOST):\(DATABASE_PORT)/\(DATABASE_NAME)"
+tasks: {
+    install: {
+        description: "Install dependencies"
+        command: "npm install"
+    }
+    
+    build: {
+        description: "Build the application"
+        command: "npm run build"
+        dependencies: ["install"]
+    }
+    
+    start: {
+        description: "Start the application"
+        command: "npm start"
+        dependencies: ["build"]
+    }
+}
 ```
 
-Run commands with resolved secrets:
+Execute tasks using the task command:
 
 ```bash
-# Secrets are resolved only when using 'cuenv run'
-cuenv run node app.js
+# List all available tasks
+cuenv task
 
-# Regular shell use won't resolve secrets (for security)
-echo $DATABASE_PASSWORD
-# Output: cuenv.#OnePasswordRef & {ref: "op://Personal/myapp-db/password"}
+# Execute a specific task
+cuenv task build
+
+# Execute a task with arguments
+cuenv task start -- --port 4000
 ```
 
 ## Step 5: Environment-Specific Configuration
 
-Create environment-specific overrides:
+You can use CUE's powerful unification to create environment-specific configurations:
 
 ```cue
 package env
 
-import "github.com/rawkode/cuenv"
-
-env: cuenv.#Env & {
+env: {
     // Base configuration
     APP_NAME: "My App"
     PORT: 3000
     LOG_LEVEL: "info"
-
-    // Environment-specific overrides
-    environment: {
-        production: {
-            PORT: 8080
-            LOG_LEVEL: "error"
-            DATABASE_HOST: "prod-db.example.com"
-        }
-        staging: {
-            PORT: 3001
-            LOG_LEVEL: "debug"
-            DATABASE_HOST: "staging-db.example.com"
-        }
+    
+    // Set environment-specific values based on CUENV_ENV
+    if CUENV_ENV == "production" {
+        PORT: 8080
+        LOG_LEVEL: "error"
+        DATABASE_HOST: "prod-db.example.com"
+    }
+    
+    if CUENV_ENV == "staging" {
+        PORT: 3001
+        LOG_LEVEL: "debug"
+        DATABASE_HOST: "staging-db.example.com"
     }
 }
 ```
@@ -195,15 +205,15 @@ Use different environments:
 
 ```bash
 # Development (default)
-cuenv run -- echo $PORT
+cuenv exec -- echo $PORT
 # Output: 3000
 
 # Production
-cuenv run -e production -- echo $PORT
+cuenv exec -e production -- echo $PORT
 # Output: 8080
 
-# Or use environment variable
-CUENV_ENV=staging cuenv run -- echo $DATABASE_HOST
+# Or set environment variable
+CUENV_ENV=staging cuenv exec -- echo $DATABASE_HOST
 # Output: staging-db.example.com
 ```
 
