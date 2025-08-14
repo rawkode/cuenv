@@ -17,211 +17,130 @@ Options that work with all commands:
 
 - `--help`, `-h` - Show help information
 - `--version`, `-V` - Show version information
-- `--debug` - Enable debug output
+- `--cache <mode>` - Cache mode (off, read, read-write, write)
+- `--cache-enabled <bool>` - Enable or disable caching globally
+- `-e`, `--env <environment>` - Environment to use (e.g., dev, staging, production)
+- `-c`, `--capability <capability>` - Capabilities to enable (can be specified multiple times)
+- `--audit` - Run in audit mode to see file and network access without restrictions
+- `--output-format <format>` - Output format for task execution (tui, spinner, simple, tree)
+- `--trace-output <bool>` - Enable Chrome trace output
 
 ## Commands
 
 ### `cuenv`
 
-Check if an `env.cue` file exists in the current directory.
+Show help when no command is provided.
 
 ```bash
 cuenv
 ```
 
-**Output:**
-
-- Success: "env.cue found in current directory"
-- Failure: "No env.cue found in current directory"
-
 ### `cuenv init`
 
-Generate shell initialization script for automatic environment loading.
+Initialize a new env.cue file with example configuration.
 
 ```bash
-cuenv init <shell>
+cuenv init [options]
 ```
 
-**Arguments:**
+**Options:**
 
-- `<shell>` - Shell type: `bash`, `zsh`, or `fish`
+- `-f`, `--force` - Force overwrite existing file
 
 **Examples:**
 
 ```bash
-# Bash
-eval "$(cuenv init bash)"
+# Create env.cue in current directory
+cuenv init
 
-# Zsh
-eval "$(cuenv init zsh)"
-
-# Fish
-cuenv init fish | source
+# Overwrite existing env.cue
+cuenv init --force
 ```
 
-### `cuenv allow`
+### `cuenv task`
 
-Allow a directory to load environment files.
+List or execute tasks defined in your CUE configuration.
 
 ```bash
-cuenv allow [directory]
+cuenv task [task_or_group] [args...]
+```
+
+**Options:**
+
+- `-e`, `--env <environment>` - Use specific environment
+- `-c`, `--capability <capability>` - Enable capabilities (can be specified multiple times)
+- `--audit` - Run in audit mode to see file and network access
+- `-v`, `--verbose` - Show detailed descriptions when listing
+- `--output <format>` - Output format for task execution (tui, simple, spinner)
+- `--trace-output` - Generate Chrome trace output file
+
+**Examples:**
+
+```bash
+# List all tasks
+cuenv task
+
+# List tasks in a group
+cuenv task build
+
+# Execute a task
+cuenv task build
+
+# Execute a task with arguments
+cuenv task test -- --coverage
+
+# Execute with specific environment
+cuenv task deploy -e production
+
+# Execute with capabilities
+cuenv task build -c aws -c docker
+```
+
+### `cuenv env`
+
+Manage environment configuration and state.
+
+#### `cuenv env allow`
+
+Allow cuenv to load environments in a directory.
+
+```bash
+cuenv env allow [directory]
 ```
 
 **Arguments:**
 
 - `[directory]` - Directory to allow (default: current directory)
 
-**Examples:**
+#### `cuenv env deny`
+
+Deny cuenv from loading environments in a directory.
 
 ```bash
-# Allow current directory
-cuenv allow
-
-# Allow specific directory
-cuenv allow /path/to/project
-
-# Allow parent directory
-cuenv allow ..
-```
-
-**Notes:**
-
-- Uses SHA256 hashing to track file content
-- Required before cuenv will load `env.cue` files
-- Changes to allowed files reload automatically
-- Approval persists across sessions
-
-### `cuenv load`
-
-Manually load environment from a directory.
-
-```bash
-cuenv load [directory]
+cuenv env deny [directory]
 ```
 
 **Arguments:**
 
-- `[directory]` - Directory to load from (default: current directory)
+- `[directory]` - Directory to deny (default: current directory)
 
-**Examples:**
+#### `cuenv env status`
 
-```bash
-# Load from current directory
-cuenv load
-
-# Load from specific directory
-cuenv load /path/to/project
-
-# Load from parent directory
-cuenv load ..
-```
-
-### `cuenv unload`
-
-Unload the currently loaded environment.
+Display current environment status and changes.
 
 ```bash
-cuenv unload
-```
-
-**Notes:**
-
-- Restores previous environment variables
-- Safe to call even if no environment is loaded
-
-### `cuenv status`
-
-Show the current environment status and changes.
-
-```bash
-cuenv status
-```
-
-**Output includes:**
-
-- Currently loaded environment path
-- List of set variables
-- List of modified variables
-- List of unset variables
-
-**Example output:**
-
-```
-Environment loaded from: /home/user/project
-Set variables:
-  DATABASE_URL=postgres://localhost/myapp
-  PORT=3000
-Modified variables:
-  PATH=/home/user/project/bin:/usr/bin:/bin
-Unset variables:
-  OLD_VAR
-```
-
-### `cuenv hook`
-
-Generate shell-specific hook output for directory change detection.
-
-```bash
-cuenv hook <shell>
-```
-
-**Arguments:**
-
-- `<shell>` - Shell type: `bash`, `zsh`, or `fish`
-
-**Notes:**
-
-- Used internally by `cuenv init`
-- Can be used for custom shell integration
-- Outputs shell commands that should be evaluated
-
-### `cuenv run`
-
-Run a command in a hermetic environment with only CUE-defined variables.
-
-```bash
-cuenv run [options] -- <command> [args...]
+cuenv env status [options]
 ```
 
 **Options:**
 
-- `-e`, `--env <environment>` - Use specific environment
-- `-c`, `--capabilities <list>` - Enable capabilities (comma-separated)
-- `--` - Separator between cuenv options and command
+- `--hooks` - Show hooks status
+- `-f`, `--format <format>` - Output format (human, starship, json)
+- `-v`, `--verbose` - Show verbose output (for starship format)
 
-**Environment variables:**
+#### `cuenv env export`
 
-- `CUENV_ENV` - Set default environment
-- `CUENV_CAPABILITIES` - Set default capabilities
-
-**Examples:**
-
-```bash
-# Run with base environment
-cuenv run -- node server.js
-
-# Run with production environment
-cuenv run -e production -- npm start
-
-# Run with specific capabilities
-cuenv run -c aws,database -- terraform apply
-
-# Pass arguments to command
-cuenv run -- npm -- install --save-dev
-
-# Use environment variables
-CUENV_ENV=staging cuenv run -- ./deploy.sh
-```
-
-**Secret Resolution:**
-
-- Resolves 1Password references (`op://...`)
-- Resolves GCP Secret Manager references (`gcp-secret://...`)
-- Automatically obfuscates secret values in output
-
-### `cuenv env export`
-
-Export the current environment in various formats.
+Export environment variables for the current directory.
 
 ```bash
 cuenv env export [options]
@@ -229,63 +148,151 @@ cuenv env export [options]
 
 **Options:**
 
-- `-f`, `--format <format>` - Output format: `shell`, `json`, `dotenv`, `docker`
-- `-e`, `--env <environment>` - Use specific environment
+- `-s`, `--shell <shell>` - Shell format (defaults to current shell)
+- `--all` - Export all system environment variables, not just loaded ones
+
+#### `cuenv env prune`
+
+Prune stale environment state.
+
+```bash
+cuenv env prune
+```
+
+### `cuenv shell`
+
+Configure shell integration for automatic environment loading.
+
+#### `cuenv shell init`
+
+Generate shell hook for automatic environment loading.
+
+```bash
+cuenv shell init <shell>
+```
+
+**Arguments:**
+
+- `<shell>` - Shell type: `bash`, `zsh`, `fish`, etc.
 
 **Examples:**
 
 ```bash
-# Export as shell script
-cuenv env export -f shell > env.sh
+# Bash
+eval "$(cuenv shell init bash)"
 
-# Export as JSON
-cuenv env export -f json > env.json
+# Zsh
+eval "$(cuenv shell init zsh)"
 
-# Export as .env file
-cuenv env export -f dotenv > .env
-
-# Export for Docker
-cuenv env export -f docker > docker.env
+# Fish
+cuenv shell init fish | source
 ```
 
-### `cuenv dump`
+#### `cuenv shell load`
 
-Print the current environment state to stdout.
-
-```bash
-cuenv dump
-```
-
-**Notes:**
-
-- Shows all currently loaded environment variables
-- Used for debugging and state inspection
-- Output format is suitable for shell evaluation
-
-### `cuenv prune`
-
-Clean up stale state files and caches.
+Manually load environment from current directory.
 
 ```bash
-cuenv prune [options]
+cuenv shell load [options]
 ```
 
 **Options:**
 
-- `--all` - Remove all state files, not just stale ones
-- `--dry-run` - Show what would be removed without removing
+- `-d`, `--directory <directory>` - Directory to load from
+- `-e`, `--env <environment>` - Environment to use
+- `-c`, `--capability <capability>` - Capabilities to enable
+
+#### `cuenv shell unload`
+
+Manually unload current environment.
+
+```bash
+cuenv shell unload
+```
+
+#### `cuenv shell hook`
+
+Generate shell hook for current directory.
+
+```bash
+cuenv shell hook [shell]
+```
+
+**Arguments:**
+
+- `[shell]` - Shell name (defaults to current shell)
+
+### `cuenv discover`
+
+Discover all CUE packages in the repository.
+
+```bash
+cuenv discover [options]
+```
+
+**Options:**
+
+- `--max-depth <depth>` - Maximum depth to search for env.cue files (default: 32)
+- `-l`, `--load` - Load and validate discovered packages
+- `-d`, `--dump` - Dump the CUE values for each package
+
+### `cuenv cache`
+
+Manage the task and environment cache.
+
+#### `cuenv cache clear`
+
+Clear all cache entries.
+
+```bash
+cuenv cache clear
+```
+
+#### `cuenv cache stats`
+
+Show cache statistics.
+
+```bash
+cuenv cache stats
+```
+
+#### `cuenv cache cleanup`
+
+Clean up stale cache entries.
+
+```bash
+cuenv cache cleanup [options]
+```
+
+**Options:**
+
+- `--max-age-hours <hours>` - Maximum age of cache entries to keep (default: 168)
+
+### `cuenv exec`
+
+Execute a command with the loaded environment.
+
+```bash
+cuenv exec [options] <command> [args...]
+```
+
+**Options:**
+
+- `-e`, `--env <environment>` - Environment to use
+- `-c`, `--capability <capability>` - Capabilities to enable
+- `--audit` - Run in audit mode
 
 **Examples:**
 
 ```bash
-# Remove stale state files
-cuenv prune
+# Run command with loaded environment
+cuenv exec node server.js
 
-# See what would be removed
-cuenv prune --dry-run
+# Run with specific environment
+cuenv exec -e production npm start
 
-# Remove all state files
-cuenv prune --all
+# Run with capabilities
+cuenv exec -c aws terraform apply
 ```
 
 ### `cuenv completion`
@@ -298,7 +305,7 @@ cuenv completion <shell>
 
 **Arguments:**
 
-- `<shell>` - Shell type: `bash`, `zsh`, or `fish`
+- `<shell>` - Shell type: `bash`, `zsh`, `fish`, etc.
 
 **Installation:**
 
@@ -313,43 +320,33 @@ cuenv completion zsh > "${fpath[1]}/_cuenv"
 cuenv completion fish > ~/.config/fish/completions/cuenv.fish
 ```
 
-### `cuenv remote-cache-server`
+### `cuenv mcp`
 
-Start a remote cache server compatible with Bazel/Buck2 builds.
+Start MCP (Model Context Protocol) server for Claude Code integration.
 
 ```bash
-cuenv remote-cache-server [options]
+cuenv mcp [options]
 ```
 
 **Options:**
 
-- `-a`, `--address <address>` - Address to listen on (default: `127.0.0.1:50051`)
-- `-c`, `--cache-dir <path>` - Cache storage directory (default: `/var/cache/cuenv`)
-- `--max-cache-size <bytes>` - Maximum cache size in bytes (default: `10737418240`)
+- `--transport <transport>` - Transport type (stdio, tcp, unix) (default: stdio)
+- `--port <port>` - TCP port (only for tcp transport) (default: 8765)
+- `--socket <path>` - Unix socket path (only for unix transport)
+- `--allow-exec` - Allow task execution (default: read-only)
 
 **Examples:**
 
 ```bash
-# Start with default settings
-cuenv remote-cache-server
+# Start MCP server with stdio transport (for Claude Code)
+cuenv mcp
 
-# Start on public interface
-cuenv remote-cache-server --address 0.0.0.0:50051
+# Start with task execution enabled
+cuenv mcp --allow-exec
 
-# Use custom cache directory
-cuenv remote-cache-server --cache-dir /data/bazel-cache
-
-# Set 50GB cache limit
-cuenv remote-cache-server --max-cache-size 53687091200
+# Start with Unix socket
+cuenv mcp --transport unix --socket /tmp/cuenv.sock
 ```
-
-**Notes:**
-
-- Implements Bazel/Buck2 Remote Execution API protocol
-- Provides Content-Addressed Storage (CAS) service
-- Provides Action Cache service for build results
-- Uses cuenv's lock-free concurrent cache infrastructure
-- See the [Remote Cache Server guide](/guides/remote-cache-server) for deployment options
 
 ## Exit Codes
 

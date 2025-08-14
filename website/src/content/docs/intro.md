@@ -129,7 +129,7 @@ Both tools have their strengths:
 cargo install cuenv
 
 # Hook it up
-eval "$(cuenv init bash)"
+eval "$(cuenv shell init bash)"
 
 # Try it
 echo 'package env
