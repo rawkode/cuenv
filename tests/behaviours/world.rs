@@ -2,6 +2,7 @@ use cucumber::World;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Child;
+use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
 /// Test world context for BDD scenarios
@@ -39,6 +40,9 @@ pub struct TestWorld {
 
     /// Error from last command
     pub last_error: Option<String>,
+
+    /// Duration of last command execution
+    pub last_command_duration: Option<Duration>,
 }
 
 impl TestWorld {
@@ -78,15 +82,18 @@ impl TestWorld {
             );
         }
 
+        let start_time = Instant::now();
         let output = std::process::Command::new(cuenv_path)
             .args(args)
             .current_dir(self.working_dir.as_ref().unwrap())
             .envs(&self.env_vars)
             .output()?;
+        let duration = start_time.elapsed();
 
         self.last_exit_code = Some(output.status.code().unwrap_or(-1));
         self.last_output = Some(String::from_utf8_lossy(&output.stdout).to_string());
         self.last_error = Some(String::from_utf8_lossy(&output.stderr).to_string());
+        self.last_command_duration = Some(duration);
 
         Ok(())
     }

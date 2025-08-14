@@ -3,6 +3,7 @@ mod fish_integration;
 mod hook_installation;
 mod interactive_mode;
 mod nushell_integration;
+mod shell_execution_integration_test;
 mod zsh_integration;
 
 use expectrl::{Eof, Regex, Session};

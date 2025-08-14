@@ -154,3 +154,35 @@ Feature: Hook Execution
     When I run "cuenv env allow"
     Then the exit code should not be 0
     And the error should contain "failing-hook"
+
+  Scenario: Exec command waits for preload hooks to complete
+    Given I have a CUE file "env.cue" with:
+      """
+      package cuenv
+      import "github.com/rawkode/cuenv/schema"
+      
+      schema.#Cuenv
+      
+      hooks: onEnter: [
+        {
+          command: "bash"
+          args: ["-c", """
+            sleep 5
+            echo 'export PRELOAD_HOOK_VAR="hook_completed"'
+            echo 'export HOOK_TIMESTAMP="'$(date +%s)'"'
+            """]
+          source: true
+          preload: true
+        }
+      ]
+      
+      env: {
+        TEST_VAR: "base_value"
+      }
+      """
+    When I run "cuenv exec printenv"
+    Then the exit code should be 0
+    And the output should contain "PRELOAD_HOOK_VAR=hook_completed"
+    And the output should contain "TEST_VAR=base_value"
+    And the output should contain "HOOK_TIMESTAMP="
+    And the command should complete within 10 seconds

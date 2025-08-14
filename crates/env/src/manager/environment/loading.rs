@@ -11,6 +11,7 @@ use std::path::Path;
 
 use super::apply::apply_merged_environment;
 use super::hooks::process_all_hooks;
+use super::supervisor::SupervisorMode;
 
 /// Context for loading environment with all the mutable maps
 pub struct LoadEnvironmentContext<'a> {
@@ -31,6 +32,7 @@ pub async fn load_env_with_options(
     command: Option<&str>,
     original_env: &HashMap<String, String>,
     context: &mut LoadEnvironmentContext<'_>,
+    mode: SupervisorMode,
 ) -> Result<()> {
     // Get the package name from environment or use default
     let package_name =
@@ -85,7 +87,7 @@ pub async fn load_env_with_options(
     convert_hooks_to_config(&parse_result.hooks, context.hooks);
 
     // Process all hooks using the new supervisor-based model
-    let sourced_env_vars = process_all_hooks(dir, &parse_result.hooks).await?;
+    let sourced_env_vars = process_all_hooks(dir, &parse_result.hooks, mode).await?;
 
     // Store the sourced environment
     let has_sourced_env = !sourced_env_vars.is_empty();

@@ -233,3 +233,97 @@ fn test_hook_preload_field_parsing() {
     assert_eq!(on_enter_hooks[0].preload, Some(true));
     assert_eq!(on_enter_hooks[1].preload, None);
 }
+
+#[tokio::test]
+async fn test_exec_command_waits_for_preload_hooks() {
+    let temp_dir = TempDir::new().unwrap();
+    let env_file = temp_dir.path().join("env.cue");
+
+    // Create a CUE file with a preload hook that sets an environment variable
+    fs::write(
+        &env_file,
+        r#"package cuenv
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
+
+hooks: onEnter: [
+    {
+        command: "bash"
+        args: ["-c", """
+            sleep 2
+            echo 'export PRELOAD_TEST_VAR="hook_completed"'
+            echo 'export HOOK_TIMESTAMP="'$(date +%s)'"'
+            """]
+        source: true
+        preload: true
+    }
+]
+
+env: {
+    BASE_VAR: "base_value"
+}"#,
+    )
+    .unwrap();
+
+    // Build the cuenv binary path
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+    let cuenv_path = std::path::Path::new(&manifest_dir)
+        .join("target")
+        .join("debug")
+        .join("cuenv");
+
+    if !cuenv_path.exists() {
+        panic!(
+            "cuenv binary not found at {:?}. Please run 'cargo build' first.",
+            cuenv_path
+        );
+    }
+
+    // Execute cuenv exec printenv in the temp directory
+    let start_time = Instant::now();
+    let output = std::process::Command::new(cuenv_path)
+        .args(&["exec", "printenv"])
+        .current_dir(temp_dir.path())
+        .output()
+        .expect("Failed to execute cuenv exec");
+    let duration = start_time.elapsed();
+
+    // Check that the command completed successfully
+    assert!(output.status.success(), "cuenv exec command should succeed");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    println!("STDOUT:\n{}", stdout);
+    println!("STDERR:\n{}", stderr);
+    println!("Duration: {:?}", duration);
+
+    // Verify that the preload hook environment variable is set
+    assert!(
+        stdout.contains("PRELOAD_TEST_VAR=hook_completed"),
+        "Expected PRELOAD_TEST_VAR to be set by preload hook.\nSTDOUT: {}",
+        stdout
+    );
+
+    // Verify that the base environment variable is also set
+    assert!(
+        stdout.contains("BASE_VAR=base_value"),
+        "Expected BASE_VAR to be set from CUE config.\nSTDOUT: {}",
+        stdout
+    );
+
+    // Verify that the hook timestamp is set
+    assert!(
+        stdout.contains("HOOK_TIMESTAMP="),
+        "Expected HOOK_TIMESTAMP to be set by preload hook.\nSTDOUT: {}",
+        stdout
+    );
+
+    // Command should complete in reasonable time (including the 2 second sleep + some overhead)
+    assert!(
+        duration >= Duration::from_secs(2) && duration < Duration::from_secs(10),
+        "Command should take at least 2 seconds (for sleep) but complete within 10 seconds. Took: {:?}",
+        duration
+    );
+}

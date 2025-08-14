@@ -4,6 +4,7 @@ mod formatter;
 use clap::Subcommand;
 use cuenv_config::{Config, TaskGroupMode, TaskNode};
 use cuenv_core::{Result, CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR};
+use cuenv_env::manager::environment::SupervisorMode;
 use cuenv_env::EnvManager;
 use cuenv_task::TaskExecutor;
 use std::env;
@@ -261,7 +262,13 @@ async fn execute_task(
     }
 
     env_manager
-        .load_env_with_options(&current_dir, env_name, caps, None)
+        .load_env_with_options(
+            &current_dir,
+            env_name,
+            caps,
+            None,
+            SupervisorMode::Foreground,
+        )
         .await?;
 
     // Check if this might be a group/subtask pattern (e.g., "fmt" with first arg "check")
@@ -372,7 +379,13 @@ async fn execute_task_group(
 
     // Load the environment with applied environment and capabilities
     env_manager
-        .load_env_with_options(&current_dir, env_name, caps, None)
+        .load_env_with_options(
+            &current_dir,
+            env_name,
+            caps,
+            None,
+            SupervisorMode::Foreground,
+        )
         .await?;
 
     // Get all tasks in the group

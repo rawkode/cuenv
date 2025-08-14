@@ -608,14 +608,12 @@ tasks: {
 
 ## Hooks
 
-cuenv supports hooks that run when entering or exiting an environment:
+cuenv supports hooks that run when entering or exiting an environment. Hooks must be defined at the top level of your `env.cue` file, not inside the `env:` field:
 
 ```cue title="env.cue"
 package env
 
-import "github.com/rawkode/cuenv"
-
-// Hook definitions
+// Hook definitions at top level
 hooks: {
     // Hook that runs when entering the environment
     onEnter: {
@@ -630,7 +628,8 @@ hooks: {
     }
 }
 
-env: cuenv.#Env & {
+// Environment variables in separate env: field
+env: {
     // Regular environment variables
     DATABASE_URL: "postgres://localhost/mydb"
     API_KEY: "secret123"

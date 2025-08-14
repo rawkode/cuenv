@@ -15,6 +15,8 @@ mod task;
 pub use stubs::{AccessRestrictions, Shell};
 pub use task::TaskSource;
 
+use self::environment::SupervisorMode;
+
 #[derive(Clone)]
 pub struct EnvManager {
     original_env: HashMap<String, String>,
@@ -50,7 +52,7 @@ impl Default for EnvManager {
 
 impl EnvManager {
     pub async fn load_env(&mut self, dir: &Path) -> Result<()> {
-        self.load_env_with_options(dir, None, Vec::new(), None)
+        self.load_env_with_options(dir, None, Vec::new(), None, SupervisorMode::Foreground)
             .await
     }
 
@@ -60,6 +62,7 @@ impl EnvManager {
         environment: Option<String>,
         capabilities: Vec<String>,
         command: Option<&str>,
+        mode: SupervisorMode,
     ) -> Result<()> {
         self.save_original_env()?;
 
@@ -80,6 +83,7 @@ impl EnvManager {
             command,
             &self.original_env,
             &mut context,
+            mode,
         )
         .await?;
 
@@ -122,6 +126,21 @@ impl EnvManager {
             &self.sourced_env,
             &self.cue_vars,
             &self.original_env,
+        )
+    }
+
+    /// Run a command with current process environment (includes preload hook variables)
+    /// This is used by exec command to ensure preload hook source variables are available
+    pub fn run_command_with_current_env(&self, command: &str, args: &[String]) -> Result<i32> {
+        // Capture current process environment which includes variables set by preload hooks
+        let current_env: std::collections::HashMap<String, String> = std::env::vars().collect();
+
+        command::run_command_direct(
+            command,
+            args,
+            &self.sourced_env,
+            &self.cue_vars,
+            &current_env, // Use current process env instead of original_env
         )
     }
 
@@ -197,6 +216,54 @@ impl EnvManager {
             })
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect()
+    }
+
+    /// Wait for all preload hooks to complete
+    /// This is used by the exec command to ensure the environment is fully prepared
+    pub async fn wait_for_preload_hooks(&self) -> Result<()> {
+        use cuenv_utils::hooks_status::HooksStatusManager;
+        use std::time::Duration;
+        use tokio::time::{sleep, timeout};
+
+        let current_dir = std::env::current_dir()
+            .map_err(|e| cuenv_core::Error::file_system(".", "get current directory", e))?;
+
+        // Create a status manager for the current directory
+        let status_manager = HooksStatusManager::new_for_directory(&current_dir).map_err(|e| {
+            cuenv_core::Error::configuration(format!("Failed to create status manager: {e}"))
+        })?;
+
+        // Wait for all hooks to complete with a reasonable timeout
+        let timeout_duration = Duration::from_secs(300); // 5 minutes timeout
+
+        match timeout(timeout_duration, async {
+            loop {
+                let status = status_manager.get_current_status();
+
+                // Check if any hooks are still running
+                let has_running_hooks = status.hooks.values().any(|hook| {
+                    matches!(
+                        hook.status,
+                        cuenv_utils::hooks_status::HookState::Running
+                            | cuenv_utils::hooks_status::HookState::Pending
+                    )
+                });
+
+                if !has_running_hooks {
+                    break;
+                }
+
+                // Sleep briefly before checking again
+                sleep(Duration::from_millis(100)).await;
+            }
+        })
+        .await
+        {
+            Ok(_) => Ok(()),
+            Err(_) => Err(cuenv_core::Error::configuration(
+                "Timeout waiting for preload hooks to complete",
+            )),
+        }
     }
 
     /// Test-only method to populate tasks directly without setting global state

@@ -97,7 +97,8 @@ env: {
 fn test_environment_overrides() {
     let temp_dir = TempDir::new().unwrap();
 
-    let env_content = r#"package examples
+    let env_content = r#"
+package examples
 
 env: {
     DATABASE_URL: "postgres://localhost/mydb"
@@ -111,7 +112,7 @@ env: {
         staging: {
             DATABASE_URL: "postgres://staging.example.com/mydb"
         }
-}
+    }
 }
 "#;
     std::fs::write(temp_dir.path().join("env.cue"), env_content).unwrap();

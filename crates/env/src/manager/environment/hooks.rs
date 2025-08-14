@@ -10,6 +10,7 @@ use supervisor::{Supervisor, SupervisorMode};
 pub async fn process_all_hooks(
     dir: &Path,
     hook_list: &HashMap<String, Vec<Hook>>,
+    mode: SupervisorMode,
 ) -> cuenv_core::Result<HashMap<String, String>> {
     let mut on_enter_hooks = Vec::new();
 
@@ -23,9 +24,8 @@ pub async fn process_all_hooks(
         return Ok(HashMap::new());
     }
 
-    // Run all onEnter hooks through the supervisor in foreground mode with directory context.
-    let supervisor =
-        Supervisor::new_for_directory(dir, on_enter_hooks, SupervisorMode::Foreground)?;
+    // Run all onEnter hooks through the supervisor in the specified mode.
+    let supervisor = Supervisor::new_for_directory(dir, on_enter_hooks, mode)?;
     supervisor.run().await?;
 
     // Read the captured environment from the directory-specific cache

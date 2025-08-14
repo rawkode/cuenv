@@ -6,12 +6,11 @@ schema.#Cuenv
 
 hooks: onEnter: [
 	schema.#NixFlake & { preload: true },
-	{command: "sleep", args: ["31"], preload: true },
                     {
                                 // This hook sleeps for 5 seconds then exports TEST_BG_VAR
                                 command: "bash"
                                 args: ["-c", """
-                                        sleep 10
+                                        sleep 6
                                         echo 'export TEST_BG_VAR="background_hook_completed"'
                                         echo 'export TEST_TIMESTAMP="'$(date +%s)'"'
                                         """]
@@ -187,15 +186,25 @@ tasks: {
 		args: ["Hello, world!"]
 	}
 
+	examples: {
+		description: "Example configurations management"
+		lint: {
+			description: "Validate all CUE files in examples directory"
+			command:     "find"
+			args: ["examples", "-name", "*.cue", "-type", "f", "-exec", "cue", "vet", "-c", "{}", ";"]
+			inputs: ["examples/**/*.cue"]
+		}
+	}
+
 	// CI workflow demonstrating nested groups
 	ci: {
 		description: "Complete CI workflow"
 		mode: "workflow"  // DAG-based execution
-		
+
 		quality: {
 			description: "Run all quality checks"
 			mode: "parallel"  // Run these in parallel
-			
+
 			format: {
 				command: "treefmt"
 				args: ["--fail-on-change"]
@@ -212,12 +221,12 @@ tasks: {
 				inputs: ["Cargo.lock"]
 			}
 		}
-		
+
 		test: {
 			description: "Run all tests"
 			mode: "parallel"
 			dependencies: ["quality"]  // Wait for quality checks
-			
+
 			unit: {
 				command: "cargo"
 				args: ["nextest", "run", "--lib"]
@@ -239,7 +248,7 @@ tasks: {
 				inputs: ["examples/**/*", "tests/examples/**/*.rs"]
 			}
 		}
-		
+
 		build: {
 			description: "Build release artifacts"
 			dependencies: ["test.unit"]
@@ -253,7 +262,7 @@ tasks: {
 	release: {
 		description: "Release process"
 		mode: "sequential"  // Must happen in order
-		
+
 		version: {
 			description: "Update version"
 			command: "cargo"

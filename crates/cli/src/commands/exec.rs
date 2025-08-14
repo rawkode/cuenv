@@ -1,5 +1,6 @@
 use cuenv_config::Config;
 use cuenv_core::{Result, CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR};
+use cuenv_env::manager::environment::SupervisorMode;
 use cuenv_env::EnvManager;
 use std::env;
 use std::sync::Arc;
@@ -28,13 +29,20 @@ pub async fn execute(
         }
     }
 
+    // Load environment using the same approach as task commands
     env_manager
-        .load_env_with_options(&current_dir, env_name, caps, None)
+        .load_env_with_options(
+            &current_dir,
+            env_name,
+            caps,
+            None,
+            SupervisorMode::Synchronous,
+        )
         .await?;
 
-    // For exec, we just run the command with the loaded environment
-    // No restrictions are applied - this is the simple pass-through mode
-    let exit_code = env_manager.run_command(&command, &args)?;
+    // Execute the command in the prepared environment
+    // Use run_command_with_current_env to include variables set by preload hooks
+    let exit_code = env_manager.run_command_with_current_env(&command, &args)?;
 
     std::process::exit(exit_code);
 }

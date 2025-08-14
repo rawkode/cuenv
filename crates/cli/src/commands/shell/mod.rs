@@ -2,7 +2,7 @@ use crate::directory::DirectoryManager;
 use crate::platform::{PlatformOps, Shell};
 use clap::Subcommand;
 use cuenv_core::{Result, CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR, ENV_CUE_FILENAME};
-use cuenv_env::{EnvManager, StateManager};
+use cuenv_env::{manager::environment::SupervisorMode, EnvManager, StateManager};
 use cuenv_shell::{ShellHook, ShellType};
 use cuenv_utils::sync::env::InstanceLock;
 use std::env;
@@ -84,7 +84,7 @@ impl ShellCommands {
                 }
 
                 env_manager
-                    .load_env_with_options(&dir, env_name, caps, None)
+                    .load_env_with_options(&dir, env_name, caps, None, SupervisorMode::Foreground)
                     .await?;
 
                 let shell = Platform::get_current_shell()
@@ -186,7 +186,16 @@ impl ShellCommands {
                         if StateManager::files_changed() || StateManager::should_load(&current_dir)
                         {
                             let mut env_manager = EnvManager::new();
-                            if let Err(e) = env_manager.load_env(&current_dir).await {
+                            if let Err(e) = env_manager
+                                .load_env_with_options(
+                                    &current_dir,
+                                    None,
+                                    Vec::new(),
+                                    None,
+                                    SupervisorMode::Foreground,
+                                )
+                                .await
+                            {
                                 eprintln!("# cuenv: failed to load environment: {e}");
                             } else if let Ok(Some(diff)) = StateManager::get_diff() {
                                 for (key, value) in diff.added_or_changed() {

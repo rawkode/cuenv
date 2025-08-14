@@ -14,14 +14,6 @@ pub fn setup_command_environment(
     cue_vars: &HashMap<String, String>,
     original_env: &HashMap<String, String>,
 ) -> HashMap<String, String> {
-    // Debug: check what's in sourced_env
-    eprintln!("DEBUG: sourced_env has {} variables", sourced_env.len());
-    for key in sourced_env.keys() {
-        if key.contains("NIXOS") || key.contains("__fish") || key.contains("NIX_GSETTINGS") {
-            eprintln!("DEBUG: Found {key} in sourced_env");
-        }
-    }
-
     // Start with sourced environment (from nix, devenv, etc.)
     let mut base_env = sourced_env.clone();
 
@@ -65,13 +57,6 @@ pub fn setup_command_environment(
         final_env.insert("HOME".to_string(), home.clone());
     }
 
-    // Debug: log what's in final_env
-    for key in final_env.keys() {
-        if key.contains("NIXOS") || key.contains("__fish") || key.contains("NIX_GSETTINGS") {
-            eprintln!("DEBUG: Found {key} in final_env");
-        }
-    }
-
     final_env
 }
 
@@ -81,18 +66,39 @@ pub fn execute_command(
     args: &[String],
     final_env: HashMap<String, String>,
 ) -> Result<i32> {
-    // Create shared secret values for output filtering
-    let secret_set = HashSet::new();
-    let secrets = Arc::new(RwLock::new(secret_set));
+    execute_command_with_options(command, args, final_env, false)
+}
 
+/// Execute command directly inheriting stdio (for exec command)
+pub fn execute_command_direct(
+    command: &str,
+    args: &[String],
+    final_env: HashMap<String, String>,
+) -> Result<i32> {
+    execute_command_with_options(command, args, final_env, true)
+}
+
+/// Execute command with configurable stdio handling
+fn execute_command_with_options(
+    command: &str,
+    args: &[String],
+    final_env: HashMap<String, String>,
+    inherit_stdio: bool,
+) -> Result<i32> {
     // Create and execute the command with only the CUE environment
     let mut cmd = Command::new(command);
     cmd.args(args)
         .env_clear() // Clear all environment variables
         .envs(&final_env) // Set only our CUE-defined vars with resolved secrets
-        .stdin(Stdio::inherit())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .stdin(Stdio::inherit());
+
+    if inherit_stdio {
+        // For exec command: inherit stdout/stderr directly
+        cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit());
+    } else {
+        // For regular commands: pipe output for filtering
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    }
 
     // Configure process group for better cleanup on Unix
     #[cfg(unix)]
@@ -113,59 +119,79 @@ pub fn execute_command(
         }
     };
 
-    // Set up filtered output streams
-    let stdout = match child.stdout.take() {
-        Some(s) => s,
-        None => {
-            return Err(Error::command_execution(
-                command,
-                args.to_vec(),
-                "Failed to capture stdout".to_string(),
-                None,
-            ));
-        }
-    };
-    let stderr = match child.stderr.take() {
-        Some(s) => s,
-        None => {
-            return Err(Error::command_execution(
-                command,
-                args.to_vec(),
-                "Failed to capture stderr".to_string(),
-                None,
-            ));
-        }
-    };
+    if inherit_stdio {
+        // For exec command: just wait for process completion
+        let status = match child.wait() {
+            Ok(s) => s,
+            Err(e) => {
+                return Err(Error::command_execution(
+                    command,
+                    args.to_vec(),
+                    format!("Failed to wait for command: {e}"),
+                    None,
+                ));
+            }
+        };
+        Ok(status.code().unwrap_or(1))
+    } else {
+        // For regular commands: handle output filtering
+        let secret_set = HashSet::new();
+        let secrets = Arc::new(RwLock::new(secret_set));
 
-    let stdout_secrets = Arc::clone(&secrets);
-    let stderr_secrets = Arc::clone(&secrets);
+        // Set up filtered output streams
+        let stdout = match child.stdout.take() {
+            Some(s) => s,
+            None => {
+                return Err(Error::command_execution(
+                    command,
+                    args.to_vec(),
+                    "Failed to capture stdout".to_string(),
+                    None,
+                ));
+            }
+        };
+        let stderr = match child.stderr.take() {
+            Some(s) => s,
+            None => {
+                return Err(Error::command_execution(
+                    command,
+                    args.to_vec(),
+                    "Failed to capture stderr".to_string(),
+                    None,
+                ));
+            }
+        };
 
-    // Spawn threads to handle output filtering
-    let stdout_thread = std::thread::spawn(move || {
-        let mut filter = OutputFilter::new(io::stdout(), stdout_secrets);
-        io::copy(&mut BufReader::new(stdout), &mut filter)
-    });
+        let stdout_secrets = Arc::clone(&secrets);
+        let stderr_secrets = Arc::clone(&secrets);
 
-    let stderr_thread = std::thread::spawn(move || {
-        let mut filter = OutputFilter::new(io::stderr(), stderr_secrets);
-        io::copy(&mut BufReader::new(stderr), &mut filter)
-    });
+        // Spawn threads to handle output filtering
+        let stdout_thread = std::thread::spawn(move || {
+            let mut filter = OutputFilter::new(io::stdout(), stdout_secrets);
+            io::copy(&mut BufReader::new(stdout), &mut filter)
+        });
 
-    // Wait for the process to complete
-    let status = match child.wait() {
-        Ok(s) => s,
-        Err(e) => {
-            return Err(Error::command_execution(
-                command,
-                args.to_vec(),
-                format!("Failed to wait for command: {e}"),
-                None,
-            ));
-        }
-    };
+        let stderr_thread = std::thread::spawn(move || {
+            let mut filter = OutputFilter::new(io::stderr(), stderr_secrets);
+            io::copy(&mut BufReader::new(stderr), &mut filter)
+        });
 
-    // Wait for output threads to complete
-    wait_for_output_threads(stdout_thread, stderr_thread, command, args, status.code())?;
+        // Wait for the process to complete
+        let status = match child.wait() {
+            Ok(s) => s,
+            Err(e) => {
+                return Err(Error::command_execution(
+                    command,
+                    args.to_vec(),
+                    format!("Failed to wait for command: {e}"),
+                    None,
+                ));
+            }
+        };
 
-    Ok(status.code().unwrap_or(1))
+        // Wait for output threads to complete
+        wait_for_output_threads(stdout_thread, stderr_thread, command, args, status.code())?;
+
+        Ok(status.code().unwrap_or(1))
+    }
 }

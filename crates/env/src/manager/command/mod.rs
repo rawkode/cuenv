@@ -5,7 +5,7 @@ use cuenv_core::Result;
 use std::collections::HashMap;
 
 use crate::manager::stubs::AccessRestrictions;
-use execution::{execute_command, setup_command_environment};
+use execution::{execute_command, execute_command_direct, setup_command_environment};
 use output::wait_for_output_threads;
 
 /// Run a command with the configured environment
@@ -18,6 +18,18 @@ pub fn run_command(
 ) -> Result<i32> {
     let final_env = setup_command_environment(sourced_env, cue_vars, original_env);
     execute_command(command, args, final_env)
+}
+
+/// Run a command with direct stdio inheritance (for exec command)
+pub fn run_command_direct(
+    command: &str,
+    args: &[String],
+    sourced_env: &HashMap<String, String>,
+    cue_vars: &HashMap<String, String>,
+    original_env: &HashMap<String, String>,
+) -> Result<i32> {
+    let final_env = setup_command_environment(sourced_env, cue_vars, original_env);
+    execute_command_direct(command, args, final_env)
 }
 
 /// Run a command with access restrictions in a hermetic environment

@@ -11,3 +11,12 @@ async fn test_environment_lifecycle() {
         .run()
         .await;
 }
+
+#[tokio::test]
+async fn test_exec_waits_for_preload_hooks() {
+    TestWorld::cucumber()
+        .features(&["./tests/behaviours/features/hook_execution.feature"])
+        .scenario_regex("Exec command waits for preload hooks to complete")
+        .run()
+        .await;
+}
