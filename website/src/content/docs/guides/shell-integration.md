@@ -474,6 +474,142 @@ set-option -g default-command "${SHELL}"
 set-option -g update-environment "CUENV_DIR CUENV_FILE"
 ```
 
+### Starship Prompt
+
+[Starship](https://starship.rs/) is a fast, customizable prompt that can display cuenv hook progress and status in real-time.
+
+#### Installation
+
+1. Install and configure Starship following their [installation guide](https://starship.rs/guide/)
+
+2. Add cuenv module to your `~/.config/starship.toml`:
+
+```toml title="~/.config/starship.toml"
+[custom.cuenv_hooks]
+command = "cuenv env status --hooks --format=starship"
+when = """ test -n "$CUENV_DIR" """
+format = "$output"
+disabled = false
+```
+
+#### Basic Configuration
+
+For simple hook progress display:
+
+```toml title="~/.config/starship.toml"
+# Show aggregated progress (e.g., "2/3 hooks")
+[custom.cuenv_hooks]
+command = "cuenv env status --hooks --format=starship"
+when = """ test -n "$CUENV_DIR" """
+format = "$output"
+```
+
+#### Verbose Configuration
+
+For detailed hook information:
+
+```toml title="~/.config/starship.toml"
+# Show individual hook details (e.g., "🔄 nix develop (12s)")
+[custom.cuenv_hooks]
+command = "cuenv env status --hooks --format=starship --verbose"
+when = """ test -n "$CUENV_DIR" """
+format = "$output"
+```
+
+#### Right Prompt
+
+Place the indicator on the right side:
+
+```toml title="~/.config/starship.toml"
+format = "$all$custom.cuenv_hooks_main"
+right_format = "$custom.cuenv_hooks_right"
+
+[custom.cuenv_hooks_right]
+command = "cuenv env status --hooks --format=starship"
+when = """ test -n "$CUENV_DIR" """
+format = "[$output]($style)"
+style = "dimmed"
+```
+
+#### Custom Styling
+
+Apply custom colors and formatting:
+
+```toml title="~/.config/starship.toml"
+[custom.cuenv_hooks]
+command = "cuenv env status --hooks --format=starship"
+when = """ test -n "$CUENV_DIR" """
+format = "[$output]($style) "
+style = "bold yellow"
+```
+
+#### Display States
+
+The Starship module shows different indicators based on hook status:
+
+| Indicator            | Description                      | Duration      |
+| -------------------- | -------------------------------- | ------------- |
+| `⏳ 2/3 hooks (15s)` | Hooks are running                | While running |
+| `✅ Hooks ready`     | All hooks completed successfully | 5 seconds     |
+| `⚠️ 1 hook failed`   | One or more hooks failed         | 5 seconds     |
+| (empty)              | No hooks running                 | After timeout |
+
+#### Color by Duration
+
+Create a script for duration-based coloring:
+
+```bash title="~/.config/starship/cuenv-hooks-colored.sh"
+#!/bin/bash
+output=$(cuenv env status --hooks --format=starship)
+if [[ -z "$output" ]]; then
+    exit 0
+fi
+
+# Extract duration if present
+if [[ "$output" =~ \(([0-9]+)s\) ]]; then
+    duration=${BASH_REMATCH[1]}
+    if [ $duration -lt 10 ]; then
+        echo -e "\033[32m$output\033[0m"  # Green
+    elif [ $duration -lt 30 ]; then
+        echo -e "\033[33m$output\033[0m"  # Yellow
+    else
+        echo -e "\033[31m$output\033[0m"  # Red
+    fi
+else
+    echo "$output"
+fi
+```
+
+Then reference it in your configuration:
+
+```toml title="~/.config/starship.toml"
+[custom.cuenv_hooks]
+command = "bash ~/.config/starship/cuenv-hooks-colored.sh"
+when = """ test -n "$CUENV_DIR" """
+format = "$output"
+```
+
+#### Troubleshooting Starship Integration
+
+1. **Module not showing**: Verify `CUENV_DIR` is set: `echo $CUENV_DIR`
+2. **Test the command manually**: `cuenv env status --hooks --format=starship`
+3. **Performance issues**: The status command is cached, but check: `time cuenv env status --hooks --format=starship`
+4. **Increase timeout if needed**: Add `shell_timeout = 1000` to the module config
+
+#### Integration with Other Tools
+
+**tmux status line:**
+
+```tmux title="~/.tmux.conf"
+set -g status-right '#(cuenv env status --hooks --format=starship)'
+```
+
+**Vim/Neovim statusline:**
+
+```vim title="init.vim"
+set statusline+=%{system('cuenv env status --hooks --format=starship')}
+```
+
 ### VS Code
 
 For integrated terminal support:

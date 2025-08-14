@@ -292,6 +292,69 @@ The build cache dramatically improves development workflows:
 
 This makes cuenv ideal for monorepos and complex build pipelines where build performance is critical.
 
+## Performance Analysis and Debugging
+
+### Chrome Trace Output
+
+cuenv can generate Chrome trace files for detailed performance analysis of task execution. This is particularly useful for optimizing complex task graphs and identifying bottlenecks.
+
+```bash
+# Generate trace file during task execution
+cuenv task build --trace-output
+
+# The trace file is saved as cuenv-trace-<timestamp>.json
+ls cuenv-trace-*.json
+```
+
+#### Viewing Trace Files
+
+Open the generated trace file in Chrome's tracing tool:
+
+1. Open Chrome and navigate to `chrome://tracing/`
+2. Click "Load" and select your trace file
+3. Use the interface to explore task execution timelines
+
+#### What the Trace Shows
+
+The Chrome trace includes:
+
+- **Task Execution Timeline**: Start/end times for each task
+- **Dependency Resolution**: How dependencies are resolved
+- **Cache Lookups**: Time spent checking and retrieving cached results
+- **Parallel Execution**: Visual representation of concurrent task execution
+- **Total Execution Time**: Overall performance metrics
+
+#### Example Trace Analysis
+
+```bash
+# Execute a complex task graph with tracing
+cuenv task deploy --trace-output
+
+# Look for performance insights:
+# - Which tasks take the longest?
+# - Are tasks running in parallel as expected?
+# - How much time is spent on cache operations?
+# - Where are the bottlenecks in dependency chains?
+```
+
+This is especially valuable for:
+- **CI/CD Optimization**: Identify slow steps in build pipelines
+- **Monorepo Performance**: Analyze task execution across multiple packages
+- **Cache Effectiveness**: Measure cache hit rates and lookup times
+- **Parallel Execution Tuning**: Optimize task parallelization
+
+### Debug Output
+
+For additional debugging information:
+
+```bash
+# Enable verbose logging
+RUST_LOG=debug cuenv task build
+
+# Enable cuenv-specific debug output
+CUENV_DEBUG=1 cuenv task build
+```
+
 ## Related Guides
 
 - [Cache System](/guides/cache-system/) - Deep dive into caching architecture
