@@ -20,17 +20,17 @@ tasks: {
     development: {
         description: "Development tasks"
         mode: "group"
-        
+
         start: {
             description: "Start development server"
             command: "npm run dev"
         }
-        
+
         test: {
             description: "Run tests in watch mode"
             command: "npm run test:watch"
         }
-        
+
         lint: {
             description: "Run linter"
             command: "npm run lint"
@@ -61,22 +61,22 @@ tasks: {
     ci: {
         description: "CI pipeline"
         mode: "sequential"
-        
+
         install: {
             description: "Install dependencies"
             command: "npm install"
         }
-        
+
         lint: {
             description: "Run linter"
             command: "npm run lint"
         }
-        
+
         test: {
             description: "Run tests"
             command: "npm test"
         }
-        
+
         build: {
             description: "Build application"
             command: "npm run build"
@@ -106,22 +106,22 @@ tasks: {
     checks: {
         description: "Quality checks"
         mode: "parallel"
-        
+
         lint: {
             description: "Run linter"
             command: "npm run lint"
         }
-        
+
         typecheck: {
             description: "Type checking"
             command: "npm run typecheck"
         }
-        
+
         test: {
             description: "Run tests"
             command: "npm test"
         }
-        
+
         audit: {
             description: "Security audit"
             command: "npm audit"
@@ -151,30 +151,30 @@ tasks: {
     deploy: {
         description: "Deployment workflow"
         mode: "workflow"
-        
+
         test: {
             description: "Run tests"
             command: "npm test"
         }
-        
+
         build: {
             description: "Build application"
             command: "npm run build"
             dependencies: ["test"]
         }
-        
+
         package: {
             description: "Package for deployment"
             command: "docker build -t myapp ."
             dependencies: ["build"]
         }
-        
+
         deploy: {
             description: "Deploy to production"
             command: "kubectl apply -f k8s/"
             dependencies: ["package"]
         }
-        
+
         verify: {
             description: "Verify deployment"
             command: "curl -f https://myapp.com/health"
@@ -205,7 +205,7 @@ tasks: {
     frontend: {
         description: "Frontend development tasks for React application"
         mode: "group"
-        
+
         // ... tasks
     }
 }
@@ -220,28 +220,28 @@ tasks: {
     app: {
         description: "Application tasks"
         mode: "group"
-        
+
         frontend: {
             description: "Frontend tasks"
             mode: "group"
-            
+
             build: {
                 command: "npm run build"
             }
-            
+
             test: {
                 command: "npm run test"
             }
         }
-        
+
         backend: {
             description: "Backend tasks"
             mode: "sequential"
-            
+
             compile: {
                 command: "cargo build"
             }
-            
+
             test: {
                 command: "cargo test"
             }
@@ -317,7 +317,7 @@ cuenv task ci --output tui
 cuenv task ci --output tree
 # ci
 # ├── install ✓
-# ├── lint ✓  
+# ├── lint ✓
 # ├── test ⏳
 # └── build ⏸️
 ```
@@ -337,21 +337,21 @@ cuenv task ci --output tree
 tasks: {
     robust_ci: {
         mode: "sequential"
-        
+
         setup: {
             description: "Setup that must succeed"
             command: "setup.sh"
         }
-        
+
         checks: {
             description: "Parallel quality checks"
             mode: "parallel"
-            
+
             lint: { command: "npm run lint" }
             test: { command: "npm test" }
             security: { command: "npm audit" }
         }
-        
+
         build: {
             description: "Build only if checks pass"
             command: "npm run build"
@@ -385,18 +385,18 @@ tasks: {
 tasks: {
     publish: {
         mode: "workflow"
-        
+
         test: {
             description: "Ensure code quality before publish"
             command: "npm test"
         }
-        
+
         build: {
             description: "Create production build"
             command: "npm run build"
             dependencies: ["test"]  # Explicit dependency
         }
-        
+
         publish: {
             description: "Publish to npm registry"
             command: "npm publish"
@@ -457,44 +457,44 @@ tasks: {
     dev: {
         description: "Frontend development workflow"
         mode: "workflow"
-        
+
         deps: {
             description: "Install dependencies"
             command: "npm install"
         }
-        
+
         generate: {
             description: "Generate types"
             command: "npm run codegen"
             dependencies: ["deps"]
         }
-        
+
         dev: {
             description: "Start development server"
             command: "npm run dev"
             dependencies: ["generate"]
         }
     }
-    
+
     quality: {
         description: "Quality assurance checks"
         mode: "parallel"
-        
+
         lint: {
             description: "ESLint check"
             command: "npm run lint"
         }
-        
+
         typecheck: {
             description: "TypeScript check"
             command: "npm run typecheck"
         }
-        
+
         test: {
             description: "Unit tests"
             command: "npm test"
         }
-        
+
         e2e: {
             description: "End-to-end tests"
             command: "npm run test:e2e"
@@ -510,20 +510,20 @@ tasks: {
     microservices: {
         description: "Microservice management"
         mode: "group"
-        
+
         auth: {
             description: "Authentication service tasks"
             mode: "sequential"
-            
+
             build: { command: "docker build -t auth-service ." }
             test: { command: "docker run --rm auth-service test" }
             deploy: { command: "kubectl apply -f auth-service.yaml" }
         }
-        
+
         api: {
             description: "API gateway tasks"
             mode: "sequential"
-            
+
             build: { command: "docker build -t api-gateway ." }
             test: { command: "docker run --rm api-gateway test" }
             deploy: { command: "kubectl apply -f api-gateway.yaml" }

@@ -286,7 +286,7 @@ cuenv task deploy  # Uses network and filesystem capabilities
 
 Controls caching behavior during task execution.
 
-- **Type:** String  
+- **Type:** String
 - **Values:** `off`, `read`, `read-write`, `write`
 - **Default:** `read-write`
 

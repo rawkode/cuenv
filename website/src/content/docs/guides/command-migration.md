@@ -11,48 +11,50 @@ This guide helps users migrate from commands mentioned in older documentation to
 
 ### Environment Management
 
-| Old Command | New Command | Notes |
-|-------------|-------------|-------|
-| `cuenv allow` | `cuenv env allow` | Directory approval moved to env subcommand |
-| `cuenv deny` | `cuenv env deny` | Directory denial moved to env subcommand |
-| `cuenv status` | `cuenv env status` | Status moved to env subcommand |
-| `cuenv load` | `cuenv shell load` | Manual loading moved to shell subcommand |
+| Old Command    | New Command          | Notes                                      |
+| -------------- | -------------------- | ------------------------------------------ |
+| `cuenv allow`  | `cuenv env allow`    | Directory approval moved to env subcommand |
+| `cuenv deny`   | `cuenv env deny`     | Directory denial moved to env subcommand   |
+| `cuenv status` | `cuenv env status`   | Status moved to env subcommand             |
+| `cuenv load`   | `cuenv shell load`   | Manual loading moved to shell subcommand   |
 | `cuenv unload` | `cuenv shell unload` | Manual unloading moved to shell subcommand |
 
 ### Shell Integration
 
-| Old Command | New Command | Notes |
-|-------------|-------------|-------|
+| Old Command          | New Command                | Notes                                          |
+| -------------------- | -------------------------- | ---------------------------------------------- |
 | `cuenv init <shell>` | `cuenv shell init <shell>` | Shell initialization moved to shell subcommand |
-| `cuenv hook <shell>` | `cuenv shell hook <shell>` | Hook generation moved to shell subcommand |
+| `cuenv hook <shell>` | `cuenv shell hook <shell>` | Hook generation moved to shell subcommand      |
 
 ### Task Execution
 
-| Old Command | New Command | Notes |
-|-------------|-------------|-------|
+| Old Command        | New Command         | Notes                     |
+| ------------------ | ------------------- | ------------------------- |
 | `cuenv run <task>` | `cuenv task <task>` | Task execution simplified |
-| `cuenv run` | `cuenv task` | Task listing simplified |
+| `cuenv run`        | `cuenv task`        | Task listing simplified   |
 
 ### Removed Commands
 
 These commands were documented but never implemented:
 
-| Removed Command | Alternative | Notes |
-|-----------------|-------------|-------|
-| `cuenv dump` | `cuenv env export` | Use export with appropriate format |
-| `cuenv prune` | `cuenv env prune` or `cuenv cache cleanup` | State cleanup moved to appropriate subcommands |
-| `cuenv remote-cache-server` | Not implemented | Remote cache server is not available |
+| Removed Command             | Alternative                                | Notes                                          |
+| --------------------------- | ------------------------------------------ | ---------------------------------------------- |
+| `cuenv dump`                | `cuenv env export`                         | Use export with appropriate format             |
+| `cuenv prune`               | `cuenv env prune` or `cuenv cache cleanup` | State cleanup moved to appropriate subcommands |
+| `cuenv remote-cache-server` | Not implemented                            | Remote cache server is not available           |
 
 ## Migration Examples
 
 ### Shell Setup
 
 **Old:**
+
 ```bash
 eval "$(cuenv init bash)"
 ```
 
 **New:**
+
 ```bash
 eval "$(cuenv shell init bash)"
 ```
@@ -60,11 +62,13 @@ eval "$(cuenv shell init bash)"
 ### Directory Approval
 
 **Old:**
+
 ```bash
 cuenv allow .
 ```
 
 **New:**
+
 ```bash
 cuenv env allow .
 ```
@@ -72,12 +76,14 @@ cuenv env allow .
 ### Task Execution
 
 **Old:**
+
 ```bash
 cuenv run build
 cuenv run -e production deploy
 ```
 
 **New:**
+
 ```bash
 cuenv task build
 cuenv task deploy -e production
@@ -86,11 +92,13 @@ cuenv task deploy -e production
 ### Environment Status
 
 **Old:**
+
 ```bash
 cuenv status
 ```
 
 **New:**
+
 ```bash
 cuenv env status
 ```
@@ -98,12 +106,14 @@ cuenv env status
 ### Environment Loading
 
 **Old:**
+
 ```bash
 cuenv load
 cuenv unload
 ```
 
 **New:**
+
 ```bash
 cuenv shell load
 cuenv shell unload
@@ -116,11 +126,13 @@ If you have shell configuration files that reference the old commands, update th
 ### ~/.bashrc or ~/.zshrc
 
 **Old:**
+
 ```bash
 eval "$(cuenv init bash)"
 ```
 
 **New:**
+
 ```bash
 eval "$(cuenv shell init bash)"
 ```
@@ -128,11 +140,13 @@ eval "$(cuenv shell init bash)"
 ### ~/.config/fish/config.fish
 
 **Old:**
+
 ```fish
 cuenv init fish | source
 ```
 
 **New:**
+
 ```fish
 cuenv shell init fish | source
 ```
@@ -156,6 +170,7 @@ alias cuenv-run='cuenv task'
 If you have scripts using the old commands, update them:
 
 **Old script:**
+
 ```bash
 #!/bin/bash
 cuenv allow .
@@ -165,6 +180,7 @@ cuenv run deploy
 ```
 
 **New script:**
+
 ```bash
 #!/bin/bash
 cuenv env allow .
@@ -195,6 +211,7 @@ No changes are needed to your `env.cue` files - the configuration format remains
 - ❌ Advanced secret management schemas
 
 If you need these features, consider:
+
 - Using external tools for secret resolution
 - Setting up your own remote cache infrastructure
 - Using environment variables for secrets in development
@@ -204,6 +221,7 @@ If you need these features, consider:
 If you encounter issues during migration:
 
 1. Check current command help:
+
    ```bash
    cuenv --help
    cuenv task --help
@@ -212,6 +230,7 @@ If you encounter issues during migration:
    ```
 
 2. Verify your `env.cue` files are valid:
+
    ```bash
    cuenv discover --load
    ```

@@ -327,9 +327,12 @@ cuenv exec -e <TAB>
 cuenv exec -c <TAB>
 # Shows: network, filesystem, secrets, etc.
 ```
+
 cuenv <TAB>
+
 # Shows all available commands with descriptions
-```
+
+````
 
 #### Advanced Completion
 
@@ -352,7 +355,7 @@ If completion isn't working:
 
    # Test completion generation
    cuenv completion bash
-   ```
+````
 
 2. **Reload shell configuration**:
 

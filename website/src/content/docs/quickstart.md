@@ -145,13 +145,13 @@ tasks: {
         description: "Install dependencies"
         command: "npm install"
     }
-    
+
     build: {
         description: "Build the application"
         command: "npm run build"
         dependencies: ["install"]
     }
-    
+
     start: {
         description: "Start the application"
         command: "npm start"
@@ -185,14 +185,14 @@ env: {
     APP_NAME: "My App"
     PORT: 3000
     LOG_LEVEL: "info"
-    
+
     // Set environment-specific values based on CUENV_ENV
     if CUENV_ENV == "production" {
         PORT: 8080
         LOG_LEVEL: "error"
         DATABASE_HOST: "prod-db.example.com"
     }
-    
+
     if CUENV_ENV == "staging" {
         PORT: 3001
         LOG_LEVEL: "debug"
