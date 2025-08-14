@@ -28,7 +28,7 @@ cuenv leverages CUE's power to go beyond simple environment management:
 ## Core Features
 
 - **Type-Safe Configuration**: `PORT: 3000` is an int. CUE validates it before it loads.
-- **Native Secret Integration**: `op://` and `gcp-secret://` references are resolved with `cuenv run`.
+- **Native Task Integration**: Define and execute tasks alongside your configuration.
 - **Efficient**: State is stored in environment variables, not files. No I/O on every prompt.
 - **Beyond Environment**: Define tasks, workflows, and more in the same file.
 
@@ -69,14 +69,12 @@ ENVIRONMENT: "dev" | "staging" | "prod"  // Must be one of these
 ```cue
 // In env.cue
 DATABASE_URL: "postgres://user:password@localhost/dev"  // Local dev
-DATABASE_PASSWORD: "op://Personal/MyApp/db/password"    // Production
 
 // Run your app
-cuenv run -- npm start  # Secrets resolved automatically
+cuenv exec -- npm start  # Execute with loaded environment
 
-// Check what's loaded (secrets are hidden)
-cuenv status
-# DATABASE_PASSWORD=*** (hidden)
+// Check what's loaded
+cuenv env status
 ```
 
 ## How It Actually Works
@@ -100,7 +98,7 @@ Both tools have their strengths:
 | **Config Language**   | CUE (purpose-built)   | Shell (flexible)   |
 | **Type Validation**   | Built-in              | Script it yourself |
 | **Secret Management** | Native integration    | Custom scripts     |
-| **Approval Method**   | `cuenv allow` command | File path          |
+| **Approval Method**   | `cuenv env allow` command | File path          |
 | **Performance**       | Env var state         | File-based         |
 | **File Watching**     | Automatic             | `watch_file`       |
 | **Extensibility**     | Tasks, workflows      | Shell commands     |

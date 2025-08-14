@@ -20,7 +20,7 @@ Selects which environment configuration to load.
 export CUENV_ENV="production"
 
 # Or use with command
-cuenv run -e staging -- npm start
+cuenv exec -e staging -- npm start
 ```
 
 ### CUENV_FORMAT
@@ -197,7 +197,7 @@ Base64-encoded environment diff for restoration.
 The directory containing the loaded environment file (legacy, same as CUENV_DIR).
 
 - **Type:** String (path)
-- **Set by:** `cuenv load` when a file is found
+- **Set by:** `cuenv shell load` when a file is found
 - **Used for:** Resolving relative paths, identifying project root
 
 ```bash
@@ -226,13 +226,13 @@ Example:
 export DATABASE_URL="postgres://localhost/dev"
 
 # Load env.cue that sets DATABASE_URL="postgres://localhost/prod"
-cuenv load
+cuenv shell load
 
 # cuenv automatically sets:
 # CUENV_PREV_DATABASE_URL="postgres://localhost/dev"
 
 # Unload restores original value
-cuenv unload
+cuenv shell unload
 echo $DATABASE_URL  # "postgres://localhost/dev"
 ```
 
@@ -264,58 +264,70 @@ Tracks directory changes for automatic environment loading.
 - **Set by:** Shell hook
 - **Internal use only**
 
-## Secret Management Variables
+## Task Execution Variables
 
-### CUENV_ONEPASSWORD_ACCOUNT
+Variables used for task execution and workflow management.
 
-Default 1Password account for secret resolution.
+### CUENV_CAPABILITIES
 
-- **Type:** String
-- **Example:** `my-team.1password.com`
+Comma-separated list of capabilities enabled for task execution.
+
+- **Type:** String (comma-separated)
+- **Used by:** Task executor for capability-based access control
 
 ```bash
-export CUENV_ONEPASSWORD_ACCOUNT="acme.1password.com"
+export CUENV_CAPABILITIES="network,filesystem"
 
-# Now @1password tags use this account by default
-# @1password(vault: "Production", item: "API Keys", field: "token")
+# Tasks can check capabilities
+cuenv task deploy  # Uses network and filesystem capabilities
 ```
 
-### CUENV_ONEPASSWORD_VAULT
+### CUENV_CACHE_MODE
 
-Default vault for 1Password references.
+Controls caching behavior during task execution.
 
-- **Type:** String
-- **Example:** `Production`, `Development`
+- **Type:** String  
+- **Values:** `off`, `read`, `read-write`, `write`
+- **Default:** `read-write`
 
 ```bash
-export CUENV_ONEPASSWORD_VAULT="Production"
+export CUENV_CACHE_MODE="read"
 
-# Simplified references:
-# @1password(item: "Database", field: "password")
+# Only read from cache, don't write to it
+cuenv task build
 ```
 
-### CUENV_GCP_PROJECT
+### CUENV_CACHE_ENABLED
 
-Default Google Cloud project for Secret Manager.
+Enable or disable task result caching.
 
-- **Type:** String
-- **Example:** `my-project-123`
+- **Type:** Boolean string
+- **Values:** `true`, `false`
+- **Default:** `true`
 
 ```bash
-export CUENV_GCP_PROJECT="acme-prod"
+export CUENV_CACHE_ENABLED="false"
 
-# Simplified references:
-# @gcp(secret: "api-key", version: "latest")
+# Disable all caching
+cuenv task test
 ```
 
 ## Command-Specific Variables
 
-### CUENV_RUN_COMMAND
+### CUENV_OUTPUT_FORMAT
 
-Used internally by `cuenv run` to pass commands to subshells.
+Controls the output format for task execution.
 
 - **Type:** String
-- **Internal use only**
+- **Values:** `tui`, `spinner`, `simple`, `tree`
+- **Default:** `spinner`
+
+```bash
+export CUENV_OUTPUT_FORMAT="tui"
+
+# Use TUI interface for task execution
+cuenv task build
+```
 
 ## Best Practices
 
@@ -340,10 +352,10 @@ When multiple sources set the same variable:
 Example:
 
 ```bash
-# env.cue defines: environment: production: { PORT: 8080 }
+# env.cue defines environment-specific values
 # Shell has: export CUENV_ENV=staging
 
-cuenv run -- echo $PORT                    # Uses staging
-cuenv run -e production -- echo $PORT      # Uses production (flag wins)
-CUENV_ENV=development cuenv run -- echo $PORT  # Uses development
+cuenv exec -- echo $PORT                    # Uses staging
+cuenv exec -e production -- echo $PORT      # Uses production (flag wins)
+CUENV_ENV=development cuenv exec -- echo $PORT  # Uses development
 ```

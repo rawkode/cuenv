@@ -98,7 +98,7 @@ tasks: {
 
 <CardGrid>
 	<Card title="Seamless Integration" icon="rocket">
-		`cd` into directory. Run `cuenv allow` once. Environment loads automatically
+		`cd` into directory. Run `cuenv env allow` once. Environment loads automatically
 		from then on.
 	</Card>
 	<Card title="Shell Variables Work" icon="terminal">
@@ -147,7 +147,7 @@ env: {
 }' > env.cue
 
 # Allow the directory (one time)
-cuenv allow .
+cuenv env allow .
 
 # Now it loads automatically
 echo $PORT  # 3000

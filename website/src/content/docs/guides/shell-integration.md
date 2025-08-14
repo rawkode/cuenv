@@ -18,7 +18,7 @@ cuenv integrates seamlessly with popular shells to automatically load and unload
 Add to your `~/.bashrc` or `~/.bash_profile`:
 
 ```bash title="~/.bashrc"
-eval "$(cuenv init bash)"
+eval "$(cuenv shell init bash)"
 ```
 
 For system-wide installation, add to `/etc/bash.bashrc`:
@@ -26,7 +26,7 @@ For system-wide installation, add to `/etc/bash.bashrc`:
 ```bash title="/etc/bash.bashrc"
 # System-wide cuenv for all users
 if command -v cuenv >/dev/null 2>&1; then
-    eval "$(cuenv init bash)"
+    eval "$(cuenv shell init bash)"
 fi
 ```
 
@@ -35,7 +35,7 @@ fi
 Add to your `~/.zshrc`:
 
 ```zsh title="~/.zshrc"
-eval "$(cuenv init zsh)"
+eval "$(cuenv shell init zsh)"
 ```
 
 For Oh My Zsh users, you can create a custom plugin:
@@ -47,7 +47,7 @@ mkdir -p ~/.oh-my-zsh/custom/plugins/cuenv
 # Create plugin file
 cat > ~/.oh-my-zsh/custom/plugins/cuenv/cuenv.plugin.zsh << 'EOF'
 if command -v cuenv >/dev/null 2>&1; then
-    eval "$(cuenv init zsh)"
+    eval "$(cuenv shell init zsh)"
 fi
 EOF
 
@@ -61,7 +61,7 @@ Add to your `~/.config/fish/config.fish`:
 
 ```fish title="~/.config/fish/config.fish"
 if command -v cuenv >/dev/null 2>&1
-    cuenv init fish | source
+    cuenv shell init fish | source
 end
 ```
 
@@ -72,7 +72,8 @@ Or create a Fish function:
 mkdir -p ~/.config/fish/functions
 cat > ~/.config/fish/functions/cuenv_init.fish << 'EOF'
 function cuenv_init --description 'Initialize cuenv'
-    cuenv init fish | source
+    cuenv shell init fish | source
+end
 end
 EOF
 
@@ -173,7 +174,7 @@ For faster shell startup, use lazy loading:
 # Lazy load cuenv
 cuenv() {
     unset -f cuenv
-    eval "$(command cuenv init bash)"
+    eval "$(command cuenv shell init bash)"
     cuenv "$@"
 }
 ```
@@ -184,7 +185,7 @@ cuenv() {
 # Lazy load cuenv
 cuenv() {
     unfunction cuenv
-    eval "$(command cuenv init zsh)"
+    eval "$(command cuenv shell init zsh)"
     cuenv "$@"
 }
 ```
@@ -300,13 +301,13 @@ The completion system provides intelligent suggestions for:
 
 ##### Static Completions
 
-- **Commands**: `load`, `unload`, `status`, `init`, `allow`, `deny`, `run`, `exec`, `hook`, `export`, `dump`, `prune`, `clear-cache`, `cache`, `remote-cache-server`, `completion`
+- **Commands**: `task`, `env`, `shell`, `discover`, `cache`, `exec`, `init`, `completion`, `mcp`
 - **Global flags**: `-h/--help`, `-V/--version`, `-e/--env`, `-c/--capability`, `--audit`
 - **Command-specific flags**: Context-sensitive options for each command
 
 ##### Dynamic Completions
 
-- **Task names**: When using `cuenv run <TAB>`, completes with available task names from `env.cue`
+- **Task names**: When using `cuenv task <TAB>`, completes with available task names from `env.cue`
 - **Environment names**: When using `-e <TAB>` or `--env <TAB>`, completes with defined environments
 - **Capability names**: When using `-c <TAB>` or `--capability <TAB>`, completes with available capabilities
 - **Allowed hosts**: Context-aware host completion for security-restricted tasks
@@ -315,18 +316,17 @@ The completion system provides intelligent suggestions for:
 
 ```bash
 # Complete available tasks
-cuenv run <TAB>
+cuenv task <TAB>
 # Shows: build, test, deploy, lint, format, etc.
 
 # Complete environment names
-cuenv run -e <TAB>
+cuenv exec -e <TAB>
 # Shows: development, staging, production, etc.
 
 # Complete capability names
 cuenv exec -c <TAB>
 # Shows: network, filesystem, secrets, etc.
-
-# Complete commands with context
+```
 cuenv <TAB>
 # Shows all available commands with descriptions
 ```
@@ -388,7 +388,7 @@ If completion isn't working:
 
    ```bash
    # Test hook manually
-   cuenv hook bash  # or zsh, fish
+   cuenv shell hook bash  # or zsh, fish
    ```
 
 1. **Debug mode:**
@@ -404,10 +404,10 @@ If variables persist after leaving a directory:
 
 ```bash
 # Force unload
-cuenv unload
+cuenv shell unload
 
 # Check current status
-cuenv status
+cuenv env status
 ```
 
 ### Conflicts with Other Tools
@@ -417,7 +417,7 @@ If using direnv or similar tools:
 ```bash
 # Load cuenv after other tools
 eval "$(direnv hook bash)"
-eval "$(cuenv init bash)"  # Load after direnv
+eval "$(cuenv shell init bash)"  # Load after direnv
 ```
 
 ## Advanced Configuration
@@ -440,7 +440,7 @@ To disable automatic loading but keep commands available:
 export CUENV_DISABLE_AUTO=1
 
 # Manually load when needed
-cuenv load
+cuenv shell load
 ```
 
 ### Custom Load/Unload Hooks

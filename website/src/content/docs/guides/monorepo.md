@@ -136,14 +136,14 @@ Execute any task from anywhere in the monorepo:
 
 ```bash
 # Execute from repository root
-cuenv run services:api:build
+cuenv task services:api:build
 
 # Execute from any subdirectory
 cd tools/deploy
-cuenv run services:api:build
+cuenv task services:api:build
 
 # Execute local task
-cuenv run deploy
+cuenv task deploy
 ```
 
 ### Execution Order
@@ -202,7 +202,7 @@ This shows:
 List all available tasks across the monorepo:
 
 ```bash
-cuenv run
+cuenv task
 ```
 
 Output:
