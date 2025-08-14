@@ -226,7 +226,7 @@ impl Supervisor {
             let handle = tokio::spawn(async move {
                 // Start with no PID, will be updated when process spawns
                 let _ = status_manager.mark_hook_started(&hook_key, 0);
-                let result = execute_hook_with_timeout(&hook, Duration::from_secs(60)).await;
+                let result = execute_hook_with_timeout(&hook, Duration::from_secs(60), false).await;
                 match result {
                     Ok((output, pid)) => {
                         // Update with actual PID if we got one
@@ -329,8 +329,88 @@ impl Supervisor {
     }
 
     async fn run_synchronous(&self) -> Result<()> {
-        // For now, synchronous is the same as background
-        self.execute_hooks_in_background().await
+        self.run_silent_synchronous().await
+    }
+
+    async fn run_silent_synchronous(&self) -> Result<()> {
+        if self.hooks.is_empty() {
+            return Ok(());
+        }
+
+        // Check if we need to run based on inputs
+        let input_hash = cache::calculate_input_hash(&self.hooks)?;
+        if let Ok(cached_env) = cache::load_cached_environment(&self.cache_dir, &input_hash) {
+            // Inputs haven't changed, use cached environment
+            cache::apply_cached_environment(&self.cache_dir, cached_env)?;
+            return Ok(());
+        }
+
+        self.status_manager.clear_status().map_err(|e| {
+            cuenv_core::Error::configuration(format!("Failed to clear status: {e}"))
+        })?;
+
+        let hook_names: Vec<String> = self
+            .hooks
+            .iter()
+            .map(|h| {
+                if let Some(args) = &h.args {
+                    format!("{} {:?}", h.command, args)
+                } else {
+                    h.command.clone()
+                }
+            })
+            .collect();
+
+        self.status_manager
+            .initialize_hooks(hook_names)
+            .map_err(|e| {
+                cuenv_core::Error::configuration(format!("Failed to initialize hooks: {e}"))
+            })?;
+
+        let mut captured_env = HashMap::new();
+        let mut handles = Vec::new();
+
+        for hook in self.hooks.iter().cloned() {
+            let status_manager = self.status_manager.clone();
+            let hook_key = if let Some(args) = &hook.args {
+                format!("{} {:?}", hook.command, args)
+            } else {
+                hook.command.clone()
+            };
+
+            let handle = tokio::spawn(async move {
+                let _ = status_manager.mark_hook_started(&hook_key, 0);
+                let result = execute_hook_with_timeout(&hook, Duration::from_secs(60), true).await;
+                match result {
+                    Ok((output, pid)) => {
+                        if let Some(actual_pid) = pid {
+                            let _ = status_manager.mark_hook_started(&hook_key, actual_pid);
+                        }
+                        let _ = status_manager.mark_hook_completed(&hook_key);
+                        output
+                    }
+                    Err(e) => {
+                        let _ = status_manager.mark_hook_failed(&hook_key, e.to_string());
+                        None
+                    }
+                }
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            if let Ok(Some(env)) = handle.await {
+                captured_env.extend(env);
+            }
+        }
+
+        if !captured_env.is_empty() {
+            let input_hash = cache::calculate_input_hash(&self.hooks)?;
+            cache::save_cached_environment(&self.cache_dir, &input_hash, captured_env)?;
+        }
+
+        self.status_manager.clear_status()?;
+        Ok(())
     }
 
     async fn run_background(&self) -> Result<()> {
@@ -406,7 +486,8 @@ impl Supervisor {
                 })?;
 
             let handle = tokio::spawn(async move {
-                let result = execute_hook_with_timeout(&hook_clone, Duration::from_secs(60)).await;
+                let result =
+                    execute_hook_with_timeout(&hook_clone, Duration::from_secs(60), false).await;
 
                 match result {
                     Ok((output, pid)) => {

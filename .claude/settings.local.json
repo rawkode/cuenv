@@ -26,7 +26,8 @@
       "Bash(target/debug/cuenv:*)",
       "Bash(printenv)",
       "Bash(cargo test:*)",
-      "Bash(cargo insta test:*)"
+      "Bash(cargo insta test:*)",
+      "Bash(timeout 5 nix develop:*)"
     ],
     "deny": []
   },

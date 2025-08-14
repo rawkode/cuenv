@@ -55,11 +55,18 @@ pub async fn handle_run_task(
 
     // Load environment and create task executor
     use crate::TaskExecutor;
+    use cuenv_env::manager::environment::SupervisorMode;
     use cuenv_env::EnvManager;
 
     let mut env_manager = EnvManager::new();
     match env_manager
-        .load_env_with_options(&path, environment, capabilities.unwrap_or_default(), None)
+        .load_env_with_options(
+            &path,
+            environment,
+            capabilities.unwrap_or_default(),
+            None,
+            SupervisorMode::Foreground,
+        )
         .await
     {
         Ok(()) => {

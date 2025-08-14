@@ -262,6 +262,7 @@ async fn execute_hook_async(hook: &Hook) -> Result<()> {
     }
 
     // Capture all output to prevent it from appearing in terminal
+    // For preload hooks, we want to completely silence all output
     cmd.stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .stdin(Stdio::null());

@@ -115,7 +115,7 @@ async fn test_captured_environment_serialization() {
 #[tokio::test]
 async fn test_execute_hook_non_source() {
     let hook = create_test_hook("echo", vec!["hello".to_string()], false, false);
-    let result = execute_hook_with_timeout(&hook, Duration::from_secs(5)).await;
+    let result = execute_hook_with_timeout(&hook, Duration::from_secs(5), true).await;
 
     assert!(result.is_ok());
     assert_eq!(
@@ -128,14 +128,14 @@ async fn test_execute_hook_non_source() {
 #[tokio::test]
 async fn test_execute_hook_failure() {
     let hook = create_test_hook("false", vec![], false, false);
-    let result = execute_hook_with_timeout(&hook, Duration::from_secs(5)).await;
+    let result = execute_hook_with_timeout(&hook, Duration::from_secs(5), true).await;
     assert!(result.is_ok(), "Should handle command failure gracefully");
 }
 
 #[tokio::test]
 async fn test_execute_hook_timeout() {
     let hook = create_test_hook("sleep", vec!["10".to_string()], false, false);
-    let result = execute_hook_with_timeout(&hook, Duration::from_millis(100)).await;
+    let result = execute_hook_with_timeout(&hook, Duration::from_millis(100), true).await;
 
     // Should not error, just return None for timed out hooks
     assert!(result.is_ok());
@@ -173,7 +173,7 @@ echo 'export TEST_VAR2="value2"'
         inputs: None,
     };
 
-    let result = execute_hook_with_timeout(&hook, Duration::from_secs(5)).await;
+    let result = execute_hook_with_timeout(&hook, Duration::from_secs(5), true).await;
 
     assert!(result.is_ok());
     let env_vars = result.unwrap().0.unwrap();

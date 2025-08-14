@@ -275,3 +275,20 @@ fn check_env_var_unset(world: &mut TestWorld, var_name: String) -> anyhow::Resul
     }
     Ok(())
 }
+
+#[then(regex = r#"the command should complete within (\d+) seconds"#)]
+fn check_command_duration(world: &mut TestWorld, max_seconds: u64) -> anyhow::Result<()> {
+    let duration = world
+        .last_command_duration
+        .ok_or_else(|| anyhow::anyhow!("No command duration to check"))?;
+
+    let max_duration = std::time::Duration::from_secs(max_seconds);
+    if duration > max_duration {
+        anyhow::bail!(
+            "Command took {:.2}s but should complete within {}s",
+            duration.as_secs_f64(),
+            max_seconds
+        );
+    }
+    Ok(())
+}

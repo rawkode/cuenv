@@ -3,6 +3,7 @@
 use cuenv_config::Hook;
 use cuenv_core::Result;
 use std::collections::HashMap;
+use std::process::Stdio;
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
@@ -12,18 +13,20 @@ use tokio::time::timeout;
 pub async fn execute_hook_with_timeout(
     hook: &Hook,
     timeout_duration: Duration,
+    silent: bool,
 ) -> Result<(Option<HashMap<String, String>>, Option<u32>)> {
     // For source hooks, we need to evaluate the output as shell script
     if hook.source.unwrap_or(false) {
-        execute_source_hook(hook, timeout_duration).await
+        execute_source_hook(hook, timeout_duration, silent).await
     } else {
-        execute_regular_hook(hook, timeout_duration).await
+        execute_regular_hook(hook, timeout_duration, silent).await
     }
 }
 
 async fn execute_source_hook(
     hook: &Hook,
     timeout_duration: Duration,
+    silent: bool,
 ) -> Result<(Option<HashMap<String, String>>, Option<u32>)> {
     // Create a wrapper script that evaluates the hook output and captures env changes
     let wrapper_script = format!(
@@ -33,14 +36,14 @@ TEMP_BEFORE=$(mktemp)
 TEMP_AFTER=$(mktemp)
 trap "rm -f $TEMP_BEFORE $TEMP_AFTER" EXIT
 
-# Save environment with null bytes as separators (handles newlines in values)
+# Save environment with null bytes as separators to handle newlines in values
 env -0 | sort -z > "$TEMP_BEFORE"
 
-# Run the hook command and capture its output
-HOOK_OUTPUT="$({} {})"
+# Run the hook command and capture its output (including stderr)
+HOOK_OUTPUT="$({} {} 2>&1)"
 
-# Evaluate the output as shell script (this is what direnv does)
-eval "$HOOK_OUTPUT"
+# Evaluate the output as shell script like direnv does (silently)
+eval "$HOOK_OUTPUT" >/dev/null 2>&1
 
 # Get the new environment with null separation
 env -0 | sort -z > "$TEMP_AFTER"
@@ -53,7 +56,7 @@ comm -z -13 "$TEMP_BEFORE" "$TEMP_AFTER"
             .as_ref()
             .map(|args| args
                 .iter()
-                .map(|arg| format!("'{}'", arg.replace('\'', "'\\''")))
+                .map(|arg| format!("'{}'", arg.replace('\'', "'\"'\"'")))
                 .collect::<Vec<_>>()
                 .join(" "))
             .unwrap_or_default()
@@ -61,6 +64,7 @@ comm -z -13 "$TEMP_BEFORE" "$TEMP_AFTER"
 
     let mut cmd = Command::new("bash");
     cmd.arg("-c").arg(&wrapper_script);
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
     if let Some(dir) = &hook.dir {
         cmd.current_dir(dir);
@@ -76,7 +80,7 @@ comm -z -13 "$TEMP_BEFORE" "$TEMP_AFTER"
 
     match timeout(timeout_duration, child.wait_with_output()).await {
         Ok(Ok(output)) => {
-            if !output.status.success() {
+            if !output.status.success() && !silent {
                 eprintln!(
                     "# cuenv: Hook {} failed with status: {}",
                     hook.command, output.status
@@ -87,6 +91,8 @@ comm -z -13 "$TEMP_BEFORE" "$TEMP_AFTER"
                         String::from_utf8_lossy(&output.stderr)
                     );
                 }
+            }
+            if !output.status.success() {
                 return Ok((None, pid));
             }
 
@@ -111,7 +117,9 @@ comm -z -13 "$TEMP_BEFORE" "$TEMP_AFTER"
             "Failed to execute hook: {e}"
         ))),
         Err(_) => {
-            eprintln!("# cuenv: Hook {} timed out", hook.command);
+            if !silent {
+                eprintln!("# cuenv: Hook {} timed out", hook.command);
+            }
             Ok((None, pid))
         }
     }
@@ -120,6 +128,7 @@ comm -z -13 "$TEMP_BEFORE" "$TEMP_AFTER"
 async fn execute_regular_hook(
     hook: &Hook,
     timeout_duration: Duration,
+    silent: bool,
 ) -> Result<(Option<HashMap<String, String>>, Option<u32>)> {
     let mut cmd = Command::new(&hook.command);
 
@@ -129,6 +138,11 @@ async fn execute_regular_hook(
 
     if let Some(dir) = &hook.dir {
         cmd.current_dir(dir);
+    }
+
+    if silent {
+        cmd.stdout(Stdio::null());
+        cmd.stderr(Stdio::null());
     }
 
     // No environment variables in Hook struct
@@ -141,7 +155,7 @@ async fn execute_regular_hook(
 
     match timeout(timeout_duration, child.wait_with_output()).await {
         Ok(Ok(output)) => {
-            if !output.status.success() {
+            if !output.status.success() && !silent {
                 eprintln!(
                     "# cuenv: Hook {} failed with status: {}",
                     hook.command, output.status
@@ -159,7 +173,9 @@ async fn execute_regular_hook(
             "Failed to execute hook: {e}"
         ))),
         Err(_) => {
-            eprintln!("# cuenv: Hook {} timed out", hook.command);
+            if !silent {
+                eprintln!("# cuenv: Hook {} timed out", hook.command);
+            }
             Ok((None, pid))
         }
     }
