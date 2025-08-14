@@ -33,6 +33,7 @@ mod comprehensive_concurrent_tests {
 
     /// Test behavior when multiple tasks compete for limited resources
     #[test]
+    #[cfg_attr(coverage, ignore)]
     #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_resource_exhaustion_under_concurrent_load() {
         let temp_dir = TempDir::new().unwrap();
@@ -112,6 +113,7 @@ mod comprehensive_concurrent_tests {
 
     /// Test cache behavior during rapid file system changes
     #[test]
+    #[cfg_attr(coverage, ignore)]
     #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_cache_consistency_with_filesystem_race() {
         let temp_dir = TempDir::new().unwrap();
@@ -239,6 +241,7 @@ mod comprehensive_concurrent_tests {
 
     /// Test complex dependency chains under concurrent execution
     #[tokio::test]
+    #[cfg_attr(coverage, ignore)]
     #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     async fn test_concurrent_dependency_resolution() {
         let temp_dir = TempDir::new().unwrap();
@@ -334,6 +337,7 @@ tasks: {
 
     /// Test rollback behavior when tasks fail mid-execution
     #[tokio::test]
+    #[cfg_attr(coverage, ignore)]
     #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     async fn test_concurrent_rollback_on_failure() {
         let temp_dir = TempDir::new().unwrap();
@@ -407,6 +411,7 @@ tasks: {
 
     /// Test behavior when cache operations timeout
     #[test]
+    #[cfg_attr(coverage, ignore)]
     #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_cache_operation_timeouts() {
         let (cache_manager, _cache_temp) = create_test_cache_manager();

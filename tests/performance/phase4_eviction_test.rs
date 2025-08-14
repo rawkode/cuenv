@@ -230,6 +230,7 @@ async fn test_disk_quota_management() {
 }
 
 #[tokio::test]
+#[cfg_attr(coverage, ignore)]
 async fn test_concurrent_eviction_safety() {
     let temp_dir = TempDir::new().unwrap();
 

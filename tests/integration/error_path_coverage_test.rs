@@ -247,6 +247,7 @@ async fn test_cache_invalid_utf8_handling() {
 
 /// Test concurrent access under error conditions
 #[tokio::test]
+#[cfg_attr(coverage, ignore)]
 async fn test_concurrent_error_handling() {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
     let cache = std::sync::Arc::new(
