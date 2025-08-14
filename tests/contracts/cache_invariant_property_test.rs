@@ -348,6 +348,7 @@ mod cache_invariant_tests {
 
     /// Invariant: Concurrent operations maintain consistency
     #[tokio::test]
+    #[cfg_attr(coverage, ignore)]
     async fn invariant_concurrent_consistency() {
         let temp_dir = TempDir::new().unwrap();
         let cache = Arc::new(
@@ -815,6 +816,7 @@ mod cache_invariant_tests {
 
     /// Invariant: Cache operations are atomic
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    #[cfg_attr(coverage, ignore)]
     async fn invariant_operation_atomicity() {
         let temp_dir = TempDir::new().unwrap();
         let cache = Arc::new(

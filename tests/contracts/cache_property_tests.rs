@@ -115,6 +115,7 @@ mod cache_property_tests {
     /// For any key-value pair, putting and then getting should return the same value
     proptest! {
         #[test]
+        #[cfg_attr(coverage, ignore)]
         fn prop_cache_roundtrip_consistency(
             key in arb_cache_key(),
             value in arb_cache_value(),
@@ -615,6 +616,7 @@ mod cache_property_tests {
     /// Sync cache property tests
     proptest! {
         #[test]
+        #[cfg_attr(coverage, ignore)]
         fn prop_sync_cache_roundtrip(
             key in arb_cache_key(),
             value in arb_cache_value().prop_filter("Limit size", |v| v.len() < 10000),
