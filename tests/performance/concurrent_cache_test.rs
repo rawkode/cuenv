@@ -39,6 +39,7 @@ mod concurrent_cache_tests {
 
     /// Test concurrent access to the task cache
     #[test]
+    #[cfg_attr(coverage, ignore)]
     #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_concurrent_cache_access() {
         let temp_dir = TempDir::new().unwrap();
@@ -119,6 +120,7 @@ mod concurrent_cache_tests {
 
     /// Test cache key generation is deterministic
     #[test]
+    #[cfg_attr(coverage, ignore)]
     #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_concurrent_cache_key_generation() {
         let temp_dir = TempDir::new().unwrap();
@@ -257,6 +259,7 @@ mod concurrent_cache_tests {
 
     /// Test concurrent cache operations don't corrupt data
     #[test]
+    #[cfg_attr(coverage, ignore)]
     #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_cache_data_integrity() {
         let temp_dir = TempDir::new().unwrap();

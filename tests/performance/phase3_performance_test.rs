@@ -186,6 +186,7 @@ async fn test_fast_path_performance() {
 }
 
 #[tokio::test]
+#[cfg_attr(coverage, ignore)]
 async fn test_concurrent_access_performance() {
     let temp_dir = TempDir::new().unwrap();
     let cache: Arc<ProductionCache> = Arc::new(

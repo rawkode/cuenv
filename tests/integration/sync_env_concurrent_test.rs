@@ -6,6 +6,7 @@ mod concurrent_tests {
     use std::time::Duration;
 
     #[test]
+    #[cfg_attr(coverage, ignore)]
     #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_concurrent_env_modifications() {
         let num_threads = 4; // Reduced from 10 to prevent resource exhaustion
@@ -59,6 +60,7 @@ mod concurrent_tests {
     }
 
     #[test]
+    #[cfg_attr(coverage, ignore)]
     #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_instance_lock_prevents_concurrent_access() {
         let barrier = Arc::new(Barrier::new(2));
@@ -99,6 +101,7 @@ mod concurrent_tests {
     }
 
     #[test]
+    #[cfg_attr(coverage, ignore)]
     #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_env_operations_are_atomic() {
         let num_threads = 3; // Reduced from 5
