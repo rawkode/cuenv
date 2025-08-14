@@ -8,6 +8,7 @@ use tempfile::TempDir;
 /// where Vec<u8> values were being incorrectly type-inferred as Vec<i32> during
 /// serialization.
 #[tokio::test]
+#[cfg_attr(coverage, ignore)]
 async fn test_fast_path_vec_u8_correctness() {
     let temp_dir = TempDir::new().unwrap();
 
@@ -82,6 +83,7 @@ async fn test_fast_path_vec_u8_correctness() {
 
 /// Test that fast path handles concurrent access correctly
 #[tokio::test]
+#[cfg_attr(coverage, ignore)]
 async fn test_fast_path_concurrent_access() {
     let temp_dir = TempDir::new().unwrap();
 
