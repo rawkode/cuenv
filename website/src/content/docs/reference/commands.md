@@ -353,11 +353,8 @@ cuenv mcp --transport unix --socket /tmp/cuenv.sock
 cuenv uses standard exit codes:
 
 - `0` - Success
-- `1` - General error
-- `2` - Usage error (invalid arguments)
-- `3` - Environment not found
-- `4` - CUE validation error
-- `5` - Secret resolution error
+- `1` - General error (command failed, file not found, etc.)
+- Task exit codes are passed through from the executed command
 
 ## Environment Variables
 
