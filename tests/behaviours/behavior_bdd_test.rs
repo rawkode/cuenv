@@ -20,3 +20,11 @@ async fn test_exec_waits_for_preload_hooks() {
         .run()
         .await;
 }
+
+#[tokio::test]
+async fn test_security_tasks() {
+    TestWorld::cucumber()
+        .features(&["./tests/behaviours/features/security_tasks.feature"])
+        .run()
+        .await;
+}

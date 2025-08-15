@@ -29,7 +29,8 @@
       "Bash(cargo insta test:*)",
       "Bash(timeout 5 nix develop:*)"
     ],
-    "deny": []
+    "deny": [],
+    "defaultMode": "acceptEdits"
   },
   "hooks": {
     "Stop": [

@@ -8,6 +8,17 @@ pub fn apply_security_restrictions(
     security: &TaskSecurityConfig,
     audit_mode: bool,
 ) -> Result<Option<i32>> {
+    apply_security_restrictions_with_format(cmd, security, audit_mode, false)
+}
+
+/// Apply security restrictions to a command with output format control
+/// Returns Some(exit_code) if audit mode completed, None to continue execution
+pub fn apply_security_restrictions_with_format(
+    cmd: &mut Command,
+    security: &TaskSecurityConfig,
+    audit_mode: bool,
+    json_output: bool,
+) -> Result<Option<i32>> {
     use cuenv_security::AccessRestrictions;
     let mut restrictions =
         AccessRestrictions::new(security.restrict_disk, security.restrict_network);
@@ -26,7 +37,19 @@ pub fn apply_security_restrictions(
         // task_progress(task_name, None, "Running task in audit mode...");
 
         let (exit_code, audit_report) = restrictions.run_with_audit(cmd)?;
-        audit_report.print_summary();
+
+        if json_output {
+            match audit_report.to_json() {
+                Ok(json) => println!("{}", json),
+                Err(e) => {
+                    eprintln!("Warning: Failed to export audit report as JSON: {}", e);
+                    audit_report.print_summary();
+                }
+            }
+        } else {
+            audit_report.print_summary();
+        }
+
         return Ok(Some(exit_code));
     } else if restrictions.has_any_restrictions() {
         restrictions.apply_to_command(cmd)?;
