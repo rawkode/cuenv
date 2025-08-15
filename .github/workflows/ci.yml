@@ -8,6 +8,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   CUENV_ENV: ci
+  RUST_BACKTRACE: 1
 permissions:
   id-token: write
   contents: read
