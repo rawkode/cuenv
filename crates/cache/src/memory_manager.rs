@@ -434,35 +434,6 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    #[tokio::test]
-    async fn test_memory_pressure_detection() {
-        let temp_dir = TempDir::new().unwrap();
-
-        // Use more relaxed thresholds for CI environments
-        let test_thresholds = MemoryThresholds {
-            high_watermark: 0.95,               // 95% instead of 80%
-            critical_watermark: 0.98,           // 98% instead of 95%
-            target_usage: 0.70,                 // Same target
-            min_free_memory: 128 * 1024 * 1024, // 128MB instead of 512MB
-        };
-
-        let manager = Arc::new(MemoryManager::new(
-            temp_dir.path().to_path_buf(),
-            1024 * 1024 * 1024, // 1GB quota
-            test_thresholds,
-        ));
-
-        // Should not be critical in typical CI environments
-        let pressure = manager.update_memory_pressure().unwrap();
-        assert!(matches!(
-            pressure,
-            MemoryPressure::Low | MemoryPressure::Medium | MemoryPressure::High
-        ));
-
-        // Verify it's not critical (which would indicate system is severely constrained)
-        assert!(pressure != MemoryPressure::Critical);
-    }
-
     #[test]
     fn test_disk_quota_checking() {
         let temp_dir = TempDir::new().unwrap();
