@@ -1,4 +1,4 @@
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod landlock_unit_tests {
     use cuenv::access_restrictions::AccessRestrictions;
     use cuenv::config::{SecurityConfig, TaskConfig};

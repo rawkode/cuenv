@@ -1,11 +1,16 @@
+#[cfg(all(test, target_os = "linux"))]
 use std::path::PathBuf;
+#[cfg(all(test, target_os = "linux"))]
 use std::process::Command;
+#[cfg(all(test, target_os = "linux"))]
 use tempfile::TempDir;
 
+#[cfg(all(test, target_os = "linux"))]
 fn get_cuenv_binary() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_cuenv"))
 }
 
+#[cfg(all(test, target_os = "linux"))]
 #[test]
 fn test_secure_build_task() {
     let temp_dir = TempDir::new().unwrap();
@@ -79,6 +84,7 @@ tasks: {
     }
 }
 
+#[cfg(all(test, target_os = "linux"))]
 #[test]
 fn test_secure_build_task_restriction_violation() {
     let temp_dir = TempDir::new().unwrap();
@@ -143,6 +149,7 @@ tasks: {
     );
 }
 
+#[cfg(all(test, target_os = "linux"))]
 #[test]
 fn test_secure_build_task_actual_enforcement() {
     let temp_dir = TempDir::new().unwrap();
@@ -221,6 +228,7 @@ tasks: {
     }
 }
 
+#[cfg(all(test, target_os = "linux"))]
 #[test]
 fn test_audit_report_filesystem_analysis() {
     let temp_dir = TempDir::new().unwrap();
@@ -324,6 +332,7 @@ tasks: {
     }
 }
 
+#[cfg(all(test, target_os = "linux"))]
 #[test]
 fn test_audit_report_security_recommendations() {
     let temp_dir = TempDir::new().unwrap();
@@ -390,6 +399,7 @@ tasks: {
     );
 }
 
+#[cfg(all(test, target_os = "linux"))]
 #[test]
 fn test_audit_report_network_analysis() {
     let temp_dir = TempDir::new().unwrap();
@@ -455,6 +465,7 @@ tasks: {
     );
 }
 
+#[cfg(all(test, target_os = "linux"))]
 #[test]
 fn test_audit_report_combined_restrictions() {
     let temp_dir = TempDir::new().unwrap();
@@ -543,6 +554,7 @@ tasks: {
     }
 }
 
+#[cfg(all(test, target_os = "linux"))]
 #[test]
 fn test_network_task_allowed_host() {
     let temp_dir = TempDir::new().unwrap();
@@ -598,6 +610,7 @@ tasks: {
     // The task should complete successfully
 }
 
+#[cfg(all(test, target_os = "linux"))]
 #[test]
 fn test_network_task_denied_host() {
     let temp_dir = TempDir::new().unwrap();
@@ -658,6 +671,7 @@ tasks: {
     // assert!(!output.status.success(), "Expected network restrictions to block access to bing.com");
 }
 
+#[cfg(all(test, target_os = "linux"))]
 #[test]
 fn test_fully_restricted_task() {
     let temp_dir = TempDir::new().unwrap();
@@ -717,6 +731,7 @@ tasks: {
     assert!(stdout.contains("Executing task: fully-restricted"));
 }
 
+#[cfg(all(test, target_os = "linux"))]
 #[test]
 fn test_unrestricted_task() {
     let temp_dir = TempDir::new().unwrap();
@@ -787,6 +802,7 @@ tasks: {
     }
 }
 
+#[cfg(all(test, target_os = "linux"))]
 #[test]
 fn test_task_list_includes_security_tasks() {
     let temp_dir = TempDir::new().unwrap();
@@ -852,6 +868,7 @@ tasks: {
     assert!(stdout.contains("Tasks"));
 }
 
+#[cfg(all(test, target_os = "linux"))]
 #[test]
 fn test_security_restrictions_behavior() {
     let temp_dir = TempDir::new().unwrap();
@@ -901,6 +918,7 @@ tasks: {
     );
 }
 
+#[cfg(all(test, target_os = "linux"))]
 #[test]
 fn test_task_with_environment_variables_and_security() {
     let temp_dir = TempDir::new().unwrap();
