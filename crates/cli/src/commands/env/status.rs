@@ -8,7 +8,7 @@ use std::env;
 pub async fn execute(hooks: bool, format: String, verbose: bool) -> Result<()> {
     // Get status for current directory (directory-aware)
     let current_dir = env::current_dir().map_err(|e| {
-        cuenv_core::Error::file_system(&std::path::PathBuf::from("."), "get current directory", e)
+        cuenv_core::Error::file_system(std::path::PathBuf::from("."), "get current directory", e)
     })?;
 
     // Try directory-specific status first, then fall back to legacy
@@ -38,7 +38,7 @@ pub async fn execute(hooks: bool, format: String, verbose: bool) -> Result<()> {
             if let Some(status) = status {
                 // Show which directory if available
                 if let Some(ref dir) = status.directory {
-                    println!("Directory: {}", dir);
+                    println!("Directory: {dir}");
                     println!();
                 }
                 format_human_output(&status);

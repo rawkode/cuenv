@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// JSON-RPC 2.0 request structure
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct JsonRpcRequest<T> {
     pub jsonrpc: String,
     pub method: String,

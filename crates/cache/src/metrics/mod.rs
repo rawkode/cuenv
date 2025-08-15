@@ -22,4 +22,3 @@ mod tests;
 
 // Re-export public types from modules
 pub use core::CacheMetrics;
-pub use snapshot::MetricsSnapshot;
