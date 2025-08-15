@@ -150,6 +150,7 @@ mod tests {
     fn test_expand_environment_variables_in_context() {
         let mut context = BuildContext {
             task_configs: HashMap::new(),
+            task_nodes: HashMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -173,6 +174,7 @@ mod tests {
     fn test_expand_script_content() {
         let mut context = BuildContext {
             task_configs: HashMap::new(),
+            task_nodes: HashMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -207,6 +209,7 @@ mod tests {
 
         let mut context = BuildContext {
             task_configs: HashMap::new(),
+            task_nodes: HashMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };

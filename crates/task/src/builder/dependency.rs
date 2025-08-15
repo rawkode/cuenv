@@ -125,7 +125,7 @@ fn collect_task_names_from_group(
     result: &mut Vec<String>,
     path: String,
     visited_groups: &mut HashSet<String>,
-    all_task_nodes: &HashMap<String, TaskNode>,
+    _all_task_nodes: &HashMap<String, TaskNode>,
 ) -> Result<()> {
     for (task_name, node) in tasks {
         match node {
@@ -178,7 +178,7 @@ fn collect_task_names_from_group(
                     result, 
                     new_path,
                     visited_groups,
-                    all_task_nodes
+                    _all_task_nodes
                 )?;
                 
                 visited_groups.remove(&full_group_path);
@@ -771,7 +771,7 @@ mod tests {
         context.task_configs.insert("lint".to_string(), create_test_config(None));
         context.task_configs.insert("test.unit".to_string(), create_test_config(None));
         context.task_configs.insert("test.integration".to_string(), create_test_config(None));
-        context.task_configs.insert("build".to_string(), create_test_config(Some(vec!["lint".to_string(), "test".to_string()])));
+        context.task_configs.insert("build".to_string(), create_test_config(Some(vec!["lint", "test"])));
 
         // Create task definitions
         context.task_definitions.insert("lint".to_string(), create_test_definition("lint"));
