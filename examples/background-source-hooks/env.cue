@@ -1,6 +1,6 @@
 package main
 
-import "cuenv.org/env"
+import "github.com/rawkode/cuenv"
 
 hooks: {
 	onEnter: [
