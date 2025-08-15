@@ -1,5 +1,9 @@
 package examples
 
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
+
 // Example: Custom command resolver for HashiCorp Vault
 env: {
 	// Inline custom resolver

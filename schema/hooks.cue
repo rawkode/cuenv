@@ -8,7 +8,7 @@ package schema
 #Hook: #ExecHook
 
 #ExecHook: {
-	command: string
+	command!: string
 	args?: [...string]
 	dir?: string | *"."
 	inputs?: [...string]

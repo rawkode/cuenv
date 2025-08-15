@@ -1,5 +1,9 @@
 package examples
 
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
+
 env: {
 	DATABASE_URL: "postgres://localhost/myapp"
 	API_KEY:      "test-api-key"

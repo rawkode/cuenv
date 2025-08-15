@@ -1,5 +1,9 @@
 package examples
 
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
+
 env: {
 	NODE_ENV:      "development"
 	FRONTEND_PORT: "3000"

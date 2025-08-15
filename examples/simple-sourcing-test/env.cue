@@ -1,5 +1,9 @@
 package examples
 
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
+
 // Test environment sourcing with a simple shell script
 hooks: {
 	onEnter: {

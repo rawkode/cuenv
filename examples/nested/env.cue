@@ -1,5 +1,9 @@
 package examples
 
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
+
 // Root-level configuration
 env: {
 	// Root-level environment variables
@@ -9,11 +13,11 @@ env: {
 	// Root-level computed values
 	APP_VERSION: "1.0.0"
 	APP_ENV:     "development"
+}
 
-	// Capabilities available at root
-	capabilities: {
-		docker: {
-			commands: ["docker", "docker-compose"]
-		}
+// Capabilities available at root
+capabilities: {
+	docker: {
+		commands: ["docker", "docker-compose"]
 	}
 }

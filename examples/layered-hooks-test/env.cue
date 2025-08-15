@@ -1,5 +1,9 @@
 package examples
 
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
+
 // Test the new layered hook system
 hooks: {
 	onEnter: [
@@ -7,13 +11,6 @@ hooks: {
 		{
 			command: "echo"
 			args: ["🚀 Basic exec hook executed!"]
-		},
-		// Nix flake hook with sourcing
-		{
-			flake: {
-				dir: "."
-			}
-			source: true
 		},
 	]
 

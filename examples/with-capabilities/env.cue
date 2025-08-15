@@ -1,5 +1,9 @@
 package examples
 
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
+
 // Environment configuration with capabilities
 env: {
 	// Basic variables (always available)
@@ -29,17 +33,17 @@ env: {
 			API_KEY:      "staging-api-key"
 		}
 	}
+}
 
-	// Capabilities definition
-	capabilities: {
-		aws: {
-			commands: ["aws", "pulumi", "terraform"]
-		}
-		docker: {
-			commands: ["docker", "docker-compose"]
-		}
-		database: {
-			commands: ["psql", "mysql", "migrate"]
-		}
+// Capabilities definition
+capabilities: {
+	aws: {
+		commands: ["aws", "pulumi", "terraform"]
+	}
+	docker: {
+		commands: ["docker", "docker-compose"]
+	}
+	database: {
+		commands: ["psql", "mysql", "migrate"]
 	}
 }

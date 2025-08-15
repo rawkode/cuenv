@@ -1,5 +1,9 @@
 package examples
 
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
+
 // Define a reusable resolver for HashiCorp Vault
 #VaultRef: {
 	path:  string

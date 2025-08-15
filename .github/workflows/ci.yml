@@ -38,6 +38,9 @@ jobs:
         run: |
           nix build .#cuenv --print-build-logs
           nix flake check --print-build-logs -L
+      - name: cue-validation
+        run: |
+          nix develop --command cue vet -c ./...
       - name: cuenv-test-all
         run: |
           nix develop --command cargo nextest run --profile ci --no-fail-fast
@@ -62,13 +65,6 @@ jobs:
           nix build .#cuenv
           mkdir -p target/debug
           cp result/bin/cuenv target/debug/
-
-          # Update examples to use latest published schema
-          cd examples
-          nix develop -c cue mod get github.com/rawkode/cuenv@v0
-          cd ..
-
-          # Run tests - if they fail, we have a breaking change
           nix develop --command cargo test --test test_examples
         continue-on-error: true
       - name: Report compatibility status

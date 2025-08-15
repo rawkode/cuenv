@@ -1,5 +1,9 @@
 package examples
 
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
+
 env: {
 	// Basic environment variables
 	PROJECT_NAME: "hooks-preload-example"

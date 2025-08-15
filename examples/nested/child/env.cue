@@ -1,5 +1,9 @@
 package examples
 
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
+
 // Child configuration
 env: {
 	// Child overrides - these will override parent values
@@ -13,17 +17,17 @@ env: {
 	// Note: In the new structure, composition happens through CUE imports
 	// rather than automatic parent directory loading. To reference parent
 	// values, you would import the parent package explicitly.
+}
 
-	// Additional commands for child
-	capabilities: {
-		database: {
-			commands: ["psql", "mysql", "migrate"]
-		}
-		aws: {
-			commands: ["aws", "terraform", "pulumi"]
-		}
-		docker: {
-			commands: ["docker", "docker-compose"]
-		}
+// Additional commands for child
+capabilities: {
+	database: {
+		commands: ["psql", "mysql", "migrate"]
+	}
+	aws: {
+		commands: ["aws", "terraform", "pulumi"]
+	}
+	docker: {
+		commands: ["docker", "docker-compose"]
 	}
 }

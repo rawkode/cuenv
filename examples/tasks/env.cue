@@ -1,5 +1,9 @@
 package examples
 
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
+
 capabilities: {
 	secrets: {
 		commands: ["ls", "terraform"]

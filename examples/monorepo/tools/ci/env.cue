@@ -1,5 +1,9 @@
 package examples
 
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
+
 env: {
 	CI:                       "true"
 	GITHUB_ACTIONS:           "true"

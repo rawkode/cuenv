@@ -1,6 +1,8 @@
-package main
+package examples
 
-import "github.com/rawkode/cuenv"
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
 
 hooks: {
 	onEnter: [
@@ -18,7 +20,5 @@ hooks: {
 }
 
 env: {
-	environment: {
-		TEST_ENV: "background_source_test"
-	}
+	TEST_ENV: "background_source_test"
 }

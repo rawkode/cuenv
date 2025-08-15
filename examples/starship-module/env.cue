@@ -1,6 +1,10 @@
 // Example cuenv configuration with preload hooks for testing Starship module
 package env
 
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
+
 env: {
     STARSHIP_TEST: "true"
 }

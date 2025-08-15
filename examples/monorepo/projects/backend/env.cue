@@ -1,5 +1,9 @@
 package examples
 
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
+
 env: {
 	GO_ENV:       "development"
 	BACKEND_PORT: "8080"

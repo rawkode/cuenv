@@ -1,18 +1,22 @@
 package examples
 
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
+
 // Hook definitions
 hooks: {
 	// Hook that runs when entering the environment
-	onEnter: {
+	onEnter: [{
 		command: "echo"
 		args: ["🚀 Environment activated! Database: $DATABASE_URL"]
-	}
+	}]
 
 	// Hook that runs when exiting the environment
-	onExit: {
+	onExit: [{
 		command: "echo"
 		args: ["👋 Cleaning up environment..."]
-	}
+	}]
 }
 
 env: {

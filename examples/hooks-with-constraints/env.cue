@@ -1,5 +1,9 @@
 package examples
 
+import "github.com/rawkode/cuenv/schema"
+
+schema.#Cuenv
+
 // Hook definitions with constraints
 hooks: {
 	// Hook that only runs if devenv is installed
