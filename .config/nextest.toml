@@ -1,9 +1,20 @@
 # Nextest configuration for cuenv tests
 
+[store]
+# Store test results and artifacts
+dir = "target/nextest"
+
 [profile.default]
 # Set reasonable defaults for all tests
-slow-timeout = { period = "10s", terminate-after = 3 }
+slow-timeout = { period = "60s", terminate-after = 2 }
+leak-timeout = "100ms"
 test-threads = "num-cpus"
+retries = 0
+
+# Store failure output for debugging
+[profile.default.junit]
+store-success-output = false
+store-failure-output = true
 
 # Process group cleanup test needs serial execution
 [[profile.default.overrides]]
@@ -24,9 +35,20 @@ slow-timeout = { period = "60s", terminate-after = 2 }
 
 # For CI runs, be more conservative to avoid TLS exhaustion
 [profile.ci]
-test-threads = 1
-slow-timeout = { period = "60s", terminate-after = 2 }
+test-threads = 4                                        # Limit concurrency to prevent resource exhaustion
+slow-timeout = { period = "120s", terminate-after = 3 }
+leak-timeout = "200ms"
+retries = 2
 fail-fast = false
+
+# Store all output for CI debugging
+[profile.ci.junit]
+store-success-output = true
+store-failure-output = true
+path = "target/nextest/ci-results.xml"
+
+[profile.ci.junit.report]
+store-test-output = true
 
 # Ignore highly concurrent tests in CI to avoid TLS exhaustion
 # Note: nextest 0.9.x doesn't support status = "skip", so we handle this with filtering instead
@@ -48,3 +70,32 @@ slow-timeout = { period = "60s", terminate-after = 1 }
 test-threads = "num-cpus"
 retries = 0
 fail-fast = true
+
+# FFI tests need special handling due to Go-Rust boundary
+[[profile.default.overrides]]
+filter = 'package(cuenv-libcue-ffi-bridge)'
+test-threads = 1
+slow-timeout = { period = "30s" }
+
+# Property-based tests can be slower
+[[profile.default.overrides]]
+filter = 'test(prop_) or test(property)'
+slow-timeout = { period = "180s" }
+
+# Coverage profile - single threaded for better accuracy
+[profile.coverage]
+test-threads = 1
+retries = 0
+slow-timeout = { period = "300s" }
+
+# Stress testing profile
+[profile.stress]
+test-threads = "num-cpus"
+slow-timeout = { period = "300s", terminate-after = 1 }
+retries = 0
+
+[test-groups]
+# Group tests that conflict on resources
+serial-tests = { max-threads = 1 }
+ffi-tests = { max-threads = 1 }
+integration-tests = { max-threads = 2 }

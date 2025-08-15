@@ -323,3 +323,487 @@ impl Default for PreloadHookManager {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cuenv_config::Hook;
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tempfile::TempDir;
+
+    fn create_test_hook(command: &str, args: Option<Vec<String>>, preload: bool) -> Hook {
+        Hook {
+            command: command.to_string(),
+            args,
+            dir: None,
+            inputs: None,
+            source: None,
+            preload: Some(preload),
+        }
+    }
+
+    fn create_source_hook(command: &str, args: Option<Vec<String>>, preload: bool) -> Hook {
+        Hook {
+            command: command.to_string(),
+            args,
+            dir: None,
+            inputs: None,
+            source: Some(true),
+            preload: Some(preload),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_preload_manager_creation() {
+        let manager = PreloadHookManager::new();
+        assert!(!manager.has_running_hooks().await);
+        assert_eq!(manager.get_status().await.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_preload_manager_with_custom_timeout() {
+        let custom_timeout = Duration::from_secs(30);
+        let manager = PreloadHookManager::with_timeout(custom_timeout);
+        assert_eq!(manager.inner.timeout, custom_timeout);
+        assert!(!manager.has_running_hooks().await);
+    }
+
+    #[tokio::test]
+    async fn test_execute_empty_hooks_list() {
+        let manager = PreloadHookManager::new();
+        let result = manager.execute_preload_hooks(vec![]).await;
+        assert!(result.is_ok());
+        assert!(!manager.has_running_hooks().await);
+    }
+
+    #[tokio::test]
+    async fn test_execute_non_preload_hooks() {
+        let manager = PreloadHookManager::new();
+        let hooks = vec![
+            create_test_hook("echo", Some(vec!["hello".to_string()]), false),
+            create_test_hook("pwd", None, false),
+        ];
+
+        let result = manager.execute_preload_hooks(hooks).await;
+        assert!(result.is_ok());
+        assert!(!manager.has_running_hooks().await);
+    }
+
+    #[tokio::test]
+    async fn test_execute_simple_preload_hook() {
+        let manager = PreloadHookManager::new();
+        let hooks = vec![create_test_hook(
+            "echo",
+            Some(vec!["test".to_string()]),
+            true,
+        )];
+
+        let result = manager.execute_preload_hooks(hooks).await;
+        assert!(result.is_ok());
+        assert!(manager.has_running_hooks().await);
+
+        // Wait for completion
+        let wait_result = manager.wait_for_completion().await;
+        assert!(wait_result.is_ok());
+        assert!(!manager.has_running_hooks().await);
+    }
+
+    #[tokio::test]
+    async fn test_execute_multiple_preload_hooks() {
+        let manager = PreloadHookManager::new();
+        let hooks = vec![
+            create_test_hook("echo", Some(vec!["test1".to_string()]), true),
+            create_test_hook("echo", Some(vec!["test2".to_string()]), true),
+            create_test_hook("pwd", None, true),
+        ];
+
+        let result = manager.execute_preload_hooks(hooks).await;
+        assert!(result.is_ok());
+        assert!(manager.has_running_hooks().await);
+
+        let status = manager.get_status().await;
+        assert_eq!(status.len(), 3);
+
+        // Wait for completion
+        let wait_result = manager.wait_for_completion().await;
+        assert!(wait_result.is_ok());
+        assert!(!manager.has_running_hooks().await);
+    }
+
+    #[tokio::test]
+    async fn test_execute_mixed_preload_and_regular_hooks() {
+        let manager = PreloadHookManager::new();
+        let hooks = vec![
+            create_test_hook("echo", Some(vec!["preload".to_string()]), true),
+            create_test_hook("echo", Some(vec!["regular".to_string()]), false),
+            create_test_hook("pwd", None, true),
+        ];
+
+        let result = manager.execute_preload_hooks(hooks).await;
+        assert!(result.is_ok());
+
+        // Only preload hooks should be running
+        let status = manager.get_status().await;
+        assert_eq!(status.len(), 2);
+
+        // Wait for completion
+        let wait_result = manager.wait_for_completion().await;
+        assert!(wait_result.is_ok());
+        assert!(!manager.has_running_hooks().await);
+    }
+
+    #[tokio::test]
+    async fn test_execute_source_hook() {
+        let temp_dir = TempDir::new().unwrap();
+        let script_path = temp_dir.path().join("test_script.sh");
+        std::fs::write(
+            &script_path,
+            "#!/bin/bash\necho 'export TEST_VAR=test_value'",
+        )
+        .unwrap();
+
+        // Make script executable
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&script_path).unwrap().permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&script_path, perms).unwrap();
+        }
+
+        let manager = PreloadHookManager::new();
+        let hooks = vec![create_source_hook(
+            script_path.to_string_lossy().as_ref(),
+            None,
+            true,
+        )];
+
+        let result = manager.execute_preload_hooks(hooks).await;
+        assert!(result.is_ok());
+
+        // Wait for completion
+        let wait_result = manager.wait_for_completion().await;
+        assert!(wait_result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_execute_hook_with_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = PreloadHookManager::new();
+
+        let mut hook = create_test_hook("pwd", None, true);
+        hook.dir = Some(temp_dir.path().to_string_lossy().to_string());
+
+        let result = manager.execute_preload_hooks(vec![hook]).await;
+        assert!(result.is_ok());
+
+        // Wait for completion
+        let wait_result = manager.wait_for_completion().await;
+        assert!(wait_result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_execute_failing_hook() {
+        let manager = PreloadHookManager::new();
+        let hooks = vec![create_test_hook("false", None, true)]; // Command that always fails
+
+        let result = manager.execute_preload_hooks(hooks).await;
+        assert!(result.is_ok()); // Execute should succeed even if hook fails
+
+        // Wait for completion
+        let wait_result = manager.wait_for_completion().await;
+        assert!(wait_result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_execute_nonexistent_command() {
+        let manager = PreloadHookManager::new();
+        let hooks = vec![create_test_hook("nonexistent_command_xyz123", None, true)];
+
+        let result = manager.execute_preload_hooks(hooks).await;
+        assert!(result.is_ok()); // Execute should succeed even if hook fails
+
+        // Wait for completion
+        let wait_result = manager.wait_for_completion().await;
+        assert!(wait_result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_hook_timeout() {
+        let short_timeout = Duration::from_millis(100);
+        let manager = PreloadHookManager::with_timeout(short_timeout);
+
+        // Create a hook that sleeps longer than the timeout
+        let hooks = vec![create_test_hook("sleep", Some(vec!["1".to_string()]), true)];
+
+        let result = manager.execute_preload_hooks(hooks).await;
+        assert!(result.is_ok());
+
+        // Wait for completion - should timeout
+        let wait_result = manager.wait_for_completion().await;
+        assert!(wait_result.is_ok()); // Timeout is handled gracefully
+    }
+
+    #[tokio::test]
+    async fn test_cancel_all_hooks() {
+        let manager = PreloadHookManager::new();
+
+        // Start some long-running hooks
+        let hooks = vec![
+            create_test_hook("sleep", Some(vec!["10".to_string()]), true),
+            create_test_hook("sleep", Some(vec!["10".to_string()]), true),
+        ];
+
+        let result = manager.execute_preload_hooks(hooks).await;
+        assert!(result.is_ok());
+        assert!(manager.has_running_hooks().await);
+
+        // Cancel all hooks
+        manager.cancel_all().await;
+        assert!(!manager.has_running_hooks().await);
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_hook_execution() {
+        let manager = Arc::new(PreloadHookManager::new());
+
+        let manager1 = Arc::clone(&manager);
+        let manager2 = Arc::clone(&manager);
+
+        let task1 = tokio::spawn(async move {
+            let hooks = vec![create_test_hook(
+                "echo",
+                Some(vec!["task1".to_string()]),
+                true,
+            )];
+            manager1.execute_preload_hooks(hooks).await
+        });
+
+        let task2 = tokio::spawn(async move {
+            let hooks = vec![create_test_hook(
+                "echo",
+                Some(vec!["task2".to_string()]),
+                true,
+            )];
+            manager2.execute_preload_hooks(hooks).await
+        });
+
+        let (result1, result2) = tokio::join!(task1, task2);
+        assert!(result1.unwrap().is_ok());
+        assert!(result2.unwrap().is_ok());
+
+        // Wait for all hooks to complete
+        let wait_result = manager.wait_for_completion().await;
+        assert!(wait_result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_hook_key_generation() {
+        let manager = PreloadHookManager::new();
+
+        let hooks = vec![
+            create_test_hook("echo", Some(vec!["hello".to_string()]), true),
+            create_test_hook("echo", None, true),
+            create_test_hook("pwd", Some(vec!["-L".to_string()]), true),
+        ];
+
+        let result = manager.execute_preload_hooks(hooks).await;
+        assert!(result.is_ok());
+
+        let status = manager.get_status().await;
+        assert_eq!(status.len(), 3);
+
+        // Check that different hooks generate different keys
+        assert!(status.contains(&"echo [\"hello\"]".to_string()));
+        assert!(status.contains(&"echo".to_string()));
+        assert!(status.contains(&"pwd [\"-L\"]".to_string()));
+
+        // Wait for completion
+        let wait_result = manager.wait_for_completion().await;
+        assert!(wait_result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_duplicate_hook_handling() {
+        let manager = PreloadHookManager::new();
+
+        // Execute the same hook twice
+        let hook = create_test_hook("echo", Some(vec!["duplicate".to_string()]), true);
+        let hooks = vec![hook.clone(), hook];
+
+        let result = manager.execute_preload_hooks(hooks).await;
+        assert!(result.is_ok());
+
+        // The second hook should overwrite the first one due to same key
+        let status = manager.get_status().await;
+        assert_eq!(status.len(), 1);
+
+        // Wait for completion
+        let wait_result = manager.wait_for_completion().await;
+        assert!(wait_result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_shell_specific_hooks() {
+        let manager = PreloadHookManager::new();
+
+        // Test bash-specific command
+        let hooks = vec![create_test_hook(
+            "bash",
+            Some(vec!["-c".to_string(), "echo 'bash test'".to_string()]),
+            true,
+        )];
+
+        let result = manager.execute_preload_hooks(hooks).await;
+        assert!(result.is_ok());
+
+        // Wait for completion
+        let wait_result = manager.wait_for_completion().await;
+        assert!(wait_result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_environment_variable_conflicts() {
+        let manager = PreloadHookManager::new();
+
+        // Set initial environment variable
+        std::env::set_var("CUENV_TEST_CONFLICT", "initial");
+
+        let temp_dir = TempDir::new().unwrap();
+        let script_path = temp_dir.path().join("conflict_script.sh");
+        std::fs::write(
+            &script_path,
+            "#!/bin/bash\necho 'export CUENV_TEST_CONFLICT=modified'",
+        )
+        .unwrap();
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&script_path).unwrap().permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&script_path, perms).unwrap();
+        }
+
+        let hooks = vec![create_source_hook(
+            script_path.to_string_lossy().as_ref(),
+            None,
+            true,
+        )];
+
+        let result = manager.execute_preload_hooks(hooks).await;
+        assert!(result.is_ok());
+
+        // Wait for completion
+        let wait_result = manager.wait_for_completion().await;
+        assert!(wait_result.is_ok());
+
+        // Clean up
+        std::env::remove_var("CUENV_TEST_CONFLICT");
+    }
+
+    #[tokio::test]
+    async fn test_large_number_of_preload_hooks() {
+        let manager = PreloadHookManager::new();
+
+        // Create many hooks to test performance
+        let mut hooks = Vec::new();
+        for i in 0..50 {
+            hooks.push(create_test_hook(
+                "echo",
+                Some(vec![format!("hook_{}", i)]),
+                true,
+            ));
+        }
+
+        let start = std::time::Instant::now();
+        let result = manager.execute_preload_hooks(hooks).await;
+        assert!(result.is_ok());
+
+        // Wait for completion
+        let wait_result = manager.wait_for_completion().await;
+        assert!(wait_result.is_ok());
+
+        let duration = start.elapsed();
+        // Should complete within reasonable time (less than 30 seconds)
+        assert!(duration.as_secs() < 30);
+    }
+
+    #[tokio::test]
+    async fn test_hook_with_complex_arguments() {
+        let manager = PreloadHookManager::new();
+
+        let hooks = vec![create_test_hook(
+            "echo",
+            Some(vec![
+                "complex".to_string(),
+                "arguments".to_string(),
+                "with spaces".to_string(),
+                "--flag=value".to_string(),
+            ]),
+            true,
+        )];
+
+        let result = manager.execute_preload_hooks(hooks).await;
+        assert!(result.is_ok());
+
+        // Wait for completion
+        let wait_result = manager.wait_for_completion().await;
+        assert!(wait_result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_status_tracking_without_status_manager() {
+        // Create manager that might fail to create status manager
+        let manager = PreloadHookManager::new();
+
+        let hooks = vec![create_test_hook(
+            "echo",
+            Some(vec!["status_test".to_string()]),
+            true,
+        )];
+
+        let result = manager.execute_preload_hooks(hooks).await;
+        assert!(result.is_ok());
+
+        // Should still work without status manager
+        let wait_result = manager.wait_for_completion().await;
+        assert!(wait_result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_wait_for_completion_with_no_hooks() {
+        let manager = PreloadHookManager::new();
+
+        // Should return immediately if no hooks are running
+        let wait_result = manager.wait_for_completion().await;
+        assert!(wait_result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_manager_cloning() {
+        let manager1 = PreloadHookManager::new();
+        let manager2 = manager1.clone();
+
+        // Start hook in one manager
+        let hooks = vec![create_test_hook(
+            "echo",
+            Some(vec!["clone_test".to_string()]),
+            true,
+        )];
+        let result = manager1.execute_preload_hooks(hooks).await;
+        assert!(result.is_ok());
+
+        // Should be visible in cloned manager
+        assert!(manager2.has_running_hooks().await);
+
+        // Wait for completion via cloned manager
+        let wait_result = manager2.wait_for_completion().await;
+        assert!(wait_result.is_ok());
+
+        // Both managers should show no running hooks
+        assert!(!manager1.has_running_hooks().await);
+        assert!(!manager2.has_running_hooks().await);
+    }
+}

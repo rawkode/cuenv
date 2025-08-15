@@ -460,8 +460,7 @@ mod tests {
         assert!(
             matches!(hook_status, HookState::Running)
                 || matches!(hook_status, HookState::Completed),
-            "Expected hook status to be Running or Completed, got: {:?}",
-            hook_status
+            "Expected hook status to be Running or Completed, got: {hook_status:?}"
         );
     }
 

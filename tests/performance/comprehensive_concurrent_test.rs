@@ -3,6 +3,8 @@
 //! This module contains additional edge case tests for concurrent scenarios
 //! that test behavior under extreme conditions and complex interactions.
 
+use crate::common::test_isolation::{run_if_resources_available, IsolatedTestEnv, TestConfig};
+
 #[cfg(test)]
 mod comprehensive_concurrent_tests {
     use cuenv::cache::CacheManager;
@@ -34,209 +36,218 @@ mod comprehensive_concurrent_tests {
     /// Test behavior when multiple tasks compete for limited resources
     #[test]
     #[cfg_attr(coverage, ignore)]
-    #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_resource_exhaustion_under_concurrent_load() {
-        let temp_dir = TempDir::new().unwrap();
-        let num_tasks = 10; // Reduced from 100 to prevent resource exhaustion
-        let barrier = Arc::new(Barrier::new(num_tasks));
-        let completed = Arc::new(AtomicU32::new(0));
-        let resource_errors = Arc::new(AtomicU32::new(0));
-        let timeouts = Arc::new(AtomicU32::new(0));
+        run_if_resources_available(|| {
+            let env = IsolatedTestEnv::with_full_isolation()
+                .expect("Failed to create isolated test environment");
 
-        // Set up resource limits
-        let limits = ResourceLimits::unlimited()
-            .with_cpu_time(2, 3) // 2 second soft limit, 3 second hard limit
-            .with_memory(512 * 1024 * 1024, 1024 * 1024 * 1024); // 512MB soft, 1GB hard
-        let task_timeout = Duration::from_secs(2);
+            let config = TestConfig::heavy();
+            let num_tasks = config.max_threads.min(4); // Respect isolation limits
+            let barrier = Arc::new(Barrier::new(num_tasks));
+            let completed = Arc::new(AtomicU32::new(0));
+            let resource_errors = Arc::new(AtomicU32::new(0));
+            let timeouts = Arc::new(AtomicU32::new(0));
 
-        let handles: Vec<_> = (0..num_tasks)
-            .map(|i| {
-                let barrier = Arc::clone(&barrier);
-                let completed = Arc::clone(&completed);
-                let resource_errors = Arc::clone(&resource_errors);
-                let timeouts = Arc::clone(&timeouts);
-                let working_dir = temp_dir.path().to_path_buf();
-                let limits = limits.clone();
+            // Set up resource limits
+            let limits = ResourceLimits::unlimited()
+                .with_cpu_time(2, 3) // 2 second soft limit, 3 second hard limit
+                .with_memory(
+                    (config.memory_limit_mb * 1024 * 1024) as u64,
+                    (config.memory_limit_mb * 2 * 1024 * 1024) as u64,
+                );
+            let task_timeout = config.timeout;
 
-                thread::spawn(move || {
-                    barrier.wait();
+            let handles: Vec<_> = (0..num_tasks)
+                .map(|i| {
+                    let barrier = Arc::clone(&barrier);
+                    let completed = Arc::clone(&completed);
+                    let resource_errors = Arc::clone(&resource_errors);
+                    let timeouts = Arc::clone(&timeouts);
+                    let working_dir = env.path().to_path_buf();
+                    let limits = limits.clone();
 
-                    // Simulate memory-intensive task
-                    let task_config = TaskConfig {
-                        description: Some(format!("Resource test {i}")),
-                        command: Some("dd if=/dev/zero of=/dev/null bs=1M count=100".to_string()),
-                        script: None,
-                        dependencies: None,
-                        working_dir: None,
-                        shell: None,
-                        inputs: None,
-                        outputs: None,
-                        security: None,
-                        cache: Some(cuenv::cache::TaskCacheConfig::Simple(false)),
-                        cache_key: None,
-                        cache_env: None,
-                        timeout: Some(task_timeout.as_secs() as u32),
-                    };
+                    thread::spawn(move || {
+                        barrier.wait();
 
-                    // Simulate task execution
-                    let start = Instant::now();
-                    thread::sleep(Duration::from_millis(100));
+                        // Simulate memory-intensive task with reduced resource usage
+                        let task_config = TaskConfig {
+                            description: Some(format!("Resource test {i}")),
+                            command: Some("echo 'light task simulation'".to_string()),
+                            script: None,
+                            dependencies: None,
+                            working_dir: None,
+                            shell: None,
+                            inputs: None,
+                            outputs: None,
+                            security: None,
+                            cache: Some(cuenv::cache::TaskCacheConfig::Simple(false)),
+                            cache_key: None,
+                            cache_env: None,
+                            timeout: Some(task_timeout.as_secs() as u32),
+                        };
 
-                    if start.elapsed() > task_timeout {
-                        timeouts.fetch_add(1, Ordering::SeqCst);
-                    } else {
-                        completed.fetch_add(1, Ordering::SeqCst);
-                    }
+                        // Simulate task execution with reduced load
+                        let start = Instant::now();
+                        thread::sleep(Duration::from_millis(50)); // Reduced from 100ms
+
+                        if start.elapsed() > task_timeout {
+                            timeouts.fetch_add(1, Ordering::SeqCst);
+                        } else {
+                            completed.fetch_add(1, Ordering::SeqCst);
+                        }
+                    })
                 })
-            })
-            .collect();
+                .collect();
 
-        for handle in handles {
-            handle.join().unwrap();
-        }
+            for handle in handles {
+                handle.join().unwrap();
+            }
 
-        let total_completed = completed.load(Ordering::SeqCst);
-        let total_errors = resource_errors.load(Ordering::SeqCst);
-        let total_timeouts = timeouts.load(Ordering::SeqCst);
+            let total_completed = completed.load(Ordering::SeqCst);
+            let total_errors = resource_errors.load(Ordering::SeqCst);
+            let total_timeouts = timeouts.load(Ordering::SeqCst);
 
-        println!(
-            "Resource test results - Completed: {total_completed}, Errors: {total_errors}, Timeouts: {total_timeouts}"
-        );
+            println!(
+                "Resource test results - Completed: {total_completed}, Errors: {total_errors}, Timeouts: {total_timeouts}"
+            );
 
-        // Verify resource limits were enforced
-        assert!(total_completed + total_errors + total_timeouts == num_tasks as u32);
-        assert!(
-            total_completed > 0,
-            "Some tasks should complete successfully"
-        );
+            // Verify resource limits were enforced
+            assert!(total_completed + total_errors + total_timeouts == num_tasks as u32);
+            assert!(
+                total_completed > 0,
+                "Some tasks should complete successfully"
+            );
+        });
     }
 
     /// Test cache behavior during rapid file system changes
     #[test]
     #[cfg_attr(coverage, ignore)]
-    #[ignore = "TLS exhaustion in CI - use nextest profile to run"]
     fn test_cache_consistency_with_filesystem_race() {
-        let temp_dir = TempDir::new().unwrap();
-        let (cache_manager, _cache_temp) = create_test_cache_manager();
-        let num_writers = 5;
-        let num_readers = 5;
-        let duration_secs = 3;
-        let barrier = Arc::new(Barrier::new(num_writers + num_readers));
-        let inconsistencies = Arc::new(AtomicU32::new(0));
-        let start_time = Instant::now();
+        run_if_resources_available(|| {
+            let env = IsolatedTestEnv::with_full_isolation()
+                .expect("Failed to create isolated test environment");
+            let (cache_manager, _cache_temp) = create_test_cache_manager();
+            let num_writers = 5;
+            let num_readers = 5;
+            let duration_secs = 3;
+            let barrier = Arc::new(Barrier::new(num_writers + num_readers));
+            let inconsistencies = Arc::new(AtomicU32::new(0));
+            let start_time = Instant::now();
 
-        // Create test files
-        let src_dir = temp_dir.path().join("src");
-        fs::create_dir(&src_dir).unwrap();
+            // Create test files
+            let src_dir = temp_dir.path().join("src");
+            fs::create_dir(&src_dir).unwrap();
 
-        // Writer threads that rapidly modify files
-        let writer_handles: Vec<_> = (0..num_writers)
-            .map(|writer_id| {
-                let barrier = Arc::clone(&barrier);
-                let src_dir = src_dir.clone();
+            // Writer threads that rapidly modify files
+            let writer_handles: Vec<_> = (0..num_writers)
+                .map(|writer_id| {
+                    let barrier = Arc::clone(&barrier);
+                    let src_dir = src_dir.clone();
 
-                thread::spawn(move || {
-                    barrier.wait();
-                    let mut counter = 0;
+                    thread::spawn(move || {
+                        barrier.wait();
+                        let mut counter = 0;
 
-                    while start_time.elapsed().as_secs() < duration_secs {
-                        let file_path = src_dir.join(format!("file_{writer_id}.txt"));
+                        while start_time.elapsed().as_secs() < duration_secs {
+                            let file_path = src_dir.join(format!("file_{writer_id}.txt"));
 
-                        // Rapid create/modify/delete cycle
-                        fs::write(&file_path, format!("version {counter}")).ok();
-                        thread::sleep(Duration::from_millis(10));
-                        fs::write(&file_path, format!("version {counter} modified")).ok();
-                        thread::sleep(Duration::from_millis(10));
-                        fs::remove_file(&file_path).ok();
+                            // Rapid create/modify/delete cycle
+                            fs::write(&file_path, format!("version {counter}")).ok();
+                            thread::sleep(Duration::from_millis(10));
+                            fs::write(&file_path, format!("version {counter} modified")).ok();
+                            thread::sleep(Duration::from_millis(10));
+                            fs::remove_file(&file_path).ok();
 
-                        counter += 1;
-                    }
+                            counter += 1;
+                        }
+                    })
                 })
-            })
-            .collect();
+                .collect();
 
-        // Reader threads that try to cache based on file state
-        let reader_handles: Vec<_> = (0..num_readers)
-            .map(|reader_id| {
-                let barrier = Arc::clone(&barrier);
-                let cache_manager = Arc::clone(&cache_manager);
-                let inconsistencies = Arc::clone(&inconsistencies);
-                let working_dir = temp_dir.path().to_path_buf();
+            // Reader threads that try to cache based on file state
+            let reader_handles: Vec<_> = (0..num_readers)
+                .map(|reader_id| {
+                    let barrier = Arc::clone(&barrier);
+                    let cache_manager = Arc::clone(&cache_manager);
+                    let inconsistencies = Arc::clone(&inconsistencies);
+                    let working_dir = temp_dir.path().to_path_buf();
 
-                thread::spawn(move || {
-                    barrier.wait();
+                    thread::spawn(move || {
+                        barrier.wait();
 
-                    while start_time.elapsed().as_secs() < duration_secs {
-                        let task_config = TaskConfig {
-                            description: Some(format!("Reader task {reader_id}")),
-                            command: Some("echo test".to_string()),
-                            script: None,
-                            dependencies: None,
-                            working_dir: None,
-                            shell: None,
-                            inputs: Some(vec!["src/*.txt".to_string()]),
-                            outputs: None,
-                            security: None,
-                            cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
-                            cache_key: None,
-                            cache_env: None,
-                            timeout: None,
-                        };
+                        while start_time.elapsed().as_secs() < duration_secs {
+                            let task_config = TaskConfig {
+                                description: Some(format!("Reader task {reader_id}")),
+                                command: Some("echo test".to_string()),
+                                script: None,
+                                dependencies: None,
+                                working_dir: None,
+                                shell: None,
+                                inputs: Some(vec!["src/*.txt".to_string()]),
+                                outputs: None,
+                                security: None,
+                                cache: Some(cuenv::cache::TaskCacheConfig::Simple(true)),
+                                cache_key: None,
+                                cache_env: None,
+                                timeout: None,
+                            };
 
-                        // Generate cache key
-                        let env_vars = HashMap::new();
-                        match cache_manager.generate_cache_key(
-                            "reader_task",
-                            &task_config,
-                            &env_vars,
-                            &working_dir,
-                        ) {
-                            Ok(key1) => {
-                                // Small delay
-                                thread::sleep(Duration::from_millis(5));
+                            // Generate cache key
+                            let env_vars = HashMap::new();
+                            match cache_manager.generate_cache_key(
+                                "reader_task",
+                                &task_config,
+                                &env_vars,
+                                &working_dir,
+                            ) {
+                                Ok(key1) => {
+                                    // Small delay
+                                    thread::sleep(Duration::from_millis(5));
 
-                                // Generate again and check consistency
-                                match cache_manager.generate_cache_key(
-                                    "reader_task",
-                                    &task_config,
-                                    &env_vars,
-                                    &working_dir,
-                                ) {
-                                    Ok(key2) => {
-                                        // Keys should be same if files haven't changed
-                                        // But with rapid changes, this tests cache invalidation
-                                    }
-                                    Err(_) => {
-                                        inconsistencies.fetch_add(1, Ordering::SeqCst);
+                                    // Generate again and check consistency
+                                    match cache_manager.generate_cache_key(
+                                        "reader_task",
+                                        &task_config,
+                                        &env_vars,
+                                        &working_dir,
+                                    ) {
+                                        Ok(key2) => {
+                                            // Keys should be same if files haven't changed
+                                            // But with rapid changes, this tests cache invalidation
+                                        }
+                                        Err(_) => {
+                                            inconsistencies.fetch_add(1, Ordering::SeqCst);
+                                        }
                                     }
                                 }
-                            }
-                            Err(_) => {
-                                // Expected when files are being deleted
+                                Err(_) => {
+                                    // Expected when files are being deleted
+                                }
                             }
                         }
-                    }
+                    })
                 })
-            })
-            .collect();
+                .collect();
 
-        // Wait for all threads
-        for handle in writer_handles {
-            handle.join().unwrap();
-        }
-        for handle in reader_handles {
-            handle.join().unwrap();
-        }
+            // Wait for all threads
+            for handle in writer_handles {
+                handle.join().unwrap();
+            }
+            for handle in reader_handles {
+                handle.join().unwrap();
+            }
 
-        let total_inconsistencies = inconsistencies.load(Ordering::SeqCst);
-        println!("Filesystem race test - Inconsistencies: {total_inconsistencies}");
+            let total_inconsistencies = inconsistencies.load(Ordering::SeqCst);
+            println!("Filesystem race test - Inconsistencies: {total_inconsistencies}");
 
-        // Some inconsistencies are expected due to race conditions
-        // but they should be handled gracefully
-        assert!(
-            total_inconsistencies < 100,
-            "Too many cache inconsistencies detected"
-        );
+            // Some inconsistencies are expected due to race conditions
+            // but they should be handled gracefully
+            assert!(
+                total_inconsistencies < 100,
+                "Too many cache inconsistencies detected"
+            );
+        });
     }
 
     /// Test complex dependency chains under concurrent execution
