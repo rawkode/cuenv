@@ -4,8 +4,8 @@
 //! for all metrics functionality including concurrent access scenarios.
 
 #[cfg(test)]
-mod tests {
-    use super::super::{CacheMetrics, MetricsSnapshot};
+mod test {
+    use super::super::CacheMetrics;
     use std::sync::atomic::Ordering;
     use std::sync::Arc;
     use std::thread;
@@ -201,7 +201,7 @@ mod tests {
 
         // Record many patterns
         for i in 0..10 {
-            metrics.record_access_pattern(&format!("pattern{}", i));
+            metrics.record_access_pattern(&format!("pattern{i}"));
         }
 
         let top_3 = metrics.top_access_patterns(3);
@@ -369,7 +369,7 @@ mod tests {
                     }
 
                     metrics_clone.update_size(j);
-                    metrics_clone.record_access_pattern(&format!("pattern_{}", i));
+                    metrics_clone.record_access_pattern(&format!("pattern_{i}"));
                 }
             });
             handles.push(handle);
@@ -543,11 +543,11 @@ mod tests {
         let metrics = CacheMetrics::new();
         metrics.record_hit(Duration::from_millis(10));
 
-        let debug_str = format!("{:?}", metrics);
+        let debug_str = format!("{metrics:?}");
         assert!(debug_str.contains("CacheMetrics"));
 
         let snapshot = metrics.snapshot();
-        let snapshot_debug = format!("{:?}", snapshot);
+        let snapshot_debug = format!("{snapshot:?}");
         assert!(snapshot_debug.contains("MetricsSnapshot"));
         assert!(snapshot_debug.contains("hits: 1"));
     }
