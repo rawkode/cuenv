@@ -176,4 +176,25 @@ tasks: {
 			}
 		}
 	}
+
+	// Example of using task groups as dependencies
+	"package": {
+		description: "Package the application after running CI checks"
+		command: "echo 'Creating package...'"
+		dependencies: ["ci"] // Depends on the entire CI group
+		outputs: ["package.tar.gz"]
+	}
+
+	"deploy": {
+		description: "Deploy the packaged application"
+		command: "echo 'Deploying to production...'"
+		dependencies: ["package", "assets"] // Depends on packaging and all assets being ready
+	}
+
+	// Another example with nested groups
+	"full-release": {
+		description: "Complete release process"
+		command: "echo 'Starting full release...'"
+		dependencies: ["release"] // Depends on the entire release group (which includes nested groups)
+	}
 }

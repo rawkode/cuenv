@@ -4,7 +4,7 @@
 //! It takes raw TaskConfig objects and produces validated, immutable TaskDefinition
 //! objects ready for execution.
 
-use cuenv_config::TaskConfig;
+use cuenv_config::{TaskConfig, TaskNode};
 use cuenv_core::{Result, TaskDefinition};
 use std::collections::HashMap;
 use std::env;
@@ -23,8 +23,10 @@ pub use dependency::{create_dependency_cache, DependencyValidationCache};
 /// Task building context
 #[derive(Debug)]
 pub struct BuildContext {
-    /// Task configurations by name
+    /// Task configurations by name (flattened)
     pub task_configs: HashMap<String, TaskConfig>,
+    /// Task nodes (hierarchical structure)
+    pub task_nodes: HashMap<String, TaskNode>,
     /// Resolved task definitions by name
     pub task_definitions: HashMap<String, TaskDefinition>,
     /// Dependency graph for validation
@@ -63,8 +65,18 @@ impl TaskBuilder {
         &self,
         task_configs: HashMap<String, TaskConfig>,
     ) -> Result<HashMap<String, TaskDefinition>> {
+        self.build_tasks_with_nodes(task_configs, HashMap::new())
+    }
+
+    /// Build task definitions from configurations and task nodes
+    pub fn build_tasks_with_nodes(
+        &self,
+        task_configs: HashMap<String, TaskConfig>,
+        task_nodes: HashMap<String, TaskNode>,
+    ) -> Result<HashMap<String, TaskDefinition>> {
         let mut context = BuildContext {
             task_configs: task_configs.clone(),
+            task_nodes,
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
