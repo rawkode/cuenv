@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,13 +22,30 @@ type TestCueData struct {
 
 // Helper function to create a temporary directory with CUE files
 func createTestCueDir(t *testing.T, packageName string, content string) (string, func()) {
+	// Validate package name to prevent path traversal
+	if strings.Contains(packageName, "..") || strings.Contains(packageName, "/") || strings.Contains(packageName, "\\") {
+		t.Fatalf("Invalid package name: %s (contains path traversal characters)", packageName)
+	}
+	
+	// Validate content size to prevent resource exhaustion
+	if len(content) > 1024*1024 { // 1MB limit
+		t.Fatalf("Content too large: %d bytes (max 1MB)", len(content))
+	}
+
 	tempDir, err := os.MkdirTemp("", "cuenv-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 
-	// Create env.cue file
+	// Create env.cue file with safe filename
 	cueFile := filepath.Join(tempDir, "env.cue")
+	
+	// Validate final path is within temp directory
+	if !strings.HasPrefix(cueFile, tempDir) {
+		os.RemoveAll(tempDir)
+		t.Fatalf("Path traversal detected in file path")
+	}
+	
 	fullContent := "package " + packageName + "\n\n" + content
 	if err := os.WriteFile(cueFile, []byte(fullContent), 0644); err != nil {
 		os.RemoveAll(tempDir)

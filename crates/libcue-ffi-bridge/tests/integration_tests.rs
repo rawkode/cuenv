@@ -22,10 +22,14 @@ fn test_cstring_ptr_raii_memory_management() {
         let ptr = c_string.into_raw();
 
         // Create RAII wrapper
+        // SAFETY: ptr is valid as it was just created from CString::into_raw()
+        // The CStringPtr will take ownership and properly free the memory
         let wrapper = unsafe { CStringPtr::new(ptr) };
 
         // Use the string
         if !wrapper.is_null() {
+            // SAFETY: wrapper is guaranteed to be valid and non-null, and contains
+            // a valid C string that was created from test_str
             let converted = unsafe { wrapper.to_str().unwrap() };
             assert_eq!(converted, test_str);
         }
