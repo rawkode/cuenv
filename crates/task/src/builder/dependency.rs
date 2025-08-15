@@ -3,6 +3,7 @@
 //! This module handles task dependency resolution, circular dependency detection,
 //! and caching of validation results.
 
+use cuenv_config::TaskNode;
 use cuenv_core::{Error, ResolvedDependency, Result};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -38,13 +39,28 @@ pub fn resolve_dependencies(context: &mut BuildContext) -> Result<()> {
                     }
                     ResolvedDependency::with_package(parts[1].to_string(), parts[0].to_string())
                 } else {
-                    // Local dependency
-                    if !context.task_configs.contains_key(dep_name) {
+                    // Local dependency - check if it's a task or task group
+                    if context.task_configs.contains_key(dep_name) {
+                        // It's an individual task
+                        ResolvedDependency::new(dep_name.clone())
+                    } else if context.task_nodes.contains_key(dep_name) {
+                        // It's a task group - expand it to all its tasks
+                        let group_tasks = expand_task_group_dependency(dep_name, &context.task_nodes)?;
+                        for group_task in &group_tasks {
+                            if !context.task_configs.contains_key(group_task) {
+                                return Err(Error::configuration(format!(
+                                    "Task '{group_task}' from group '{dep_name}' not found in flattened tasks"
+                                )));
+                            }
+                            resolved_deps.push(ResolvedDependency::new(group_task.clone()));
+                            dep_names.push(group_task.clone());
+                        }
+                        continue; // Skip the normal processing since we handled multiple dependencies
+                    } else {
                         return Err(Error::configuration(format!(
-                            "Dependency '{dep_name}' of task '{task_name}' not found"
+                            "Dependency '{dep_name}' of task '{task_name}' not found (neither task nor task group)"
                         )));
                     }
-                    ResolvedDependency::new(dep_name.clone())
                 };
 
                 resolved_deps.push(resolved_dep);
@@ -64,6 +80,55 @@ pub fn resolve_dependencies(context: &mut BuildContext) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Expand a task group dependency to all its individual tasks
+fn expand_task_group_dependency(
+    group_name: &str,
+    task_nodes: &HashMap<String, TaskNode>,
+) -> Result<Vec<String>> {
+    let mut tasks = Vec::new();
+    
+    if let Some(node) = task_nodes.get(group_name) {
+        if let TaskNode::Group { tasks: group_tasks, .. } = node {
+            // Collect all task names from the group
+            collect_task_names_from_group(group_name, group_tasks, &mut tasks, Vec::new());
+        } else {
+            return Err(Error::configuration(format!(
+                "'{group_name}' is not a task group"
+            )));
+        }
+    }
+    
+    Ok(tasks)
+}
+
+/// Recursively collect task names from a group, handling nested groups
+fn collect_task_names_from_group(
+    group_name: &str,
+    tasks: &HashMap<String, TaskNode>,
+    result: &mut Vec<String>,
+    path: Vec<String>,
+) {
+    for (task_name, node) in tasks {
+        match node {
+            TaskNode::Task(_) => {
+                // Build the full task name from the path
+                let full_name = if path.is_empty() {
+                    format!("{}.{}", group_name, task_name)
+                } else {
+                    format!("{}.{}.{}", group_name, path.join("."), task_name)
+                };
+                result.push(full_name);
+            }
+            TaskNode::Group { tasks: subtasks, .. } => {
+                // Recursively process nested groups
+                let mut new_path = path.clone();
+                new_path.push(task_name.clone());
+                collect_task_names_from_group(group_name, subtasks, result, new_path);
+            }
+        }
+    }
 }
 
 /// Validate task dependencies for circular references with caching
@@ -157,6 +222,7 @@ mod tests {
     use super::*;
     use cuenv_config::TaskConfig;
     use cuenv_core::TaskDefinition;
+    use std::collections::HashSet;
 
     fn create_test_config(deps: Option<Vec<&str>>) -> TaskConfig {
         TaskConfig {
@@ -198,6 +264,7 @@ mod tests {
     fn test_resolve_dependencies_success() {
         let mut context = BuildContext {
             task_configs: HashMap::new(),
+            task_nodes: HashMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -228,6 +295,7 @@ mod tests {
     fn test_resolve_missing_dependency() {
         let mut context = BuildContext {
             task_configs: HashMap::new(),
+            task_nodes: HashMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -250,6 +318,7 @@ mod tests {
         let cache = create_dependency_cache();
         let mut context = BuildContext {
             task_configs: HashMap::new(),
+            task_nodes: HashMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -275,6 +344,7 @@ mod tests {
         let cache = create_dependency_cache();
         let mut context = BuildContext {
             task_configs: HashMap::new(),
+            task_nodes: HashMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -296,6 +366,7 @@ mod tests {
     fn test_cross_package_dependency_parsing() {
         let mut context = BuildContext {
             task_configs: HashMap::new(),
+            task_nodes: HashMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -320,6 +391,7 @@ mod tests {
     fn test_invalid_cross_package_format() {
         let mut context = BuildContext {
             task_configs: HashMap::new(),
+            task_nodes: HashMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -338,5 +410,127 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("Invalid cross-package dependency"));
+    }
+
+    #[test]
+    fn test_task_group_dependency_expansion() {
+        use cuenv_config::TaskGroupMode;
+
+        let mut context = BuildContext {
+            task_configs: HashMap::new(),
+            task_nodes: HashMap::new(),
+            task_definitions: HashMap::new(),
+            dependency_graph: HashMap::new(),
+        };
+
+        // Create individual task configs
+        context.task_configs.insert("ci.lint".to_string(), create_test_config(None));
+        context.task_configs.insert("ci.test".to_string(), create_test_config(None));
+        context.task_configs.insert("build".to_string(), create_test_config(Some(vec!["ci".to_string()])));
+
+        // Create individual task definitions
+        context.task_definitions.insert("ci.lint".to_string(), create_test_definition("ci.lint"));
+        context.task_definitions.insert("ci.test".to_string(), create_test_definition("ci.test"));
+        context.task_definitions.insert("build".to_string(), create_test_definition("build"));
+
+        // Create task group structure
+        let mut ci_tasks = HashMap::new();
+        ci_tasks.insert(
+            "lint".to_string(),
+            TaskNode::Task(Box::new(create_test_config(None))),
+        );
+        ci_tasks.insert(
+            "test".to_string(), 
+            TaskNode::Task(Box::new(create_test_config(None))),
+        );
+
+        context.task_nodes.insert(
+            "ci".to_string(),
+            TaskNode::Group {
+                description: Some("CI tasks".to_string()),
+                mode: TaskGroupMode::Parallel,
+                tasks: ci_tasks,
+            },
+        );
+
+        let result = resolve_dependencies(&mut context);
+        assert!(result.is_ok());
+
+        // Check that the build task now depends on both ci.lint and ci.test
+        let build_def = &context.task_definitions["build"];
+        assert_eq!(build_def.dependencies.len(), 2);
+        
+        let dep_names: HashSet<String> = build_def.dependencies.iter()
+            .map(|d| d.name.clone())
+            .collect();
+        
+        assert!(dep_names.contains("ci.lint"));
+        assert!(dep_names.contains("ci.test"));
+    }
+
+    #[test]
+    fn test_nested_task_group_dependency() {
+        use cuenv_config::TaskGroupMode;
+
+        let mut context = BuildContext {
+            task_configs: HashMap::new(),
+            task_nodes: HashMap::new(),
+            task_definitions: HashMap::new(),
+            dependency_graph: HashMap::new(),
+        };
+
+        // Create nested task configs
+        context.task_configs.insert("release.quality.lint".to_string(), create_test_config(None));
+        context.task_configs.insert("release.quality.test".to_string(), create_test_config(None));
+        context.task_configs.insert("deploy".to_string(), create_test_config(Some(vec!["release".to_string()])));
+
+        // Create task definitions
+        context.task_definitions.insert("release.quality.lint".to_string(), create_test_definition("release.quality.lint"));
+        context.task_definitions.insert("release.quality.test".to_string(), create_test_definition("release.quality.test"));
+        context.task_definitions.insert("deploy".to_string(), create_test_definition("deploy"));
+
+        // Create nested task group structure
+        let mut quality_tasks = HashMap::new();
+        quality_tasks.insert(
+            "lint".to_string(),
+            TaskNode::Task(Box::new(create_test_config(None))),
+        );
+        quality_tasks.insert(
+            "test".to_string(), 
+            TaskNode::Task(Box::new(create_test_config(None))),
+        );
+
+        let mut release_tasks = HashMap::new();
+        release_tasks.insert(
+            "quality".to_string(),
+            TaskNode::Group {
+                description: Some("Quality checks".to_string()),
+                mode: TaskGroupMode::Parallel,
+                tasks: quality_tasks,
+            },
+        );
+
+        context.task_nodes.insert(
+            "release".to_string(),
+            TaskNode::Group {
+                description: Some("Release process".to_string()),
+                mode: TaskGroupMode::Workflow,
+                tasks: release_tasks,
+            },
+        );
+
+        let result = resolve_dependencies(&mut context);
+        assert!(result.is_ok());
+
+        // Check that the deploy task depends on both nested tasks
+        let deploy_def = &context.task_definitions["deploy"];
+        assert_eq!(deploy_def.dependencies.len(), 2);
+        
+        let dep_names: HashSet<String> = deploy_def.dependencies.iter()
+            .map(|d| d.name.clone())
+            .collect();
+        
+        assert!(dep_names.contains("release.quality.lint"));
+        assert!(dep_names.contains("release.quality.test"));
     }
 }
