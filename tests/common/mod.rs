@@ -3,6 +3,9 @@
 //! This module provides shared utilities for testing across the cuenv codebase,
 //! reducing code duplication and improving test reliability.
 
+pub mod cleanup;
+pub mod test_isolation;
+
 use cuenv::cache::{CacheConfig, ProductionCache};
 use std::fs;
 use std::path::PathBuf;

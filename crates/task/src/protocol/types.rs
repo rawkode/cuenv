@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// JSON-RPC 2.0 request structure
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct JsonRpcRequest<T> {
     pub jsonrpc: String,
     pub method: String,
@@ -16,7 +16,7 @@ pub struct JsonRpcRequest<T> {
 }
 
 /// JSON-RPC 2.0 response structure
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct JsonRpcResponse<T> {
     pub jsonrpc: String,
     pub result: Option<T>,
@@ -25,7 +25,7 @@ pub struct JsonRpcResponse<T> {
 }
 
 /// JSON-RPC error structure
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct JsonRpcError {
     pub code: i32,
     pub message: String,
@@ -33,11 +33,11 @@ pub struct JsonRpcError {
 }
 
 /// Initialize request parameters (empty)
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct InitializeParams {}
 
 /// Initialize response containing available tasks
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct InitializeResult {
     pub tasks: Vec<TaskDefinition>,
 }
@@ -53,7 +53,7 @@ pub struct TaskDefinition {
 }
 
 /// Run task request parameters
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RunTaskParams {
     pub task: String,
     #[serde(default)]
@@ -63,7 +63,7 @@ pub struct RunTaskParams {
 }
 
 /// Run task response
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RunTaskResult {
     pub exit_code: i32,
     #[serde(default)]

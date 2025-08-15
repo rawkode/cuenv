@@ -296,3 +296,324 @@ impl FocusPane {
         self.auto_scroll = true;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::events::{LogEntry, LogStream, TaskInfo, TaskRegistry, TaskState};
+    use std::time::{Duration, Instant};
+
+    fn create_test_task_registry() -> TaskRegistry {
+        TaskRegistry::new()
+    }
+
+    async fn setup_test_task_with_logs(
+        registry: &TaskRegistry,
+        task_name: &str,
+        dependencies: Vec<String>,
+        logs: Vec<LogEntry>,
+    ) {
+        registry
+            .register_task(task_name.to_string(), dependencies)
+            .await;
+
+        // Add logs to the task directly through registry methods
+        for log in logs {
+            registry.add_log(task_name, log.stream, log.content).await;
+        }
+        registry
+            .update_task_state(task_name, TaskState::Running)
+            .await;
+    }
+
+    fn create_test_log_entry(content: &str, stream: LogStream, seconds_ago: u64) -> LogEntry {
+        LogEntry {
+            timestamp: Instant::now() - Duration::from_secs(seconds_ago),
+            stream,
+            content: content.to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_focus_pane_initialization() {
+        let registry = create_test_task_registry();
+        let focus_pane = FocusPane::new(registry);
+
+        assert!(focus_pane.current_task.is_none());
+        assert!(focus_pane.current_task_info.is_none());
+        assert_eq!(focus_pane.log_scroll_offset, 0);
+        assert!(focus_pane.auto_scroll);
+    }
+
+    #[tokio::test]
+    async fn test_set_task_behavior() {
+        let registry = create_test_task_registry();
+        let mut focus_pane = FocusPane::new(registry);
+
+        // Set initial task
+        focus_pane.set_task("task1".to_string());
+        assert_eq!(focus_pane.current_task, Some("task1".to_string()));
+        assert!(focus_pane.current_task_info.is_none());
+        assert_eq!(focus_pane.log_scroll_offset, 0);
+        assert!(focus_pane.auto_scroll);
+
+        // Set same task - should not reset state
+        focus_pane.log_scroll_offset = 10;
+        focus_pane.auto_scroll = false;
+        focus_pane.set_task("task1".to_string());
+        assert_eq!(focus_pane.log_scroll_offset, 10);
+        assert!(!focus_pane.auto_scroll);
+
+        // Set different task - should reset state
+        focus_pane.set_task("task2".to_string());
+        assert_eq!(focus_pane.current_task, Some("task2".to_string()));
+        assert!(focus_pane.current_task_info.is_none());
+        assert_eq!(focus_pane.log_scroll_offset, 0);
+        assert!(focus_pane.auto_scroll);
+    }
+
+    #[tokio::test]
+    async fn test_needs_task_info_update() {
+        let registry = create_test_task_registry();
+        let mut focus_pane = FocusPane::new(registry);
+
+        // No task selected
+        assert!(!focus_pane.needs_task_info_update());
+
+        // Task selected but no info
+        focus_pane.set_task("task1".to_string());
+        assert!(focus_pane.needs_task_info_update());
+
+        // Task info available
+        focus_pane.current_task_info = Some(TaskInfo::new("task1".to_string(), vec![]));
+        assert!(!focus_pane.needs_task_info_update());
+    }
+
+    #[tokio::test]
+    async fn test_update_task_info() {
+        let registry = create_test_task_registry();
+        let mut focus_pane = FocusPane::new(registry.clone());
+
+        // Register test task
+        registry
+            .register_task("test_task".to_string(), vec!["dep1".to_string()])
+            .await;
+
+        // Set task and update info
+        focus_pane.set_task("test_task".to_string());
+        focus_pane.update_task_info().await;
+
+        assert!(focus_pane.current_task_info.is_some());
+        let task_info = focus_pane.current_task_info.unwrap();
+        assert_eq!(task_info.name, "test_task");
+        assert_eq!(task_info.dependencies, vec!["dep1"]);
+    }
+
+    #[tokio::test]
+    async fn test_update_task_info_timeout() {
+        let registry = create_test_task_registry();
+        let mut focus_pane = FocusPane::new(registry);
+
+        // Set non-existent task - should timeout gracefully
+        focus_pane.set_task("non_existent_task".to_string());
+        focus_pane.update_task_info().await;
+
+        // Should not crash and info should remain None
+        assert!(focus_pane.current_task_info.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_scroll_functionality() {
+        let registry = create_test_task_registry();
+        let mut focus_pane = FocusPane::new(registry);
+
+        // Test scroll up
+        focus_pane.log_scroll_offset = 10;
+        focus_pane.auto_scroll = true;
+        focus_pane.scroll_up(5);
+        assert_eq!(focus_pane.log_scroll_offset, 5);
+        assert!(!focus_pane.auto_scroll); // Should disable auto scroll
+
+        // Test scroll up with underflow protection
+        focus_pane.scroll_up(10);
+        assert_eq!(focus_pane.log_scroll_offset, 0);
+
+        // Test scroll down
+        focus_pane.scroll_down(3);
+        assert_eq!(focus_pane.log_scroll_offset, 3);
+
+        // Test scroll down with overflow protection
+        focus_pane.scroll_down(u16::MAX);
+        assert_eq!(focus_pane.log_scroll_offset, u16::MAX);
+    }
+
+    #[tokio::test]
+    async fn test_jump_operations() {
+        let registry = create_test_task_registry();
+        let mut focus_pane = FocusPane::new(registry);
+
+        focus_pane.log_scroll_offset = 100;
+        focus_pane.auto_scroll = true;
+
+        // Test jump to top
+        focus_pane.jump_to_top();
+        assert_eq!(focus_pane.log_scroll_offset, 0);
+        assert!(!focus_pane.auto_scroll);
+
+        // Test jump to bottom
+        focus_pane.log_scroll_offset = 50;
+        focus_pane.auto_scroll = false;
+        focus_pane.jump_to_bottom();
+        assert!(focus_pane.auto_scroll);
+    }
+
+    #[tokio::test]
+    async fn test_toggle_auto_scroll() {
+        let registry = create_test_task_registry();
+        let mut focus_pane = FocusPane::new(registry);
+
+        assert!(focus_pane.auto_scroll);
+        focus_pane.toggle_auto_scroll();
+        assert!(!focus_pane.auto_scroll);
+        focus_pane.toggle_auto_scroll();
+        assert!(focus_pane.auto_scroll);
+    }
+
+    #[tokio::test]
+    async fn test_get_current_task() {
+        let registry = create_test_task_registry();
+        let mut focus_pane = FocusPane::new(registry);
+
+        assert!(focus_pane.get_current_task().is_none());
+
+        focus_pane.set_task("test_task".to_string());
+        assert_eq!(
+            focus_pane.get_current_task(),
+            Some(&"test_task".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_log_formatting() {
+        let registry = create_test_task_registry();
+        let focus_pane = FocusPane::new(registry);
+
+        let logs = vec![
+            create_test_log_entry("stdout message", LogStream::Stdout, 5),
+            create_test_log_entry("stderr message", LogStream::Stderr, 3),
+            create_test_log_entry("system message", LogStream::System, 1),
+            create_test_log_entry("multiline\nmessage\nhere", LogStream::Stdout, 0),
+        ];
+
+        let (formatted_lines, line_count) = focus_pane.format_logs(&logs);
+
+        // Should have 6 lines total (3 single lines + 3 lines from multiline message)
+        assert_eq!(line_count, 6);
+        assert_eq!(formatted_lines.len(), 6);
+
+        // Verify that each line has the correct structure (timestamp + separator + content)
+        for line in &formatted_lines {
+            assert!(!line.spans.is_empty());
+            // Each line should have at least timestamp, space, separator, and content
+            assert!(line.spans.len() >= 3);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_log_formatting_empty() {
+        let registry = create_test_task_registry();
+        let focus_pane = FocusPane::new(registry);
+
+        let (formatted_lines, line_count) = focus_pane.format_logs(&[]);
+        assert_eq!(line_count, 0);
+        assert!(formatted_lines.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_state_style() {
+        let registry = create_test_task_registry();
+        let focus_pane = FocusPane::new(registry);
+
+        // Test all state styles
+        let queued_style = focus_pane.get_state_style(&TaskState::Queued);
+        let running_style = focus_pane.get_state_style(&TaskState::Running);
+        let completed_style = focus_pane.get_state_style(&TaskState::Completed);
+        let failed_style = focus_pane.get_state_style(&TaskState::Failed);
+        let cancelled_style = focus_pane.get_state_style(&TaskState::Cancelled);
+
+        // Verify each style has appropriate color
+        assert_eq!(queued_style.fg, Some(Color::DarkGray));
+        assert_eq!(running_style.fg, Some(Color::Yellow));
+        assert_eq!(completed_style.fg, Some(Color::Green));
+        assert_eq!(failed_style.fg, Some(Color::Red));
+        assert_eq!(cancelled_style.fg, Some(Color::Magenta));
+    }
+
+    #[tokio::test]
+    async fn test_create_task_info_table_complete() {
+        let registry = create_test_task_registry();
+        let focus_pane = FocusPane::new(registry);
+
+        let mut task_info = TaskInfo::new(
+            "test_task".to_string(),
+            vec!["dep1".to_string(), "dep2".to_string()],
+        );
+        task_info.state = TaskState::Completed;
+        task_info.start_time = Some(Instant::now() - Duration::from_secs(10));
+        task_info.end_time = Some(Instant::now() - Duration::from_secs(5));
+        task_info.exit_code = Some(0);
+        task_info.message = Some("Task completed successfully".to_string());
+
+        let table = focus_pane.create_task_info_table(&task_info);
+
+        // Verify table was created successfully
+        // Note: We can't directly test table structure due to private fields
+        let _table = table; // Just ensure it was created
+    }
+
+    #[tokio::test]
+    async fn test_create_task_info_table_minimal() {
+        let registry = create_test_task_registry();
+        let focus_pane = FocusPane::new(registry);
+
+        let task_info = TaskInfo::new("minimal_task".to_string(), vec![]);
+
+        let table = focus_pane.create_task_info_table(&task_info);
+
+        // Should have minimal rows: name and state only
+        // Note: We can't directly test table structure due to private fields
+        let _table = table; // Just ensure it was created
+    }
+
+    #[tokio::test]
+    async fn test_integration_with_real_logs() {
+        let registry = create_test_task_registry();
+        let mut focus_pane = FocusPane::new(registry.clone());
+
+        // Setup task with various log types
+        let logs = vec![
+            create_test_log_entry("Starting process", LogStream::System, 10),
+            create_test_log_entry("Processing file 1", LogStream::Stdout, 8),
+            create_test_log_entry("Warning: deprecated API", LogStream::Stderr, 6),
+            create_test_log_entry("Processing file 2", LogStream::Stdout, 4),
+            create_test_log_entry("Process completed", LogStream::System, 2),
+        ];
+
+        setup_test_task_with_logs(&registry, "integration_task", vec![], logs).await;
+
+        // Set task and update info
+        focus_pane.set_task("integration_task".to_string());
+        focus_pane.update_task_info().await;
+
+        // Verify task info is loaded
+        assert!(focus_pane.current_task_info.is_some());
+        let task_info = focus_pane.current_task_info.as_ref().unwrap();
+        assert_eq!(task_info.logs.len(), 5);
+        assert_eq!(task_info.state, TaskState::Running);
+
+        // Test log formatting
+        let (formatted_lines, line_count) = focus_pane.format_logs(&task_info.logs);
+        assert_eq!(line_count, 5);
+        assert_eq!(formatted_lines.len(), 5);
+    }
+}
