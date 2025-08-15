@@ -95,9 +95,18 @@ impl FallbackRenderer {
 
     fn find_root_tasks(&self, tasks: &HashMap<String, cuenv_core::TaskDefinition>) -> Vec<String> {
         let mut roots = Vec::new();
+        
+        // Build set of all dependency names
+        let mut all_dependencies = std::collections::HashSet::new();
+        for task in tasks.values() {
+            for dep in task.dependency_names() {
+                all_dependencies.insert(dep.clone());
+            }
+        }
 
         for (task_name, task) in tasks {
-            if task.dependency_names().is_empty() {
+            // A task is a root if it has no dependencies AND is not a dependency of any other task
+            if task.dependency_names().is_empty() && !all_dependencies.contains(task_name) {
                 roots.push(task_name.clone());
             }
         }

@@ -365,32 +365,14 @@ impl ProcessCleanup {
         self.child_processes.push(pid);
 
         self.cleanup_guard.register_cleanup(move || {
-            // Attempt to terminate the process
-            #[cfg(unix)]
-            {
-                unsafe {
-                    libc::kill(pid as i32, libc::SIGTERM);
-                }
-            }
-
-            #[cfg(windows)]
-            {
-                // Windows process termination would go here
-                // For now, just log
-                eprintln!("Warning: Process cleanup not implemented for Windows");
-            }
+            terminate_process(pid);
         });
     }
 
     /// Kill all registered processes immediately
     pub fn kill_all_processes(&self) {
         for &pid in &self.child_processes {
-            #[cfg(unix)]
-            {
-                unsafe {
-                    libc::kill(pid as i32, libc::SIGKILL);
-                }
-            }
+            kill_process(*pid);
         }
     }
 }
@@ -398,6 +380,38 @@ impl ProcessCleanup {
 impl Default for ProcessCleanup {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Platform-specific process termination (SIGTERM)
+fn terminate_process(pid: u32) {
+    #[cfg(unix)]
+    {
+        unsafe {
+            libc::kill(pid as i32, libc::SIGTERM);
+        }
+    }
+    #[cfg(windows)]
+    {
+        // Windows process termination would go here
+        // For now, just log
+        eprintln!("Warning: Process cleanup not implemented for Windows");
+    }
+}
+
+/// Platform-specific process killing (SIGKILL)
+fn kill_process(pid: u32) {
+    #[cfg(unix)]
+    {
+        unsafe {
+            libc::kill(pid as i32, libc::SIGKILL);
+        }
+    }
+    #[cfg(windows)]
+    {
+        // Windows process killing would go here
+        // For now, just log
+        eprintln!("Warning: Process kill not implemented for Windows");
     }
 }
 
