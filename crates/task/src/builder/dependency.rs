@@ -709,7 +709,7 @@ mod tests {
         let result = resolve_dependencies(&mut context);
         // This should succeed since we don't have an actual circular reference
         match result {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(e) => panic!("Test failed with error: {}", e),
         }
     }
