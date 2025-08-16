@@ -9,7 +9,7 @@ This guide provides examples demonstrating different features of cuenv using the
 
 ## Structure
 
-All examples use the `package env` declaration and the `cuenv.#Env` schema:
+All examples use the `package examples` declaration and import the schema:
 
 - **basic/** - Simple environment variables with CUE interpolation
 - **with-capabilities/** - Capability-based variable filtering and commands
@@ -24,15 +24,15 @@ To use these examples:
 ```bash
 # Load environment from a specific example
 cd examples/basic
-cuenv load
+cuenv shell load
 
 # Run a command with capabilities
 cd examples/with-capabilities
-cuenv run -c aws deploy
+cuenv exec -c aws deploy
 
 # Export for your shell
 cd examples/basic
-eval $(cuenv load)
+eval $(cuenv env export)
 ```
 
 ## Basic Structure

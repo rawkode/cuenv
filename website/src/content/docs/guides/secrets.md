@@ -7,11 +7,11 @@ Stop commenting "# TODO: Don't commit this" above your API keys. cuenv has actua
 
 ## How It Works
 
-Write `op://vault/item/field` or `gcp-secret://project/name`. Run `cuenv run`. Secrets resolve. No plaintext files. No git accidents.
+Write `op://vault/item/field` or `gcp://project/name/version`. Run `cuenv exec`. Secrets resolve. No plaintext files. No git accidents.
 
 The important bits:
 
-- Secrets only resolve with `cuenv run` (not in your regular shell)
+- Secrets only resolve with `cuenv exec` (not in your regular shell)
 - Values are hidden in logs/output (shows `***` instead)
 - Zero setup beyond having `op` or `gcloud` installed
 
@@ -54,26 +54,26 @@ op://vault/item/section/field
 ```cue title="env.cue"
 package env
 
-import "github.com/rawkode/cuenv/cue"
+import "github.com/rawkode/cuenv/schema"
 
 // Basic password reference
-DATABASE_PASSWORD: cuenv.#OnePasswordRef & {
+DATABASE_PASSWORD: schema.#OnePasswordRef & {
     ref: "op://Personal/PostgreSQL/password"
 }
 
 // API key from a specific vault
-STRIPE_API_KEY: cuenv.#OnePasswordRef & {
+STRIPE_API_KEY: schema.#OnePasswordRef & {
     ref: "op://Work/Stripe API/secret_key"
 }
 
 // Reference with section
-AWS_SECRET_KEY: cuenv.#OnePasswordRef & {
+AWS_SECRET_KEY: schema.#OnePasswordRef & {
     ref: "op://DevOps/AWS/credentials/secret_key"
 }
 
 // Using in connection strings
 DB_USER: "myapp"
-DB_PASS: cuenv.#OnePasswordRef & {
+DB_PASS: schema.#OnePasswordRef & {
     ref: "op://Personal/MyApp DB/password"
 }
 DB_HOST: "db.example.com"
@@ -140,10 +140,10 @@ For better type safety and documentation, you can use structured format for secr
 ```cue title="env.cue"
 package env
 
-import "github.com/rawkode/cuenv/cue"
+import "github.com/rawkode/cuenv/schema"
 
 // Use cuenv's built-in structured format
-DATABASE_PASSWORD: cuenv.#OnePasswordRef & {
+DATABASE_PASSWORD: schema.#OnePasswordRef & {
     ref: "op://Personal/Database/password"
 }
 
@@ -228,10 +228,10 @@ Secrets are only resolved when using the `cuenv run` command:
 cat > env.cue << 'EOF'
 package env
 
-import "github.com/rawkode/cuenv/cue"
+import "github.com/rawkode/cuenv/schema"
 
 DATABASE_URL: "postgres://user:pass@localhost/db"
-API_KEY: cuenv.#OnePasswordRef & {
+API_KEY: schema.#OnePasswordRef & {
     ref: "op://Work/MyApp/api_key"
 }
 JWT_SECRET: "gcp-secret://my-project/jwt-secret"
@@ -273,13 +273,13 @@ cuenv run sh -c 'echo "$DATABASE_PASSWORD $API_KEY"'
 ```cue title="env.cue"
 package env
 
-import "github.com/rawkode/cuenv/cue"
+import "github.com/rawkode/cuenv/schema"
 
 // DON'T: Never put actual secrets in env.cue
 API_KEY: "sk_live_abcd1234"  // Bad!
 
 // DO: Always use secret references
-API_KEY: cuenv.#OnePasswordRef & {
+API_KEY: schema.#OnePasswordRef & {
     ref: "op://Work/Stripe/secret_key"
 }  // Good!
 ```
@@ -289,13 +289,13 @@ API_KEY: cuenv.#OnePasswordRef & {
 ```cue title="env.cue"
 package env
 
-import "github.com/rawkode/cuenv/cue"
+import "github.com/rawkode/cuenv/schema"
 
 // Be specific about vault/project names
-PROD_DB_PASS: cuenv.#OnePasswordRef & {
+PROD_DB_PASS: schema.#OnePasswordRef & {
     ref: "op://Production/Database/password"
 }
-DEV_DB_PASS: cuenv.#OnePasswordRef & {
+DEV_DB_PASS: schema.#OnePasswordRef & {
     ref: "op://Development/Database/password"
 }
 
@@ -311,13 +311,13 @@ Only grant access to secrets that are needed:
 ```cue title="env.cue"
 package env
 
-import "github.com/rawkode/cuenv/cue"
+import "github.com/rawkode/cuenv/schema"
 
 // Use capability tags to limit secret exposure
-AWS_ACCESS_KEY: cuenv.#OnePasswordRef & {
+AWS_ACCESS_KEY: schema.#OnePasswordRef & {
     ref: "op://AWS/prod-access/key"
 } @capability("aws")
-AWS_SECRET_KEY: cuenv.#OnePasswordRef & {
+AWS_SECRET_KEY: schema.#OnePasswordRef & {
     ref: "op://AWS/prod-access/secret"
 } @capability("aws")
 
@@ -352,7 +352,7 @@ Use different secrets for different environments:
 ```cue title="env.cue"
 package env
 
-import "github.com/rawkode/cuenv/cue"
+import "github.com/rawkode/cuenv/schema"
 
 // Base configuration
 APP_NAME: "myapp"
@@ -361,15 +361,15 @@ APP_NAME: "myapp"
 environment: {
     development: {
         DATABASE_URL: "postgres://localhost/myapp_dev"
-        API_KEY: cuenv.#OnePasswordRef & {
+        API_KEY: schema.#OnePasswordRef & {
             ref: "op://Development/MyApp/api_key"
         }
     }
     production: {
-        DATABASE_URL: cuenv.#OnePasswordRef & {
+        DATABASE_URL: schema.#OnePasswordRef & {
             ref: "op://Production/MyApp/database_url"
         }
-        API_KEY: cuenv.#OnePasswordRef & {
+        API_KEY: schema.#OnePasswordRef & {
             ref: "op://Production/MyApp/api_key"
         }
     }
@@ -458,12 +458,12 @@ After (`env.cue`):
 ```cue title="env.cue"
 package env
 
-import "github.com/rawkode/cuenv/cue"
+import "github.com/rawkode/cuenv/schema"
 
-DATABASE_URL: cuenv.#OnePasswordRef & {
+DATABASE_URL: schema.#OnePasswordRef & {
     ref: "op://Personal/MyApp/database_url"
 }
-API_KEY: cuenv.#OnePasswordRef & {
+API_KEY: schema.#OnePasswordRef & {
     ref: "op://Work/Stripe/secret_key"
 }
 JWT_SECRET: "gcp-secret://my-project/jwt-secret"
@@ -483,9 +483,9 @@ After (`env.cue`):
 ```cue title="env.cue"
 package env
 
-import "github.com/rawkode/cuenv/cue"
+import "github.com/rawkode/cuenv/schema"
 
-DATABASE_PASSWORD: cuenv.#OnePasswordRef & {
+DATABASE_PASSWORD: schema.#OnePasswordRef & {
     ref: "op://Personal/Database/password"
 }
 API_KEY: "gcp-secret://my-project/api-key"
