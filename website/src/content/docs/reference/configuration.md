@@ -301,14 +301,14 @@ capabilities: {
 ```cue
 package env
 
-import "github.com/rawkode/cuenv/cue"
+import "github.com/rawkode/cuenv/schema"
 
 // Structured format (recommended)
-PASSWORD: cuenv.#OnePasswordRef & {ref: "op://vault/item/field"}
-API_KEY: cuenv.#OnePasswordRef & {ref: "op://vault/item/section/field"}
+PASSWORD: schema.#OnePasswordRef & {ref: "op://vault/item/field"}
+API_KEY: schema.#OnePasswordRef & {ref: "op://vault/item/section/field"}
 
 // Example with capability
-SECRET: cuenv.#OnePasswordRef & {ref: "op://Personal/secret"} @capability("security")
+SECRET: schema.#OnePasswordRef & {ref: "op://Personal/secret"} @capability("security")
 ```
 
 ### GCP Secrets Format
@@ -317,18 +317,16 @@ SECRET: cuenv.#OnePasswordRef & {ref: "op://Personal/secret"} @capability("secur
 package env
 
 // URL format
-SECRET: "gcp-secret://project/secret-name"
-KEY: "gcp-secret://project/secret-name/version"
+SECRET: "gcp://project/secret-name/latest"
+KEY: "gcp://project/secret-name/version"
 
 // Structured format
-#GcpSecret: {
-    project: string
-    secret: string
-    version?: string
-}
-TOKEN: #GcpSecret & {
+import "github.com/rawkode/cuenv/schema"
+
+TOKEN: schema.#GcpSecret & {
     project: "my-project"
     secret: "api-token"
+    version: "latest"
 }
 ```
 
@@ -337,19 +335,19 @@ TOKEN: #GcpSecret & {
 ### Bash Configuration
 
 ```bash title="~/.bashrc"
-eval "$(cuenv init bash)"
+eval "$(cuenv shell init bash)"
 
 # Custom prompt
 PS1='[\u@\h \W$(cuenv_prompt)]\$ '
 cuenv_prompt() {
-    [[ -n "$CUENV_LOADED" ]] && echo " (cuenv)"
+    [[ -n "$CUENV_DIR" ]] && echo " (cuenv)"
 }
 ```
 
 ### Zsh Configuration
 
 ```zsh title="~/.zshrc"
-eval "$(cuenv init zsh)"
+eval "$(cuenv shell init zsh)"
 
 # With Oh My Zsh
 plugins=(... cuenv)
@@ -359,7 +357,7 @@ plugins=(... cuenv)
 
 ```fish title="~/.config/fish/config.fish"
 if command -v cuenv >/dev/null 2>&1
-    cuenv init fish | source
+    cuenv shell init fish | source
 end
 ```
 

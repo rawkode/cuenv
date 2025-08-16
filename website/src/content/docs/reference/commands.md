@@ -22,7 +22,7 @@ Options that work with all commands:
 - `-e`, `--env <environment>` - Environment to use (e.g., dev, staging, production)
 - `-c`, `--capability <capability>` - Capabilities to enable (can be specified multiple times)
 - `--audit` - Run in audit mode to see file and network access without restrictions
-- `--output-format <format>` - Output format for task execution (tui, spinner, simple, tree)
+- `--output-format <format>` - Output format for task execution (tui, spinner, simple)
 - `--trace-output <bool>` - Enable Chrome trace output
 
 ## Commands
@@ -57,7 +57,7 @@ cuenv init
 cuenv init --force
 ```
 
-### `cuenv task`
+### `cuenv task` (alias: `cuenv t`)
 
 List or execute tasks defined in your CUE configuration.
 
@@ -360,17 +360,18 @@ cuenv uses standard exit codes:
 
 ### Variables Set by cuenv
 
-- `CUENV_LOADED` - Set when an environment is loaded
-- `CUENV_ROOT` - Path to the loaded env.cue file
-- `CUENV_PREV_*` - Previous values of modified variables
+- `CUENV_DIR` - Path to the directory containing the loaded env.cue file
+- `CUENV_FILE` - Path to the loaded env.cue file
+- `CUENV_STATE` - Internal state tracking information
+- `CUENV_DIFF` - Environment variable differences
+- `CUENV_WATCHES` - File watch information
+- `CUENV_PREFIX` - Optional prefix for environment variables
 
 ### Configuration Variables
 
-- `CUENV_FILE` - Custom filename (default: `env.cue`)
-- `CUENV_DEBUG` - Enable debug output
-- `CUENV_DISABLE_AUTO` - Disable automatic loading
 - `CUENV_ENV` - Default environment for `cuenv exec`
 - `CUENV_CAPABILITIES` - Default capabilities for `cuenv exec`
+- `CUENV_LOG` - Log level configuration
 
 ## Examples
 
@@ -385,16 +386,16 @@ API_KEY: "dev-key-123"
 EOF
 
 # Load environment
-cuenv load
+cuenv shell load
 
 # Check status
-cuenv status
+cuenv env status
 
 # Use variables
 echo $DATABASE_URL
 
 # Unload when done
-cuenv unload
+cuenv shell unload
 ```
 
 ### Development vs Production
@@ -415,10 +416,10 @@ environment: {
 EOF
 
 # Run development server
-cuenv run -- node server.js
+cuenv exec node server.js
 
 # Run production server
-cuenv run -e production -- node server.js
+cuenv exec -e production node server.js
 ```
 
 ### Secret Management
@@ -428,17 +429,17 @@ cuenv run -e production -- node server.js
 cat > env.cue << 'EOF'
 package env
 
-import "github.com/rawkode/cuenv/cue"
+import "github.com/rawkode/cuenv/schema"
 
 DATABASE_URL: "postgres://user:pass@localhost/db"
-API_KEY: cuenv.#OnePasswordRef & {ref: "op://Work/MyApp/api_key"}
+API_KEY: schema.#OnePasswordRef & {ref: "op://Work/MyApp/api_key"}
 EOF
 
 # Run with resolved secrets
-cuenv run -- node app.js
+cuenv exec node app.js
 
 # Secrets are obfuscated in output
-cuenv run -- sh -c 'echo "Key: $API_KEY"'
+cuenv exec sh -c 'echo "Key: $API_KEY"'
 # Output: Key: ***********
 ```
 
@@ -456,10 +457,10 @@ else
 fi
 
 # Run deployment with appropriate environment
-cuenv run -e "$ENV" -- terraform apply
+cuenv exec -e "$ENV" terraform apply
 
 # Run tests with CI environment
-cuenv run -e ci -- npm test
+cuenv exec -e ci npm test
 ```
 
 ### Docker Integration
@@ -476,7 +477,7 @@ COPY . /app
 WORKDIR /app
 
 # Run with cuenv
-CMD ["cuenv", "run", "--", "node", "server.js"]
+CMD ["cuenv", "exec", "node", "server.js"]
 ```
 
 ### Advanced Capability Usage
@@ -504,11 +505,11 @@ capabilities: {
 EOF
 
 # Automatic capability inference
-cuenv run -- terraform plan  # Gets aws and database
-cuenv run -- aws s3 ls       # Gets only aws
+cuenv exec terraform plan  # Gets aws and database
+cuenv exec aws s3 ls       # Gets only aws
 
 # Manual capability selection
-cuenv run -c database -- ./migrate.sh
+cuenv exec -c database ./migrate.sh
 ```
 
 ## Debugging
@@ -520,7 +521,7 @@ Enable debug output to troubleshoot issues:
 export CUENV_DEBUG=1
 
 # Run command with debug output
-cuenv load
+cuenv shell load
 
 # Or use debug flag
 cuenv --debug status
