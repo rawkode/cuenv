@@ -483,7 +483,7 @@ mod tests {
         // Create individual task configs
         context.task_configs.insert("ci.lint".to_string(), create_test_config(None));
         context.task_configs.insert("ci.test".to_string(), create_test_config(None));
-        context.task_configs.insert("build".to_string(), create_test_config(Some(vec!["ci".to_string()])));
+        context.task_configs.insert("build".to_string(), create_test_config(Some(vec!["ci"])));
 
         // Create individual task definitions
         context.task_definitions.insert("ci.lint".to_string(), create_test_definition("ci.lint"));
@@ -539,7 +539,7 @@ mod tests {
         // Create nested task configs
         context.task_configs.insert("release.quality.lint".to_string(), create_test_config(None));
         context.task_configs.insert("release.quality.test".to_string(), create_test_config(None));
-        context.task_configs.insert("deploy".to_string(), create_test_config(Some(vec!["release".to_string()])));
+        context.task_configs.insert("deploy".to_string(), create_test_config(Some(vec!["release"])));
 
         // Create task definitions
         context.task_definitions.insert("release.quality.lint".to_string(), create_test_definition("release.quality.lint"));
@@ -603,7 +603,7 @@ mod tests {
         };
 
         // Create task that depends on empty group
-        context.task_configs.insert("build".to_string(), create_test_config(Some(vec!["empty_group".to_string()])));
+        context.task_configs.insert("build".to_string(), create_test_config(Some(vec!["empty_group"])));
         context.task_definitions.insert("build".to_string(), create_test_definition("build"));
 
         // Create empty task group
@@ -633,7 +633,7 @@ mod tests {
         };
 
         // Create task that depends on circular group structure
-        context.task_configs.insert("build".to_string(), create_test_config(Some(vec!["circular".to_string()])));
+        context.task_configs.insert("build".to_string(), create_test_config(Some(vec!["circular"])));
         context.task_definitions.insert("build".to_string(), create_test_definition("build"));
 
         // Create circular nested group structure: circular.nested -> circular
@@ -684,7 +684,7 @@ mod tests {
 
         // Create deeply nested task structure (5 levels deep)
         context.task_configs.insert("deep.level1.level2.level3.task".to_string(), create_test_config(None));
-        context.task_configs.insert("build".to_string(), create_test_config(Some(vec!["deep".to_string()])));
+        context.task_configs.insert("build".to_string(), create_test_config(Some(vec!["deep"])));
         
         context.task_definitions.insert("deep.level1.level2.level3.task".to_string(), create_test_definition("deep.level1.level2.level3.task"));
         context.task_definitions.insert("build".to_string(), create_test_definition("build"));
