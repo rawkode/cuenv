@@ -708,7 +708,10 @@ mod tests {
         // This is more complex to set up, so for now we test the basic case
         let result = resolve_dependencies(&mut context);
         // This should succeed since we don't have an actual circular reference
-        assert!(result.is_ok());
+        match result {
+            Ok(_) => {},
+            Err(e) => panic!("Test failed with error: {}", e),
+        }
     }
 
     #[test]
