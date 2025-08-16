@@ -703,7 +703,11 @@ mod tests {
             },
         );
 
-        // Add the nested task to task_definitions so it can be found during validation
+        // Add the nested task to both task_configs and task_definitions so it can be found during validation
+        context.task_configs.insert(
+            "circular.nested.task".to_string(),
+            create_test_config(None),
+        );
         context.task_definitions.insert(
             "circular.nested.task".to_string(),
             create_test_definition("circular.nested.task"),
