@@ -83,7 +83,7 @@ cuenv cache clear
 # Show cache statistics
 cuenv cache stats
 
-# Clean up stale cache entries (note: max-age-hours parameter currently ignored)
+# Clean up stale cache entries
 cuenv cache cleanup
 ```
 
