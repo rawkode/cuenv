@@ -18,7 +18,8 @@ impl TaskExecutor {
 
         // Validate that all requested tasks exist (could be tasks or task groups)
         for task_name in task_names {
-            if !all_task_configs.contains_key(task_name) && !all_task_nodes.contains_key(task_name) {
+            if !all_task_configs.contains_key(task_name) && !all_task_nodes.contains_key(task_name)
+            {
                 return Err(Error::configuration(format!(
                     "Task or task group '{task_name}' not found"
                 )));
@@ -26,10 +27,9 @@ impl TaskExecutor {
         }
 
         // Build task definitions using TaskBuilder with task nodes
-        let task_definitions = self.task_builder.build_tasks_with_nodes(
-            all_task_configs.clone(),
-            all_task_nodes.clone()
-        )?;
+        let task_definitions = self
+            .task_builder
+            .build_tasks_with_nodes(all_task_configs.clone(), all_task_nodes.clone())?;
 
         // Build dependency graph using task definitions
         let mut task_dependencies = HashMap::with_capacity(task_definitions.len());

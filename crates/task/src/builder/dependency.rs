@@ -45,7 +45,8 @@ pub fn resolve_dependencies(context: &mut BuildContext) -> Result<()> {
                         ResolvedDependency::new(dep_name.clone())
                     } else if context.task_nodes.contains_key(dep_name) {
                         // It's a task group - expand it to all its tasks
-                        let group_tasks = expand_task_group_dependency(dep_name, &context.task_nodes)?;
+                        let group_tasks =
+                            expand_task_group_dependency(dep_name, &context.task_nodes)?;
                         for group_task in &group_tasks {
                             if !context.task_configs.contains_key(group_task) {
                                 return Err(Error::configuration(format!(
@@ -89,24 +90,27 @@ fn expand_task_group_dependency(
 ) -> Result<Vec<String>> {
     let mut tasks = Vec::new();
     let mut visited_groups = HashSet::new();
-    
+
     if let Some(node) = task_nodes.get(group_name) {
-        if let TaskNode::Group { tasks: group_tasks, .. } = node {
+        if let TaskNode::Group {
+            tasks: group_tasks, ..
+        } = node
+        {
             // Check for empty groups
             if group_tasks.is_empty() {
                 return Err(Error::configuration(format!(
                     "Task group '{group_name}' is empty and cannot be used as a dependency"
                 )));
             }
-            
+
             // Collect all task names from the group with cycle detection
             collect_task_names_from_group(
-                group_name, 
-                group_tasks, 
-                &mut tasks, 
+                group_name,
+                group_tasks,
+                &mut tasks,
                 String::new(),
                 &mut visited_groups,
-                task_nodes
+                task_nodes,
             )?;
         } else {
             return Err(Error::configuration(format!(
@@ -114,7 +118,7 @@ fn expand_task_group_dependency(
             )));
         }
     }
-    
+
     Ok(tasks)
 }
 
@@ -138,14 +142,16 @@ fn collect_task_names_from_group(
                 };
                 result.push(full_name);
             }
-            TaskNode::Group { tasks: subtasks, .. } => {
+            TaskNode::Group {
+                tasks: subtasks, ..
+            } => {
                 // Create the full group path for cycle detection
                 let full_group_path = if path.is_empty() {
                     format!("{}.{}", group_name, task_name)
                 } else {
                     format!("{}.{}.{}", group_name, path, task_name)
                 };
-                
+
                 // Check for cycles in group nesting
                 if visited_groups.contains(&full_group_path) {
                     return Err(Error::configuration(format!(
@@ -153,9 +159,9 @@ fn collect_task_names_from_group(
                         full_group_path
                     )));
                 }
-                
+
                 visited_groups.insert(full_group_path.clone());
-                
+
                 // Check for empty nested groups
                 if subtasks.is_empty() {
                     return Err(Error::configuration(format!(
@@ -163,24 +169,24 @@ fn collect_task_names_from_group(
                         full_group_path
                     )));
                 }
-                
+
                 // Build new path for nested recursion
                 let new_path = if path.is_empty() {
                     task_name.clone()
                 } else {
                     format!("{}.{}", path, task_name)
                 };
-                
+
                 // Recursively process nested groups
                 collect_task_names_from_group(
-                    group_name, 
-                    subtasks, 
-                    result, 
+                    group_name,
+                    subtasks,
+                    result,
                     new_path,
                     visited_groups,
-                    _all_task_nodes
+                    _all_task_nodes,
                 )?;
-                
+
                 visited_groups.remove(&full_group_path);
             }
         }
@@ -481,14 +487,26 @@ mod tests {
         };
 
         // Create individual task configs
-        context.task_configs.insert("ci.lint".to_string(), create_test_config(None));
-        context.task_configs.insert("ci.test".to_string(), create_test_config(None));
-        context.task_configs.insert("build".to_string(), create_test_config(Some(vec!["ci"])));
+        context
+            .task_configs
+            .insert("ci.lint".to_string(), create_test_config(None));
+        context
+            .task_configs
+            .insert("ci.test".to_string(), create_test_config(None));
+        context
+            .task_configs
+            .insert("build".to_string(), create_test_config(Some(vec!["ci"])));
 
         // Create individual task definitions
-        context.task_definitions.insert("ci.lint".to_string(), create_test_definition("ci.lint"));
-        context.task_definitions.insert("ci.test".to_string(), create_test_definition("ci.test"));
-        context.task_definitions.insert("build".to_string(), create_test_definition("build"));
+        context
+            .task_definitions
+            .insert("ci.lint".to_string(), create_test_definition("ci.lint"));
+        context
+            .task_definitions
+            .insert("ci.test".to_string(), create_test_definition("ci.test"));
+        context
+            .task_definitions
+            .insert("build".to_string(), create_test_definition("build"));
 
         // Create task group structure
         let mut ci_tasks = HashMap::new();
@@ -497,7 +515,7 @@ mod tests {
             TaskNode::Task(Box::new(create_test_config(None))),
         );
         ci_tasks.insert(
-            "test".to_string(), 
+            "test".to_string(),
             TaskNode::Task(Box::new(create_test_config(None))),
         );
 
@@ -516,11 +534,13 @@ mod tests {
         // Check that the build task now depends on both ci.lint and ci.test
         let build_def = &context.task_definitions["build"];
         assert_eq!(build_def.dependencies.len(), 2);
-        
-        let dep_names: HashSet<String> = build_def.dependencies.iter()
+
+        let dep_names: HashSet<String> = build_def
+            .dependencies
+            .iter()
             .map(|d| d.name.clone())
             .collect();
-        
+
         assert!(dep_names.contains("ci.lint"));
         assert!(dep_names.contains("ci.test"));
     }
@@ -537,14 +557,29 @@ mod tests {
         };
 
         // Create nested task configs
-        context.task_configs.insert("release.quality.lint".to_string(), create_test_config(None));
-        context.task_configs.insert("release.quality.test".to_string(), create_test_config(None));
-        context.task_configs.insert("deploy".to_string(), create_test_config(Some(vec!["release"])));
+        context
+            .task_configs
+            .insert("release.quality.lint".to_string(), create_test_config(None));
+        context
+            .task_configs
+            .insert("release.quality.test".to_string(), create_test_config(None));
+        context.task_configs.insert(
+            "deploy".to_string(),
+            create_test_config(Some(vec!["release"])),
+        );
 
         // Create task definitions
-        context.task_definitions.insert("release.quality.lint".to_string(), create_test_definition("release.quality.lint"));
-        context.task_definitions.insert("release.quality.test".to_string(), create_test_definition("release.quality.test"));
-        context.task_definitions.insert("deploy".to_string(), create_test_definition("deploy"));
+        context.task_definitions.insert(
+            "release.quality.lint".to_string(),
+            create_test_definition("release.quality.lint"),
+        );
+        context.task_definitions.insert(
+            "release.quality.test".to_string(),
+            create_test_definition("release.quality.test"),
+        );
+        context
+            .task_definitions
+            .insert("deploy".to_string(), create_test_definition("deploy"));
 
         // Create nested task group structure
         let mut quality_tasks = HashMap::new();
@@ -553,7 +588,7 @@ mod tests {
             TaskNode::Task(Box::new(create_test_config(None))),
         );
         quality_tasks.insert(
-            "test".to_string(), 
+            "test".to_string(),
             TaskNode::Task(Box::new(create_test_config(None))),
         );
 
@@ -582,11 +617,13 @@ mod tests {
         // Check that the deploy task depends on both nested tasks
         let deploy_def = &context.task_definitions["deploy"];
         assert_eq!(deploy_def.dependencies.len(), 2);
-        
-        let dep_names: HashSet<String> = deploy_def.dependencies.iter()
+
+        let dep_names: HashSet<String> = deploy_def
+            .dependencies
+            .iter()
             .map(|d| d.name.clone())
             .collect();
-        
+
         assert!(dep_names.contains("release.quality.lint"));
         assert!(dep_names.contains("release.quality.test"));
     }
@@ -603,8 +640,13 @@ mod tests {
         };
 
         // Create task that depends on empty group
-        context.task_configs.insert("build".to_string(), create_test_config(Some(vec!["empty_group"])));
-        context.task_definitions.insert("build".to_string(), create_test_definition("build"));
+        context.task_configs.insert(
+            "build".to_string(),
+            create_test_config(Some(vec!["empty_group"])),
+        );
+        context
+            .task_definitions
+            .insert("build".to_string(), create_test_definition("build"));
 
         // Create empty task group
         context.task_nodes.insert(
@@ -633,8 +675,13 @@ mod tests {
         };
 
         // Create task that depends on circular group structure
-        context.task_configs.insert("build".to_string(), create_test_config(Some(vec!["circular"])));
-        context.task_definitions.insert("build".to_string(), create_test_definition("build"));
+        context.task_configs.insert(
+            "build".to_string(),
+            create_test_config(Some(vec!["circular"])),
+        );
+        context
+            .task_definitions
+            .insert("build".to_string(), create_test_definition("build"));
 
         // Create circular nested group structure: circular.nested -> circular
         let mut nested_tasks = HashMap::new();
@@ -683,11 +730,21 @@ mod tests {
         };
 
         // Create deeply nested task structure (5 levels deep)
-        context.task_configs.insert("deep.level1.level2.level3.task".to_string(), create_test_config(None));
-        context.task_configs.insert("build".to_string(), create_test_config(Some(vec!["deep"])));
-        
-        context.task_definitions.insert("deep.level1.level2.level3.task".to_string(), create_test_definition("deep.level1.level2.level3.task"));
-        context.task_definitions.insert("build".to_string(), create_test_definition("build"));
+        context.task_configs.insert(
+            "deep.level1.level2.level3.task".to_string(),
+            create_test_config(None),
+        );
+        context
+            .task_configs
+            .insert("build".to_string(), create_test_config(Some(vec!["deep"])));
+
+        context.task_definitions.insert(
+            "deep.level1.level2.level3.task".to_string(),
+            create_test_definition("deep.level1.level2.level3.task"),
+        );
+        context
+            .task_definitions
+            .insert("build".to_string(), create_test_definition("build"));
 
         // Create nested structure: deep -> level1 -> level2 -> level3 -> task
         let level3_tasks = {
@@ -753,7 +810,10 @@ mod tests {
         // Check that the deeply nested task was correctly resolved
         let build_def = &context.task_definitions["build"];
         assert_eq!(build_def.dependencies.len(), 1);
-        assert_eq!(build_def.dependencies[0].name, "deep.level1.level2.level3.task");
+        assert_eq!(
+            build_def.dependencies[0].name,
+            "deep.level1.level2.level3.task"
+        );
     }
 
     #[test]
@@ -768,16 +828,34 @@ mod tests {
         };
 
         // Create individual tasks
-        context.task_configs.insert("lint".to_string(), create_test_config(None));
-        context.task_configs.insert("test.unit".to_string(), create_test_config(None));
-        context.task_configs.insert("test.integration".to_string(), create_test_config(None));
-        context.task_configs.insert("build".to_string(), create_test_config(Some(vec!["lint", "test"])));
+        context
+            .task_configs
+            .insert("lint".to_string(), create_test_config(None));
+        context
+            .task_configs
+            .insert("test.unit".to_string(), create_test_config(None));
+        context
+            .task_configs
+            .insert("test.integration".to_string(), create_test_config(None));
+        context.task_configs.insert(
+            "build".to_string(),
+            create_test_config(Some(vec!["lint", "test"])),
+        );
 
         // Create task definitions
-        context.task_definitions.insert("lint".to_string(), create_test_definition("lint"));
-        context.task_definitions.insert("test.unit".to_string(), create_test_definition("test.unit"));
-        context.task_definitions.insert("test.integration".to_string(), create_test_definition("test.integration"));
-        context.task_definitions.insert("build".to_string(), create_test_definition("build"));
+        context
+            .task_definitions
+            .insert("lint".to_string(), create_test_definition("lint"));
+        context
+            .task_definitions
+            .insert("test.unit".to_string(), create_test_definition("test.unit"));
+        context.task_definitions.insert(
+            "test.integration".to_string(),
+            create_test_definition("test.integration"),
+        );
+        context
+            .task_definitions
+            .insert("build".to_string(), create_test_definition("build"));
 
         // Create test group
         let mut test_tasks = HashMap::new();
@@ -805,11 +883,13 @@ mod tests {
         // Check that build depends on lint (individual) and both test tasks (from group)
         let build_def = &context.task_definitions["build"];
         assert_eq!(build_def.dependencies.len(), 3);
-        
-        let dep_names: HashSet<String> = build_def.dependencies.iter()
+
+        let dep_names: HashSet<String> = build_def
+            .dependencies
+            .iter()
             .map(|d| d.name.clone())
             .collect();
-        
+
         assert!(dep_names.contains("lint"));
         assert!(dep_names.contains("test.unit"));
         assert!(dep_names.contains("test.integration"));
