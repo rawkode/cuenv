@@ -52,7 +52,7 @@ op://vault/item/section/field
 #### Examples
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv/schema"
 
@@ -117,7 +117,7 @@ gcp-secret://project-id/secret-name/version
 #### Examples
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 // Latest version of a secret
 API_KEY: "gcp-secret://my-project/api-key"
@@ -138,7 +138,7 @@ SERVICE_ACCOUNT_KEY: "gcp-secret://my-project/service-account-key"
 For better type safety and documentation, you can use structured format for secrets:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv/schema"
 
@@ -176,7 +176,7 @@ For integrating with other secret management systems, you can create custom comm
 Define custom resolvers directly on individual secrets:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -196,7 +196,7 @@ env: cuenv.#Env & {
 For better reusability, create custom resolver types:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -226,7 +226,7 @@ Secrets are only resolved when using the `cuenv run` command:
 ```bash
 # Create env.cue with secrets
 cat > env.cue << 'EOF'
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv/schema"
 
@@ -271,7 +271,7 @@ cuenv run sh -c 'echo "$DATABASE_PASSWORD $API_KEY"'
 ### 1. Never Commit Secret Values
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv/schema"
 
@@ -287,7 +287,7 @@ API_KEY: schema.#OnePasswordRef & {
 ### 2. Use Specific Vaults/Projects
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv/schema"
 
@@ -309,7 +309,7 @@ DEV_API_KEY: "gcp-secret://dev-project/api-key"
 Only grant access to secrets that are needed:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv/schema"
 
@@ -329,7 +329,7 @@ AWS_SECRET_KEY: schema.#OnePasswordRef & {
 When using GCP Secrets Manager with versions:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 // Pin to specific versions during rotation
 API_KEY: "gcp-secret://my-project/api-key/5"  // Current version
@@ -350,7 +350,7 @@ Both 1Password and GCP provide audit logs:
 Use different secrets for different environments:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv/schema"
 
@@ -456,7 +456,7 @@ JWT_SECRET=super-secret-key
 After (`env.cue`):
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv/schema"
 
@@ -481,7 +481,7 @@ export API_KEY=$(gcloud secrets versions access latest --secret=api-key)
 After (`env.cue`):
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv/schema"
 

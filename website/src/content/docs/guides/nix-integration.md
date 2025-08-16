@@ -33,7 +33,7 @@ cuenv exec cargo check        # Uses nix cargo with custom env vars
 ## Configuration Example
 
 ```cue
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 

@@ -61,7 +61,7 @@ Tasks can depend on tasks from other packages using the package:task notation:
 
 ```cue
 // tools/deploy/env.cue
-package env
+package cuenv
 
 tasks: {
     "deploy": {

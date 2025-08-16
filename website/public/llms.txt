@@ -50,7 +50,7 @@ The core philosophy of cuenv is to use the CUE configuration language to define 
 2.  **Hook into your shell**: `eval "$(cuenv init bash)"` (or `zsh`, `fish`).
 3.  **Create `env.cue`**: In your project root, create an `env.cue` file.
     ```cue
-    package env
+    package cuenv
 
     env: {
         APP_NAME: "my-app"

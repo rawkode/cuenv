@@ -57,7 +57,7 @@ CUE is purpose-built for configuration:
 <div class="feature-card">
 
 ```cue
-package env
+package cuenv
 
 env: {
     // Type-safe environment variables
@@ -139,7 +139,7 @@ eval "$(cuenv init bash)"  # or zsh, fish
 
 # Test drive
 mkdir myproject && cd myproject
-echo 'package env
+echo 'package cuenv
 
 env: {
     DATABASE_URL: "postgres://localhost/dev"

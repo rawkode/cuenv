@@ -9,14 +9,14 @@ CUE is what JSON should have been. Types, validation, no trailing comma drama. H
 
 Your `env.cue` needs:
 
-1. `package env` at the top
+1. `package cuenv` at the top
 2. Variables as key-value pairs inside an `env:` field
 3. That's it
 
 Variables go inside the `env:` field, and tasks (if any) go at the top level in a `tasks:` field.
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     // String values
@@ -38,7 +38,7 @@ env: {
 ### Strings
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     // Simple strings
@@ -60,7 +60,7 @@ env: {
 ### Numbers
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     // Integers
@@ -77,7 +77,7 @@ env: {
 ### Booleans
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     // Booleans are converted to "true" or "false" strings
@@ -92,7 +92,7 @@ env: {
 ### String Interpolation
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     // Basic interpolation
@@ -111,7 +111,7 @@ env: {
 ### Computed Values
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     // Mathematical operations
@@ -129,7 +129,7 @@ env: {
 ### Constraints and Defaults
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     // Default values with constraints
@@ -148,7 +148,7 @@ env: {
 ### Definitions and Reuse
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 // Define reusable patterns
 #DatabaseConfig: {
@@ -180,7 +180,7 @@ env: {
 cuenv supports shell variable expansion in string values:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     // Using $HOME
@@ -202,7 +202,7 @@ env: {
 ### Conditional Values
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     ENVIRONMENT: "development"
@@ -225,7 +225,7 @@ env: {
 ### Lists and Joining
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "strings"
 
@@ -244,7 +244,7 @@ env: {
 ### Importing CUE Packages
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "strings"
 
@@ -261,7 +261,7 @@ env: {
 ### 1. Use Meaningful Names
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     // Good: Clear and descriptive
@@ -277,7 +277,7 @@ env: {
 ### 2. Group Related Variables
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     // Database configuration
@@ -301,7 +301,7 @@ env: {
 ### 3. Document Complex Values
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     // JWT expiration in seconds (24 hours)
@@ -318,7 +318,7 @@ env: {
 ### 4. Use Type Constraints
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     // Ensure valid port numbers
@@ -337,7 +337,7 @@ env: {
 ### Feature Flags
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     // Boolean feature flags
@@ -353,7 +353,7 @@ env: {
 ### Multi-Environment Setup
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -379,7 +379,7 @@ env: cuenv.#Env & {
 ### URL Construction
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     // Build URLs from components
@@ -406,8 +406,8 @@ env: {
        PORT: 3000
    }
 
-   // Correct: Include package env
-   package env
+   // Correct: Include package cuenv
+   package cuenv
 
    env: {
        PORT: 3000
@@ -417,7 +417,7 @@ env: {
 1. **Invalid type mixing**
 
    ```cue
-   package env
+   package cuenv
 
    env: {
        // Error: Can't add string to number
@@ -432,7 +432,7 @@ env: {
 1. **Undefined references**
 
    ```cue
-   package env
+   package cuenv
 
    env: {
        // Error: HOSTNAME is not defined
@@ -451,7 +451,7 @@ cuenv supports defining tasks that can be executed with the `cuenv task` command
 ### Basic Task Definition
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     // Your environment variables
@@ -500,7 +500,7 @@ Tasks support the following properties:
 ### Task Dependencies
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 tasks: {
     "clean": {
@@ -531,7 +531,7 @@ tasks: {
 ### Advanced Task Configuration
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 tasks: {
     "generate-docs": {
@@ -578,7 +578,7 @@ cuenv task deploy  # Will run clean, build, test, then deploy
 Tasks inherit all environment variables defined in your `env:` field, making it easy to use configuration values in your scripts:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     API_URL: "https://api.example.com"
@@ -611,7 +611,7 @@ tasks: {
 cuenv supports hooks that run when entering or exiting an environment. Hooks must be defined at the top level of your `env.cue` file, not inside the `env:` field:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 // Hook definitions at top level
 hooks: {

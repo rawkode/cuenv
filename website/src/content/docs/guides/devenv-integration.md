@@ -32,7 +32,7 @@ cuenv exec node --version  # Uses devenv's Node.js
 ## Configuration Example
 
 ```cue
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 

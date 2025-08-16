@@ -61,7 +61,7 @@ cuenv automatically detects changes to your environment files and reloads them:
 
 ```cue
 // env.cue
-package env
+package cuenv
 
 import "./config/database.cue"
 import "./config/api.cue"
@@ -135,7 +135,7 @@ You can add additional files to the watch list:
 
 ```cue
 // env.cue
-package env
+package cuenv
 
 // Watch external configuration
 #watch: [

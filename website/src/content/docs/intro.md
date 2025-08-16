@@ -130,7 +130,7 @@ cargo install cuenv
 eval "$(cuenv shell init bash)"
 
 # Try it
-echo 'package env
+echo 'package cuenv
 PORT: 8080
 DATABASE_URL: "postgres://localhost/dev"' > env.cue
 

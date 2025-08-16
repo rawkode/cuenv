@@ -20,7 +20,7 @@ Tag sensitive vars with capabilities. They only load for the right commands.
 Use the `@capability()` attribute to tag variables:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -71,7 +71,7 @@ There are three ways to enable capabilities:
 Define which commands automatically receive which capabilities:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -113,7 +113,7 @@ env: cuenv.#Env & {
 Variables can require multiple capabilities:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -132,7 +132,7 @@ env: cuenv.#Env & {
 ### Development vs Production
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -152,7 +152,7 @@ env: cuenv.#Env & {
 ### CI/CD Pipeline
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -186,7 +186,7 @@ env: cuenv.#Env & {
 ### Multi-Cloud Setup
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -224,7 +224,7 @@ env: cuenv.#Env & {
 Only expose credentials when absolutely necessary:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -242,7 +242,7 @@ env: cuenv.#Env & {
 Use specific capabilities for sensitive operations:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -261,7 +261,7 @@ env: cuenv.#Env & {
 Different capabilities for different environments:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -288,7 +288,7 @@ env: cuenv.#Env & {
 Create capability hierarchies:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -317,7 +317,7 @@ env: cuenv.#Env & {
 Use CUE's power for dynamic capabilities:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -352,7 +352,7 @@ env: cuenv.#Env & {
 Track capability usage:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -407,7 +407,7 @@ grep -A1 "capabilities:" env.cue
 ### 1. Microservices
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -435,7 +435,7 @@ env: cuenv.#Env & {
 ### 2. Third-Party Integrations
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -457,7 +457,7 @@ env: cuenv.#Env & {
 ### 3. Infrastructure as Code
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
