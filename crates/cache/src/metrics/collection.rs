@@ -87,15 +87,9 @@ impl CacheMetrics {
         self.inner.evictions.store(0, Ordering::Relaxed);
         self.inner.current_size.store(0, Ordering::Relaxed);
         self.inner.max_size.store(0, Ordering::Relaxed);
-        self.inner
-            .total_hit_latency_ns
-            .store(0, Ordering::Relaxed);
-        self.inner
-            .total_miss_latency_ns
-            .store(0, Ordering::Relaxed);
-        self.inner
-            .total_put_latency_ns
-            .store(0, Ordering::Relaxed);
+        self.inner.total_hit_latency_ns.store(0, Ordering::Relaxed);
+        self.inner.total_miss_latency_ns.store(0, Ordering::Relaxed);
+        self.inner.total_put_latency_ns.store(0, Ordering::Relaxed);
         self.inner.errors.store(0, Ordering::Relaxed);
 
         if let Ok(mut compression_ratio) = self.inner.compression_ratio.write() {

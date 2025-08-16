@@ -12,9 +12,9 @@
 
 pub mod endpoint;
 
-mod core;
-mod collection;  
 mod calculation;
+mod collection;
+mod core;
 mod snapshot;
 
 #[cfg(test)]
