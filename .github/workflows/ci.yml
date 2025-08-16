@@ -14,15 +14,30 @@ permissions:
   contents: read
 jobs:
   test:
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        rust: [stable]
+        include:
+          - os: namespace-profile-linux-caching
+            runs-on: [namespace-profile-linux-caching, namespace-experiments:linux.landlock=enabled]
+            rust: stable
+          - os: namespace-profile-macos-caching
+            runs-on: [namespace-profile-macos-caching]
+            rust: stable
     steps:
       - uses: actions/checkout@v4
-      - name: nix-install
+      - name: namespacelabs-nix-cache
+        uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          path: /tmp/nix
+      - name: nix-install (macOS)
+        if: contains(matrix.os, 'macos')
+        uses: DeterminateSystems/nix-installer-action@main
+        with:
+          mac-volume-label: "nix-cache"
+      - name: nix-install (Linux)
+        if: contains(matrix.os, 'linux')
         uses: DeterminateSystems/nix-installer-action@main
       - name: nix-build-and-check
         run: |
@@ -62,11 +77,17 @@ jobs:
         run: |
           echo "::warning::Schema compatibility test failed - this may indicate a breaking change"
   coverage:
-    runs-on: ubuntu-latest
+    runs-on:
+      - namespace-profile-linux-caching
+      - nscloud-cache-tag-nix-cache
     needs: [test]
     if: always() && (needs.test.result == 'success')
     steps:
       - uses: actions/checkout@v4
+      - name: namespacelabs-nix-cache
+        uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          path: /nix
       - name: nix-install
         uses: DeterminateSystems/nix-installer-action@main
       - name: generate-coverage
