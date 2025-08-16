@@ -170,13 +170,6 @@ fn collect_task_names_from_group(
                     )));
                 }
 
-                // Build new path for nested recursion
-                let new_path = if path.is_empty() {
-                    task_name.clone()
-                } else {
-                    format!("{}.{}", path, task_name)
-                };
-
                 // Recursively process nested groups
                 collect_task_names_from_group(
                     &full_group_path, // Use the full path as the new group name
