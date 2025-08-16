@@ -185,7 +185,7 @@ tasks: {
 		outputs: ["package.tar.gz"]
 	}
 
-	"deploy": {
+	"production-deploy": {
 		description: "Deploy the packaged application"
 		command: "echo 'Deploying to production...'"
 		dependencies: ["package", "assets"] // Depends on packaging and all assets being ready
