@@ -179,10 +179,10 @@ fn collect_task_names_from_group(
 
                 // Recursively process nested groups
                 collect_task_names_from_group(
-                    &full_group_path,  // Use the full path as the new group name
+                    &full_group_path, // Use the full path as the new group name
                     subtasks,
                     result,
-                    String::new(),     // Reset path for the new group context
+                    String::new(), // Reset path for the new group context
                     visited_groups,
                     _all_task_nodes,
                 )?;
