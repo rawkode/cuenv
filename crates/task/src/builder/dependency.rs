@@ -704,9 +704,10 @@ mod tests {
         );
 
         // Add the nested task to task_definitions so it can be found during validation
-        context
-            .task_definitions
-            .insert("circular.nested.task".to_string(), create_test_definition("circular.nested.task"));
+        context.task_definitions.insert(
+            "circular.nested.task".to_string(),
+            create_test_definition("circular.nested.task"),
+        );
 
         // This should work fine - but let's test a real circular case
         // by making the nested group reference back to the parent
