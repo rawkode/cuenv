@@ -79,6 +79,7 @@ jobs:
   coverage:
     runs-on:
       - namespace-profile-linux-caching
+      - namespace-experiments:linux.landlock=enabled
       - nscloud-cache-tag-nix-cache
     needs: [test]
     if: always() && (needs.test.result == 'success')
