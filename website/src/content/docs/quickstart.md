@@ -17,7 +17,7 @@ cd my-project
 Create an env.cue file with your favorite editor:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 env: {
     // Application configuration
@@ -83,7 +83,7 @@ You can split your configuration across multiple CUE files in the same package:
 ```bash
 # Create a database configuration file
 cat > database.cue << 'EOF'
-package env
+package cuenv
 
 env: {
     // Database-specific settings
@@ -95,7 +95,7 @@ EOF
 
 # Create an app configuration file
 cat > app.cue << 'EOF'
-package env
+package cuenv
 
 env: {
     // App-specific settings
@@ -133,7 +133,7 @@ echo $NEW_VAR
 cuenv also supports defining and executing tasks alongside your environment configuration:
 
 ```cue
-package env
+package cuenv
 
 env: {
     APP_NAME: "My Awesome App"
@@ -178,7 +178,7 @@ cuenv task start -- --port 4000
 You can use CUE's powerful unification to create environment-specific configurations:
 
 ```cue
-package env
+package cuenv
 
 env: {
     // Base configuration
@@ -222,7 +222,7 @@ CUENV_ENV=staging cuenv exec -- echo $DATABASE_HOST
 ### Shell Variable Expansion
 
 ```cue
-package env
+package cuenv
 
 env: {
     // Use $HOME and other shell variables
@@ -234,7 +234,7 @@ env: {
 ### Boolean Values
 
 ```cue
-package env
+package cuenv
 
 env: {
     // Booleans are converted to "true"/"false" strings
@@ -246,7 +246,7 @@ env: {
 ### Number Values
 
 ```cue
-package env
+package cuenv
 
 env: {
     // Numbers are converted to strings
@@ -259,7 +259,7 @@ env: {
 ### Using CUE Constraints
 
 ```cue
-package env
+package cuenv
 
 env: {
     // Set defaults with constraints

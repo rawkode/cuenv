@@ -13,7 +13,7 @@ The primary configuration file that defines environment variables.
 **Required:** Yes (for environment loading)
 
 ```cue
-package env
+package cuenv
 
 // Environment variables
 KEY: "value"
@@ -187,10 +187,10 @@ echo "Previous PATH: $CUENV_PREV_PATH"
 
 ### Package Declaration
 
-Every `env.cue` must declare package env:
+Every `env.cue` must declare package cuenv:
 
 ```cue
-package env
+package cuenv
 
 // Configuration follows...
 ```
@@ -200,7 +200,7 @@ package env
 #### String Variables
 
 ```cue
-package env
+package cuenv
 
 // Simple string
 NAME: "value"
@@ -219,7 +219,7 @@ MESSAGE: "\(BASE) world"
 #### Numeric Variables
 
 ```cue
-package env
+package cuenv
 
 // Integer
 PORT: 3000
@@ -235,7 +235,7 @@ DEBUG_PORT: BASE_PORT + 1
 #### Boolean Variables
 
 ```cue
-package env
+package cuenv
 
 // Converted to "true" or "false" strings
 DEBUG: true
@@ -247,7 +247,7 @@ PRODUCTION: false
 Define environment overrides:
 
 ```cue
-package env
+package cuenv
 
 // Base configuration
 PORT: 3000
@@ -270,7 +270,7 @@ environment: {
 Tag variables with required capabilities:
 
 ```cue
-package env
+package cuenv
 
 // Tagged variables
 AWS_KEY: "key" @capability("aws")
@@ -285,7 +285,7 @@ ADMIN_TOKEN: "token" @capability("admin", "sensitive")
 Map capabilities to commands:
 
 ```cue
-package env
+package cuenv
 
 capabilities: {
     aws: commands: ["aws", "terraform"]
@@ -299,7 +299,7 @@ capabilities: {
 ### 1Password Format
 
 ```cue
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv/schema"
 
@@ -314,7 +314,7 @@ SECRET: schema.#OnePasswordRef & {ref: "op://Personal/secret"} @capability("secu
 ### GCP Secrets Format
 
 ```cue
-package env
+package cuenv
 
 // URL format
 SECRET: "gcp://project/secret-name/latest"
@@ -366,7 +366,7 @@ end
 ### Conditional Configuration
 
 ```cue
-package env
+package cuenv
 
 import "strings"
 
@@ -382,7 +382,7 @@ DEBUG: {
 ### Variable Validation
 
 ```cue
-package env
+package cuenv
 
 // Constrained values
 PORT: int & >=1024 & <=65535
@@ -393,7 +393,7 @@ LOG_LEVEL: *"info" | "debug" | "warn" | "error"
 ### Computed Configurations
 
 ```cue
-package env
+package cuenv
 
 // Base values
 REGION: "us-east-1"
@@ -408,7 +408,7 @@ FUNCTION_NAME: "\(SERVICE)-\(STAGE)-handler"
 ### Nested Structures
 
 ```cue
-package env
+package cuenv
 
 // Define structure
 _config: {
@@ -529,7 +529,7 @@ chmod 640 env.cue
 Use capabilities to limit exposure:
 
 ```cue
-package env
+package cuenv
 
 // Only available with 'sensitive' capability
 PRIVATE_KEY: "..." @capability("sensitive")

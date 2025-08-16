@@ -173,7 +173,7 @@ After restarting your shell or sourcing your configuration file, verify the inst
 cuenv --version
 
 # Create a test CUE file
-echo 'package env
+echo 'package cuenv
 TEST_VAR: "Hello from cuenv!"' > env.cue
 
 # The environment should load automatically

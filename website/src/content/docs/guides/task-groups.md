@@ -14,7 +14,7 @@ cuenv supports organizing tasks into groups with different execution strategies.
 Simple task collection for organization without automatic execution.
 
 ```cue
-package env
+package cuenv
 
 tasks: {
     development: {
@@ -55,7 +55,7 @@ cuenv task development.start  # Alternative syntax
 Execute tasks one after another in definition order.
 
 ```cue
-package env
+package cuenv
 
 tasks: {
     ci: {
@@ -100,7 +100,7 @@ cuenv task ci
 Execute all tasks simultaneously for maximum speed.
 
 ```cue
-package env
+package cuenv
 
 tasks: {
     checks: {
@@ -145,7 +145,7 @@ cuenv task checks
 Execute tasks based on dependency graph (DAG) for complex workflows.
 
 ```cue
-package env
+package cuenv
 
 tasks: {
     deploy: {

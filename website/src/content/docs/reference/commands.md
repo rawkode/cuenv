@@ -380,7 +380,7 @@ cuenv uses standard exit codes:
 ```bash
 # Create environment file
 cat > env.cue << 'EOF'
-package env
+package cuenv
 DATABASE_URL: "postgres://localhost/myapp"
 API_KEY: "dev-key-123"
 EOF
@@ -403,7 +403,7 @@ cuenv shell unload
 ```bash
 # env.cue with environments
 cat > env.cue << 'EOF'
-package env
+package cuenv
 
 PORT: 3000
 
@@ -427,7 +427,7 @@ cuenv exec -e production node server.js
 ```bash
 # env.cue with secrets
 cat > env.cue << 'EOF'
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv/schema"
 
@@ -485,7 +485,7 @@ CMD ["cuenv", "exec", "node", "server.js"]
 ```bash
 # Define capabilities in env.cue
 cat > env.cue << 'EOF'
-package env
+package cuenv
 
 # General variables
 APP_NAME: "myapp"

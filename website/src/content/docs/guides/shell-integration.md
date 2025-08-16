@@ -588,7 +588,7 @@ new_project() {
     mkdir -p "$1"
     cd "$1"
     cat > env.cue << 'EOF'
-package env
+package cuenv
 
 PROJECT_NAME: "$1"
 ENVIRONMENT: "development"

@@ -12,7 +12,7 @@ One `env.cue` file. Multiple environments. No YAML templating hell.
 Define environment-specific overrides in your `env.cue`:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -72,7 +72,7 @@ There are three ways to specify which environment to use:
 Environment configurations inherit and override base values:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -102,7 +102,7 @@ env: cuenv.#Env & {
 ### Environment-Specific Secrets
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -141,7 +141,7 @@ env: cuenv.#Env & {
 ### Feature Flags by Environment
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -174,7 +174,7 @@ env: cuenv.#Env & {
 ### Environment-Specific Services
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -207,7 +207,7 @@ Capabilities allow you to control which environment variables are exposed based 
 ### Defining Capabilities
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -229,7 +229,7 @@ env: cuenv.#Env & {
 Define which commands automatically get which capabilities:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -272,7 +272,7 @@ capabilities: {
 ### Multi-Region Deployment
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -314,7 +314,7 @@ cuenv run -e production-eu -- ./deploy.sh
 ### Development Modes
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -347,7 +347,7 @@ env: cuenv.#Env & {
 ### CI/CD Environments
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -397,7 +397,7 @@ For multi-region:
 Use CUE constraints to validate environment values:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -424,7 +424,7 @@ env: cuenv.#Env & {
 Never hardcode secrets in production environments:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -451,7 +451,7 @@ env: cuenv.#Env & {
 Document environment-specific behavior:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -478,7 +478,7 @@ env: cuenv.#Env & {
 Use CUE's power for dynamic configuration:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import (
     "strings"
@@ -514,7 +514,7 @@ env: cuenv.#Env & {
 Compose environments from multiple sources:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
@@ -550,7 +550,7 @@ env: cuenv.#Env & {
 Create aliases for common environment combinations:
 
 ```cue title="env.cue"
-package env
+package cuenv
 
 import "github.com/rawkode/cuenv"
 
