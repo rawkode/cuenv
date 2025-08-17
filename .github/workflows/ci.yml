@@ -20,7 +20,7 @@ jobs:
       matrix:
         include:
           - os: namespace-profile-linux-caching
-            runs-on: [namespace-profile-linux-caching, namespace-experiments:linux.landlock=enabled]
+            runs-on: [namespace-profile-linux-caching, 'namespace-experiments:linux.landlock=enabled']
             rust: stable
           - os: namespace-profile-macos-caching
             runs-on: [namespace-profile-macos-caching]
