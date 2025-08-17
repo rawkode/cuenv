@@ -1,5 +1,4 @@
 name: ci
-# CI workflow for cuenv - optimized with comprehensive caching
 on:
   push:
     branches: [main]
@@ -8,7 +7,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   CUENV_ENV: ci
-  RUST_BACKTRACE: 1
+  RUST_BACKTRACE: full
 permissions:
   id-token: write
   contents: read
@@ -20,10 +19,15 @@ jobs:
       matrix:
         include:
           - os: namespace-profile-linux-caching
-            runs-on: [namespace-profile-linux-caching, 'namespace-experiments:linux.landlock=enabled']
+            runs-on:
+              - nscloud-ubuntu-24.04-amd64-4x8-with-cache
+              - nscloud-cache-tag-cuenv
+              - nscloud-cache-size-50gb
+              - nscloud-git-mirror-5gb
+              - namespace-experiments:linux.landlock=enabled
             rust: stable
           - os: namespace-profile-macos-caching
-            runs-on: [namespace-profile-macos-caching]
+            runs-on: namespace-profile-macos-caching
             rust: stable
     steps:
       - uses: actions/checkout@v4
@@ -78,9 +82,10 @@ jobs:
           echo "::warning::Schema compatibility test failed - this may indicate a breaking change"
   coverage:
     runs-on:
-      - namespace-profile-linux-caching
+      - nscloud-ubuntu-22.04-amd64-8x16-with-cache
+      - nscloud-cache-size-50gb
+      - nscloud-cache-tag-cuenv
       - namespace-experiments:linux.landlock=enabled
-      - nscloud-cache-tag-nix-cache
     needs: [test]
     if: always() && (needs.test.result == 'success')
     steps:
