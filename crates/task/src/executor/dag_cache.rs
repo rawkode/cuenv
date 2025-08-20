@@ -332,8 +332,8 @@ mod tests {
             let task_names = vec![format!("test{}", i)];
             let mut task_configs = HashMap::new();
             task_configs.insert(
-                format!("test{}", i),
-                create_test_config(&format!("echo test{}", i), None),
+                format!("test{i}"),
+                create_test_config(&format!("echo test{i}"), None),
             );
 
             let dag = crate::executor::unified_dag::UnifiedTaskDAG::builder()

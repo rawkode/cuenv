@@ -80,3 +80,4 @@ insta = { workspace = true }
 cucumber = { workspace = true }
 futures = { workspace = true }
 regex = { workspace = true }
+uuid = { workspace = true }

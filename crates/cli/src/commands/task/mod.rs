@@ -412,10 +412,7 @@ async fn execute_task_group(
         )));
     };
 
-    println!(
-        "Executing group '{}' in {} mode",
-        group_name, collection_type
-    );
+    println!("Executing group '{group_name}' in {collection_type} mode");
 
     // Create executor and use unified DAG for all execution modes
     let executor = TaskExecutor::new(env_manager, current_dir).await?;
@@ -521,7 +518,7 @@ async fn display_dependency_graph(
                                 cuenv_config::TaskCollection::Parallel(_) => "parallel",
                             };
 
-                            println!("📁 Group: {} ({})", name, mode_name);
+                            println!("📁 Group: {name} ({mode_name})");
 
                             for (task_name, _) in tasks.iter() {
                                 println!("  └─ {task_name}");

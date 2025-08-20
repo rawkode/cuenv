@@ -33,7 +33,7 @@ jobs:
           nix develop --command cue vet -c ./...
       - name: cuenv-test-all
         run: |
-          nix develop --command cargo nextest run --profile ci --no-fail-fast
+          nix develop --command cargo nextest run --profile ci --no-fail-fast --test-threads 16
       - name: cuenv-test-examples
         run: |
           # Use the binary from Nix build (already cached)
@@ -73,8 +73,8 @@ jobs:
         run: |
           # Use Nix cache - build will be instant if already cached
           nix build .#cuenv
-          # Generate coverage report using cached dependencies
-          nix develop --command cargo llvm-cov nextest --lcov --output-path lcov.info
+          # Generate coverage report using cached dependencies with optimized parallelism
+          nix develop --command cargo llvm-cov nextest --lcov --output-path lcov.info --profile coverage
       - name: upload-coverage
         uses: codecov/codecov-action@v4
         with:

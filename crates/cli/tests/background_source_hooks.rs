@@ -21,7 +21,7 @@ env: {
         onEnter: [
             {
                 command: "bash"
-                args: ["-c", "sleep 2 && echo 'export TEST_BG_VAR=\"hook_completed\"'"]
+                args: ["-c", "sleep 0.1 && echo 'export TEST_BG_VAR=\"hook_completed\"'"]
                 source: true
             },
         ]
@@ -67,7 +67,7 @@ env: {
     });
 
     // Wait a moment for hooks to start
-    std::thread::sleep(Duration::from_millis(500));
+    std::thread::sleep(Duration::from_millis(50));
 
     // Step 3: Check status while hooks are running
     let output = Command::new(cuenv_bin)
@@ -81,7 +81,7 @@ env: {
     // The important test is that the environment gets captured
 
     // Step 4: Wait for hooks to complete
-    std::thread::sleep(Duration::from_secs(3));
+    std::thread::sleep(Duration::from_millis(200));
     handle.join().expect("Background thread panicked");
 
     // Step 5: Run shell hook to capture environment
@@ -163,7 +163,7 @@ env: {
     assert!(output.status.success());
 
     // Small delay to ensure hook completes
-    std::thread::sleep(Duration::from_millis(500));
+    std::thread::sleep(Duration::from_millis(50));
 
     // Check if environment was captured
     let output = Command::new(cuenv_bin)
@@ -229,7 +229,7 @@ env: {
     assert!(output.status.success());
 
     // Wait for hooks to complete
-    std::thread::sleep(Duration::from_millis(500));
+    std::thread::sleep(Duration::from_millis(50));
 
     // Check captured environment
     let output = Command::new(cuenv_bin)

@@ -98,6 +98,24 @@ impl TestWorld {
         Ok(())
     }
 
+    /// Execute a printenv command to test environment variables
+    pub async fn run_printenv(&mut self, args: &[&str]) -> anyhow::Result<()> {
+        let start_time = Instant::now();
+        let output = std::process::Command::new("printenv")
+            .args(args)
+            .current_dir(self.working_dir.as_ref().unwrap())
+            .envs(&self.env_vars)
+            .output()?;
+        let duration = start_time.elapsed();
+
+        self.last_exit_code = Some(output.status.code().unwrap_or(-1));
+        self.last_output = Some(String::from_utf8_lossy(&output.stdout).to_string());
+        self.last_error = Some(String::from_utf8_lossy(&output.stderr).to_string());
+        self.last_command_duration = Some(duration);
+
+        Ok(())
+    }
+
     /// Clean up any background processes
     pub fn cleanup(&mut self) {
         for mut process in self.processes.drain(..) {

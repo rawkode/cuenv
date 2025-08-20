@@ -82,8 +82,13 @@ async fn run_command(world: &mut TestWorld, command: String) -> anyhow::Result<(
     let args: Vec<&str> = command.split_whitespace().collect();
     if args[0] == "cuenv" {
         world.run_cuenv(&args[1..]).await?;
+    } else if args[0] == "printenv" {
+        world.run_printenv(&args[1..]).await?;
     } else {
-        anyhow::bail!("Only cuenv commands are supported");
+        anyhow::bail!(
+            "Only cuenv and printenv commands are supported, got: {}",
+            args[0]
+        );
     }
     Ok(())
 }
@@ -229,6 +234,22 @@ async fn change_to_parent_directory(world: &mut TestWorld) -> anyhow::Result<()>
     Ok(())
 }
 
+#[when(regex = r#"I change to "([^"]+)" directory"#)]
+async fn change_to_named_directory(world: &mut TestWorld, dirname: String) -> anyhow::Result<()> {
+    let new_dir = world
+        .working_dir
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("No working directory set"))?
+        .join(dirname);
+
+    if !new_dir.exists() {
+        anyhow::bail!("Directory {} does not exist", dirname);
+    }
+
+    world.working_dir = Some(new_dir);
+    Ok(())
+}
+
 #[then(regex = r#"the environment should have "([^"]+)" set to "([^"]+)""#)]
 fn check_env_var_set(
     world: &mut TestWorld,
@@ -290,5 +311,12 @@ fn check_command_duration(world: &mut TestWorld, max_seconds: u64) -> anyhow::Re
             max_seconds
         );
     }
+    Ok(())
+}
+
+#[when(regex = r#"I wait for (\d+) seconds"#)]
+async fn wait_for_seconds(_world: &mut TestWorld, seconds: u64) -> anyhow::Result<()> {
+    let duration = std::time::Duration::from_secs(seconds);
+    tokio::time::sleep(duration).await;
     Ok(())
 }

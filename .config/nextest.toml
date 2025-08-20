@@ -6,9 +6,9 @@ dir = "target/nextest"
 
 [profile.default]
 # Set reasonable defaults for all tests
-slow-timeout = { period = "60s", terminate-after = 2 }
+slow-timeout = { period = "30s", terminate-after = 2 }
 leak-timeout = "100ms"
-test-threads = "num-cpus"
+test-threads = 16
 retries = 0
 
 # Store failure output for debugging
@@ -25,7 +25,7 @@ slow-timeout = { period = "30s" }
 # Cache and concurrent tests need limited parallelism
 [[profile.default.overrides]]
 filter = "test(concurrent) | test(cache)"
-slow-timeout = { period = "20s" }
+slow-timeout = { period = "10s" }
 
 # Chaos engineering tests need more time but not infinite
 [[profile.default.overrides]]
@@ -67,9 +67,10 @@ slow-timeout = { period = "60s", terminate-after = 1 }
 
 # Quick profile for development
 [profile.quick]
-test-threads = "num-cpus"
+test-threads = 16
 retries = 0
 fail-fast = true
+slow-timeout = { period = "15s" }
 
 # FFI tests need special handling due to Go-Rust boundary
 [[profile.default.overrides]]
@@ -90,8 +91,8 @@ slow-timeout = { period = "300s" }
 
 # Stress testing profile
 [profile.stress]
-test-threads = "num-cpus"
-slow-timeout = { period = "300s", terminate-after = 1 }
+test-threads = 16
+slow-timeout = { period = "60s", terminate-after = 1 }
 retries = 0
 
 [test-groups]

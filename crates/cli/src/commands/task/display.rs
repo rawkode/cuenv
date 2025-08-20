@@ -208,7 +208,7 @@ fn display_group_collection(
 
     if use_color {
         print!("{}", formatted_name.cyan().bold());
-        print!(" {}", mode_badge);
+        print!(" {mode_badge}");
         println!(" ({task_count} tasks)");
     } else {
         println!("{formatted_name} {mode_badge} ({task_count} tasks)");
@@ -269,7 +269,7 @@ fn display_tree_children_collection(
                 let is_last = count == total;
                 let connector = if is_last { TREE_LAST } else { TREE_BRANCH };
                 let child_prefix = if is_last { TREE_EMPTY } else { TREE_PIPE };
-                let name = format!("task_{}", index);
+                let name = format!("task_{index}");
 
                 match node {
                     TaskNode::Task(config) => {

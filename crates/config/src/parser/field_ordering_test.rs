@@ -102,7 +102,7 @@ tasks: {
                                                 1 => "Second",
                                                 2 => "Third",
                                                 3 => "Fourth",
-                                                _ => panic!("Unexpected task index: {}", index),
+                                                _ => panic!("Unexpected task index: {index}"),
                                             }
                                         );
                                         assert_eq!(

@@ -7,10 +7,10 @@ schema.#Cuenv
 hooks: onEnter: [
 	schema.#NixFlake & {preload: true},
 	{
-		// This hook sleeps for 5 seconds then exports TEST_BG_VAR
+		// This hook demonstrates background source hooks (minimal delay for development)
 		command: "bash"
 		args: ["-c", """
-			sleep 6
+			sleep 0.5
 			echo 'export TEST_BG_VAR="background_hook_completed"'
 			echo 'export TEST_TIMESTAMP="'$(date +%s)'"'
 			"""]
@@ -26,7 +26,7 @@ env: {
 	CUENV_ENV:         "development"
 	GOMAXPROCS:        "4"
 	RUST_BACKTRACE:    "1"
-	RUST_TEST_THREADS: "4"
+	RUST_TEST_THREADS: "16"
 
 	environment: production: {
 		CUENV_ENV: "production"
@@ -106,9 +106,9 @@ tasks: {
 		description: "Testing commands"
 		// Object structure enables parallel execution for speed
 		all: {
-			description: "Run all tests"
+			description: "Run all tests with optimized parallelism"
 			command:     "cargo"
-			args: ["nextest", "run"]
+			args: ["nextest", "run", "--test-threads", "16"]
 			inputs: ["src/**/*.rs", "tests/**/*.rs", "Cargo.toml"]
 		}
 		unit: {
@@ -142,15 +142,15 @@ tasks: {
 			inputs: ["examples/**/*", "tests/examples/**/*.rs"]
 		}
 		ci: {
-			description: "Run tests with CI profile"
+			description: "Run tests with CI profile and parallel execution"
 			command:     "cargo"
-			args: ["nextest", "run", "--profile", "ci"]
+			args: ["nextest", "run", "--profile", "ci", "--test-threads", "4"]
 			inputs: ["src/**/*.rs", "tests/**/*.rs", "Cargo.toml"]
 		}
 		coverage: {
-			description: "Generate test coverage report"
+			description: "Generate test coverage report with serial execution for accuracy"
 			command:     "cargo"
-			args: ["llvm-cov", "nextest", "--lcov", "--output-path", "lcov.info"]
+			args: ["llvm-cov", "nextest", "--lcov", "--output-path", "lcov.info", "--profile", "coverage"]
 			inputs: ["src/**/*.rs", "tests/**/*.rs", "Cargo.toml"]
 		}
 	}
@@ -270,12 +270,12 @@ tasks: {
 			// Object structure enables parallel test execution
 			unit: {
 				command: "cargo"
-				args: ["nextest", "run", "--lib"]
+				args: ["nextest", "run", "--lib", "--test-threads", "16"]
 				inputs: ["src/**/*.rs"]
 			}
 			integration: {
 				command: "cargo"
-				args: ["nextest", "run", "--tests"]
+				args: ["nextest", "run", "--tests", "--test-threads", "16"]
 				inputs: ["tests/**/*.rs"]
 			}
 			bdd: {
