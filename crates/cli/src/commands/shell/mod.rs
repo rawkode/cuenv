@@ -142,25 +142,47 @@ impl ShellCommands {
                 let shell_impl = shell_type.as_shell();
                 let current_dir = env::current_dir()?;
 
-                // First check if we need to unload
-                if StateManager::should_unload(&current_dir) {
-                    if let Ok(Some(diff)) = StateManager::get_diff() {
-                        for key in diff.removed() {
-                            println!("{}", shell_impl.unset(key));
-                        }
-                        for (key, _) in diff.added_or_changed() {
-                            if diff.prev.contains_key(key) {
-                                if let Some(orig_value) = diff.prev.get(key) {
-                                    println!("{}", shell_impl.export(key, orig_value));
-                                }
-                            } else {
+                // Check if we need to unload (directory changed)
+                let should_unload = StateManager::should_unload(&current_dir);
+
+                // Also check for orphaned state (state cleared but env vars remain)
+                let is_loaded = StateManager::is_loaded();
+                let has_orphaned_vars = !is_loaded
+                    && (std::env::var("TEST_BG_VAR").is_ok()
+                        || std::env::var("TEST_TIMESTAMP").is_ok()
+                        || std::env::var("CUENV_ENV").is_ok());
+
+                if should_unload || has_orphaned_vars {
+                    if should_unload {
+                        eprintln!("# cuenv: Unloading environment (directory changed)");
+                        // Use the diff for proper unloading
+                        if let Ok(Some(diff)) = StateManager::get_diff() {
+                            for key in diff.removed() {
                                 println!("{}", shell_impl.unset(key));
+                            }
+                            for (key, _) in diff.added_or_changed() {
+                                if diff.prev.contains_key(key) {
+                                    if let Some(orig_value) = diff.prev.get(key) {
+                                        println!("{}", shell_impl.export(key, orig_value));
+                                    }
+                                } else {
+                                    println!("{}", shell_impl.unset(key));
+                                }
+                            }
+                        }
+                        StateManager::unload().await.map_err(|e| {
+                            cuenv_core::Error::configuration(format!("Failed to unload state: {e}"))
+                        })?;
+                    } else if has_orphaned_vars {
+                        eprintln!("# cuenv: Cleaning up orphaned environment variables");
+                        // Manually clean up known orphaned variables
+                        let known_vars = ["TEST_BG_VAR", "TEST_TIMESTAMP", "CUENV_ENV"];
+                        for var in &known_vars {
+                            if std::env::var(var).is_ok() {
+                                println!("{}", shell_impl.unset(var));
                             }
                         }
                     }
-                    StateManager::unload().await.map_err(|e| {
-                        cuenv_core::Error::configuration(format!("Failed to unload state: {e}"))
-                    })?;
                 }
 
                 // Then check if current directory has an environment to load

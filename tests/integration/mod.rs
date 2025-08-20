@@ -22,6 +22,7 @@ pub mod resilience_integration_tests;
 pub mod resolver_format_test;
 pub mod secret_obfuscation_test;
 pub mod serialization_test;
+pub mod shell_environment_persistence_test;
 pub mod state_race_condition_test;
 pub mod supervisor_integration;
 pub mod sync_env_concurrent_test;

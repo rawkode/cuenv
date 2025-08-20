@@ -10,7 +10,7 @@ hooks: onEnter: [
 		// This hook demonstrates background source hooks (minimal delay for development)
 		command: "bash"
 		args: ["-c", """
-			sleep 0.5
+			sleep 1
 			echo 'export TEST_BG_VAR="background_hook_completed"'
 			echo 'export TEST_TIMESTAMP="'$(date +%s)'"'
 			"""]
