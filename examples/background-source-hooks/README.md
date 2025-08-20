@@ -1,11 +1,11 @@
 # Background Source Hooks Example
 
-This example demonstrates how cuenv handles long-running source hooks that are backgrounded and later provide environment variables to the shell.
+This example demonstrates how cuenv handles long-running source hooks that run automatically in the background and provide environment variables to the shell.
 
 ## Features Demonstrated
 
 1. **Source hooks** - Hooks marked with `source: true` that export environment variables
-2. **Background execution** - Pressing 'b' to continue hooks in the background
+2. **Automatic background execution** - Shell hooks run in background by default
 3. **Automatic environment capture** - Shell hook detects completed background hooks
 4. **One-time sourcing** - Captured environment is only sourced once
 
@@ -16,10 +16,10 @@ This example demonstrates how cuenv handles long-running source hooks that are b
    - Exports `TEST_BG_VAR` and `TEST_TIMESTAMP` environment variables
    - Is marked as `source: true` to capture the output
 
-2. When you run `cuenv env allow`:
-   - The hook starts executing
-   - After 1 second, you can press 'b' to background it
-   - The hook continues running in the background
+2. When you enter a directory with cuenv shell integration:
+   - The hook starts executing automatically in the background
+   - You can continue working while the hook runs
+   - The hook continues running without blocking the shell
 
 3. The shell integration (`cuenv shell hook`):
    - Checks for completed background hooks on each prompt
@@ -40,7 +40,7 @@ bash test.sh
 # 1. Allow the directory
 ../../target/debug/cuenv env allow .
 
-# 2. When prompted, press 'b' to background the hooks
+# 2. The hooks will start running automatically in the background
 
 # 3. Check status while running
 ../../target/debug/cuenv env status
@@ -59,7 +59,7 @@ bash test.sh
 
 The test should show:
 
-1. Hooks starting and being backgrounded
+1. Hooks starting automatically in the background
 2. Status showing 1 running hook
 3. After 5 seconds, status showing 0 hooks
 4. Shell hook outputting the captured environment variables

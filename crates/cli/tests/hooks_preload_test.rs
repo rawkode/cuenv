@@ -498,8 +498,8 @@ hooks: onEnter: [
     // which is complex to test in this unit test environment
 
     println!("✓ Shell hook test completed successfully");
-    println!("Note: Current implementation runs preload hooks synchronously in shell operations");
-    println!("This should be changed to background execution as per user requirements");
+    println!("Note: Preload hooks now run in background by default for shell operations");
+    println!("Interactive mode is only used for 'cuenv task' and 'cuenv exec' commands");
 
     _isolation.cleanup().await;
 }

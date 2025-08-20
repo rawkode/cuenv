@@ -51,8 +51,8 @@ env: {
     );
 
     // Step 2: Start hooks in background mode
-    // We'll simulate this by running the supervisor directly
-    // In a real scenario, the user would press 'b' to background
+    // Shell hooks now run in background by default
+    // No user interaction needed
 
     // For testing, we'll run the hooks in a separate thread and check the status
     let temp_path_clone = temp_path.to_path_buf();

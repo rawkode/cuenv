@@ -26,12 +26,9 @@ cd "$SCRIPT_DIR"
 echo -e "${GREEN}Step 1: Allow the directory${NC}"
 "$CUENV_BIN" env allow . || true
 
-echo -e "${GREEN}Step 2: Start hooks and background them${NC}"
-# Use expect or timeout with input simulation to automatically press 'b'
-(
-    sleep 2  # Wait for the prompt
-    echo "b"  # Send 'b' to background
-) | timeout 5 "$CUENV_BIN" env allow . 2>&1 | grep -E "(Running|background)" || true
+echo -e "${GREEN}Step 2: Start hooks (they run automatically in background)${NC}"
+# Hooks now run in background by default for shell operations
+"$CUENV_BIN" env allow . 2>&1 | grep -E "(Running|background)" || true
 
 echo ""
 echo -e "${GREEN}Step 3: Check hook status while running${NC}"

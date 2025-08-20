@@ -18,9 +18,9 @@ use super::utils::{get_cache_dir, is_process_running};
 /// The mode in which the supervisor should run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SupervisorMode {
-    /// Run hooks interactively in the foreground, allowing user to background them.
+    /// Run hooks interactively in the foreground, allowing user to background them. Used for 'cuenv task' and 'cuenv exec'.
     Foreground,
-    /// Run hooks in the background without user interaction.
+    /// Run hooks in the background without user interaction. Default for shell operations.
     Background,
     /// Run hooks synchronously, blocking until completion.
     Synchronous,

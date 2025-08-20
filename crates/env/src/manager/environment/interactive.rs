@@ -42,8 +42,8 @@ impl InteractiveHandler {
 
     /// Monitors for user input with a specified timeout.
     ///
-    /// This function will be responsible for showing a progress indicator and
-    /// listening for a `Ctrl-B` keypress to background the task.
+    /// This function shows a progress indicator and listens for a `Ctrl-B` keypress
+    /// to background the task. Used only for interactive commands like 'cuenv task' and 'cuenv exec'.
     pub async fn monitor_with_timeout(&mut self, duration: Duration) -> ControlFlow {
         // Update progress display if enough time has passed
         if self.last_progress_update.elapsed() > Duration::from_millis(500) {
