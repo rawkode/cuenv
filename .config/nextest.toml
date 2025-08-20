@@ -53,17 +53,10 @@ store-test-output = true
 # Ignore highly concurrent tests in CI to avoid TLS exhaustion
 # Note: nextest 0.9.x doesn't support status = "skip", so we handle this with filtering instead
 
-# Run integration tests serially in CI
 [[profile.ci.overrides]]
 filter = "test(integration) | test(comprehensive)"
 threads-required = 1
 slow-timeout = { period = "120s", terminate-after = 1 }
-
-# Environment override test has race condition with concurrent execution
-[[profile.ci.overrides]]
-filter = "test(test_environment_overrides)"
-threads-required = 1
-slow-timeout = { period = "60s", terminate-after = 1 }
 
 # Quick profile for development
 [profile.quick]
