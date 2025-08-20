@@ -16,7 +16,7 @@ jobs:
       - name: Extract version from tag
         id: version
         run: echo "VERSION=v${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      - name: Login to CUE registry
+        run: cue login --token ${{ secrets.CUE_REGISTRY_TOKEN }}
       - name: Publish CUE module
         run: cue mod publish ${{ steps.version.outputs.VERSION }}
-        env:
-          CUE_REGISTRY_TOKEN: ${{ secrets.CUE_REGISTRY_TOKEN }}
