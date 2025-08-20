@@ -2,8 +2,7 @@
 
 [![Build Status](https://github.com/rawkode/cuenv/workflows/ci/badge.svg)](https://github.com/rawkode/cuenv/actions)
 [![codecov](https://codecov.io/gh/rawkode/cuenv/branch/main/graph/badge.svg)](https://codecov.io/gh/rawkode/cuenv)
-[![Crates.io](https://img.shields.io/crates/v/cuenv.svg)](https://crates.io/crates/cuenv)
-[![Downloads](https://img.shields.io/crates/d/cuenv.svg)](https://crates.io/crates/cuenv)
+[![FlakeHub](https://img.shields.io/endpoint?url=https://flakehub.com/f/rawkode/cuenv/badge)](https://flakehub.com/flake/rawkode/cuenv)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A direnv alternative that uses CUE (Configure, Unify, Execute) files for type-safe environment configuration.
