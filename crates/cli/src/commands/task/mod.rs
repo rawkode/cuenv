@@ -1,8 +1,9 @@
 mod display;
 mod formatter;
+mod graph;
 
 use clap::Subcommand;
-use cuenv_config::{Config, TaskGroupMode, TaskNode};
+use cuenv_config::{Config, TaskNode};
 use cuenv_core::{Result, CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR};
 use cuenv_env::manager::environment::SupervisorMode;
 use cuenv_env::EnvManager;
@@ -24,11 +25,12 @@ pub async fn execute_task_command(
     verbose: bool,
     output_format: String,
     trace_output: bool,
-    graph: bool,
+    graph: Option<String>,
+    charset: String,
 ) -> Result<()> {
     // If --graph flag is set, show the dependency graph instead of executing
-    if graph {
-        return display_dependency_graph(config, task_or_group).await;
+    if graph.is_some() {
+        return display_dependency_graph(config, task_or_group, graph, charset).await;
     }
 
     match task_or_group {
@@ -60,18 +62,26 @@ pub async fn execute_task_command(
                 let has_subtasks = tasks.keys().any(|k| k.starts_with(&prefix));
 
                 if has_subtasks {
-                    // It's a group - check its mode to decide whether to execute or list
+                    // It's a group - check its collection type to decide whether to execute or list
                     let task_nodes = config.get_task_nodes();
-                    if let Some(TaskNode::Group { mode, .. }) = task_nodes.get(&name) {
-                        match mode {
-                            TaskGroupMode::Group => {
-                                // Group mode: just list tasks
-                                list_tasks(config, verbose, Some(name)).await
+                    if let Some(TaskNode::Group { tasks, .. }) = task_nodes.get(&name) {
+                        match tasks {
+                            cuenv_config::TaskCollection::Sequential(_) => {
+                                // Sequential collection: execute all tasks in order
+                                execute_task_group(
+                                    config.clone(),
+                                    environment,
+                                    capabilities,
+                                    name,
+                                    audit,
+                                    output_format,
+                                    trace_output,
+                                )
+                                .await
                             }
-                            TaskGroupMode::Parallel
-                            | TaskGroupMode::Sequential
-                            | TaskGroupMode::Workflow => {
-                                // Executable modes: run all tasks in the group
+                            cuenv_config::TaskCollection::Parallel(_) => {
+                                // Parallel collection: can execute as group or list tasks
+                                // For now, execute as a group (dependency-based execution)
                                 execute_task_group(
                                     config.clone(),
                                     environment,
@@ -205,15 +215,10 @@ async fn list_tasks(
     if let Some(ref group) = group_filter {
         if let Some(node) = task_nodes.get(group) {
             match node {
-                TaskNode::Group {
-                    description,
-                    mode,
-                    tasks,
-                } => {
+                TaskNode::Group { description, tasks } => {
                     display_group_contents(
                         group,
                         description.as_deref(),
-                        mode,
                         tasks,
                         verbose,
                         use_color,
@@ -394,32 +399,22 @@ async fn execute_task_group(
         )
         .await?;
 
-    // Get the group's execution mode for display
+    // Get the group's collection type for display
     let task_nodes = config.get_task_nodes();
-    let mode = if let Some(TaskNode::Group { mode, .. }) = task_nodes.get(&group_name) {
-        mode.clone()
+    let collection_type = if let Some(TaskNode::Group { tasks, .. }) = task_nodes.get(&group_name) {
+        match tasks {
+            cuenv_config::TaskCollection::Sequential(_) => "sequential",
+            cuenv_config::TaskCollection::Parallel(_) => "parallel",
+        }
     } else {
         return Err(cuenv_core::Error::configuration(format!(
             "Group '{group_name}' not found"
         )));
     };
 
-    // Handle Group mode (organization only)
-    if matches!(mode, TaskGroupMode::Group) {
-        eprintln!("Group '{group_name}' is for organization only and cannot be executed");
-        eprintln!("Run 'cuenv task {group_name}' to see available tasks");
-        std::process::exit(1);
-    }
-
     println!(
         "Executing group '{}' in {} mode",
-        group_name,
-        match &mode {
-            TaskGroupMode::Workflow => "workflow",
-            TaskGroupMode::Sequential => "sequential",
-            TaskGroupMode::Parallel => "parallel",
-            TaskGroupMode::Group => "group", // Should not reach here
-        }
+        group_name, collection_type
     );
 
     // Create executor and use unified DAG for all execution modes
@@ -444,20 +439,26 @@ async fn execute_task_group(
 }
 
 /// Display the dependency graph for tasks
-async fn display_dependency_graph(config: Arc<Config>, task_or_group: Option<String>) -> Result<()> {
+async fn display_dependency_graph(
+    config: Arc<Config>,
+    task_or_group: Option<String>,
+    format: Option<String>,
+    charset: String,
+) -> Result<()> {
+    use self::graph::{display_formatted_graph, CharSet, GraphFormat};
+    use cuenv_env::manager::environment::SupervisorMode;
     use cuenv_env::EnvManager;
     use cuenv_task::TaskExecutor;
-    use cuenv_env::manager::environment::SupervisorMode;
-    
+
     let current_dir = std::env::current_dir().unwrap();
-    
+
     // Create environment manager and load environment
     let mut env_manager = EnvManager::new();
-    
+
     env_manager
         .load_env_with_options(
             &current_dir,
-            None, // Use default environment
+            None,   // Use default environment
             vec![], // No additional capabilities
             None,
             SupervisorMode::Foreground,
@@ -467,109 +468,71 @@ async fn display_dependency_graph(config: Arc<Config>, task_or_group: Option<Str
     // Create executor to build the unified DAG
     let executor = TaskExecutor::new(env_manager, current_dir.clone()).await?;
 
+    let graph_format = GraphFormat::from_option(format);
+    let char_set = CharSet::from_str(&charset);
+
     match task_or_group {
         Some(name) => {
             // Build DAG for specific task or group
             let dag = executor.build_unified_dag(&[name.clone()])?;
-            
-            println!("Dependency Graph for: {}", name);
-            println!("{}", "=".repeat(50));
-            display_dag_visualization(&dag, &name);
+            display_formatted_graph(&dag, &name, graph_format, char_set)?;
         }
         None => {
-            // Show all available tasks and their basic info
-            println!("All Available Tasks and Groups:");
-            println!("{}", "=".repeat(50));
-            
+            // Build unified DAG for all top-level tasks and task groups
             let tasks = config.get_tasks();
             let task_nodes = config.get_task_nodes();
-            
-            for (name, _) in tasks.iter() {
-                // Skip subtasks (they contain dots)
-                if name.contains('.') {
-                    continue;
-                }
-                
-                // Build individual DAG to show dependencies
-                if let Ok(dag) = executor.build_unified_dag(&[name.clone()]) {
-                    display_dag_visualization(&dag, name);
-                    println!(); // Add spacing between tasks
-                }
-            }
-            
-            // Also show groups
-            for (name, node) in task_nodes.iter() {
-                if let TaskNode::Group { mode, tasks, .. } = node {
-                    if !tasks.is_empty() {
-                        println!("📁 Group: {} ({})", name, match mode {
-                            TaskGroupMode::Sequential => "sequential",
-                            TaskGroupMode::Parallel => "parallel", 
-                            TaskGroupMode::Workflow => "workflow",
-                            TaskGroupMode::Group => "group",
-                        });
-                        
-                        for (task_name, _) in tasks.iter() {
-                            println!("  └─ {}", task_name);
-                        }
-                        println!();
-                    }
-                }
-            }
-        }
-    }
-    
-    Ok(())
-}
 
-/// Display a visual representation of the DAG
-fn display_dag_visualization(dag: &cuenv_task::UnifiedTaskDAG, root_name: &str) {
-    println!("🎯 Task: {}", root_name);
-    
-    // Get the execution levels (topologically sorted)
-    match dag.get_execution_levels() {
-        Ok(levels) => {
-            if levels.is_empty() {
-                println!("  └─ No dependencies");
-                return;
+            let mut task_names: Vec<String> = Vec::new();
+
+            // Add individual tasks (not in groups)
+            for (name, _) in tasks.iter() {
+                if !name.contains('.') {
+                    task_names.push(name.clone());
+                }
             }
-            
-            println!("  Execution Order:");
-            for (level_num, level_tasks) in levels.iter().enumerate() {
-                let level_prefix = format!("  Level {}:", level_num + 1);
-                println!("{}", level_prefix);
-                
-                for (i, task) in level_tasks.iter().enumerate() {
-                    let is_last = i == level_tasks.len() - 1;
-                    let symbol = if is_last { "└─" } else { "├─" };
-                    println!("    {} {}", symbol, task);
-                    
-                    // Show dependencies for this task
-                    if let Some(deps) = dag.get_task_dependencies(task) {
-                        if !deps.is_empty() {
-                            let dep_prefix = if is_last { "    " } else { "    │" };
-                            println!("{}   depends on: {}", dep_prefix, deps.join(", "));
+
+            // Add task groups
+            for (name, _) in task_nodes.iter() {
+                if !task_names.contains(name) {
+                    task_names.push(name.clone());
+                }
+            }
+
+            if !task_names.is_empty() {
+                // Build one unified DAG showing all tasks and their dependencies
+                if let Ok(dag) = executor.build_unified_dag(&task_names) {
+                    display_formatted_graph(
+                        &dag,
+                        "all-tasks",
+                        graph_format.clone(),
+                        char_set.clone(),
+                    )?;
+                }
+            }
+
+            // Also show groups (only for tree format to avoid cluttering other formats)
+            if matches!(graph_format, GraphFormat::Tree) {
+                let task_nodes = config.get_task_nodes();
+                for (name, node) in task_nodes.iter() {
+                    if let TaskNode::Group { tasks, .. } = node {
+                        if !tasks.is_empty() {
+                            let mode_name = match tasks {
+                                cuenv_config::TaskCollection::Sequential(_) => "sequential",
+                                cuenv_config::TaskCollection::Parallel(_) => "parallel",
+                            };
+
+                            println!("📁 Group: {} ({})", name, mode_name);
+
+                            for (task_name, _) in tasks.iter() {
+                                println!("  └─ {task_name}");
+                            }
+                            println!();
                         }
                     }
                 }
             }
         }
-        Err(e) => {
-            println!("  └─ Error building execution graph: {}", e);
-        }
     }
-    
-    // Also show flattened task details
-    let flattened = dag.get_flattened_tasks();
-    if !flattened.is_empty() {
-        println!();
-        println!("  Flattened Execution Graph:");
-        for task in flattened {
-            let deps_str = if task.dependencies.is_empty() {
-                "no dependencies".to_string()
-            } else {
-                format!("depends on: {}", task.dependencies.join(", "))
-            };
-            println!("    • {} ({})", task.id, deps_str);
-        }
-    }
+
+    Ok(())
 }

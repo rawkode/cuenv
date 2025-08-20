@@ -12,167 +12,178 @@ env: {
 
 // Example of different task group execution modes
 tasks: {
-	// Workflow mode - DAG with dependencies
+	// Parallel with dependencies - object structure with named tasks
 	"ci": {
 		description: "CI workflow with dependency graph"
-		mode: "workflow"
-
-		"lint": {
-			description: "Run linters"
-			command: "echo 'Running linters...'"
-			inputs: ["src/**/*.rs"]
-		}
-		"test": {
-			description: "Run tests"
-			command: "echo 'Running tests...'"
-			dependencies: ["lint"]
-			inputs: ["src/**/*.rs", "tests/**/*.rs"]
-		}
-		"build": {
-			description: "Build the project"
-			command: "echo 'Building project...'"
-			dependencies: ["test"]
-			outputs: ["target/release/app"]
-		}
-		"package": {
-			description: "Package the release"
-			command: "echo 'Creating release package...'"
-			dependencies: ["build"]
-			outputs: ["release.tar.gz"]
-		}
-	}
-
-	// Sequential mode - tasks run one after another
-	"deploy": {
-		description: "Deployment process"
-		mode: "sequential"
-
-		"backup": {
-			description: "Backup current deployment"
-			command: "echo 'Creating backup...'"
-		}
-		"upload": {
-			description: "Upload new version"
-			command: "echo 'Uploading files...'"
-		}
-		"migrate": {
-			description: "Run database migrations"
-			command: "echo 'Running migrations...'"
-		}
-		"verify": {
-			description: "Verify deployment"
-			command: "echo 'Verifying deployment...'"
-		}
-		"notify": {
-			description: "Send notifications"
-			command: "echo 'Deployment complete!'"
-		}
-	}
-
-	// Parallel mode - all tasks run simultaneously
-	"assets": {
-		description: "Build all assets in parallel"
-		mode: "parallel"
-
-		"css": {
-			description: "Compile CSS"
-			command: "echo 'Compiling CSS...'"
-			inputs: ["styles/**/*.scss"]
-			outputs: ["dist/styles.css"]
-		}
-		"javascript": {
-			description: "Bundle JavaScript"
-			command: "echo 'Bundling JavaScript...'"
-			inputs: ["src/**/*.js"]
-			outputs: ["dist/app.js"]
-		}
-		"images": {
-			description: "Optimize images"
-			command: "echo 'Optimizing images...'"
-			inputs: ["assets/images/*"]
-			outputs: ["dist/images/*"]
-		}
-		"fonts": {
-			description: "Process fonts"
-			command: "echo 'Processing fonts...'"
-			inputs: ["assets/fonts/*"]
-			outputs: ["dist/fonts/*"]
-		}
-	}
-
-	// Group mode (default) - simple collection
-	"utils": {
-		description: "Utility tasks"
-		// mode: "group" is default, no need to specify
-
-		"clean": {
-			description: "Clean build artifacts"
-			command: "echo 'Cleaning...'"
-			cache: false
-		}
-		"format": {
-			description: "Format code"
-			command: "echo 'Formatting code...'"
-			cache: false
-		}
-		"version": {
-			description: "Show version"
-			command: "echo 'Version 1.0.0'"
-		}
-	}
-
-	// Nested groups example
-	"release": {
-		description: "Full release process"
-		mode: "workflow"
-
-		"quality": {
-			description: "Quality checks"
-			mode: "parallel"
-
+		// Object structure automatically enables parallel execution with dependencies
+		tasks: {
 			"lint": {
-				command: "echo 'Linting...'"
+				description: "Run linters"
+				command: "echo 'Running linters...'"
+				inputs: ["src/**/*.rs"]
 			}
 			"test": {
-				command: "echo 'Testing...'"
+				description: "Run tests"
+				command: "echo 'Running tests...'"
+				dependencies: ["lint"]
+				inputs: ["src/**/*.rs", "tests/**/*.rs"]
 			}
-			"audit": {
-				command: "echo 'Security audit...'"
+			"build": {
+				description: "Build the project"
+				command: "echo 'Building project...'"
+				dependencies: ["test"]
+				outputs: ["target/release/app"]
 			}
-		}
-
-		"build": {
-			description: "Build for all platforms"
-			mode: "parallel"
-			dependencies: ["quality"]
-
-			"linux": {
-				command: "echo 'Building for Linux...'"
-				outputs: ["target/linux/app"]
-			}
-			"macos": {
-				command: "echo 'Building for macOS...'"
-				outputs: ["target/macos/app"]
-			}
-			"windows": {
-				command: "echo 'Building for Windows...'"
-				outputs: ["target/windows/app.exe"]
+			"package": {
+				description: "Package the release"
+				command: "echo 'Creating release package...'"
+				dependencies: ["build"]
+				outputs: ["release.tar.gz"]
 			}
 		}
+	}
 
-		"publish": {
-			description: "Publish release"
-			mode: "sequential"
-			dependencies: ["build"]
+	// Sequential mode - array structure with ordered tasks
+	"deploy": {
+		description: "Deployment process"
+		// Array structure automatically enables sequential execution in order
+		tasks: [
+			{
+				description: "Backup current deployment"
+				command: "echo 'Creating backup...'"
+			},
+			{
+				description: "Upload new version"
+				command: "echo 'Uploading files...'"
+			},
+			{
+				description: "Run database migrations"
+				command: "echo 'Running migrations...'"
+			},
+			{
+				description: "Verify deployment"
+				command: "echo 'Verifying deployment...'"
+			},
+			{
+				description: "Send notifications"
+				command: "echo 'Deployment complete!'"
+			}
+		]
+	}
 
-			"tag": {
-				command: "echo 'Creating git tag...'"
+	// Parallel mode - object structure with named tasks
+	"assets": {
+		description: "Build all assets in parallel"
+		// Object structure enables parallel execution of all tasks
+		tasks: {
+			"css": {
+				description: "Compile CSS"
+				command: "echo 'Compiling CSS...'"
+				inputs: ["styles/**/*.scss"]
+				outputs: ["dist/styles.css"]
 			}
-			"upload": {
-				command: "echo 'Uploading artifacts...'"
+			"javascript": {
+				description: "Bundle JavaScript"
+				command: "echo 'Bundling JavaScript...'"
+				inputs: ["src/**/*.js"]
+				outputs: ["dist/app.js"]
 			}
-			"announce": {
-				command: "echo 'Release published!'"
+			"images": {
+				description: "Optimize images"
+				command: "echo 'Optimizing images...'"
+				inputs: ["assets/images/*"]
+				outputs: ["dist/images/*"]
+			}
+			"fonts": {
+				description: "Process fonts"
+				command: "echo 'Processing fonts...'"
+				inputs: ["assets/fonts/*"]
+				outputs: ["dist/fonts/*"]
+			}
+		}
+	}
+
+	// Parallel mode - object structure with named utility tasks
+	"utils": {
+		description: "Utility tasks"
+		// Object structure enables parallel execution of utility tasks
+		tasks: {
+			"clean": {
+				description: "Clean build artifacts"
+				command: "echo 'Cleaning...'"
+				cache: false
+			}
+			"format": {
+				description: "Format code"
+				command: "echo 'Formatting code...'"
+				cache: false
+			}
+			"version": {
+				description: "Show version"
+				command: "echo 'Version 1.0.0'"
+			}
+		}
+	}
+
+	// Nested task groups example with mixed execution modes
+	"release": {
+		description: "Full release process"
+		// Object structure with dependencies creates a dependency graph workflow
+		tasks: {
+			"quality": {
+				description: "Quality checks"
+				// Object structure enables parallel execution of quality checks
+				tasks: {
+					"lint": {
+						command: "echo 'Linting...'"
+					}
+					"test": {
+						command: "echo 'Testing...'"
+					}
+					"audit": {
+						command: "echo 'Security audit...'"
+					}
+				}
+			}
+
+			"build": {
+				description: "Build for all platforms"
+				dependencies: ["quality"]
+				// Object structure enables parallel builds for different platforms
+				tasks: {
+					"linux": {
+						command: "echo 'Building for Linux...'"
+						outputs: ["target/linux/app"]
+					}
+					"macos": {
+						command: "echo 'Building for macOS...'"
+						outputs: ["target/macos/app"]
+					}
+					"windows": {
+						command: "echo 'Building for Windows...'"
+						outputs: ["target/windows/app.exe"]
+					}
+				}
+			}
+
+			"publish": {
+				description: "Publish release"
+				dependencies: ["build"]
+				// Array structure ensures sequential execution of publish steps
+				tasks: [
+					{
+						description: "Create git tag"
+						command: "echo 'Creating git tag...'"
+					},
+					{
+						description: "Upload artifacts"
+						command: "echo 'Uploading artifacts...'"
+					},
+					{
+						description: "Announce release"
+						command: "echo 'Release published!'"
+					}
+				]
 			}
 		}
 	}

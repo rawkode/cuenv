@@ -115,10 +115,7 @@ env: {
         }
     }
 
-    println!(
-        "Concurrent FFI test: {} successes, {} errors",
-        total_successes, total_errors
-    );
+    println!("Concurrent FFI test: {total_successes} successes, {total_errors} errors");
 
     // Either all calls should succeed (if FFI is available) or all should fail consistently
     if total_successes > 0 {
@@ -238,7 +235,7 @@ env: {{
     }
 
     let duration = start_time.elapsed();
-    println!("Resource pressure test completed in {:?}", duration);
+    println!("Resource pressure test completed in {duration:?}");
 
     // Test should complete within reasonable time (not hang indefinitely)
     assert!(duration < Duration::from_secs(30), "Test should not hang");
@@ -460,10 +457,7 @@ env: {
         let max_time = times.iter().max().unwrap();
         let min_time = times.iter().min().unwrap();
 
-        println!(
-            "FFI Performance: avg={:?}, min={:?}, max={:?}",
-            avg_time, min_time, max_time
-        );
+        println!("FFI Performance: avg={avg_time:?}, min={min_time:?}, max={max_time:?}");
 
         // Basic performance expectations (these are lenient for CI)
         assert!(

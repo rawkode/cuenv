@@ -63,9 +63,7 @@ tasks: {
 
     assert!(
         output.status.success(),
-        "secure-build task failed. stdout: {}, stderr: {}",
-        stdout,
-        stderr
+        "secure-build task failed. stdout: {stdout}, stderr: {stderr}"
     );
 
     // In audit mode, check for successful task execution and audit report
@@ -137,9 +135,7 @@ tasks: {
     // Should fail due to filesystem restrictions
     assert!(
         !output.status.success(),
-        "Expected restricted-write task to fail due to filesystem restrictions, but it succeeded. stdout: {}, stderr: {}",
-        stdout,
-        stderr
+        "Expected restricted-write task to fail due to filesystem restrictions, but it succeeded. stdout: {stdout}, stderr: {stderr}"
     );
 
     // Verify the forbidden file was NOT created
@@ -217,10 +213,7 @@ tasks: {
     } else {
         // If it fails, that's also a valid test result - it means enforcement is working
         // This demonstrates that security restrictions are actually being enforced
-        println!(
-            "Task correctly failed due to security restrictions: {}",
-            stderr
-        );
+        println!("Task correctly failed due to security restrictions: {stderr}");
         assert!(
             !temp_dir.path().join("build/output.txt").exists(),
             "No file should be created when task fails"
@@ -281,9 +274,7 @@ tasks: {
 
     assert!(
         output.status.success(),
-        "Audit task failed. stdout: {}, stderr: {}",
-        stdout,
-        stderr
+        "Audit task failed. stdout: {stdout}, stderr: {stderr}"
     );
 
     // More robust assertions that work with nextest parallel execution
@@ -310,7 +301,7 @@ tasks: {
         // Debug: print the actual output if assertion might fail
         if !(stdout.contains("📁 File Access") || stdout.contains("File Access")) {
             println!("DEBUG - Full stdout for filesystem analysis test:");
-            println!("{}", stdout);
+            println!("{stdout}");
         }
 
         // More flexible checks - at least one of these should be present
@@ -601,9 +592,7 @@ tasks: {
 
     assert!(
         output.status.success(),
-        "network-task-allowed failed. stdout: {}, stderr: {}",
-        stdout,
-        stderr
+        "network-task-allowed failed. stdout: {stdout}, stderr: {stderr}"
     );
 
     // Should succeed - curl will exit with 0 for successful HTTP requests
@@ -662,9 +651,7 @@ tasks: {
     // For now, verify that the task runs successfully with network restrictions configured
     assert!(
         output.status.success(),
-        "network-task-denied failed to run. stdout: {}, stderr: {}",
-        stdout,
-        stderr
+        "network-task-denied failed to run. stdout: {stdout}, stderr: {stderr}"
     );
 
     // TODO: When network restrictions are implemented, change this to:
@@ -722,9 +709,7 @@ tasks: {
 
     assert!(
         output.status.success(),
-        "fully-restricted task failed. stdout: {}, stderr: {}",
-        stdout,
-        stderr
+        "fully-restricted task failed. stdout: {stdout}, stderr: {stderr}"
     );
 
     assert!(stdout.contains("✓ Task completed successfully"));
@@ -798,7 +783,7 @@ tasks: {
             );
         }
     } else {
-        println!("Unrestricted task failed: {}", stderr);
+        println!("Unrestricted task failed: {stderr}");
     }
 }
 
@@ -855,9 +840,7 @@ tasks: {
 
     assert!(
         output.status.success(),
-        "task list failed. stdout: {}, stderr: {}",
-        stdout,
-        stderr
+        "task list failed. stdout: {stdout}, stderr: {stderr}"
     );
 
     // Verify all tasks are listed
@@ -977,10 +960,7 @@ tasks: {
         assert_eq!(info_content.trim(), "Project: secure-app");
     } else {
         // If it fails due to security restrictions, that's also valid
-        println!(
-            "Task correctly failed due to security restrictions: {}",
-            stderr
-        );
+        println!("Task correctly failed due to security restrictions: {stderr}");
         assert!(
             !temp_dir.path().join("build/info.txt").exists(),
             "No file should be created when task fails"

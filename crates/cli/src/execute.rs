@@ -17,6 +17,7 @@ impl Commands {
                 output,
                 trace_output,
                 graph,
+                charset,
             } => {
                 crate::commands::task::execute_task_command(
                     Arc::clone(&config),
@@ -29,6 +30,7 @@ impl Commands {
                     output,
                     trace_output,
                     graph,
+                    charset,
                 )
                 .await
             }

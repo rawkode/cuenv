@@ -248,7 +248,17 @@ impl Default for DAGCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cuenv_config::TaskConfig;
+    use std::collections::HashMap;
     use std::thread;
+
+    fn create_test_config(command: &str, deps: Option<Vec<String>>) -> TaskConfig {
+        TaskConfig {
+            command: Some(command.to_string()),
+            dependencies: deps,
+            ..Default::default()
+        }
+    }
 
     #[test]
     fn test_dag_cache_basic_operations() {
@@ -260,7 +270,11 @@ mod tests {
         assert!(cache.get(&task_names, config_hash).is_none());
 
         // Create a mock DAG (using builder)
+        let mut task_configs = HashMap::new();
+        task_configs.insert("test".to_string(), create_test_config("echo test", None));
+
         let dag = crate::executor::unified_dag::UnifiedTaskDAG::builder()
+            .with_task_configs(task_configs)
             .build_for_tasks(&task_names)
             .unwrap();
 
@@ -285,7 +299,11 @@ mod tests {
         let task_names = vec!["test".to_string()];
         let config_hash = 12345u64;
 
+        let mut task_configs = HashMap::new();
+        task_configs.insert("test".to_string(), create_test_config("echo test", None));
+
         let dag = crate::executor::unified_dag::UnifiedTaskDAG::builder()
+            .with_task_configs(task_configs)
             .build_for_tasks(&task_names)
             .unwrap();
 
@@ -312,7 +330,14 @@ mod tests {
         // Fill cache to capacity
         for i in 0..3 {
             let task_names = vec![format!("test{}", i)];
+            let mut task_configs = HashMap::new();
+            task_configs.insert(
+                format!("test{}", i),
+                create_test_config(&format!("echo test{}", i), None),
+            );
+
             let dag = crate::executor::unified_dag::UnifiedTaskDAG::builder()
+                .with_task_configs(task_configs)
                 .build_for_tasks(&task_names)
                 .unwrap();
             cache.put(&task_names, i as u64, dag).unwrap();

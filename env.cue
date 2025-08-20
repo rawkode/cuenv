@@ -36,46 +36,54 @@ env: {
 tasks: {
 	count: {
 		description: "I can only count to 4"
-		mode: "sequential"
-		one: {
-			command: "echo"
-			args: ["1"]
-		}
-		two: {
-			command: "echo"
-			args: ["2"]
-		}
-		three: {
-			command: "echo"
-			args: ["3"]
-		}
-		four: {
-			command: "echo"
-			args: ["4"]
-		}
+		// Array structure automatically enables sequential execution in order
+		tasks: [
+			{
+				description: "Count one"
+				command: "echo"
+				args: ["1"]
+			},
+			{
+				description: "Count two"
+				command: "echo"
+				args: ["2"]
+			},
+			{
+				description: "Count three"
+				command: "echo"
+				args: ["3"]
+			},
+			{
+				description: "Count four"
+				command: "echo"
+				args: ["4"]
+			}
+		]
 	}
 
 	counted: {
-		dependencies: ["count"]
+		description: "Task that depends on count group completion"
+		// dependencies: ["count.task_3"] // Depend on the last task in the count sequence - disabled for now
 		command: "echo"
 		args: ["counted to 4"]
 	}
 
 	fmt: {
 		description: "Code formatting tasks"
-		mode:        "sequential" // Check first, then optionally apply
-		check: {
-			description: "Check all code formatting without making changes"
-			command:     "treefmt"
-			args: ["--fail-on-change"]
-
-			inputs: ["src/**/*", "libcue-bridge/**/*", "*.nix", "**/*.cue", "**/*.md", "**/*.toml", "**/*.yaml", "**/*.yml"]
-		}
-		apply: {
-			description: "Apply code formatting changes"
-			command:     "treefmt"
-			inputs: ["src/**/*", "libcue-bridge/**/*", "*.nix", "**/*.cue", "**/*.md", "**/*.toml", "**/*.yaml", "**/*.yml"]
-		}
+		// Array structure ensures sequential execution - check first, then optionally apply
+		tasks: [
+			{
+				description: "Check all code formatting without making changes"
+				command:     "treefmt"
+				args: ["--fail-on-change"]
+				inputs: ["src/**/*", "libcue-bridge/**/*", "*.nix", "**/*.cue", "**/*.md", "**/*.toml", "**/*.yaml", "**/*.yml"]
+			},
+			{
+				description: "Apply code formatting changes"
+				command:     "treefmt"
+				inputs: ["src/**/*", "libcue-bridge/**/*", "*.nix", "**/*.cue", "**/*.md", "**/*.toml", "**/*.yaml", "**/*.yml"]
+			}
+		]
 	}
 
 	build: {
@@ -96,7 +104,7 @@ tasks: {
 
 	test: {
 		description: "Testing commands"
-		mode:        "parallel" // Run tests in parallel for speed
+		// Object structure enables parallel execution for speed
 		all: {
 			description: "Run all tests"
 			command:     "cargo"
@@ -149,24 +157,26 @@ tasks: {
 
 	lint: {
 		description: "Linting and code quality checks"
-		mode:        "sequential" // Fix first, then check
-		fix: {
-			description: "Auto-fix linting issues"
-			command:     "cargo"
-			args: ["clippy", "--fix", "--all-targets", "--all-features", "--allow-dirty"]
-			inputs: ["src/**/*.rs", "Cargo.toml"]
-		}
-		check: {
-			description: "Check for linting issues (errors as warnings)"
-			command:     "cargo"
-			args: ["clippy", "--all-targets", "--all-features", "--", "-D", "warnings"]
-			inputs: ["src/**/*.rs", "Cargo.toml"]
-		}
+		// Array structure ensures sequential execution - fix first, then check
+		tasks: [
+			{
+				description: "Auto-fix linting issues"
+				command:     "cargo"
+				args: ["clippy", "--fix", "--all-targets", "--all-features", "--allow-dirty"]
+				inputs: ["src/**/*.rs", "Cargo.toml"]
+			},
+			{
+				description: "Check for linting issues (errors as warnings)"
+				command:     "cargo"
+				args: ["clippy", "--all-targets", "--all-features", "--", "-D", "warnings"]
+				inputs: ["src/**/*.rs", "Cargo.toml"]
+			}
+		]
 	}
 
 	check: {
 		description: "Various checks"
-		mode:        "parallel" // Run all checks simultaneously
+		// Object structure enables parallel execution of all checks simultaneously
 		nix: {
 			description: "Check Nix flake"
 			command:     "nix"
@@ -189,7 +199,7 @@ tasks: {
 
 	deps: {
 		description: "Dependency management"
-		mode:        "parallel" // Update all dependency types at once
+		// Object structure enables parallel execution of all dependency updates at once
 		update: {
 			description: "Update Rust dependencies"
 			command:     "cargo"
@@ -213,6 +223,12 @@ tasks: {
 		args: ["Hello, world!"]
 	}
 
+	simpleTest: {
+		description: "Simple test task"
+		command: "echo"
+		args: ["test"]
+	}
+
 	examples: {
 		description: "Example configurations management"
 		lint: {
@@ -226,12 +242,11 @@ tasks: {
 	// CI workflow demonstrating nested groups
 	ci: {
 		description: "Complete CI workflow"
-		mode:        "workflow" // DAG-based execution
+		// Object structure with dependencies creates a parallel execution graph
 
 		quality: {
 			description: "Run all quality checks"
-			mode:        "parallel" // Run these in parallel
-
+			// Object structure enables parallel execution of quality checks
 			format: {
 				command: "treefmt"
 				args: ["--fail-on-change"]
@@ -251,9 +266,8 @@ tasks: {
 
 		test: {
 			description: "Run all tests"
-			mode:        "parallel"
 			dependencies: ["quality"] // Wait for quality checks
-
+			// Object structure enables parallel test execution
 			unit: {
 				command: "cargo"
 				args: ["nextest", "run", "--lib"]
@@ -288,28 +302,29 @@ tasks: {
 	// Release workflow
 	release: {
 		description: "Release process"
-		mode:        "sequential" // Must happen in order
-
-		version: {
-			description: "Update version"
-			command:     "cargo"
-			args: ["update", "-p", "cuenv"]
-		}
-		commit: {
-			description: "Commit changes"
-			command:     "git"
-			args: ["commit", "-am", "release: new version"]
-		}
-		tag: {
-			description: "Create git tag"
-			command:     "git"
-			args: ["tag", "-a", "v$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == \"cuenv\") | .version')", "-m", "Release"]
-		}
-		push: {
-			description: "Push to origin"
-			command:     "git"
-			args: ["push", "origin", "main", "--tags"]
-		}
+		// Array structure ensures sequential execution - must happen in order
+		tasks: [
+			{
+				description: "Update version"
+				command:     "cargo"
+				args: ["update", "-p", "cuenv"]
+			},
+			{
+				description: "Commit changes"
+				command:     "git"
+				args: ["commit", "-am", "release: new version"]
+			},
+			{
+				description: "Create git tag"
+				command:     "git"
+				args: ["tag", "-a", "v$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == \"cuenv\") | .version')", "-m", "Release"]
+			},
+			{
+				description: "Push to origin"
+				command:     "git"
+				args: ["push", "origin", "main", "--tags"]
+			}
+		]
 	}
 }
 

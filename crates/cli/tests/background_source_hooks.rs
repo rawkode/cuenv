@@ -39,8 +39,8 @@ env: {
     let cuenv_bin = env!("CARGO_BIN_EXE_cuenv");
 
     // Step 1: Allow the directory
-    let output = Command::new(&cuenv_bin)
-        .args(&["env", "allow", temp_path.to_str().unwrap()])
+    let output = Command::new(cuenv_bin)
+        .args(["env", "allow", temp_path.to_str().unwrap()])
         .output()
         .expect("Failed to run cuenv env allow");
 
@@ -61,7 +61,7 @@ env: {
     // Start hooks in a background thread
     let handle = std::thread::spawn(move || {
         Command::new(&cuenv_bin_clone)
-            .args(&["env", "allow", temp_path_clone.to_str().unwrap()])
+            .args(["env", "allow", temp_path_clone.to_str().unwrap()])
             .output()
             .expect("Failed to run cuenv env allow in background");
     });
@@ -70,8 +70,8 @@ env: {
     std::thread::sleep(Duration::from_millis(500));
 
     // Step 3: Check status while hooks are running
-    let output = Command::new(&cuenv_bin)
-        .args(&["env", "status", "--hooks"])
+    let output = Command::new(cuenv_bin)
+        .args(["env", "status", "--hooks"])
         .output()
         .expect("Failed to run cuenv env status");
 
@@ -85,8 +85,8 @@ env: {
     handle.join().expect("Background thread panicked");
 
     // Step 5: Run shell hook to capture environment
-    let output = Command::new(&cuenv_bin)
-        .args(&["shell", "hook", "bash"])
+    let output = Command::new(cuenv_bin)
+        .args(["shell", "hook", "bash"])
         .current_dir(temp_path)
         .output()
         .expect("Failed to run cuenv shell hook");
@@ -97,13 +97,12 @@ env: {
     if shell_output.contains("TEST_BG_VAR") {
         assert!(
             shell_output.contains("export TEST_BG_VAR=\"hook_completed\""),
-            "Environment variable not properly exported: {}",
-            shell_output
+            "Environment variable not properly exported: {shell_output}"
         );
 
         // Step 6: Run shell hook again to verify it was cleared
-        let output = Command::new(&cuenv_bin)
-            .args(&["shell", "hook", "bash"])
+        let output = Command::new(cuenv_bin)
+            .args(["shell", "hook", "bash"])
             .current_dir(temp_path)
             .output()
             .expect("Failed to run cuenv shell hook second time");
@@ -112,8 +111,7 @@ env: {
 
         assert!(
             !second_output.contains("TEST_BG_VAR"),
-            "Environment should not be sourced twice: {}",
-            second_output
+            "Environment should not be sourced twice: {second_output}"
         );
     }
 
@@ -157,8 +155,8 @@ env: {
     let cuenv_bin = env!("CARGO_BIN_EXE_cuenv");
 
     // Allow and run hooks
-    let output = Command::new(&cuenv_bin)
-        .args(&["env", "allow", temp_path.to_str().unwrap()])
+    let output = Command::new(cuenv_bin)
+        .args(["env", "allow", temp_path.to_str().unwrap()])
         .output()
         .expect("Failed to run cuenv env allow");
 
@@ -168,8 +166,8 @@ env: {
     std::thread::sleep(Duration::from_millis(500));
 
     // Check if environment was captured
-    let output = Command::new(&cuenv_bin)
-        .args(&["shell", "hook", "bash"])
+    let output = Command::new(cuenv_bin)
+        .args(["shell", "hook", "bash"])
         .current_dir(temp_path)
         .output()
         .expect("Failed to run cuenv shell hook");
@@ -223,8 +221,8 @@ env: {
     let cuenv_bin = env!("CARGO_BIN_EXE_cuenv");
 
     // Allow and run hooks
-    let output = Command::new(&cuenv_bin)
-        .args(&["env", "allow", temp_path.to_str().unwrap()])
+    let output = Command::new(cuenv_bin)
+        .args(["env", "allow", temp_path.to_str().unwrap()])
         .output()
         .expect("Failed to run cuenv env allow");
 
@@ -234,8 +232,8 @@ env: {
     std::thread::sleep(Duration::from_millis(500));
 
     // Check captured environment
-    let output = Command::new(&cuenv_bin)
-        .args(&["shell", "hook", "bash"])
+    let output = Command::new(cuenv_bin)
+        .args(["shell", "hook", "bash"])
         .current_dir(temp_path)
         .output()
         .expect("Failed to run cuenv shell hook");

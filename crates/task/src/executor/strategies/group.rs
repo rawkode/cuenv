@@ -1,9 +1,8 @@
 //! Group execution strategy (simple collection)
 
 use super::{create_task_id, FlattenedTask, GroupExecutionStrategy};
-use cuenv_config::TaskNode;
+use cuenv_config::{TaskCollection, TaskNode};
 use cuenv_core::Result;
-use indexmap::IndexMap;
 
 /// Group execution strategy - simple collection with no special behavior
 pub struct GroupStrategy;
@@ -12,7 +11,7 @@ impl GroupExecutionStrategy for GroupStrategy {
     fn process_group(
         &self,
         group_name: &str,
-        tasks: &IndexMap<String, TaskNode>,
+        tasks: &TaskCollection,
         parent_path: Vec<String>,
     ) -> Result<Vec<FlattenedTask>> {
         let mut flattened = Vec::new();
@@ -20,7 +19,7 @@ impl GroupExecutionStrategy for GroupStrategy {
         group_path.push(group_name.to_string());
 
         // Process each task independently
-        for (task_name, node) in tasks {
+        for (task_name, node) in tasks.iter() {
             match node {
                 TaskNode::Task(config) => {
                     // Resolve dependencies
@@ -31,7 +30,18 @@ impl GroupExecutionStrategy for GroupStrategy {
                             d.iter()
                                 .map(|dep| {
                                     // Check if dependency is in same group or external
-                                    if tasks.contains_key(dep) {
+                                    // For TaskCollection, we check if the dependency exists in the collection
+                                    let has_dependency = match tasks {
+                                        TaskCollection::Sequential(_) => {
+                                            // For sequential, dependencies are typically external
+                                            false
+                                        }
+                                        TaskCollection::Parallel(task_map) => {
+                                            task_map.contains_key(dep)
+                                        }
+                                    };
+
+                                    if has_dependency {
                                         // Internal dependency
                                         create_task_id(&group_path, dep)
                                     } else if dep.contains(':') {
@@ -47,7 +57,7 @@ impl GroupExecutionStrategy for GroupStrategy {
                         .unwrap_or_default();
 
                     flattened.push(FlattenedTask {
-                        id: create_task_id(&group_path, task_name),
+                        id: create_task_id(&group_path, &task_name),
                         group_path: group_path.clone(),
                         name: task_name.clone(),
                         dependencies: deps,
@@ -56,15 +66,13 @@ impl GroupExecutionStrategy for GroupStrategy {
                     });
                 }
                 TaskNode::Group {
-                    mode,
-                    tasks: subtasks,
-                    ..
+                    tasks: subtasks, ..
                 } => {
-                    // Recursively process subgroup with its own strategy
-                    let strategy = super::create_strategy(mode);
+                    // Recursively process subgroup - use GroupStrategy for nested groups
+                    let strategy = GroupStrategy;
                     let subtask_path = group_path.clone();
                     let subgroup_tasks =
-                        strategy.process_group(task_name, subtasks, subtask_path)?;
+                        strategy.process_group(&task_name, subtasks, subtask_path)?;
                     flattened.extend(subgroup_tasks);
                 }
             }

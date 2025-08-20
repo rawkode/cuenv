@@ -31,7 +31,8 @@
       "Bash(CUENV_LOG=trace cuenv task --output=simple counted)",
       "Bash(cuenv task:*)",
       "Bash(CUENV_LOG=debug cuenv task --output=simple counted)",
-      "WebSearch"
+      "WebSearch",
+      "WebFetch(domain:d2lang.com)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

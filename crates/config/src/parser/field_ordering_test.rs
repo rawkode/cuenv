@@ -16,31 +16,30 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let cue_file = temp_dir.path().join("env.cue");
 
-        // Write CUE content with tasks in a specific order
+        // Write CUE content with tasks using new array structure
         let cue_content = r#"package cuenv
 
 tasks: {
     ordered_sequence: {
         description: "Test sequential task ordering"
-        mode: "sequential"
-        
-        // These should execute in this exact order: alpha, beta, gamma, delta
-        alpha: {
-            command: "echo"
-            args: ["step 1"]
-        }
-        beta: {
-            command: "echo"
-            args: ["step 2"]
-        }
-        gamma: {
-            command: "echo"
-            args: ["step 3"]
-        }
-        delta: {
-            command: "echo"
-            args: ["step 4"]
-        }
+        tasks: [
+            {
+                command: "echo 'step 1'"
+                description: "First step"
+            },
+            {
+                command: "echo 'step 2'"  
+                description: "Second step"
+            },
+            {
+                command: "echo 'step 3'"
+                description: "Third step"
+            },
+            {
+                command: "echo 'step 4'"
+                description: "Fourth step"
+            }
+        ]
     }
 }
 "#;
@@ -77,18 +76,55 @@ tasks: {
         if let Some(task_node) = result.task_nodes.get("ordered_sequence") {
             match task_node {
                 crate::TaskNode::Group { tasks, .. } => {
-                    // Convert IndexMap keys to Vec to check ordering
-                    let task_names: Vec<&String> = tasks.keys().collect();
+                    // Verify it's a sequential collection
+                    match tasks {
+                        crate::TaskCollection::Sequential(task_list) => {
+                            // Sequential tasks should preserve array order
+                            assert_eq!(
+                                task_list.len(),
+                                4,
+                                "Should have 4 tasks in sequential order"
+                            );
 
-                    // This is the critical test: verify field order matches CUE definition
-                    assert_eq!(
-                        task_names,
-                        vec!["alpha", "beta", "gamma", "delta"],
-                        "Task field order should match CUE definition order, got: {:?}",
-                        task_names
-                    );
+                            // Verify each task has the expected command
+                            for (index, task) in task_list.iter().enumerate() {
+                                match task {
+                                    crate::TaskNode::Task(config) => {
+                                        let expected_command = format!("echo 'step {}'", index + 1);
+                                        assert_eq!(
+                                            config.command.as_ref().unwrap(),
+                                            &expected_command
+                                        );
+                                        let expected_description = format!(
+                                            "{} step",
+                                            match index {
+                                                0 => "First",
+                                                1 => "Second",
+                                                2 => "Third",
+                                                3 => "Fourth",
+                                                _ => panic!("Unexpected task index: {}", index),
+                                            }
+                                        );
+                                        assert_eq!(
+                                            config.description.as_ref().unwrap(),
+                                            &expected_description
+                                        );
+                                    }
+                                    _ => panic!("All items in sequential array should be tasks"),
+                                }
+                            }
 
-                    println!("✓ Field ordering test passed: {:?}", task_names);
+                            println!(
+                                "✓ Sequential task ordering test passed: {} tasks in array order",
+                                task_list.len()
+                            );
+                        }
+                        crate::TaskCollection::Parallel(_) => {
+                            panic!(
+                                "ordered_sequence should be a Sequential collection, not Parallel"
+                            )
+                        }
+                    }
                 }
                 _ => panic!("ordered_sequence should be a Group node"),
             }
@@ -105,17 +141,19 @@ tasks: {
 
 tasks: {
     first_group: {
-        mode: "sequential"
-        zebra: { command: "echo zebra" }
-        alpha: { command: "echo alpha" }
-        beta: { command: "echo beta" }
+        tasks: [
+            { command: "echo zebra" },
+            { command: "echo alpha" }, 
+            { command: "echo beta" }
+        ]
     }
     
     second_group: {
-        mode: "sequential"
-        omega: { command: "echo omega" }
-        gamma: { command: "echo gamma" }
-        delta: { command: "echo delta" }
+        tasks: [
+            { command: "echo omega" },
+            { command: "echo gamma" },
+            { command: "echo delta" }
+        ]
     }
 }
 "#;
@@ -139,26 +177,50 @@ tasks: {
 
         std::env::set_current_dir(original_dir).unwrap();
 
-        // Test first_group ordering
+        // Test first_group ordering (should preserve array order)
         if let Some(crate::TaskNode::Group { tasks, .. }) = result.task_nodes.get("first_group") {
-            let task_names: Vec<&String> = tasks.keys().collect();
-            assert_eq!(
-                task_names,
-                vec!["zebra", "alpha", "beta"],
-                "first_group field order incorrect: {:?}",
-                task_names
-            );
+            match tasks {
+                crate::TaskCollection::Sequential(task_list) => {
+                    assert_eq!(task_list.len(), 3, "first_group should have 3 tasks");
+
+                    // Verify order is preserved: zebra, alpha, beta
+                    let commands: Vec<_> = task_list
+                        .iter()
+                        .map(|task| match task {
+                            crate::TaskNode::Task(config) => {
+                                config.command.as_ref().unwrap().as_str()
+                            }
+                            _ => panic!("Should be a task"),
+                        })
+                        .collect();
+
+                    assert_eq!(commands, vec!["echo zebra", "echo alpha", "echo beta"]);
+                }
+                _ => panic!("first_group should be Sequential"),
+            }
         }
 
-        // Test second_group ordering
+        // Test second_group ordering (should preserve array order)
         if let Some(crate::TaskNode::Group { tasks, .. }) = result.task_nodes.get("second_group") {
-            let task_names: Vec<&String> = tasks.keys().collect();
-            assert_eq!(
-                task_names,
-                vec!["omega", "gamma", "delta"],
-                "second_group field order incorrect: {:?}",
-                task_names
-            );
+            match tasks {
+                crate::TaskCollection::Sequential(task_list) => {
+                    assert_eq!(task_list.len(), 3, "second_group should have 3 tasks");
+
+                    // Verify order is preserved: omega, gamma, delta
+                    let commands: Vec<_> = task_list
+                        .iter()
+                        .map(|task| match task {
+                            crate::TaskNode::Task(config) => {
+                                config.command.as_ref().unwrap().as_str()
+                            }
+                            _ => panic!("Should be a task"),
+                        })
+                        .collect();
+
+                    assert_eq!(commands, vec!["echo omega", "echo gamma", "echo delta"]);
+                }
+                _ => panic!("second_group should be Sequential"),
+            }
         }
 
         println!("✓ Multiple group ordering test passed");
@@ -173,11 +235,12 @@ tasks: {
 
 tasks: {
     consistency_test: {
-        mode: "sequential"
-        task_x: { command: "echo x" }
-        task_a: { command: "echo a" }
-        task_z: { command: "echo z" }
-        task_m: { command: "echo m" }
+        tasks: [
+            { command: "echo x" },
+            { command: "echo a" },
+            { command: "echo z" },
+            { command: "echo m" }
+        ]
     }
 }
 "#;
@@ -193,7 +256,7 @@ tasks: {
         };
 
         // Parse the same content multiple times
-        let mut all_orderings = Vec::new();
+        let mut all_commands = Vec::new();
 
         for i in 0..5 {
             let result = CueParser::eval_package_with_options(
@@ -201,39 +264,52 @@ tasks: {
                 DEFAULT_PACKAGE_NAME,
                 &parse_options,
             )
-            .expect(&format!("Failed to parse CUE on iteration {}", i));
+            .unwrap_or_else(|_| panic!("Failed to parse CUE on iteration {i}"));
 
             if let Some(crate::TaskNode::Group { tasks, .. }) =
                 result.task_nodes.get("consistency_test")
             {
-                let task_names: Vec<String> = tasks.keys().cloned().collect();
-                all_orderings.push(task_names);
+                match tasks {
+                    crate::TaskCollection::Sequential(task_list) => {
+                        let commands: Vec<String> = task_list
+                            .iter()
+                            .map(|task| match task {
+                                crate::TaskNode::Task(config) => {
+                                    config.command.as_ref().unwrap().clone()
+                                }
+                                _ => panic!("Should be a task"),
+                            })
+                            .collect();
+                        all_commands.push(commands);
+                    }
+                    _ => panic!("consistency_test should be Sequential"),
+                }
             }
         }
 
         std::env::set_current_dir(original_dir).unwrap();
 
-        // All orderings should be identical
+        // All orderings should be identical (array order preserved)
         let expected = vec![
-            "task_x".to_string(),
-            "task_a".to_string(),
-            "task_z".to_string(),
-            "task_m".to_string(),
+            "echo x".to_string(),
+            "echo a".to_string(),
+            "echo z".to_string(),
+            "echo m".to_string(),
         ];
-        for (i, ordering) in all_orderings.iter().enumerate() {
+        for (i, commands) in all_commands.iter().enumerate() {
             assert_eq!(
-                ordering,
+                commands,
                 &expected,
                 "Parse #{} had different ordering: {:?}, expected: {:?}",
                 i + 1,
-                ordering,
+                commands,
                 expected
             );
         }
 
         println!(
             "✓ Consistency test passed across {} parses",
-            all_orderings.len()
+            all_commands.len()
         );
     }
 }

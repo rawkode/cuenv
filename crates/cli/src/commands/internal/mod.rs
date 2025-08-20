@@ -570,7 +570,7 @@ mod tests {
     fn test_socket_path_generation() {
         let socket_dir = PathBuf::from("/tmp/test");
         let process_id = std::process::id();
-        let expected_socket = socket_dir.join(format!("cuenv-{}.sock", process_id));
+        let expected_socket = socket_dir.join(format!("cuenv-{process_id}.sock"));
 
         // Test that socket path includes process ID
         assert!(expected_socket

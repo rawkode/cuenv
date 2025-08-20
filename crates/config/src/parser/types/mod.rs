@@ -19,7 +19,7 @@ pub use hooks::{Hook, HookConfig, HookConstraint, HookType, HookValue};
 pub(crate) use raw::RawCueResult;
 pub(crate) use result::{CueParseResult, HooksConfig};
 pub use security::SecurityConfig;
-pub use tasks::{TaskConfig, TaskGroupMode, TaskNode};
+pub use tasks::{TaskCollection, TaskConfig, TaskNode};
 
 use serde::{Deserialize, Serialize};
 

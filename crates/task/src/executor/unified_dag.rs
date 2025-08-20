@@ -4,12 +4,12 @@
 //! regardless of how tasks are invoked (direct execution, dependency resolution, etc.).
 //! It ensures proper ordering preservation and eliminates code duplication.
 
-use cuenv_config::{TaskConfig, TaskNode};
+use cuenv_config::{TaskCollection, TaskConfig, TaskNode};
 use cuenv_core::{Result, TaskDefinition};
 use indexmap::IndexMap;
 use std::collections::HashMap;
 
-use super::strategies::{create_strategy, FlattenedTask};
+use super::strategies::{FlattenedTask, GroupExecutionStrategy, GroupStrategy, SequentialStrategy};
 
 /// A unified DAG builder that consolidates all task execution paths
 #[derive(Debug, Clone)]
@@ -152,7 +152,7 @@ impl UnifiedTaskDAG {
                 for dep_name in deps {
                     if self.task_nodes.contains_key(dep_name) {
                         // This dependency is a group - depend on its end barrier
-                        resolved_dependencies.push(format!("{}:__end__", dep_name));
+                        resolved_dependencies.push(format!("{dep_name}:__end__"));
                     } else if self.task_configs.contains_key(dep_name) {
                         // This dependency is a regular task
                         resolved_dependencies.push(dep_name.clone());
@@ -185,9 +185,12 @@ impl UnifiedTaskDAG {
         flattened_tasks: &mut Vec<FlattenedTask>,
     ) -> Result<()> {
         match group_node {
-            TaskNode::Group { mode, tasks, .. } => {
-                // Use the appropriate strategy to flatten this group
-                let strategy = create_strategy(mode);
+            TaskNode::Group { tasks, .. } => {
+                // Use the appropriate strategy based on collection type
+                let strategy: Box<dyn GroupExecutionStrategy> = match tasks {
+                    TaskCollection::Sequential(_) => Box::new(SequentialStrategy),
+                    TaskCollection::Parallel(_) => Box::new(GroupStrategy),
+                };
                 let group_flattened = strategy.process_group(group_name, tasks, Vec::new())?;
 
                 // Add all tasks from this group
@@ -255,7 +258,7 @@ impl UnifiedTaskDAG {
                     working_directory: task_config
                         .working_dir
                         .as_ref()
-                        .map(|wd| PathBuf::from(wd))
+                        .map(PathBuf::from)
                         .unwrap_or_else(|| PathBuf::from(".")),
                     shell: task_config
                         .shell
@@ -298,7 +301,7 @@ impl UnifiedTaskDAG {
         }
 
         // Try extracting just the task name from complex IDs
-        if let Some(task_name) = task_id.split(':').last() {
+        if let Some(task_name) = task_id.split(':').next_back() {
             if let Some(def) = self.task_definitions.get(task_name) {
                 return Some(def);
             }
@@ -316,7 +319,7 @@ impl UnifiedTaskDAG {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cuenv_config::{TaskConfig, TaskGroupMode};
+    use cuenv_config::{TaskCollection, TaskConfig};
 
     fn create_test_config(command: &str, deps: Option<Vec<String>>) -> TaskConfig {
         TaskConfig {
@@ -326,9 +329,8 @@ mod tests {
         }
     }
 
-    fn create_test_group(mode: TaskGroupMode, tasks: IndexMap<String, TaskNode>) -> TaskNode {
+    fn create_test_group(tasks: TaskCollection) -> TaskNode {
         TaskNode::Group {
-            mode,
             tasks,
             description: None,
         }
@@ -374,7 +376,7 @@ mod tests {
 
     #[test]
     fn test_dag_with_sequential_group() {
-        let mut task_configs = HashMap::new();
+        let task_configs = HashMap::new();
         let mut task_nodes = IndexMap::new();
 
         // Create a sequential group
@@ -390,7 +392,10 @@ mod tests {
 
         task_nodes.insert(
             "count".to_string(),
-            create_test_group(TaskGroupMode::Sequential, group_tasks),
+            create_test_group(TaskCollection::Sequential(vec![
+                TaskNode::Task(Box::new(create_test_config("echo 1", None))),
+                TaskNode::Task(Box::new(create_test_config("echo 2", None))),
+            ])),
         );
 
         let dag = UnifiedTaskDAG::builder()
@@ -409,7 +414,7 @@ mod tests {
 
     #[test]
     fn test_sequential_ordering_preservation() {
-        let mut task_configs = HashMap::new();
+        let task_configs = HashMap::new();
         let mut task_nodes = IndexMap::new();
 
         // Create a sequential group with the exact same structure as env.cue
@@ -439,7 +444,12 @@ mod tests {
 
         task_nodes.insert(
             "count".to_string(),
-            create_test_group(TaskGroupMode::Sequential, group_tasks),
+            create_test_group(TaskCollection::Sequential(vec![
+                TaskNode::Task(Box::new(create_test_config("echo 1", None))),
+                TaskNode::Task(Box::new(create_test_config("echo 2", None))),
+                TaskNode::Task(Box::new(create_test_config("echo 3", None))),
+                TaskNode::Task(Box::new(create_test_config("echo 4", None))),
+            ])),
         );
 
         let dag = UnifiedTaskDAG::builder()
@@ -458,7 +468,7 @@ mod tests {
         println!("Debug: Execution levels:");
         let levels = dag.get_execution_levels().unwrap();
         for (i, level) in levels.iter().enumerate() {
-            println!("  Level {}: {:?}", i, level);
+            println!("  Level {i}: {level:?}");
         }
 
         // The execution should preserve the sequential order
@@ -473,26 +483,32 @@ mod tests {
             }
         }
 
-        println!("Debug: Final execution order: {:?}", execution_order);
+        println!("Debug: Final execution order: {execution_order:?}");
 
-        // Should be: count:one, count:two, count:three, count:four in sequential order
-        let expected_tasks = vec!["count:one", "count:two", "count:three", "count:four"];
+        // Should be: count:task_0, count:task_1, count:task_2, count:task_3 in sequential order
+        let expected_tasks = [
+            "count:task_0",
+            "count:task_1",
+            "count:task_2",
+            "count:task_3",
+        ];
         let actual_task_names: Vec<String> = execution_order
             .into_iter()
-            .filter(|task_id| {
-                expected_tasks
-                    .iter()
-                    .any(|expected| task_id.ends_with(&expected.split(':').last().unwrap()))
-            })
+            .filter(|task_id| expected_tasks.iter().any(|expected| task_id == expected))
             .collect();
 
-        println!("Debug: Filtered task names: {:?}", actual_task_names);
+        println!("Debug: Filtered task names: {actual_task_names:?}");
 
-        // This test will help us understand what's happening
-        assert!(
-            actual_task_names.len() == 4,
-            "Should have 4 tasks, got: {:?}",
-            actual_task_names
+        // Verify we have the expected sequential tasks with auto-generated names
+        assert_eq!(
+            actual_task_names,
+            vec![
+                "count:task_0".to_string(),
+                "count:task_1".to_string(),
+                "count:task_2".to_string(),
+                "count:task_3".to_string()
+            ],
+            "Tasks should be in sequential order with auto-generated names"
         );
     }
 
@@ -528,7 +544,12 @@ mod tests {
 
         task_nodes.insert(
             "count".to_string(),
-            create_test_group(TaskGroupMode::Sequential, group_tasks),
+            create_test_group(TaskCollection::Sequential(vec![
+                TaskNode::Task(Box::new(create_test_config("echo 1", None))),
+                TaskNode::Task(Box::new(create_test_config("echo 2", None))),
+                TaskNode::Task(Box::new(create_test_config("echo 3", None))),
+                TaskNode::Task(Box::new(create_test_config("echo 4", None))),
+            ])),
         );
 
         let dag = UnifiedTaskDAG::builder()
@@ -549,7 +570,7 @@ mod tests {
         println!("Debug: Task->Group dependency - Execution levels:");
         let levels = dag.get_execution_levels().unwrap();
         for (i, level) in levels.iter().enumerate() {
-            println!("  Level {}: {:?}", i, level);
+            println!("  Level {i}: {level:?}");
         }
 
         // Should have the count group tasks plus the counted task

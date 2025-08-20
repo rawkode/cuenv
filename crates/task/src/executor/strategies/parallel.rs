@@ -1,9 +1,8 @@
 //! Parallel execution strategy
 
 use super::{create_barrier_task, create_task_id, FlattenedTask, GroupExecutionStrategy};
-use cuenv_config::TaskNode;
+use cuenv_config::{TaskCollection, TaskNode};
 use cuenv_core::Result;
-use indexmap::IndexMap;
 
 /// Parallel execution strategy - all tasks run simultaneously
 pub struct ParallelStrategy;
@@ -12,7 +11,7 @@ impl GroupExecutionStrategy for ParallelStrategy {
     fn process_group(
         &self,
         group_name: &str,
-        tasks: &IndexMap<String, TaskNode>,
+        tasks: &TaskCollection,
         parent_path: Vec<String>,
     ) -> Result<Vec<FlattenedTask>> {
         let mut flattened = Vec::new();
@@ -30,7 +29,7 @@ impl GroupExecutionStrategy for ParallelStrategy {
         let mut task_ids = Vec::new();
 
         // Process all tasks - they all depend only on the start barrier
-        for (task_name, node) in tasks {
+        for (task_name, node) in tasks.iter() {
             match node {
                 TaskNode::Task(config) => {
                     // Start with dependency on start barrier
@@ -39,7 +38,16 @@ impl GroupExecutionStrategy for ParallelStrategy {
                     // Add any explicit external dependencies
                     if let Some(explicit_deps) = &config.dependencies {
                         for dep in explicit_deps {
-                            if tasks.contains_key(dep) {
+                            // Check if this is an internal dependency
+                            let has_internal_dep = match tasks {
+                                TaskCollection::Sequential(_) => {
+                                    // For sequential collections, internal dependencies don't make sense
+                                    false
+                                }
+                                TaskCollection::Parallel(task_map) => task_map.contains_key(dep),
+                            };
+
+                            if has_internal_dep {
                                 // Internal dependency - ignore in parallel mode
                                 // All tasks in parallel group run simultaneously
                                 continue;
@@ -50,7 +58,7 @@ impl GroupExecutionStrategy for ParallelStrategy {
                         }
                     }
 
-                    let task_id = create_task_id(&group_path, task_name);
+                    let task_id = create_task_id(&group_path, &task_name);
                     task_ids.push(task_id.clone());
 
                     flattened.push(FlattenedTask {
@@ -63,9 +71,7 @@ impl GroupExecutionStrategy for ParallelStrategy {
                     });
                 }
                 TaskNode::Group {
-                    mode,
-                    tasks: subtasks,
-                    ..
+                    tasks: subtasks, ..
                 } => {
                     // Create a subgroup that depends on start barrier
                     let subgroup_start =
@@ -76,11 +82,14 @@ impl GroupExecutionStrategy for ParallelStrategy {
                         vec![start_barrier_id.clone()],
                     ));
 
-                    // Process subgroup
-                    let strategy = super::create_strategy(mode);
+                    // Process subgroup using appropriate strategy
+                    let strategy: Box<dyn GroupExecutionStrategy> = match subtasks {
+                        TaskCollection::Sequential(_) => Box::new(super::SequentialStrategy),
+                        TaskCollection::Parallel(_) => Box::new(ParallelStrategy),
+                    };
                     let subtask_path = group_path.clone();
                     let mut subgroup_tasks =
-                        strategy.process_group(task_name, subtasks, subtask_path)?;
+                        strategy.process_group(&task_name, subtasks, subtask_path)?;
 
                     // Update first tasks in subgroup to depend on subgroup start
                     for task in &mut subgroup_tasks {

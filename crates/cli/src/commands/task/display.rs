@@ -1,7 +1,6 @@
 use crossterm::style::Stylize;
-use cuenv_config::{TaskGroupMode, TaskNode};
+use cuenv_config::{TaskCollection, TaskConfig, TaskNode};
 use indexmap::IndexMap;
-use std::collections::BTreeMap;
 
 /// Box drawing characters for tree visualization
 const TREE_BRANCH: &str = "├── ";
@@ -9,21 +8,36 @@ const TREE_LAST: &str = "└── ";
 const TREE_PIPE: &str = "│   ";
 const TREE_EMPTY: &str = "    ";
 
-/// Format the execution mode as a colored badge
-pub fn format_mode_badge(mode: &TaskGroupMode) -> String {
-    match mode {
-        TaskGroupMode::Workflow => "[WORKFLOW]".cyan().to_string(),
-        TaskGroupMode::Sequential => "[SEQUENTIAL]".yellow().to_string(),
-        TaskGroupMode::Parallel => "[PARALLEL]".green().to_string(),
-        TaskGroupMode::Group => "[GROUP]".dark_grey().to_string(),
-    }
+/// Maximum depth for tree traversal
+const MAX_DEPTH: usize = 10;
+
+/// Display a single task
+fn display_task(
+    name: &str,
+    config: &TaskConfig,
+    verbose: bool,
+    use_color: bool,
+    _depth: usize,
+    connector: &str,
+) {
+    let task_line = format_task_line(
+        name,
+        config.description.as_deref(),
+        connector,
+        verbose,
+        use_color,
+    );
+    println!("{task_line}");
 }
 
 /// Count tasks recursively in a node
 pub fn count_tasks(node: &TaskNode) -> usize {
     match node {
         TaskNode::Task(_) => 1,
-        TaskNode::Group { tasks, .. } => tasks.values().map(count_tasks).sum(),
+        TaskNode::Group { tasks, .. } => match tasks {
+            TaskCollection::Sequential(task_list) => task_list.iter().map(count_tasks).sum(),
+            TaskCollection::Parallel(task_map) => task_map.values().map(count_tasks).sum(),
+        },
     }
 }
 
@@ -53,18 +67,17 @@ pub fn display_task_tree(nodes: &IndexMap<String, TaskNode>, verbose: bool, use_
             }
             TaskNode::Group {
                 description: _,
-                mode,
                 tasks,
             } => {
                 if verbose {
                     // Verbose mode: show tree structure
-                    display_group(
+                    display_group_collection(
                         name, None, // Don't show descriptions in list view
-                        mode, tasks, verbose, use_color, 0, "",
+                        tasks, verbose, use_color, 0, "",
                     );
                 } else {
                     // Compact mode: single line per group
-                    display_group_compact(name, mode, tasks, use_color);
+                    display_group_compact_collection(name, tasks, use_color);
                 }
             }
         }
@@ -94,11 +107,10 @@ pub fn display_task_tree(nodes: &IndexMap<String, TaskNode>, verbose: bool, use_
         if use_color {
             println!("{}", "─".repeat(40).dark_grey());
             println!(
-                "{} workflow  {} sequential  {} parallel  {} group  {} single",
+                "{} parallel  {} sequential  {} group  {} single",
                 "⚡".cyan(),
                 "⇢".yellow(),
                 "⇉".green(),
-                "◉".white(),
                 "•".dark_grey()
             );
             println!();
@@ -111,25 +123,32 @@ pub fn display_task_tree(nodes: &IndexMap<String, TaskNode>, verbose: bool, use_
 }
 
 /// Display a group in compact format (single line)
-fn display_group_compact(
-    name: &str,
-    mode: &TaskGroupMode,
-    tasks: &IndexMap<String, TaskNode>,
-    use_color: bool,
-) {
-    // Get list of subtask names (just the last part after dots)
-    let mut subtask_names: Vec<String> = tasks
-        .keys()
-        .map(|k| {
-            // Get just the last part of the name for cleaner display
-            if let Some(last_dot) = k.rfind('.') {
-                k[last_dot + 1..].to_string()
-            } else {
-                k.clone()
-            }
-        })
-        .collect();
-    subtask_names.sort();
+fn display_group_compact_collection(name: &str, tasks: &TaskCollection, use_color: bool) {
+    // Get list of subtask names
+    let mut subtask_names: Vec<String> = match tasks {
+        TaskCollection::Sequential(task_list) => task_list
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("task_{i}"))
+            .collect(),
+        TaskCollection::Parallel(task_map) => {
+            task_map
+                .keys()
+                .map(|k| {
+                    // Get just the last part of the name for cleaner display
+                    if let Some(last_dot) = k.rfind('.') {
+                        k[last_dot + 1..].to_string()
+                    } else {
+                        k.clone()
+                    }
+                })
+                .collect()
+        }
+    };
+
+    if matches!(tasks, TaskCollection::Parallel(_)) {
+        subtask_names.sort();
+    }
 
     // Create task list display
     let task_list = if subtask_names.len() > 4 {
@@ -140,11 +159,9 @@ fn display_group_compact(
 
     if use_color {
         // Distinct icons for each mode
-        let (symbol, color) = match mode {
-            TaskGroupMode::Workflow => ("⚡", name.cyan()),
-            TaskGroupMode::Sequential => ("⇢", name.yellow()),
-            TaskGroupMode::Parallel => ("⇉", name.green()),
-            TaskGroupMode::Group => ("◉", name.white()),
+        let (symbol, color) = match tasks {
+            TaskCollection::Sequential(_) => ("⇢", name.yellow()),
+            TaskCollection::Parallel(_) => ("⇉", name.green()),
         };
 
         println!(
@@ -158,98 +175,53 @@ fn display_group_compact(
     }
 }
 
-/// Display a group and its contents
+/// Display a group and its contents (TaskCollection version)
 #[allow(clippy::too_many_arguments)]
-fn display_group(
+fn display_group_collection(
     name: &str,
     description: Option<&str>,
-    mode: &TaskGroupMode,
-    tasks: &IndexMap<String, TaskNode>,
+    tasks: &TaskCollection,
     verbose: bool,
     use_color: bool,
     depth: usize,
     prefix: &str,
 ) {
-    let task_count = tasks.values().map(count_tasks).sum::<usize>();
+    let task_count = match tasks {
+        TaskCollection::Sequential(task_list) => task_list.iter().map(count_tasks).sum::<usize>(),
+        TaskCollection::Parallel(task_map) => task_map.values().map(count_tasks).sum::<usize>(),
+    };
+
+    let (mode_name, mode_color) = match tasks {
+        TaskCollection::Sequential(_) => ("SEQ", "\x1b[94m"), // Blue
+        TaskCollection::Parallel(_) => ("PAR", "\x1b[92m"),   // Green
+    };
+
     let mode_badge = if use_color {
-        format_mode_badge(mode)
+        format!("\x1b[1m{mode_color}[{mode_name}]\x1b[0m")
     } else {
-        format!(
-            "[{}]",
-            match mode {
-                TaskGroupMode::Workflow => "WORKFLOW",
-                TaskGroupMode::Sequential => "SEQUENTIAL",
-                TaskGroupMode::Parallel => "PARALLEL",
-                TaskGroupMode::Group => "GROUP",
-            }
-        )
+        format!("[{mode_name}]")
     };
 
-    // Display group header
-    let group_line = if use_color {
-        format!(
-            "{}{} {} {}",
-            prefix,
-            name.bold().cyan(),
-            mode_badge,
-            format!("({task_count} tasks)").dark_grey()
-        )
-    } else {
-        format!("{prefix}{name} {mode_badge} ({task_count} tasks)")
-    };
-    println!("{group_line}");
+    // Format group line
+    let indent = " ".repeat(depth * 4);
+    let formatted_name = format!("{indent}{prefix}{name}");
 
-    // Display description if verbose
-    if verbose {
-        if let Some(desc) = description {
-            let desc_line = if use_color {
-                format!("{}  {}", prefix, desc.dark_grey())
-            } else {
-                format!("{prefix}  {desc}")
-            };
-            println!("{desc_line}");
-        }
+    if use_color {
+        print!("{}", formatted_name.cyan().bold());
+        print!(" {}", mode_badge);
+        println!(" ({task_count} tasks)");
+    } else {
+        println!("{formatted_name} {mode_badge} ({task_count} tasks)");
     }
 
-    // Display child items with tree structure
-    display_tree_children(tasks, verbose, use_color, depth);
-}
-
-/// Helper function to display tree children with a specific prefix
-fn display_tree_children_with_prefix(
-    tasks: &IndexMap<String, TaskNode>,
-    verbose: bool,
-    use_color: bool,
-    _depth: usize,
-    prefix: &str,
-) {
-    let sorted: BTreeMap<_, _> = tasks.iter().collect();
-    let total = sorted.len();
-    let mut count = 0;
-
-    for (name, node) in sorted {
-        count += 1;
-        let is_last = count == total;
-        let connector = if is_last {
-            format!("{prefix}{TREE_LAST}")
-        } else {
-            format!("{prefix}{TREE_BRANCH}")
-        };
-
-        match node {
-            TaskNode::Task(config) => {
-                let task_line = format_task_line(
-                    name,
-                    config.description.as_deref(),
-                    &connector,
-                    verbose,
-                    use_color,
-                );
-                println!("{task_line}");
-            }
-            TaskNode::Group { .. } => {
-                // For nested groups, just show a placeholder for now
-                println!("{connector}{name} [...]");
+    // Display description if present and verbose
+    if verbose {
+        if let Some(desc) = description {
+            let desc_indent = " ".repeat(depth * 4 + 2);
+            if use_color {
+                println!("{desc_indent}{}", desc.dark_grey());
+            } else {
+                println!("{desc_indent}{desc}");
             }
         }
     }
@@ -279,6 +251,66 @@ fn format_task_line(
     }
 }
 
+/// Display children with tree structure (TaskCollection version)
+fn display_tree_children_collection(
+    collection: &TaskCollection,
+    verbose: bool,
+    use_color: bool,
+    depth: usize,
+) {
+    // Convert TaskCollection to an IndexMap-like structure for display
+    match collection {
+        TaskCollection::Sequential(tasks) => {
+            let total = tasks.len();
+            let mut count = 0;
+
+            for (index, node) in tasks.iter().enumerate() {
+                count += 1;
+                let is_last = count == total;
+                let connector = if is_last { TREE_LAST } else { TREE_BRANCH };
+                let child_prefix = if is_last { TREE_EMPTY } else { TREE_PIPE };
+                let name = format!("task_{}", index);
+
+                match node {
+                    TaskNode::Task(config) => {
+                        display_task(&name, config, verbose, use_color, depth, connector);
+                    }
+                    TaskNode::Group {
+                        description,
+                        tasks: subtasks,
+                    } => {
+                        display_group_collection(
+                            &name,
+                            description.as_deref(),
+                            subtasks,
+                            verbose,
+                            use_color,
+                            depth,
+                            connector,
+                        );
+
+                        // Recursively display children
+                        if depth < MAX_DEPTH {
+                            print!("{}", " ".repeat(depth * 4 + 2));
+                            println!("{child_prefix}");
+                            display_tree_children_collection(
+                                subtasks,
+                                verbose,
+                                use_color,
+                                depth + 1,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        TaskCollection::Parallel(task_map) => {
+            // For parallel collections, use the existing display function
+            display_tree_children(task_map, verbose, use_color, depth);
+        }
+    }
+}
+
 /// Display children with tree structure
 fn display_tree_children(
     nodes: &IndexMap<String, TaskNode>,
@@ -294,7 +326,7 @@ fn display_tree_children(
         count += 1;
         let is_last = count == total;
         let connector = if is_last { TREE_LAST } else { TREE_BRANCH };
-        let child_prefix = if is_last { TREE_EMPTY } else { TREE_PIPE };
+        let _child_prefix = if is_last { TREE_EMPTY } else { TREE_PIPE };
 
         match node {
             TaskNode::Task(config) => {
@@ -307,15 +339,10 @@ fn display_tree_children(
                 );
                 println!("{task_line}");
             }
-            TaskNode::Group {
-                description,
-                mode,
-                tasks,
-            } => {
-                display_group(
+            TaskNode::Group { description, tasks } => {
+                display_group_collection(
                     name,
                     description.as_deref(),
-                    mode,
                     tasks,
                     verbose,
                     use_color,
@@ -325,13 +352,7 @@ fn display_tree_children(
 
                 // Recursively display nested content with proper indentation
                 if !tasks.is_empty() {
-                    display_tree_children_with_prefix(
-                        tasks,
-                        verbose,
-                        use_color,
-                        depth + 1,
-                        child_prefix,
-                    );
+                    display_tree_children_collection(tasks, verbose, use_color, depth + 1);
                 }
             }
         }
@@ -342,23 +363,19 @@ fn display_tree_children(
 pub fn display_group_contents(
     group_name: &str,
     description: Option<&str>,
-    mode: &TaskGroupMode,
-    tasks: &IndexMap<String, TaskNode>,
+    tasks: &TaskCollection,
     verbose: bool,
     use_color: bool,
 ) {
+    let (mode_name, mode_color) = match tasks {
+        TaskCollection::Sequential(_) => ("SEQUENTIAL", "\x1b[94m"), // Blue
+        TaskCollection::Parallel(_) => ("PARALLEL", "\x1b[92m"),     // Green
+    };
+
     let mode_badge = if use_color {
-        format_mode_badge(mode)
+        format!("\x1b[1m{mode_color}[{mode_name}]\x1b[0m")
     } else {
-        format!(
-            "[{}]",
-            match mode {
-                TaskGroupMode::Workflow => "WORKFLOW",
-                TaskGroupMode::Sequential => "SEQUENTIAL",
-                TaskGroupMode::Parallel => "PARALLEL",
-                TaskGroupMode::Group => "GROUP",
-            }
-        )
+        format!("[{mode_name}]")
     };
 
     // Header
@@ -379,21 +396,15 @@ pub fn display_group_contents(
     println!();
 
     // Display tasks
-    display_tree_children(tasks, verbose, use_color, 0);
+    display_tree_children_collection(tasks, verbose, use_color, 0);
 
     // Action hint
     println!();
-    let action_hint = match mode {
-        TaskGroupMode::Group => {
-            format!("Run 'cuenv task {group_name} <task>' to execute a specific task")
-        }
-        TaskGroupMode::Parallel => {
-            format!("Run 'cuenv task {group_name}' to execute all tasks in parallel")
-        }
-        TaskGroupMode::Sequential => {
+    let action_hint = match tasks {
+        TaskCollection::Sequential(_) => {
             format!("Run 'cuenv task {group_name}' to execute all tasks sequentially")
         }
-        TaskGroupMode::Workflow => {
+        TaskCollection::Parallel(_) => {
             format!("Run 'cuenv task {group_name}' to execute tasks based on dependencies")
         }
     };
@@ -408,7 +419,7 @@ pub fn display_group_contents(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cuenv_config::{TaskConfig, TaskGroupMode, TaskNode};
+    use cuenv_config::{TaskConfig, TaskNode};
 
     fn create_test_task(description: Option<String>) -> TaskNode {
         TaskNode::Task(Box::new(TaskConfig {
@@ -428,36 +439,8 @@ mod tests {
         }))
     }
 
-    fn create_test_group(
-        mode: TaskGroupMode,
-        description: Option<String>,
-        tasks: IndexMap<String, TaskNode>,
-    ) -> TaskNode {
-        TaskNode::Group {
-            description,
-            mode,
-            tasks,
-        }
-    }
-
-    #[test]
-    fn test_format_mode_badge() {
-        assert_eq!(
-            format_mode_badge(&TaskGroupMode::Workflow),
-            "[WORKFLOW]".cyan().to_string()
-        );
-        assert_eq!(
-            format_mode_badge(&TaskGroupMode::Sequential),
-            "[SEQUENTIAL]".yellow().to_string()
-        );
-        assert_eq!(
-            format_mode_badge(&TaskGroupMode::Parallel),
-            "[PARALLEL]".green().to_string()
-        );
-        assert_eq!(
-            format_mode_badge(&TaskGroupMode::Group),
-            "[GROUP]".dark_grey().to_string()
-        );
+    fn create_test_group(tasks: TaskCollection, description: Option<String>) -> TaskNode {
+        TaskNode::Group { description, tasks }
     }
 
     #[test]
@@ -468,7 +451,7 @@ mod tests {
 
     #[test]
     fn test_count_tasks_empty_group() {
-        let group = create_test_group(TaskGroupMode::Group, None, IndexMap::new());
+        let group = create_test_group(TaskCollection::Parallel(IndexMap::new()), None);
         assert_eq!(count_tasks(&group), 0);
     }
 
@@ -478,7 +461,7 @@ mod tests {
         tasks.insert("task1".to_string(), create_test_task(None));
         tasks.insert("task2".to_string(), create_test_task(None));
 
-        let group = create_test_group(TaskGroupMode::Group, None, tasks);
+        let group = create_test_group(TaskCollection::Parallel(tasks), None);
         assert_eq!(count_tasks(&group), 2);
     }
 
@@ -487,13 +470,13 @@ mod tests {
         let mut inner_tasks = IndexMap::new();
         inner_tasks.insert("inner1".to_string(), create_test_task(None));
         inner_tasks.insert("inner2".to_string(), create_test_task(None));
-        let inner_group = create_test_group(TaskGroupMode::Group, None, inner_tasks);
+        let inner_group = create_test_group(TaskCollection::Parallel(inner_tasks), None);
 
         let mut outer_tasks = IndexMap::new();
         outer_tasks.insert("task1".to_string(), create_test_task(None));
         outer_tasks.insert("group1".to_string(), inner_group);
 
-        let outer_group = create_test_group(TaskGroupMode::Group, None, outer_tasks);
+        let outer_group = create_test_group(TaskCollection::Parallel(outer_tasks), None);
         assert_eq!(count_tasks(&outer_group), 3);
     }
 
@@ -632,9 +615,8 @@ mod tests {
         tasks.insert(
             "group1".to_string(),
             create_test_group(
-                TaskGroupMode::Parallel,
+                TaskCollection::Parallel(inner_tasks),
                 Some("A parallel group".to_string()),
-                inner_tasks,
             ),
         );
 
@@ -654,19 +636,19 @@ mod tests {
             create_test_task(Some("Second task".to_string())),
         );
 
-        let modes = [
-            TaskGroupMode::Workflow,
-            TaskGroupMode::Sequential,
-            TaskGroupMode::Parallel,
-            TaskGroupMode::Group,
+        let collections = [
+            TaskCollection::Sequential(vec![
+                create_test_task(Some("Task 1".to_string())),
+                create_test_task(Some("Task 2".to_string())),
+            ]),
+            TaskCollection::Parallel(tasks.clone()),
         ];
 
-        for mode in &modes {
+        for collection in &collections {
             display_group_contents(
                 "test_group",
                 Some("Test group description"),
-                mode,
-                &tasks,
+                collection,
                 false,
                 false,
             );
@@ -674,8 +656,7 @@ mod tests {
             display_group_contents(
                 "test_group",
                 Some("Test group description"),
-                mode,
-                &tasks,
+                collection,
                 true,
                 true,
             );
@@ -690,8 +671,7 @@ mod tests {
         display_group_contents(
             "test_group",
             None,
-            &TaskGroupMode::Group,
-            &tasks,
+            &TaskCollection::Parallel(tasks),
             false,
             false,
         );
@@ -704,8 +684,7 @@ mod tests {
         display_group_contents(
             "empty_group",
             Some("An empty group"),
-            &TaskGroupMode::Group,
-            &tasks,
+            &TaskCollection::Parallel(tasks),
             true,
             true,
         );
@@ -722,8 +701,7 @@ mod tests {
         display_group_contents(
             "Unicode组",
             Some("Unicode组描述"),
-            &TaskGroupMode::Parallel,
-            &tasks,
+            &TaskCollection::Parallel(tasks),
             true,
             true,
         );
@@ -741,9 +719,8 @@ mod tests {
 
         // This tests the "4 tasks shown, others as …" functionality
         let group = create_test_group(
-            TaskGroupMode::Parallel,
+            TaskCollection::Parallel(tasks),
             Some("A group with many tasks".to_string()),
-            tasks,
         );
 
         let mut nodes = IndexMap::new();
@@ -770,9 +747,8 @@ mod tests {
         );
 
         let group = create_test_group(
-            TaskGroupMode::Group,
+            TaskCollection::Parallel(tasks),
             Some("Group with namespaced tasks".to_string()),
-            tasks,
         );
 
         let mut nodes = IndexMap::new();
@@ -800,19 +776,20 @@ mod tests {
             create_test_task(Some("A standalone task".to_string())),
         );
         nodes.insert(
-            "workflow_group".to_string(),
+            "parallel_group".to_string(),
             create_test_group(
-                TaskGroupMode::Workflow,
-                Some("A workflow group".to_string()),
-                inner_tasks.clone(),
+                TaskCollection::Parallel(inner_tasks.clone()),
+                Some("A parallel group".to_string()),
             ),
         );
         nodes.insert(
             "sequential_group".to_string(),
             create_test_group(
-                TaskGroupMode::Sequential,
+                TaskCollection::Sequential(vec![
+                    create_test_task(Some("Sequential task 1".to_string())),
+                    create_test_task(Some("Sequential task 2".to_string())),
+                ]),
                 Some("A sequential group".to_string()),
-                inner_tasks,
             ),
         );
         nodes.insert("another_task".to_string(), create_test_task(None));
@@ -833,9 +810,8 @@ mod tests {
         }
 
         let group = create_test_group(
-            TaskGroupMode::Parallel,
+            TaskCollection::Parallel(tasks),
             Some("Large group".to_string()),
-            tasks,
         );
 
         let mut nodes = IndexMap::new();

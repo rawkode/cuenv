@@ -1,9 +1,8 @@
 use super::strategies::{process_task_group, TaskGroupExecutionPlan};
 use super::unified_dag::UnifiedTaskDAG;
 use super::TaskExecutor;
-use cuenv_config::{TaskGroupMode, TaskNode};
+use cuenv_config::{TaskCollection, TaskNode};
 use cuenv_core::Result;
-use indexmap::IndexMap;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -76,10 +75,9 @@ impl TaskExecutor {
     pub fn get_task_group_plan(
         &self,
         group_name: &str,
-        mode: &TaskGroupMode,
-        tasks: &IndexMap<String, TaskNode>,
+        tasks: &TaskCollection,
     ) -> Result<TaskGroupExecutionPlan> {
-        let plan = process_task_group(group_name, mode, tasks)?;
+        let plan = process_task_group(group_name, tasks)?;
 
         // Validate that all tasks in the plan are executable
         for task_info in plan.executable_tasks() {
@@ -109,15 +107,15 @@ impl TaskExecutor {
         // Calculate configuration hash for cache key
         let config_hash = self
             .dag_cache
-            .calculate_config_hash(&all_task_configs, &all_task_nodes);
+            .calculate_config_hash(all_task_configs, all_task_nodes);
 
         // Check cache first
         if let Some(cached_dag) = self.dag_cache.get(task_names, config_hash) {
-            log::debug!("Using cached DAG for tasks: {:?}", task_names);
+            log::debug!("Using cached DAG for tasks: {task_names:?}");
             return Ok(cached_dag);
         }
 
-        log::debug!("Building new DAG for tasks: {:?}", task_names);
+        log::debug!("Building new DAG for tasks: {task_names:?}");
 
         // Build task definitions using the task builder
         let task_definitions = self
@@ -132,7 +130,7 @@ impl TaskExecutor {
 
         // Store in cache for future use
         if let Err(e) = self.dag_cache.put(task_names, config_hash, dag.clone()) {
-            log::warn!("Failed to cache DAG: {}", e);
+            log::warn!("Failed to cache DAG: {e}");
             // Continue execution even if caching fails
         }
 

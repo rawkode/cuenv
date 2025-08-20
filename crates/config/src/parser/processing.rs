@@ -2,8 +2,8 @@
 
 use crate::parser::ffi::CueParser;
 use crate::parser::types::{
-    CommandConfig, ConfigSettings, CueParseResult, Hook, HookValue, HooksConfig, TaskConfig,
-    TaskNode, VariableMetadata,
+    CommandConfig, ConfigSettings, CueParseResult, Hook, HookValue, HooksConfig, TaskCollection,
+    TaskConfig, TaskNode, VariableMetadata,
 };
 use cuenv_core::errors::Result;
 use indexmap::IndexMap;
@@ -146,7 +146,7 @@ fn extract_hooks(hooks_config: Option<HooksConfig>) -> HashMap<String, Vec<Hook>
 
 /// Processes tasks while preserving the hierarchical structure
 fn process_tasks_with_structure(
-    raw_tasks: HashMap<String, serde_json::Value>,
+    raw_tasks: IndexMap<String, serde_json::Value>,
 ) -> (HashMap<String, TaskConfig>, IndexMap<String, TaskNode>) {
     let mut flat_tasks = HashMap::new();
     let mut task_nodes = IndexMap::new();
@@ -191,9 +191,21 @@ fn flatten_task_node(
             let mut new_path = path.clone();
             new_path.push(name.to_string());
 
-            // Recursively process all sub-tasks
-            for (sub_name, sub_node) in tasks {
-                flatten_task_node(sub_name, sub_node, result, new_path.clone());
+            // Recursively process all sub-tasks based on collection type
+            match tasks {
+                TaskCollection::Sequential(task_list) => {
+                    // For sequential tasks, generate names based on index
+                    for (index, sub_node) in task_list.iter().enumerate() {
+                        let sub_name = format!("task_{index}");
+                        flatten_task_node(&sub_name, sub_node, result, new_path.clone());
+                    }
+                }
+                TaskCollection::Parallel(task_map) => {
+                    // For parallel tasks, use the existing named approach
+                    for (sub_name, sub_node) in task_map {
+                        flatten_task_node(sub_name, sub_node, result, new_path.clone());
+                    }
+                }
             }
         }
     }

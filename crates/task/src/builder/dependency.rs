@@ -3,7 +3,7 @@
 //! This module handles task dependency resolution, circular dependency detection,
 //! and caching of validation results.
 
-use cuenv_config::TaskNode;
+use cuenv_config::{TaskCollection, TaskNode};
 use cuenv_core::{Error, ResolvedDependency, Result};
 use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
@@ -105,7 +105,7 @@ fn expand_task_group_dependency(
             }
 
             // Collect all task names from the group with cycle detection
-            collect_task_names_from_group(
+            collect_task_names_from_collection(
                 group_name,
                 group_tasks,
                 &mut tasks,
@@ -123,23 +123,23 @@ fn expand_task_group_dependency(
     Ok(tasks)
 }
 
-/// Recursively collect task names from a group, handling nested groups with cycle detection
-fn collect_task_names_from_group(
+/// Recursively collect task names from a collection, handling nested groups with cycle detection
+fn collect_task_names_from_collection(
     group_name: &str,
-    tasks: &IndexMap<String, TaskNode>,
+    tasks: &TaskCollection,
     result: &mut Vec<String>,
     path: String,
     visited_groups: &mut HashSet<String>,
     _all_task_nodes: &IndexMap<String, TaskNode>,
 ) -> Result<()> {
-    for (task_name, node) in tasks {
+    for (task_name, node) in tasks.iter() {
         match node {
             TaskNode::Task(_) => {
                 // Build the full task name from the path with optimized string building
                 let full_name = if path.is_empty() {
-                    format!("{}.{}", group_name, task_name)
+                    format!("{group_name}.{task_name}")
                 } else {
-                    format!("{}.{}.{}", group_name, path, task_name)
+                    format!("{group_name}.{path}.{task_name}")
                 };
                 result.push(full_name);
             }
@@ -148,9 +148,9 @@ fn collect_task_names_from_group(
             } => {
                 // Create the full group path for cycle detection
                 let full_group_path = if path.is_empty() {
-                    format!("{}.{}", group_name, task_name)
+                    format!("{group_name}.{task_name}")
                 } else {
-                    format!("{}.{}.{}", group_name, path, task_name)
+                    format!("{group_name}.{path}.{task_name}")
                 };
 
                 // Check for cycles in group nesting (temporarily disabled for debugging)
@@ -166,13 +166,12 @@ fn collect_task_names_from_group(
                 // Check for empty nested groups
                 if subtasks.is_empty() {
                     return Err(Error::configuration(format!(
-                        "Nested task group '{}' is empty and cannot be expanded",
-                        full_group_path
+                        "Nested task group '{full_group_path}' is empty and cannot be expanded"
                     )));
                 }
 
                 // Recursively process nested groups
-                collect_task_names_from_group(
+                collect_task_names_from_collection(
                     &full_group_path, // Use the full path as the new group name
                     subtasks,
                     result,
@@ -471,8 +470,6 @@ mod tests {
 
     #[test]
     fn test_task_group_dependency_expansion() {
-        use cuenv_config::TaskGroupMode;
-
         let mut context = BuildContext {
             task_configs: HashMap::new(),
             task_nodes: IndexMap::new(),
@@ -517,8 +514,7 @@ mod tests {
             "ci".to_string(),
             TaskNode::Group {
                 description: Some("CI tasks".to_string()),
-                mode: TaskGroupMode::Parallel,
-                tasks: ci_tasks,
+                tasks: TaskCollection::Parallel(ci_tasks),
             },
         );
 
@@ -541,8 +537,6 @@ mod tests {
 
     #[test]
     fn test_nested_task_group_dependency() {
-        use cuenv_config::TaskGroupMode;
-
         let mut context = BuildContext {
             task_configs: HashMap::new(),
             task_nodes: IndexMap::new(),
@@ -591,8 +585,7 @@ mod tests {
             "quality".to_string(),
             TaskNode::Group {
                 description: Some("Quality checks".to_string()),
-                mode: TaskGroupMode::Parallel,
-                tasks: quality_tasks,
+                tasks: TaskCollection::Parallel(quality_tasks),
             },
         );
 
@@ -600,8 +593,7 @@ mod tests {
             "release".to_string(),
             TaskNode::Group {
                 description: Some("Release process".to_string()),
-                mode: TaskGroupMode::Workflow,
-                tasks: release_tasks,
+                tasks: TaskCollection::Parallel(release_tasks),
             },
         );
 
@@ -624,8 +616,6 @@ mod tests {
 
     #[test]
     fn test_empty_task_group_error() {
-        use cuenv_config::TaskGroupMode;
-
         let mut context = BuildContext {
             task_configs: HashMap::new(),
             task_nodes: IndexMap::new(),
@@ -647,8 +637,7 @@ mod tests {
             "empty_group".to_string(),
             TaskNode::Group {
                 description: Some("Empty group".to_string()),
-                mode: TaskGroupMode::Parallel,
-                tasks: IndexMap::new(), // Empty!
+                tasks: TaskCollection::Parallel(IndexMap::new()), // Empty!
             },
         );
 
@@ -659,8 +648,6 @@ mod tests {
 
     #[test]
     fn test_circular_group_dependency_detection() {
-        use cuenv_config::TaskGroupMode;
-
         let mut context = BuildContext {
             task_configs: HashMap::new(),
             task_nodes: IndexMap::new(),
@@ -683,15 +670,14 @@ mod tests {
             "nested".to_string(),
             TaskNode::Group {
                 description: Some("Nested group".to_string()),
-                mode: TaskGroupMode::Parallel,
-                tasks: {
+                tasks: TaskCollection::Parallel({
                     let mut inner = IndexMap::new();
                     inner.insert(
                         "task".to_string(),
                         TaskNode::Task(Box::new(create_test_config(None))),
                     );
                     inner
-                },
+                }),
             },
         );
 
@@ -699,8 +685,7 @@ mod tests {
             "circular".to_string(),
             TaskNode::Group {
                 description: Some("Circular group".to_string()),
-                mode: TaskGroupMode::Workflow,
-                tasks: nested_tasks,
+                tasks: TaskCollection::Parallel(nested_tasks),
             },
         );
 
@@ -720,14 +705,12 @@ mod tests {
         // This should succeed since we don't have an actual circular reference
         match result {
             Ok(_) => {}
-            Err(e) => panic!("Test failed with error: {}", e),
+            Err(e) => panic!("Test failed with error: {e}"),
         }
     }
 
     #[test]
     fn test_max_nesting_depth() {
-        use cuenv_config::TaskGroupMode;
-
         let mut context = BuildContext {
             task_configs: HashMap::new(),
             task_nodes: IndexMap::new(),
@@ -768,8 +751,7 @@ mod tests {
                 "level3".to_string(),
                 TaskNode::Group {
                     description: Some("Level 3".to_string()),
-                    mode: TaskGroupMode::Parallel,
-                    tasks: level3_tasks,
+                    tasks: TaskCollection::Parallel(level3_tasks),
                 },
             );
             tasks
@@ -781,8 +763,7 @@ mod tests {
                 "level2".to_string(),
                 TaskNode::Group {
                     description: Some("Level 2".to_string()),
-                    mode: TaskGroupMode::Parallel,
-                    tasks: level2_tasks,
+                    tasks: TaskCollection::Parallel(level2_tasks),
                 },
             );
             tasks
@@ -794,8 +775,7 @@ mod tests {
                 "level1".to_string(),
                 TaskNode::Group {
                     description: Some("Level 1".to_string()),
-                    mode: TaskGroupMode::Parallel,
-                    tasks: level1_tasks,
+                    tasks: TaskCollection::Parallel(level1_tasks),
                 },
             );
             tasks
@@ -805,8 +785,7 @@ mod tests {
             "deep".to_string(),
             TaskNode::Group {
                 description: Some("Deep nesting test".to_string()),
-                mode: TaskGroupMode::Workflow,
-                tasks: deep_tasks,
+                tasks: TaskCollection::Parallel(deep_tasks),
             },
         );
 
@@ -824,8 +803,6 @@ mod tests {
 
     #[test]
     fn test_mixed_individual_and_group_dependencies() {
-        use cuenv_config::TaskGroupMode;
-
         let mut context = BuildContext {
             task_configs: HashMap::new(),
             task_nodes: IndexMap::new(),
@@ -878,8 +855,7 @@ mod tests {
             "test".to_string(),
             TaskNode::Group {
                 description: Some("Test tasks".to_string()),
-                mode: TaskGroupMode::Parallel,
-                tasks: test_tasks,
+                tasks: TaskCollection::Parallel(test_tasks),
             },
         );
 

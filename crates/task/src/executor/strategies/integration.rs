@@ -3,25 +3,31 @@
 //! This module integrates the execution strategies with the TaskExecutor,
 //! providing methods to process task groups and their flattened representations.
 
-use super::get_cached_strategy;
-use cuenv_config::{TaskGroupMode, TaskNode};
+use super::{GroupExecutionStrategy, GroupStrategy, SequentialStrategy};
+use cuenv_config::{TaskCollection, TaskNode};
 use cuenv_core::Result;
-use indexmap::IndexMap;
 use std::collections::HashMap;
 
 /// Process a task group and return the execution plan
 pub fn process_task_group(
     group_name: &str,
-    mode: &TaskGroupMode,
-    tasks: &IndexMap<String, TaskNode>,
+    tasks: &TaskCollection,
 ) -> Result<TaskGroupExecutionPlan> {
-    let strategy = get_cached_strategy(mode);
-    let flattened_tasks = strategy.process_group(group_name, tasks, vec![])?;
+    let flattened_tasks = match tasks {
+        TaskCollection::Sequential(_) => {
+            let strategy = SequentialStrategy;
+            strategy.process_group(group_name, tasks, vec![])?
+        }
+        TaskCollection::Parallel(_) => {
+            let strategy = GroupStrategy;
+            strategy.process_group(group_name, tasks, vec![])?
+        }
+    };
 
     // Build the execution plan from flattened tasks
     let mut plan = TaskGroupExecutionPlan {
         group_name: group_name.to_string(),
-        mode: mode.clone(),
+        collection_type: tasks.clone(),
         tasks: Vec::new(),
         dependencies: HashMap::new(),
     };
@@ -49,8 +55,8 @@ pub fn process_task_group(
 pub struct TaskGroupExecutionPlan {
     /// Name of the task group
     pub group_name: String,
-    /// Execution mode for the group
-    pub mode: TaskGroupMode,
+    /// Task collection type (Sequential or Parallel)
+    pub collection_type: TaskCollection,
     /// Processed tasks with all metadata
     pub tasks: Vec<ProcessedTaskInfo>,
     /// Task dependencies for execution ordering
@@ -129,6 +135,7 @@ impl TaskGroupExecutionPlan {
 mod tests {
     use super::*;
     use cuenv_config::TaskConfig;
+    use indexmap::IndexMap;
 
     #[test]
     fn test_process_task_group() {
@@ -150,10 +157,11 @@ mod tests {
             })),
         );
 
-        let plan = process_task_group("ci", &TaskGroupMode::Sequential, &tasks).unwrap();
+        let collection = TaskCollection::Parallel(tasks);
+        let plan = process_task_group("ci", &collection).unwrap();
 
         assert_eq!(plan.group_name, "ci");
-        assert_eq!(plan.mode, TaskGroupMode::Sequential);
+        assert!(matches!(plan.collection_type, TaskCollection::Parallel(_)));
 
         // Check that all tasks are processed
         let executable = plan.executable_tasks();
@@ -180,7 +188,8 @@ mod tests {
             })),
         );
 
-        let plan = process_task_group("test", &TaskGroupMode::Parallel, &tasks).unwrap();
+        let collection = TaskCollection::Parallel(tasks);
+        let plan = process_task_group("test", &collection).unwrap();
 
         // Test executable_tasks method
         let executable = plan.executable_tasks();

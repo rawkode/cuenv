@@ -1,6 +1,7 @@
 //! Raw types for direct CUE JSON deserialization
 
 use super::ConfigSettings;
+use indexmap::IndexMap;
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -10,7 +11,7 @@ pub(crate) struct RawCueResult {
     #[serde(default)]
     pub env: RawEnv,
     #[serde(default)]
-    pub tasks: HashMap<String, serde_json::Value>,
+    pub tasks: IndexMap<String, serde_json::Value>,
     #[serde(default)]
     pub hooks: Option<RawHooks>,
     #[serde(default)]

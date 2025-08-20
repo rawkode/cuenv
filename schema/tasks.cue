@@ -15,14 +15,12 @@ package schema
 	outputs?: [...string]
 }
 
-// Execution modes for task groups:
-// - workflow: Execute based on dependency graph (DAG)
-// - sequential: Execute tasks one after another in order
-// - parallel: Execute all tasks simultaneously  
-// - group: Organization only, no group execution (must run individual tasks)
-#TaskGroupMode: "workflow" | "sequential" | "parallel" | "group"
-
+// TaskGroup uses structure to determine execution mode:
+// - Array of tasks: Sequential execution (order preserved)
+// - Object of named tasks: Parallel execution with dependencies
 #TaskGroup: {
-	mode?: #TaskGroupMode | *"group"
-	[string]: #Tasks
+	// Sequential: array of tasks executed in order
+	tasks: [...#Tasks] |
+	// Parallel with dependencies: object of named tasks  
+	{[string]: #Tasks}
 }

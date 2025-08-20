@@ -5,23 +5,55 @@ use indexmap::IndexMap;
 use serde::{de::MapAccess, de::Visitor, Deserialize, Deserializer, Serialize};
 use std::fmt;
 
-/// Task group execution mode
+/// Collection type for tasks in a group
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum TaskGroupMode {
-    /// Execute tasks based on dependency graph (DAG)
-    Workflow,
-    /// Execute tasks one after another in definition order
-    Sequential,
-    /// Execute all tasks simultaneously
-    Parallel,
-    /// Simple collection of tasks (default)
-    Group,
+pub enum TaskCollection {
+    /// Sequential execution: tasks in array form (order preserved)
+    Sequential(Vec<TaskNode>),
+    /// Parallel execution: tasks in object form with names (dependency-based)
+    Parallel(IndexMap<String, TaskNode>),
 }
 
-impl Default for TaskGroupMode {
-    fn default() -> Self {
-        Self::Group
+impl TaskCollection {
+    /// Check if the collection is empty
+    pub fn is_empty(&self) -> bool {
+        match self {
+            TaskCollection::Sequential(tasks) => tasks.is_empty(),
+            TaskCollection::Parallel(tasks) => tasks.is_empty(),
+        }
+    }
+
+    /// Get the number of tasks in the collection
+    pub fn len(&self) -> usize {
+        match self {
+            TaskCollection::Sequential(tasks) => tasks.len(),
+            TaskCollection::Parallel(tasks) => tasks.len(),
+        }
+    }
+
+    /// Iterate over task names and nodes
+    pub fn iter(&self) -> Box<dyn Iterator<Item = (String, &TaskNode)> + '_> {
+        match self {
+            TaskCollection::Sequential(tasks) => Box::new(
+                tasks
+                    .iter()
+                    .enumerate()
+                    .map(|(i, task)| (format!("task_{i}"), task)),
+            ),
+            TaskCollection::Parallel(tasks) => {
+                Box::new(tasks.iter().map(|(name, task)| (name.clone(), task)))
+            }
+        }
+    }
+
+    /// Check if this is a sequential collection
+    pub fn is_sequential(&self) -> bool {
+        matches!(self, TaskCollection::Sequential(_))
+    }
+
+    /// Check if this is a parallel collection
+    pub fn is_parallel(&self) -> bool {
+        matches!(self, TaskCollection::Parallel(_))
     }
 }
 
@@ -30,14 +62,11 @@ impl Default for TaskGroupMode {
 pub enum TaskNode {
     /// A single task definition
     Task(Box<TaskConfig>),
-    /// A group of tasks with optional description and execution mode
+    /// A group of tasks with optional description
     Group {
         #[serde(skip_serializing_if = "Option::is_none")]
         description: Option<String>,
-        #[serde(default)]
-        mode: TaskGroupMode,
-        #[serde(flatten)]
-        tasks: IndexMap<String, TaskNode>,
+        tasks: TaskCollection,
     },
 }
 
@@ -60,59 +89,94 @@ impl<'de> Deserialize<'de> for TaskNode {
                     .map(|config| TaskNode::Task(Box::new(config)))
                     .map_err(serde::de::Error::custom)
             } else {
-                // Check if it has any non-task fields (besides description and mode)
-                let task_fields = vec![
-                    "description",
-                    "mode",
-                    "command",
-                    "script",
-                    "dependencies",
-                    "workingDir",
-                    "shell",
-                    "inputs",
-                    "outputs",
-                    "security",
-                    "cache",
-                    "cacheKey",
-                    "cache_env",
-                    "timeout",
-                    "args",
-                ];
-
-                let has_non_task_fields = map.keys().any(|k| !task_fields.contains(&k.as_str()));
-
-                if has_non_task_fields {
-                    // It's a Group - extract description, mode and other fields as tasks
+                // Check if it has a tasks field
+                if let Some(tasks_value) = map.get("tasks") {
+                    // It's a Group - extract description and tasks
                     let description = map
                         .get("description")
                         .and_then(|v| v.as_str())
                         .map(String::from);
 
-                    let mode = map
-                        .get("mode")
-                        .and_then(|v| serde_json::from_value::<TaskGroupMode>(v.clone()).ok())
-                        .unwrap_or_default();
+                    let tasks = match tasks_value {
+                        serde_json::Value::Array(arr) => {
+                            // Sequential: array of tasks
+                            let mut task_nodes = Vec::new();
+                            for task_val in arr {
+                                if let Ok(node) =
+                                    serde_json::from_value::<TaskNode>(task_val.clone())
+                                {
+                                    task_nodes.push(node);
+                                }
+                            }
+                            TaskCollection::Sequential(task_nodes)
+                        }
+                        serde_json::Value::Object(obj) => {
+                            // Parallel: object of named tasks
+                            let mut task_map = IndexMap::new();
+                            for (key, val) in obj {
+                                if let Ok(node) = serde_json::from_value::<TaskNode>(val.clone()) {
+                                    task_map.insert(key.clone(), node);
+                                }
+                            }
+                            TaskCollection::Parallel(task_map)
+                        }
+                        _ => {
+                            return Err(serde::de::Error::custom(
+                                "tasks field must be array or object",
+                            ))
+                        }
+                    };
 
-                    let mut tasks = IndexMap::new();
-                    for (key, val) in map {
-                        if key != "description" && key != "mode" {
-                            // Recursively deserialize as TaskNode
-                            if let Ok(node) = serde_json::from_value::<TaskNode>(val.clone()) {
-                                tasks.insert(key.clone(), node);
+                    Ok(TaskNode::Group { description, tasks })
+                } else {
+                    // Check if it has non-task fields (old format compatibility)
+                    let task_fields = vec![
+                        "description",
+                        "command",
+                        "script",
+                        "dependencies",
+                        "workingDir",
+                        "shell",
+                        "inputs",
+                        "outputs",
+                        "security",
+                        "cache",
+                        "cacheKey",
+                        "cache_env",
+                        "timeout",
+                        "args",
+                    ];
+
+                    let has_non_task_fields =
+                        map.keys().any(|k| !task_fields.contains(&k.as_str()));
+
+                    if has_non_task_fields {
+                        // Old format: direct task fields in object - convert to Parallel collection
+                        let description = map
+                            .get("description")
+                            .and_then(|v| v.as_str())
+                            .map(String::from);
+
+                        let mut tasks = IndexMap::new();
+                        for (key, val) in map {
+                            if key != "description" {
+                                // Recursively deserialize as TaskNode
+                                if let Ok(node) = serde_json::from_value::<TaskNode>(val.clone()) {
+                                    tasks.insert(key.clone(), node);
+                                }
                             }
                         }
-                    }
 
-                    Ok(TaskNode::Group {
-                        description,
-                        mode,
-                        tasks,
-                    })
-                } else {
-                    // It's a Task with only optional fields
-                    serde_json::from_value::<TaskConfig>(value)
-                        .map(|config| TaskNode::Task(Box::new(config)))
-                        .map_err(serde::de::Error::custom)
+                        Ok(TaskNode::Group {
+                            description,
+                            tasks: TaskCollection::Parallel(tasks),
+                        })
+                    } else {
+                        // It's a Task with only optional fields
+                        serde_json::from_value::<TaskConfig>(value)
+                            .map(|config| TaskNode::Task(Box::new(config)))
+                            .map_err(serde::de::Error::custom)
+                    }
                 }
             }
         } else {

@@ -53,8 +53,13 @@ pub enum Commands {
         trace_output: bool,
 
         /// Display task dependency graph instead of executing
-        #[arg(long)]
-        graph: bool,
+        /// Optional format: tree (default), dot, d2, mermaid, json
+        #[arg(long, value_name = "FORMAT")]
+        graph: Option<String>,
+
+        /// Character set for tree format: unicode (default), ascii
+        #[arg(long, value_name = "CHARSET", default_value = "unicode")]
+        charset: String,
     },
 
     /// Manage environment configuration

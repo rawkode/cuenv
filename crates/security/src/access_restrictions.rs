@@ -461,9 +461,8 @@ impl AccessRestrictions {
                 })?;
 
                 if status.ruleset == RulesetStatus::NotEnforced {
-                    return Err(std::io::Error::other(
-                        "Landlock is not supported by the running kernel.",
-                    ));
+                    eprintln!("⚠️  Warning: Landlock is not supported by the running kernel. Security restrictions will not be enforced.");
+                    log::warn!("Landlock is not supported by the running kernel - security restrictions disabled");
                 }
 
                 Ok(())

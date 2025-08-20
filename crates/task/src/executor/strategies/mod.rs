@@ -1,23 +1,19 @@
 //! Task group execution strategies
 
-use cuenv_config::{TaskGroupMode, TaskNode};
+use cuenv_config::{TaskCollection, TaskNode};
 use cuenv_core::Result;
-use indexmap::IndexMap;
 
 mod group;
 mod integration;
 mod parallel;
 mod sequential;
-mod workflow;
 
 #[cfg(test)]
 mod tests;
 
 pub use group::GroupStrategy;
 pub use integration::{process_task_group, TaskGroupExecutionPlan};
-pub use parallel::ParallelStrategy;
 pub use sequential::SequentialStrategy;
-pub use workflow::WorkflowStrategy;
 
 /// Trait for task group execution strategies
 pub trait GroupExecutionStrategy {
@@ -25,7 +21,7 @@ pub trait GroupExecutionStrategy {
     fn process_group(
         &self,
         group_name: &str,
-        tasks: &IndexMap<String, TaskNode>,
+        tasks: &TaskCollection,
         parent_path: Vec<String>,
     ) -> Result<Vec<FlattenedTask>>;
 }
@@ -45,32 +41,6 @@ pub struct FlattenedTask {
     pub node: TaskNode,
     /// Whether this is a barrier task
     pub is_barrier: bool,
-}
-
-use std::sync::Arc;
-
-/// Get a cached strategy based on the group mode
-///
-/// Strategies are stateless and can be safely shared across threads.
-/// This function returns Arc-wrapped instances to avoid repeated allocations.
-pub fn get_cached_strategy(mode: &TaskGroupMode) -> Arc<dyn GroupExecutionStrategy> {
-    match mode {
-        TaskGroupMode::Workflow => Arc::new(WorkflowStrategy),
-        TaskGroupMode::Sequential => Arc::new(SequentialStrategy),
-        TaskGroupMode::Parallel => Arc::new(ParallelStrategy),
-        TaskGroupMode::Group => Arc::new(GroupStrategy),
-    }
-}
-
-/// Create a strategy based on the group mode (for backward compatibility)
-#[inline]
-pub fn create_strategy(mode: &TaskGroupMode) -> Box<dyn GroupExecutionStrategy> {
-    match mode {
-        TaskGroupMode::Workflow => Box::new(WorkflowStrategy),
-        TaskGroupMode::Sequential => Box::new(SequentialStrategy),
-        TaskGroupMode::Parallel => Box::new(ParallelStrategy),
-        TaskGroupMode::Group => Box::new(GroupStrategy),
-    }
 }
 
 /// Helper function to create a barrier task
