@@ -192,7 +192,7 @@ impl ShellCommands {
                                     None,
                                     Vec::new(),
                                     None,
-                                    SupervisorMode::Foreground,
+                                    SupervisorMode::Background,
                                 )
                                 .await
                             {

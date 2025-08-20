@@ -298,8 +298,17 @@ impl StateManager {
 
     /// Log unload operation
     async fn log_unload(current_state: &Option<CuenvState>) -> Result<()> {
-        if let Some(logger) = audit_logger() {
-            if let Some(state) = current_state {
+        if let Some(state) = current_state {
+            // Display user message when unloading (but not during tests)
+            if !cfg!(test) && std::env::var("CUENV_PREFIX").is_err() {
+                eprintln!(
+                    "# cuenv: ✓ Unloading environment from {}",
+                    state.dir.display()
+                );
+            }
+
+            // Log to audit if available
+            if let Some(logger) = audit_logger() {
                 let _ = logger
                     .log_environment_change(
                         "unload",
