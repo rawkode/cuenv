@@ -88,8 +88,23 @@ async fn execute_with_spinner(
     // Create spinner formatter
     let mut formatter = SpinnerFormatter::new(task_registry.clone());
 
-    // Build a simple execution plan for this single task
-    let plan = executor.build_execution_plan(&[task_name.to_string()])?;
+    // Build unified DAG for this single task
+    let dag = executor.build_unified_dag(&[task_name.to_string()])?;
+    let levels = dag.get_execution_levels()?;
+
+    // Create a compatible execution plan for the formatter
+    let mut plan_tasks = std::collections::HashMap::new();
+    for task in dag.get_flattened_tasks() {
+        if !task.is_barrier {
+            if let Some(definition) = dag.get_task_definition(&task.id) {
+                plan_tasks.insert(task.id.clone(), definition.clone());
+            }
+        }
+    }
+    let plan = cuenv_task::TaskExecutionPlan {
+        levels,
+        tasks: plan_tasks,
+    };
 
     // Initialize formatter with the plan
     formatter
@@ -99,13 +114,15 @@ async fn execute_with_spinner(
             message: format!("Failed to initialize spinner: {e}"),
         })?;
 
-    // Register task with registry
-    task_registry
-        .register_task(task_name.to_string(), vec![])
-        .await;
-    task_registry
-        .update_task_state(task_name, TaskState::Queued)
-        .await;
+    // Register all tasks in the execution plan with the registry
+    for task_name_in_plan in plan.tasks.keys() {
+        task_registry
+            .register_task(task_name_in_plan.clone(), vec![])
+            .await;
+        task_registry
+            .update_task_state(task_name_in_plan, TaskState::Queued)
+            .await;
+    }
 
     // We need to get the formatter as Arc before spawning tasks
     let formatter_arc = Arc::new(formatter);
@@ -174,8 +191,8 @@ async fn execute_with_spinner(
     // We use the internal method to enable capture_output for spinner mode
     let result = tokio::select! {
         result = async {
-            // Use the method with capture_output = true
-            executor.execute_tasks_with_capture(
+            // Use unified DAG execution (temporarily without output capture)
+            executor.execute_tasks_unified(
                 &[task_name.to_string()],
                 args,
                 audit
@@ -325,9 +342,9 @@ async fn execute_with_tui(
         // Small delay to let TUI initialize
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
-        // Execute the task with output capture
+        // Execute the task with unified DAG (temporarily without output capture)
         executor_clone
-            .execute_tasks_with_capture(&[task_name_clone], &args_clone, audit)
+            .execute_tasks_unified(&[task_name_clone], &args_clone, audit)
             .await
     });
 
@@ -364,20 +381,45 @@ async fn execute_with_simple(
         eprintln!("Note: Chrome trace output is not yet implemented");
     }
 
-    // For simple output, just use the standard executor with some status messages
-    println!("Executing task: {task_name}");
+    // Build unified DAG to show all tasks that will be executed (including dependencies)
+    let dag = executor.build_unified_dag(&[task_name.to_string()])?;
+    let levels = dag.get_execution_levels()?;
+
+    // Show all tasks that will be executed
+    let all_task_count = dag
+        .get_flattened_tasks()
+        .iter()
+        .filter(|t| !t.is_barrier)
+        .count();
+    if all_task_count > 1 {
+        println!(
+            "Executing task: {task_name} (with {} dependencies)",
+            all_task_count - 1
+        );
+        for level in &levels {
+            for task_id in level {
+                if !task_id.contains("__") && task_id != task_name {
+                    // Skip barriers and main task
+                    println!("Executing dependency: {task_id}");
+                }
+            }
+        }
+    } else {
+        println!("Executing task: {task_name}");
+    }
+
     if !args.is_empty() {
         println!("Arguments: {args:?}");
     }
 
-    // Execute with cancellation support
+    // Execute with cancellation support - use unified DAG to ensure consistent ordering
     let result = tokio::select! {
         result = async {
             if audit {
                 println!("Running in audit mode...");
-                executor.execute_task_with_audit(task_name, args).await
+                executor.execute_tasks_unified(&[task_name.to_string()], args, audit).await
             } else {
-                executor.execute_task(task_name, args).await
+                executor.execute_tasks_unified(&[task_name.to_string()], args, audit).await
             }
         } => result,
         _ = shutdown_rx.recv() => {

@@ -6,6 +6,7 @@ use crate::parser::types::{
     TaskNode, VariableMetadata,
 };
 use cuenv_core::errors::Result;
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -21,7 +22,7 @@ pub struct ParseResult {
     pub metadata: HashMap<String, VariableMetadata>,
     pub commands: HashMap<String, CommandConfig>,
     pub tasks: HashMap<String, TaskConfig>,
-    pub task_nodes: HashMap<String, TaskNode>, // Preserve task structure
+    pub task_nodes: IndexMap<String, TaskNode>, // Preserve task structure
     pub hooks: HashMap<String, Vec<Hook>>,
     pub config: Option<ConfigSettings>,
 }
@@ -146,9 +147,9 @@ fn extract_hooks(hooks_config: Option<HooksConfig>) -> HashMap<String, Vec<Hook>
 /// Processes tasks while preserving the hierarchical structure
 fn process_tasks_with_structure(
     raw_tasks: HashMap<String, serde_json::Value>,
-) -> (HashMap<String, TaskConfig>, HashMap<String, TaskNode>) {
+) -> (HashMap<String, TaskConfig>, IndexMap<String, TaskNode>) {
     let mut flat_tasks = HashMap::new();
-    let mut task_nodes = HashMap::new();
+    let mut task_nodes = IndexMap::new();
 
     for (name, value) in raw_tasks {
         // Try to deserialize as TaskNode

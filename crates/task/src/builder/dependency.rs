@@ -5,6 +5,7 @@
 
 use cuenv_config::TaskNode;
 use cuenv_core::{Error, ResolvedDependency, Result};
+use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -86,7 +87,7 @@ pub fn resolve_dependencies(context: &mut BuildContext) -> Result<()> {
 /// Expand a task group dependency to all its individual tasks
 fn expand_task_group_dependency(
     group_name: &str,
-    task_nodes: &HashMap<String, TaskNode>,
+    task_nodes: &IndexMap<String, TaskNode>,
 ) -> Result<Vec<String>> {
     let mut tasks = Vec::new();
     let mut visited_groups = HashSet::new();
@@ -125,11 +126,11 @@ fn expand_task_group_dependency(
 /// Recursively collect task names from a group, handling nested groups with cycle detection
 fn collect_task_names_from_group(
     group_name: &str,
-    tasks: &HashMap<String, TaskNode>,
+    tasks: &IndexMap<String, TaskNode>,
     result: &mut Vec<String>,
     path: String,
     visited_groups: &mut HashSet<String>,
-    _all_task_nodes: &HashMap<String, TaskNode>,
+    _all_task_nodes: &IndexMap<String, TaskNode>,
 ) -> Result<()> {
     for (task_name, node) in tasks {
         match node {
@@ -320,7 +321,7 @@ mod tests {
     fn test_resolve_dependencies_success() {
         let mut context = BuildContext {
             task_configs: HashMap::new(),
-            task_nodes: HashMap::new(),
+            task_nodes: IndexMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -351,7 +352,7 @@ mod tests {
     fn test_resolve_missing_dependency() {
         let mut context = BuildContext {
             task_configs: HashMap::new(),
-            task_nodes: HashMap::new(),
+            task_nodes: IndexMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -374,7 +375,7 @@ mod tests {
         let cache = create_dependency_cache();
         let mut context = BuildContext {
             task_configs: HashMap::new(),
-            task_nodes: HashMap::new(),
+            task_nodes: IndexMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -400,7 +401,7 @@ mod tests {
         let cache = create_dependency_cache();
         let mut context = BuildContext {
             task_configs: HashMap::new(),
-            task_nodes: HashMap::new(),
+            task_nodes: IndexMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -422,7 +423,7 @@ mod tests {
     fn test_cross_package_dependency_parsing() {
         let mut context = BuildContext {
             task_configs: HashMap::new(),
-            task_nodes: HashMap::new(),
+            task_nodes: IndexMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -447,7 +448,7 @@ mod tests {
     fn test_invalid_cross_package_format() {
         let mut context = BuildContext {
             task_configs: HashMap::new(),
-            task_nodes: HashMap::new(),
+            task_nodes: IndexMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -474,7 +475,7 @@ mod tests {
 
         let mut context = BuildContext {
             task_configs: HashMap::new(),
-            task_nodes: HashMap::new(),
+            task_nodes: IndexMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -502,7 +503,7 @@ mod tests {
             .insert("build".to_string(), create_test_definition("build"));
 
         // Create task group structure
-        let mut ci_tasks = HashMap::new();
+        let mut ci_tasks = IndexMap::new();
         ci_tasks.insert(
             "lint".to_string(),
             TaskNode::Task(Box::new(create_test_config(None))),
@@ -544,7 +545,7 @@ mod tests {
 
         let mut context = BuildContext {
             task_configs: HashMap::new(),
-            task_nodes: HashMap::new(),
+            task_nodes: IndexMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -575,7 +576,7 @@ mod tests {
             .insert("deploy".to_string(), create_test_definition("deploy"));
 
         // Create nested task group structure
-        let mut quality_tasks = HashMap::new();
+        let mut quality_tasks = IndexMap::new();
         quality_tasks.insert(
             "lint".to_string(),
             TaskNode::Task(Box::new(create_test_config(None))),
@@ -585,7 +586,7 @@ mod tests {
             TaskNode::Task(Box::new(create_test_config(None))),
         );
 
-        let mut release_tasks = HashMap::new();
+        let mut release_tasks = IndexMap::new();
         release_tasks.insert(
             "quality".to_string(),
             TaskNode::Group {
@@ -627,7 +628,7 @@ mod tests {
 
         let mut context = BuildContext {
             task_configs: HashMap::new(),
-            task_nodes: HashMap::new(),
+            task_nodes: IndexMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -647,7 +648,7 @@ mod tests {
             TaskNode::Group {
                 description: Some("Empty group".to_string()),
                 mode: TaskGroupMode::Parallel,
-                tasks: HashMap::new(), // Empty!
+                tasks: IndexMap::new(), // Empty!
             },
         );
 
@@ -662,7 +663,7 @@ mod tests {
 
         let mut context = BuildContext {
             task_configs: HashMap::new(),
-            task_nodes: HashMap::new(),
+            task_nodes: IndexMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -677,14 +678,14 @@ mod tests {
             .insert("build".to_string(), create_test_definition("build"));
 
         // Create circular nested group structure: circular.nested -> circular
-        let mut nested_tasks = HashMap::new();
+        let mut nested_tasks = IndexMap::new();
         nested_tasks.insert(
             "nested".to_string(),
             TaskNode::Group {
                 description: Some("Nested group".to_string()),
                 mode: TaskGroupMode::Parallel,
                 tasks: {
-                    let mut inner = HashMap::new();
+                    let mut inner = IndexMap::new();
                     inner.insert(
                         "task".to_string(),
                         TaskNode::Task(Box::new(create_test_config(None))),
@@ -729,7 +730,7 @@ mod tests {
 
         let mut context = BuildContext {
             task_configs: HashMap::new(),
-            task_nodes: HashMap::new(),
+            task_nodes: IndexMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -753,7 +754,7 @@ mod tests {
 
         // Create nested structure: deep -> level1 -> level2 -> level3 -> task
         let level3_tasks = {
-            let mut tasks = HashMap::new();
+            let mut tasks = IndexMap::new();
             tasks.insert(
                 "task".to_string(),
                 TaskNode::Task(Box::new(create_test_config(None))),
@@ -762,7 +763,7 @@ mod tests {
         };
 
         let level2_tasks = {
-            let mut tasks = HashMap::new();
+            let mut tasks = IndexMap::new();
             tasks.insert(
                 "level3".to_string(),
                 TaskNode::Group {
@@ -775,7 +776,7 @@ mod tests {
         };
 
         let level1_tasks = {
-            let mut tasks = HashMap::new();
+            let mut tasks = IndexMap::new();
             tasks.insert(
                 "level2".to_string(),
                 TaskNode::Group {
@@ -788,7 +789,7 @@ mod tests {
         };
 
         let deep_tasks = {
-            let mut tasks = HashMap::new();
+            let mut tasks = IndexMap::new();
             tasks.insert(
                 "level1".to_string(),
                 TaskNode::Group {
@@ -827,7 +828,7 @@ mod tests {
 
         let mut context = BuildContext {
             task_configs: HashMap::new(),
-            task_nodes: HashMap::new(),
+            task_nodes: IndexMap::new(),
             task_definitions: HashMap::new(),
             dependency_graph: HashMap::new(),
         };
@@ -863,7 +864,7 @@ mod tests {
             .insert("build".to_string(), create_test_definition("build"));
 
         // Create test group
-        let mut test_tasks = HashMap::new();
+        let mut test_tasks = IndexMap::new();
         test_tasks.insert(
             "unit".to_string(),
             TaskNode::Task(Box::new(create_test_config(None))),

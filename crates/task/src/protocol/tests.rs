@@ -78,7 +78,7 @@ mod protocol_tests {
             metadata: HashMap::new(),
             commands: HashMap::new(),
             tasks,
-            task_nodes: HashMap::new(),
+            task_nodes: indexmap::IndexMap::new(),
             hooks: HashMap::new(),
             config: None,
         };
@@ -111,7 +111,7 @@ mod protocol_tests {
             metadata: HashMap::new(),
             commands: HashMap::new(),
             tasks: tasks.clone(),
-            task_nodes: HashMap::new(),
+            task_nodes: indexmap::IndexMap::new(),
             hooks: HashMap::new(),
             config: None,
         };
@@ -144,7 +144,7 @@ mod protocol_tests {
             metadata: HashMap::new(),
             commands: HashMap::new(),
             tasks,
-            task_nodes: HashMap::new(),
+            task_nodes: indexmap::IndexMap::new(),
             hooks: HashMap::new(),
             config: None,
         };

@@ -6,13 +6,14 @@
 use super::get_cached_strategy;
 use cuenv_config::{TaskGroupMode, TaskNode};
 use cuenv_core::Result;
+use indexmap::IndexMap;
 use std::collections::HashMap;
 
 /// Process a task group and return the execution plan
 pub fn process_task_group(
     group_name: &str,
     mode: &TaskGroupMode,
-    tasks: &HashMap<String, TaskNode>,
+    tasks: &IndexMap<String, TaskNode>,
 ) -> Result<TaskGroupExecutionPlan> {
     let strategy = get_cached_strategy(mode);
     let flattened_tasks = strategy.process_group(group_name, tasks, vec![])?;
@@ -131,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_process_task_group() {
-        let mut tasks = HashMap::new();
+        let mut tasks = IndexMap::new();
         tasks.insert(
             "build".to_string(),
             TaskNode::Task(Box::new(TaskConfig {
@@ -170,7 +171,7 @@ mod tests {
 
     #[test]
     fn test_execution_plan_methods() {
-        let mut tasks = HashMap::new();
+        let mut tasks = IndexMap::new();
         tasks.insert(
             "task1".to_string(),
             TaskNode::Task(Box::new(TaskConfig {

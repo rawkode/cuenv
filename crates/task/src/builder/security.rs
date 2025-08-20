@@ -266,7 +266,7 @@ mod tests {
 
         let mut context = BuildContext {
             task_configs: std::collections::HashMap::new(),
-            task_nodes: std::collections::HashMap::new(),
+            task_nodes: indexmap::IndexMap::new(),
             task_definitions: std::collections::HashMap::new(),
             dependency_graph: std::collections::HashMap::new(),
         };

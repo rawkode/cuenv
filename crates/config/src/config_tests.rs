@@ -6,6 +6,7 @@ mod tests {
         config::{Config, ConfigBuilder, MonorepoContext, RuntimeOptions},
         ParseResult, SecurityConfig, VariableMetadata,
     };
+    use indexmap::IndexMap;
     use std::collections::HashMap;
     use std::path::PathBuf;
 
@@ -33,7 +34,7 @@ mod tests {
             metadata,
             commands: HashMap::new(),
             tasks: HashMap::new(),
-            task_nodes: HashMap::new(),
+            task_nodes: IndexMap::new(),
             hooks: HashMap::new(),
             config: None,
         }

@@ -73,6 +73,7 @@ memmap2 = "0.9"
 
 # Data structures and algorithms
 dashmap = "6.1"
+indexmap = { version = "2.0", features = ["serde"] }
 parking_lot = "0.12"
 crossbeam = "0.8"
 lru = "0.12"

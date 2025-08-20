@@ -33,6 +33,7 @@ tokio-stream.workspace = true
 dashmap.workspace = true
 parking_lot.workspace = true
 once_cell.workspace = true
+indexmap = { version = "2.0", features = ["serde"] }
 
 # Error handling
 log.workspace = true

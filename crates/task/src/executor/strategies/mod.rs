@@ -2,7 +2,7 @@
 
 use cuenv_config::{TaskGroupMode, TaskNode};
 use cuenv_core::Result;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 mod group;
 mod integration;
@@ -25,7 +25,7 @@ pub trait GroupExecutionStrategy {
     fn process_group(
         &self,
         group_name: &str,
-        tasks: &HashMap<String, TaskNode>,
+        tasks: &IndexMap<String, TaskNode>,
         parent_path: Vec<String>,
     ) -> Result<Vec<FlattenedTask>>;
 }

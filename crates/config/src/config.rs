@@ -8,6 +8,7 @@ use crate::{
     CommandConfig, ConfigSettings, Hook, ParseResult, SecurityConfig, TaskConfig, VariableMetadata,
 };
 use cuenv_core::{Error, Result};
+use indexmap::IndexMap;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -173,7 +174,7 @@ impl Config {
     }
 
     /// Get task nodes (preserving group structure with execution modes)
-    pub fn get_task_nodes(&self) -> &HashMap<String, crate::TaskNode> {
+    pub fn get_task_nodes(&self) -> &IndexMap<String, crate::TaskNode> {
         &self.parse_result.task_nodes
     }
 

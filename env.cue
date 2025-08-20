@@ -5,17 +5,17 @@ import "github.com/rawkode/cuenv/schema"
 schema.#Cuenv
 
 hooks: onEnter: [
-	schema.#NixFlake & { preload: true },
-                    {
-                                // This hook sleeps for 5 seconds then exports TEST_BG_VAR
-                                command: "bash"
-                                args: ["-c", """
-                                        sleep 6
-                                        echo 'export TEST_BG_VAR="background_hook_completed"'
-                                        echo 'export TEST_TIMESTAMP="'$(date +%s)'"'
-                                        """]
-                                source: true  // Capture the exported environment
-                        },
+	schema.#NixFlake & {preload: true},
+	{
+		// This hook sleeps for 5 seconds then exports TEST_BG_VAR
+		command: "bash"
+		args: ["-c", """
+			sleep 6
+			echo 'export TEST_BG_VAR="background_hook_completed"'
+			echo 'export TEST_TIMESTAMP="'$(date +%s)'"'
+			"""]
+		source: true // Capture the exported environment
+	},
 ]
 
 hooks: onExit: [{command: "echo", args: ["Goodbye!"]}]
@@ -34,9 +34,36 @@ env: {
 }
 
 tasks: {
+	count: {
+		description: "I can only count to 4"
+		mode: "sequential"
+		one: {
+			command: "echo"
+			args: ["1"]
+		}
+		two: {
+			command: "echo"
+			args: ["2"]
+		}
+		three: {
+			command: "echo"
+			args: ["3"]
+		}
+		four: {
+			command: "echo"
+			args: ["4"]
+		}
+	}
+
+	counted: {
+		dependencies: ["count"]
+		command: "echo"
+		args: ["counted to 4"]
+	}
+
 	fmt: {
 		description: "Code formatting tasks"
-		mode: "sequential"  // Check first, then optionally apply
+		mode:        "sequential" // Check first, then optionally apply
 		check: {
 			description: "Check all code formatting without making changes"
 			command:     "treefmt"
@@ -69,7 +96,7 @@ tasks: {
 
 	test: {
 		description: "Testing commands"
-		mode: "parallel"  // Run tests in parallel for speed
+		mode:        "parallel" // Run tests in parallel for speed
 		all: {
 			description: "Run all tests"
 			command:     "cargo"
@@ -122,7 +149,7 @@ tasks: {
 
 	lint: {
 		description: "Linting and code quality checks"
-		mode: "sequential"  // Fix first, then check
+		mode:        "sequential" // Fix first, then check
 		fix: {
 			description: "Auto-fix linting issues"
 			command:     "cargo"
@@ -139,7 +166,7 @@ tasks: {
 
 	check: {
 		description: "Various checks"
-		mode: "parallel"  // Run all checks simultaneously
+		mode:        "parallel" // Run all checks simultaneously
 		nix: {
 			description: "Check Nix flake"
 			command:     "nix"
@@ -162,7 +189,7 @@ tasks: {
 
 	deps: {
 		description: "Dependency management"
-		mode: "parallel"  // Update all dependency types at once
+		mode:        "parallel" // Update all dependency types at once
 		update: {
 			description: "Update Rust dependencies"
 			command:     "cargo"
@@ -199,11 +226,11 @@ tasks: {
 	// CI workflow demonstrating nested groups
 	ci: {
 		description: "Complete CI workflow"
-		mode: "workflow"  // DAG-based execution
+		mode:        "workflow" // DAG-based execution
 
 		quality: {
 			description: "Run all quality checks"
-			mode: "parallel"  // Run these in parallel
+			mode:        "parallel" // Run these in parallel
 
 			format: {
 				command: "treefmt"
@@ -224,8 +251,8 @@ tasks: {
 
 		test: {
 			description: "Run all tests"
-			mode: "parallel"
-			dependencies: ["quality"]  // Wait for quality checks
+			mode:        "parallel"
+			dependencies: ["quality"] // Wait for quality checks
 
 			unit: {
 				command: "cargo"
@@ -261,26 +288,26 @@ tasks: {
 	// Release workflow
 	release: {
 		description: "Release process"
-		mode: "sequential"  // Must happen in order
+		mode:        "sequential" // Must happen in order
 
 		version: {
 			description: "Update version"
-			command: "cargo"
+			command:     "cargo"
 			args: ["update", "-p", "cuenv"]
 		}
 		commit: {
 			description: "Commit changes"
-			command: "git"
+			command:     "git"
 			args: ["commit", "-am", "release: new version"]
 		}
 		tag: {
 			description: "Create git tag"
-			command: "git"
+			command:     "git"
 			args: ["tag", "-a", "v$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == \"cuenv\") | .version')", "-m", "Release"]
 		}
 		push: {
 			description: "Push to origin"
-			command: "git"
+			command:     "git"
 			args: ["push", "origin", "main", "--tags"]
 		}
 	}

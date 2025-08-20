@@ -93,7 +93,7 @@ impl ConfigLoader {
                 metadata: HashMap::new(),
                 commands: HashMap::new(),
                 tasks: HashMap::new(),
-                task_nodes: HashMap::new(),
+                task_nodes: indexmap::IndexMap::new(),
                 hooks: HashMap::new(),
                 config: None,
             }

@@ -1,8 +1,8 @@
 //! Task configuration types
 
 use super::{CacheEnvConfig, SecurityConfig, TaskCacheConfig};
+use indexmap::IndexMap;
 use serde::{de::MapAccess, de::Visitor, Deserialize, Deserializer, Serialize};
-use std::collections::HashMap;
 use std::fmt;
 
 /// Task group execution mode
@@ -37,7 +37,7 @@ pub enum TaskNode {
         #[serde(default)]
         mode: TaskGroupMode,
         #[serde(flatten)]
-        tasks: HashMap<String, TaskNode>,
+        tasks: IndexMap<String, TaskNode>,
     },
 }
 
@@ -93,7 +93,7 @@ impl<'de> Deserialize<'de> for TaskNode {
                         .and_then(|v| serde_json::from_value::<TaskGroupMode>(v.clone()).ok())
                         .unwrap_or_default();
 
-                    let mut tasks = HashMap::new();
+                    let mut tasks = IndexMap::new();
                     for (key, val) in map {
                         if key != "description" && key != "mode" {
                             // Recursively deserialize as TaskNode

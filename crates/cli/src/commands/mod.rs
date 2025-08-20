@@ -51,6 +51,10 @@ pub enum Commands {
         /// Generate Chrome trace output file
         #[arg(long)]
         trace_output: bool,
+
+        /// Display task dependency graph instead of executing
+        #[arg(long)]
+        graph: bool,
     },
 
     /// Manage environment configuration

@@ -71,4 +71,16 @@ impl TaskExecutor {
         self.execute_tasks_with_dependencies_internal(task_names, args, audit_mode, true)
             .await
     }
+
+    /// Execute tasks using the unified DAG system - ensures consistent ordering
+    /// This is the new consolidated execution path that should be used going forward
+    pub async fn execute_tasks_unified(
+        &self,
+        task_names: &[String],
+        args: &[String],
+        audit_mode: bool,
+    ) -> Result<i32> {
+        self.execute_tasks_with_unified_dag(task_names, args, audit_mode)
+            .await
+    }
 }

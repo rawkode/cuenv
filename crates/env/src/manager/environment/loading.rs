@@ -6,6 +6,7 @@ use cuenv_core::{
     constants::{CUENV_PACKAGE_VAR, DEFAULT_PACKAGE_NAME},
     Error, Result,
 };
+use indexmap::IndexMap;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -17,7 +18,7 @@ use super::supervisor::SupervisorMode;
 pub struct LoadEnvironmentContext<'a> {
     pub commands: &'a mut HashMap<String, CommandConfig>,
     pub tasks: &'a mut HashMap<String, TaskConfig>,
-    pub task_nodes: &'a mut HashMap<String, TaskNode>,
+    pub task_nodes: &'a mut IndexMap<String, TaskNode>,
     pub hooks: &'a mut HashMap<String, HookConfig>,
     pub cue_vars: &'a mut HashMap<String, String>,
     pub cue_vars_metadata: &'a mut HashMap<String, VariableMetadata>,

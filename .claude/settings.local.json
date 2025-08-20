@@ -27,7 +27,11 @@
       "Bash(printenv)",
       "Bash(cargo test:*)",
       "Bash(cargo insta test:*)",
-      "Bash(timeout 5 nix develop:*)"
+      "Bash(timeout 5 nix develop:*)",
+      "Bash(CUENV_LOG=trace cuenv task --output=simple counted)",
+      "Bash(cuenv task:*)",
+      "Bash(CUENV_LOG=debug cuenv task --output=simple counted)",
+      "WebSearch"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

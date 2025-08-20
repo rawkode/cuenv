@@ -2,6 +2,7 @@ mod api;
 mod builder;
 mod cache;
 mod context;
+mod dag_cache;
 mod dependency;
 pub mod execution;
 mod graph;
@@ -9,9 +10,12 @@ mod management;
 mod plan;
 mod runner;
 mod strategies;
+mod unified_dag;
 
 pub use context::TaskExecutionContext;
+pub use dag_cache::{DAGCache, DAGCacheConfig, DAGCacheStats};
 pub use plan::TaskExecutionPlan;
+pub use unified_dag::{DAGBuilder, UnifiedTaskDAG};
 
 use crate::{MonorepoTaskRegistry, TaskBuilder};
 use cuenv_cache::config::CacheConfiguration;
@@ -35,6 +39,8 @@ pub struct TaskExecutor {
     pub(crate) monorepo_registry: Option<Arc<MonorepoTaskRegistry>>,
     /// Track executed tasks to avoid re-execution in cross-package scenarios
     pub(crate) executed_tasks: Arc<Mutex<HashSet<String>>>,
+    /// DAG cache for performance optimization
+    pub(crate) dag_cache: Arc<DAGCache>,
 }
 
 #[cfg(test)]

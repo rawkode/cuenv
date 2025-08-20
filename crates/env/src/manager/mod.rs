@@ -1,6 +1,7 @@
 use cuenv_config::{CommandConfig, HookConfig, TaskConfig, TaskNode};
 use cuenv_core::{Error, Result};
 use cuenv_utils::sync::env::SyncEnv;
+use indexmap::IndexMap;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -25,7 +26,7 @@ pub struct EnvManager {
     cue_vars_metadata: HashMap<String, cuenv_config::VariableMetadata>,
     commands: HashMap<String, CommandConfig>,
     tasks: HashMap<String, TaskConfig>,
-    task_nodes: HashMap<String, TaskNode>, // Preserve task structure
+    task_nodes: IndexMap<String, TaskNode>, // Preserve task structure and insertion order
     hooks: HashMap<String, HookConfig>,
 }
 
@@ -38,7 +39,7 @@ impl EnvManager {
             cue_vars_metadata: HashMap::with_capacity(50),
             commands: HashMap::with_capacity(20),
             tasks: HashMap::with_capacity(20),
-            task_nodes: HashMap::with_capacity(20),
+            task_nodes: IndexMap::with_capacity(20),
             hooks: HashMap::with_capacity(4),
         }
     }
@@ -273,7 +274,7 @@ impl EnvManager {
     pub fn set_tasks_for_testing(
         &mut self,
         tasks: HashMap<String, TaskConfig>,
-        task_nodes: HashMap<String, TaskNode>,
+        task_nodes: IndexMap<String, TaskNode>,
         cue_vars: HashMap<String, String>,
     ) {
         self.tasks = tasks;

@@ -1,4 +1,5 @@
 use cuenv_config::{TaskConfig, TaskNode};
+use indexmap::IndexMap;
 use std::collections::HashMap;
 
 use super::task::TaskSource;
@@ -28,8 +29,8 @@ impl TaskSource for EnvManager {
 }
 
 impl EnvManager {
-    /// Get task nodes (preserving group structure)
-    pub fn get_task_nodes(&self) -> &HashMap<String, TaskNode> {
+    /// Get task nodes (preserving group structure and insertion order)
+    pub fn get_task_nodes(&self) -> &IndexMap<String, TaskNode> {
         &self.task_nodes
     }
 }

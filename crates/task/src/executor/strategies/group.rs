@@ -3,7 +3,7 @@
 use super::{create_task_id, FlattenedTask, GroupExecutionStrategy};
 use cuenv_config::TaskNode;
 use cuenv_core::Result;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 /// Group execution strategy - simple collection with no special behavior
 pub struct GroupStrategy;
@@ -12,7 +12,7 @@ impl GroupExecutionStrategy for GroupStrategy {
     fn process_group(
         &self,
         group_name: &str,
-        tasks: &HashMap<String, TaskNode>,
+        tasks: &IndexMap<String, TaskNode>,
         parent_path: Vec<String>,
     ) -> Result<Vec<FlattenedTask>> {
         let mut flattened = Vec::new();

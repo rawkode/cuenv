@@ -292,3 +292,85 @@ tasks: {
     assert!(executor.is_executed("root:c"));
     assert!(executor.is_executed("root:d"));
 }
+
+/// Test that sequential task groups execute in definition order, not alphabetical order
+#[tokio::test]
+async fn test_sequential_execution_order() {
+    let temp_dir = TempDir::new().unwrap();
+    let root = temp_dir.path();
+
+    // Create a monorepo structure
+    fs::create_dir_all(root.join("cue.mod")).unwrap();
+    fs::write(
+        root.join("cue.mod/module.cue"),
+        r#"module: "test.example/monorepo""#,
+    )
+    .unwrap();
+
+    // Create a package with sequential tasks that would be out of order alphabetically
+    // Define tasks in a specific order: one, two, three, four
+    // But alphabetically they would be: four, one, three, two
+    fs::write(
+        root.join("env.cue"),
+        r#"package cuenv
+env: { ROOT: "true" }
+
+tasks: {
+    // Sequential group with numbered tasks
+    count: {
+        description: "Count from 1 to 4 in order"
+        mode: "sequential"
+        one: {
+            command: "echo '1' >> sequence.txt"
+        }
+        two: {
+            command: "echo '2' >> sequence.txt"
+        }
+        three: {
+            command: "echo '3' >> sequence.txt"
+        }
+        four: {
+            command: "echo '4' >> sequence.txt"
+        }
+    }
+    
+    // Task that depends on the sequential group
+    verify: {
+        command: "echo 'verified' >> sequence.txt"
+        dependencies: ["count"]
+    }
+}"#,
+    )
+    .unwrap();
+
+    // Discover and build registry
+    let mut discovery = PackageDiscovery::new(32);
+    let packages = discovery.discover(root, true).await.unwrap();
+    let registry = MonorepoTaskRegistry::from_packages(packages).unwrap();
+
+    // Execute the verify task (should execute count group first)
+    let mut executor = TaskExecutor::new_with_registry(registry).await.unwrap();
+    executor.execute("root:verify").await.unwrap();
+
+    // Read the sequence file to check execution order
+    let sequence_file = root.join("sequence.txt");
+    assert!(sequence_file.exists(), "Sequence file should exist");
+
+    let content = fs::read_to_string(sequence_file).unwrap();
+    let lines: Vec<&str> = content.lines().collect();
+
+    // Verify the sequence is correct (1, 2, 3, 4, verified)
+    assert_eq!(lines.len(), 5, "Should have 5 lines: 1, 2, 3, 4, verified");
+    assert_eq!(lines[0], "1", "First task should be 'one' (output '1')");
+    assert_eq!(lines[1], "2", "Second task should be 'two' (output '2')");
+    assert_eq!(lines[2], "3", "Third task should be 'three' (output '3')");
+    assert_eq!(lines[3], "4", "Fourth task should be 'four' (output '4')");
+    assert_eq!(lines[4], "verified", "Final task should be 'verify'");
+
+    // Also verify that all tasks are marked as executed
+    assert!(executor.is_executed("root:count.one"));
+    assert!(executor.is_executed("root:count.two"));
+    assert!(executor.is_executed("root:count.three"));
+    assert!(executor.is_executed("root:count.four"));
+    assert!(executor.is_executed("root:verify"));
+}

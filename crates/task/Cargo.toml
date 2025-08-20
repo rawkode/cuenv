@@ -26,6 +26,7 @@ async-trait.workspace = true
 
 # Data structures
 dashmap.workspace = true
+indexmap.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 

@@ -345,3 +345,141 @@ func TestCueEvalPackage_ConcurrentAccess(t *testing.T) {
 		}
 	}
 }
+
+func TestFieldOrderingPreservation(t *testing.T) {
+	// Create a CUE file with tasks in a specific order
+	cueContent := `
+tasks: {
+	ordered_group: {
+		description: "Test field ordering"
+		mode: "sequential"
+		
+		// These should appear in this exact order in JSON
+		first: {
+			command: "echo first"
+		}
+		second: {
+			command: "echo second"
+		}
+		third: {
+			command: "echo third"
+		}
+		fourth: {
+			command: "echo fourth"
+		}
+	}
+}`
+
+	tempDir, cleanup := createTestCueDir(t, "cuenv", cueContent)
+	defer cleanup()
+
+	result := callCueEvalPackage(tempDir, "cuenv")
+	
+	// Parse the JSON to check for errors
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(result), &data); err != nil {
+		if strings.Contains(result, "error") {
+			t.Fatalf("CUE evaluation failed: %s", result)
+		}
+		t.Fatalf("Failed to parse JSON result: %v", err)
+	}
+
+	// Navigate to tasks.ordered_group
+	tasks, ok := data["tasks"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected tasks to be a map, got: %T", data["tasks"])
+	}
+
+	orderedGroup, ok := tasks["ordered_group"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected ordered_group to be a map, got: %T", tasks["ordered_group"])
+	}
+
+	// The critical test: check if the JSON string contains the fields in the right order
+	// Since Go maps are unordered, we need to check the JSON string directly
+	expectedOrder := []string{"first", "second", "third", "fourth"}
+	
+	// Find the positions of each field name in the JSON string
+	positions := make(map[string]int)
+	for _, field := range expectedOrder {
+		// Look for the field as a JSON key (with quotes and colon)
+		searchStr := `"` + field + `":`
+		pos := strings.Index(result, searchStr)
+		if pos == -1 {
+			t.Fatalf("Field %s not found in JSON", field)
+		}
+		positions[field] = pos
+	}
+
+	// Verify the positions are in ascending order (matching CUE definition order)
+	for i := 1; i < len(expectedOrder); i++ {
+		prevField := expectedOrder[i-1]
+		currField := expectedOrder[i]
+		
+		if positions[prevField] >= positions[currField] {
+			t.Errorf("Field ordering incorrect: %s (pos %d) should come before %s (pos %d)",
+				prevField, positions[prevField], currField, positions[currField])
+			t.Logf("Full JSON result: %s", result)
+		}
+	}
+
+	// Also verify all expected fields are present in the ordered_group
+	for _, field := range expectedOrder {
+		if _, exists := orderedGroup[field]; !exists {
+			t.Errorf("Expected field %s not found in ordered_group", field)
+		}
+	}
+
+	if t.Failed() {
+		t.Logf("Field ordering test failed. JSON positions: %v", positions)
+	} else {
+		t.Logf("✓ Field ordering test passed. JSON positions: %v", positions)
+	}
+}
+
+func TestConsistentOrdering(t *testing.T) {
+	cueContent := `
+tasks: {
+	consistency_test: {
+		mode: "sequential"
+		zebra: { command: "echo zebra" }
+		alpha: { command: "echo alpha" }
+		omega: { command: "echo omega" }
+		beta: { command: "echo beta" }
+	}
+}`
+
+	tempDir, cleanup := createTestCueDir(t, "cuenv", cueContent)
+	defer cleanup()
+
+	// Parse the same content multiple times and ensure consistent ordering
+	var allResults []string
+	
+	for i := 0; i < 5; i++ {
+		result := callCueEvalPackage(tempDir, "cuenv")
+		allResults = append(allResults, result)
+	}
+
+	// All results should be identical (same field ordering)
+	for i := 1; i < len(allResults); i++ {
+		if allResults[i] != allResults[0] {
+			t.Errorf("Inconsistent result on iteration %d", i+1)
+			t.Logf("First result: %s", allResults[0])
+			t.Logf("Different result: %s", allResults[i])
+			
+			// Show where they differ
+			if len(allResults[0]) == len(allResults[i]) {
+				for j := 0; j < len(allResults[0]); j++ {
+					if allResults[0][j] != allResults[i][j] {
+						t.Logf("First difference at position %d: %c vs %c", j, allResults[0][j], allResults[i][j])
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if !t.Failed() {
+		t.Logf("✓ Consistency test passed across %d iterations", len(allResults))
+	}
+}

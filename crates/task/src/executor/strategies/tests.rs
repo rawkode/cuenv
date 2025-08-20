@@ -2,6 +2,7 @@
 
 use super::*;
 use cuenv_config::{TaskConfig, TaskGroupMode, TaskNode};
+use indexmap::IndexMap;
 use std::collections::HashMap;
 
 fn create_test_task(dependencies: Option<Vec<String>>) -> TaskNode {
@@ -12,7 +13,7 @@ fn create_test_task(dependencies: Option<Vec<String>>) -> TaskNode {
     }))
 }
 
-fn create_test_group(mode: TaskGroupMode, tasks: HashMap<String, TaskNode>) -> TaskNode {
+fn create_test_group(mode: TaskGroupMode, tasks: IndexMap<String, TaskNode>) -> TaskNode {
     TaskNode::Group {
         mode,
         tasks,
@@ -23,7 +24,7 @@ fn create_test_group(mode: TaskGroupMode, tasks: HashMap<String, TaskNode>) -> T
 #[test]
 fn test_parallel_strategy_creates_barriers() {
     let strategy = ParallelStrategy;
-    let mut tasks = HashMap::new();
+    let mut tasks = IndexMap::new();
     tasks.insert("task1".to_string(), create_test_task(None));
     tasks.insert("task2".to_string(), create_test_task(None));
 
@@ -46,7 +47,7 @@ fn test_parallel_strategy_creates_barriers() {
 #[test]
 fn test_sequential_strategy_chains_dependencies() {
     let strategy = SequentialStrategy;
-    let mut tasks = HashMap::new();
+    let mut tasks = IndexMap::new();
     tasks.insert("task1".to_string(), create_test_task(None));
     tasks.insert("task2".to_string(), create_test_task(None));
 
@@ -67,7 +68,7 @@ fn test_sequential_strategy_chains_dependencies() {
 #[test]
 fn test_workflow_strategy_respects_explicit_deps() {
     let strategy = WorkflowStrategy;
-    let mut tasks = HashMap::new();
+    let mut tasks = IndexMap::new();
     tasks.insert("task1".to_string(), create_test_task(None));
     tasks.insert(
         "task2".to_string(),
@@ -84,7 +85,7 @@ fn test_workflow_strategy_respects_explicit_deps() {
 #[test]
 fn test_group_strategy_preserves_tasks() {
     let strategy = GroupStrategy;
-    let mut tasks = HashMap::new();
+    let mut tasks = IndexMap::new();
     tasks.insert("task1".to_string(), create_test_task(None));
     tasks.insert("task2".to_string(), create_test_task(None));
 
@@ -98,10 +99,10 @@ fn test_group_strategy_preserves_tasks() {
 #[test]
 fn test_nested_groups_execution() {
     let strategy = ParallelStrategy;
-    let mut tasks = HashMap::new();
+    let mut tasks = IndexMap::new();
 
     // Create a nested group
-    let mut nested_tasks = HashMap::new();
+    let mut nested_tasks = IndexMap::new();
     nested_tasks.insert("nested1".to_string(), create_test_task(None));
     nested_tasks.insert("nested2".to_string(), create_test_task(None));
 
@@ -127,7 +128,7 @@ fn test_create_strategy_returns_correct_types() {
 
     // We can't easily test the concrete types due to trait objects,
     // but we can test that they process groups differently
-    let mut tasks = HashMap::new();
+    let mut tasks = IndexMap::new();
     tasks.insert("task1".to_string(), create_test_task(None));
 
     let workflow_result = workflow.process_group("test", &tasks, vec![]).unwrap();
@@ -144,7 +145,7 @@ fn test_create_strategy_returns_correct_types() {
 #[test]
 fn test_sequential_ordering_deterministic() {
     let strategy = SequentialStrategy;
-    let mut tasks = HashMap::new();
+    let mut tasks = IndexMap::new();
 
     // Insert in different order multiple times to test determinism
     for _ in 0..5 {
@@ -160,7 +161,7 @@ fn test_sequential_ordering_deterministic() {
             .map(|t| t.name.clone())
             .collect();
 
-        // Should always be in alphabetical order due to BTreeMap
+        // Should always be in logical alphabetical order (non-numeric names fall back to alphabetical)
         assert_eq!(
             task_names,
             vec!["aaa".to_string(), "mmm".to_string(), "zzz".to_string()]
@@ -169,9 +170,39 @@ fn test_sequential_ordering_deterministic() {
 }
 
 #[test]
+fn test_sequential_number_word_ordering() {
+    let strategy = SequentialStrategy;
+    let mut tasks = IndexMap::new();
+
+    // Insert number words in different order to test logical ordering
+    tasks.insert("four".to_string(), create_test_task(None));
+    tasks.insert("one".to_string(), create_test_task(None));
+    tasks.insert("three".to_string(), create_test_task(None));
+    tasks.insert("two".to_string(), create_test_task(None));
+
+    let result = strategy.process_group("test", &tasks, vec![]).unwrap();
+    let task_names: Vec<String> = result
+        .iter()
+        .filter(|t| !t.is_barrier)
+        .map(|t| t.name.clone())
+        .collect();
+
+    // Should be in logical numeric order: one, two, three, four
+    assert_eq!(
+        task_names,
+        vec![
+            "one".to_string(),
+            "two".to_string(),
+            "three".to_string(),
+            "four".to_string()
+        ]
+    );
+}
+
+#[test]
 fn test_flattened_task_fields() {
     let strategy = GroupStrategy;
-    let mut tasks = HashMap::new();
+    let mut tasks = IndexMap::new();
     tasks.insert(
         "task1".to_string(),
         create_test_task(Some(vec!["dep1".to_string()])),

@@ -1,6 +1,7 @@
 use crossterm::style::Stylize;
 use cuenv_config::{TaskGroupMode, TaskNode};
-use std::collections::{BTreeMap, HashMap};
+use indexmap::IndexMap;
+use std::collections::BTreeMap;
 
 /// Box drawing characters for tree visualization
 const TREE_BRANCH: &str = "├── ";
@@ -27,9 +28,9 @@ pub fn count_tasks(node: &TaskNode) -> usize {
 }
 
 /// Display task nodes in a tree format
-pub fn display_task_tree(nodes: &HashMap<String, TaskNode>, verbose: bool, use_color: bool) {
-    // Sort for consistent display
-    let sorted: BTreeMap<_, _> = nodes.iter().collect();
+pub fn display_task_tree(nodes: &IndexMap<String, TaskNode>, verbose: bool, use_color: bool) {
+    // IndexMap already preserves insertion order, no need to sort
+    let sorted = nodes;
 
     // Simple, clean header
     println!();
@@ -113,7 +114,7 @@ pub fn display_task_tree(nodes: &HashMap<String, TaskNode>, verbose: bool, use_c
 fn display_group_compact(
     name: &str,
     mode: &TaskGroupMode,
-    tasks: &HashMap<String, TaskNode>,
+    tasks: &IndexMap<String, TaskNode>,
     use_color: bool,
 ) {
     // Get list of subtask names (just the last part after dots)
@@ -163,7 +164,7 @@ fn display_group(
     name: &str,
     description: Option<&str>,
     mode: &TaskGroupMode,
-    tasks: &HashMap<String, TaskNode>,
+    tasks: &IndexMap<String, TaskNode>,
     verbose: bool,
     use_color: bool,
     depth: usize,
@@ -216,7 +217,7 @@ fn display_group(
 
 /// Helper function to display tree children with a specific prefix
 fn display_tree_children_with_prefix(
-    tasks: &HashMap<String, TaskNode>,
+    tasks: &IndexMap<String, TaskNode>,
     verbose: bool,
     use_color: bool,
     _depth: usize,
@@ -280,16 +281,16 @@ fn format_task_line(
 
 /// Display children with tree structure
 fn display_tree_children(
-    nodes: &HashMap<String, TaskNode>,
+    nodes: &IndexMap<String, TaskNode>,
     verbose: bool,
     use_color: bool,
     depth: usize,
 ) {
-    let sorted: BTreeMap<_, _> = nodes.iter().collect();
-    let total = sorted.len();
+    // IndexMap preserves insertion order, no need to sort
+    let total = nodes.len();
     let mut count = 0;
 
-    for (name, node) in sorted {
+    for (name, node) in nodes {
         count += 1;
         let is_last = count == total;
         let connector = if is_last { TREE_LAST } else { TREE_BRANCH };
@@ -342,7 +343,7 @@ pub fn display_group_contents(
     group_name: &str,
     description: Option<&str>,
     mode: &TaskGroupMode,
-    tasks: &HashMap<String, TaskNode>,
+    tasks: &IndexMap<String, TaskNode>,
     verbose: bool,
     use_color: bool,
 ) {
@@ -408,7 +409,6 @@ pub fn display_group_contents(
 mod tests {
     use super::*;
     use cuenv_config::{TaskConfig, TaskGroupMode, TaskNode};
-    use std::collections::HashMap;
 
     fn create_test_task(description: Option<String>) -> TaskNode {
         TaskNode::Task(Box::new(TaskConfig {
@@ -431,7 +431,7 @@ mod tests {
     fn create_test_group(
         mode: TaskGroupMode,
         description: Option<String>,
-        tasks: HashMap<String, TaskNode>,
+        tasks: IndexMap<String, TaskNode>,
     ) -> TaskNode {
         TaskNode::Group {
             description,
@@ -468,13 +468,13 @@ mod tests {
 
     #[test]
     fn test_count_tasks_empty_group() {
-        let group = create_test_group(TaskGroupMode::Group, None, HashMap::new());
+        let group = create_test_group(TaskGroupMode::Group, None, IndexMap::new());
         assert_eq!(count_tasks(&group), 0);
     }
 
     #[test]
     fn test_count_tasks_group_with_tasks() {
-        let mut tasks = HashMap::new();
+        let mut tasks = IndexMap::new();
         tasks.insert("task1".to_string(), create_test_task(None));
         tasks.insert("task2".to_string(), create_test_task(None));
 
@@ -484,12 +484,12 @@ mod tests {
 
     #[test]
     fn test_count_tasks_nested_groups() {
-        let mut inner_tasks = HashMap::new();
+        let mut inner_tasks = IndexMap::new();
         inner_tasks.insert("inner1".to_string(), create_test_task(None));
         inner_tasks.insert("inner2".to_string(), create_test_task(None));
         let inner_group = create_test_group(TaskGroupMode::Group, None, inner_tasks);
 
-        let mut outer_tasks = HashMap::new();
+        let mut outer_tasks = IndexMap::new();
         outer_tasks.insert("task1".to_string(), create_test_task(None));
         outer_tasks.insert("group1".to_string(), inner_group);
 
@@ -572,7 +572,7 @@ mod tests {
 
     #[test]
     fn test_display_task_tree_empty() {
-        let tasks = HashMap::new();
+        let tasks = IndexMap::new();
         // This should not panic and should handle empty input gracefully
         display_task_tree(&tasks, false, false);
         display_task_tree(&tasks, true, false);
@@ -582,7 +582,7 @@ mod tests {
 
     #[test]
     fn test_display_task_tree_single_task() {
-        let mut tasks = HashMap::new();
+        let mut tasks = IndexMap::new();
         tasks.insert(
             "simple_task".to_string(),
             create_test_task(Some("A simple task".to_string())),
@@ -597,7 +597,7 @@ mod tests {
 
     #[test]
     fn test_display_task_tree_multiple_tasks() {
-        let mut tasks = HashMap::new();
+        let mut tasks = IndexMap::new();
         tasks.insert(
             "task_a".to_string(),
             create_test_task(Some("First task".to_string())),
@@ -614,7 +614,7 @@ mod tests {
 
     #[test]
     fn test_display_task_tree_with_groups() {
-        let mut inner_tasks = HashMap::new();
+        let mut inner_tasks = IndexMap::new();
         inner_tasks.insert(
             "subtask1".to_string(),
             create_test_task(Some("Sub task 1".to_string())),
@@ -624,7 +624,7 @@ mod tests {
             create_test_task(Some("Sub task 2".to_string())),
         );
 
-        let mut tasks = HashMap::new();
+        let mut tasks = IndexMap::new();
         tasks.insert(
             "single_task".to_string(),
             create_test_task(Some("A standalone task".to_string())),
@@ -644,7 +644,7 @@ mod tests {
 
     #[test]
     fn test_display_group_contents_all_modes() {
-        let mut tasks = HashMap::new();
+        let mut tasks = IndexMap::new();
         tasks.insert(
             "task1".to_string(),
             create_test_task(Some("First task".to_string())),
@@ -684,7 +684,7 @@ mod tests {
 
     #[test]
     fn test_display_group_contents_no_description() {
-        let mut tasks = HashMap::new();
+        let mut tasks = IndexMap::new();
         tasks.insert("task1".to_string(), create_test_task(None));
 
         display_group_contents(
@@ -699,7 +699,7 @@ mod tests {
 
     #[test]
     fn test_display_group_contents_empty_tasks() {
-        let tasks = HashMap::new();
+        let tasks = IndexMap::new();
 
         display_group_contents(
             "empty_group",
@@ -713,7 +713,7 @@ mod tests {
 
     #[test]
     fn test_display_group_contents_unicode_names() {
-        let mut tasks = HashMap::new();
+        let mut tasks = IndexMap::new();
         tasks.insert(
             "测试任务".to_string(),
             create_test_task(Some("Unicode任务描述".to_string())),
@@ -731,7 +731,7 @@ mod tests {
 
     #[test]
     fn test_display_group_compact_mode() {
-        let mut tasks = HashMap::new();
+        let mut tasks = IndexMap::new();
         for i in 1..=6 {
             tasks.insert(
                 format!("task{i}"),
@@ -746,7 +746,7 @@ mod tests {
             tasks,
         );
 
-        let mut nodes = HashMap::new();
+        let mut nodes = IndexMap::new();
         nodes.insert("big_group".to_string(), group);
 
         display_task_tree(&nodes, false, false);
@@ -755,7 +755,7 @@ mod tests {
 
     #[test]
     fn test_display_with_dotted_task_names() {
-        let mut tasks = HashMap::new();
+        let mut tasks = IndexMap::new();
         tasks.insert(
             "namespace.task1".to_string(),
             create_test_task(Some("Namespaced task 1".to_string())),
@@ -775,7 +775,7 @@ mod tests {
             tasks,
         );
 
-        let mut nodes = HashMap::new();
+        let mut nodes = IndexMap::new();
         nodes.insert("namespaced_group".to_string(), group);
 
         display_task_tree(&nodes, false, false);
@@ -784,7 +784,7 @@ mod tests {
 
     #[test]
     fn test_mixed_task_and_group_nodes() {
-        let mut inner_tasks = HashMap::new();
+        let mut inner_tasks = IndexMap::new();
         inner_tasks.insert(
             "inner1".to_string(),
             create_test_task(Some("Inner task 1".to_string())),
@@ -794,7 +794,7 @@ mod tests {
             create_test_task(Some("Inner task 2".to_string())),
         );
 
-        let mut nodes = HashMap::new();
+        let mut nodes = IndexMap::new();
         nodes.insert(
             "standalone_task".to_string(),
             create_test_task(Some("A standalone task".to_string())),
@@ -824,7 +824,7 @@ mod tests {
     #[test]
     fn test_error_handling_edge_cases() {
         // Test with very large numbers of tasks
-        let mut tasks = HashMap::new();
+        let mut tasks = IndexMap::new();
         for i in 0..1000 {
             tasks.insert(
                 format!("task_{i:04}"),
@@ -838,7 +838,7 @@ mod tests {
             tasks,
         );
 
-        let mut nodes = HashMap::new();
+        let mut nodes = IndexMap::new();
         nodes.insert("large_group".to_string(), group);
 
         // Should handle large numbers without issues

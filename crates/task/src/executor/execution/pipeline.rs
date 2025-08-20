@@ -109,4 +109,106 @@ impl TaskExecutor {
         tracing::info!("Task execution pipeline completed successfully");
         Ok(0)
     }
+
+    /// Execute tasks using the unified DAG system - this ensures consistent ordering
+    pub async fn execute_tasks_with_unified_dag(
+        &self,
+        task_names: &[String],
+        args: &[String],
+        audit_mode: bool,
+    ) -> Result<i32> {
+        // Build unified DAG
+        let dag = self.build_unified_dag(task_names)?;
+        let levels = dag.get_execution_levels()?;
+
+        tracing::info!(
+            requested_tasks = ?task_names,
+            total_tasks = %dag.get_flattened_tasks().len(),
+            levels = %levels.len(),
+            "Starting unified DAG task execution"
+        );
+
+        // Execute tasks level by level using the DAG
+        for (level_idx, level) in levels.iter().enumerate() {
+            tracing::info!(
+                level = %level_idx,
+                tasks = ?level,
+                "Starting execution level"
+            );
+            let mut join_set = JoinSet::new();
+            let failed_tasks = Arc::new(Mutex::new(Vec::with_capacity(level.len())));
+
+            // Launch all tasks in this level concurrently
+            for task_id in level {
+                // Skip barrier tasks (they contain "__" in their names and don't need execution)
+                if task_id.contains("__") {
+                    tracing::debug!(task_id = %task_id, "Skipping barrier task");
+                    continue;
+                }
+
+                // Get the task definition from the DAG
+                let task_definition = match dag.get_task_definition(task_id) {
+                    Some(definition) => definition.clone(),
+                    None => {
+                        return Err(Error::configuration(format!(
+                            "Task '{task_id}' not found in unified DAG"
+                        )));
+                    }
+                };
+
+                // Determine working directory based on whether this is a cross-package task
+                let working_dir = if let Some(ref registry) = self.monorepo_registry {
+                    if let Some(task) = registry.get_task(task_id) {
+                        task.package_path.clone()
+                    } else {
+                        self.working_dir.clone()
+                    }
+                } else {
+                    self.working_dir.clone()
+                };
+
+                super::task::spawn_task_execution(
+                    &mut join_set,
+                    super::task::TaskExecutionParams {
+                        task_name: task_id.clone(),
+                        task_definition,
+                        working_dir,
+                        task_args: args.to_vec(),
+                        failed_tasks: Arc::clone(&failed_tasks),
+                        action_cache: Arc::clone(&self.action_cache),
+                        _env_manager: self.env_manager.clone(),
+                        cache_config: self.cache_config.clone(),
+                        executed_tasks: Arc::clone(&self.executed_tasks),
+                        audit_mode,
+                        capture_output: false, // For now, unified DAG doesn't support output capture
+                    },
+                );
+            }
+
+            // Wait for all tasks in this level to complete
+            while let Some(result) = join_set.join_next().await {
+                if let Err(e) = result {
+                    return Err(Error::configuration(format!("Task execution failed: {e}")));
+                }
+            }
+
+            // Check if any tasks failed
+            let failed = failed_tasks
+                .lock()
+                .map_err(|e| Error::configuration(format!("Failed to acquire lock: {e}")))?;
+            if !failed.is_empty() {
+                let failed_names: Vec<&str> =
+                    failed.iter().map(|(name, _)| name.as_str()).collect();
+                return Err(Error::configuration(format!(
+                    "Tasks failed: {}",
+                    failed_names.join(", ")
+                )));
+            }
+
+            tracing::info!(level = %level_idx, "Completed execution level");
+        }
+
+        tracing::info!("Completed unified DAG task execution");
+        Ok(0)
+    }
 }

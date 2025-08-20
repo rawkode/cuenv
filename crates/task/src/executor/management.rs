@@ -1,7 +1,9 @@
 use super::strategies::{process_task_group, TaskGroupExecutionPlan};
+use super::unified_dag::UnifiedTaskDAG;
 use super::TaskExecutor;
 use cuenv_config::{TaskGroupMode, TaskNode};
 use cuenv_core::Result;
+use indexmap::IndexMap;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -75,7 +77,7 @@ impl TaskExecutor {
         &self,
         group_name: &str,
         mode: &TaskGroupMode,
-        tasks: &HashMap<String, TaskNode>,
+        tasks: &IndexMap<String, TaskNode>,
     ) -> Result<TaskGroupExecutionPlan> {
         let plan = process_task_group(group_name, mode, tasks)?;
 
@@ -97,5 +99,58 @@ impl TaskExecutor {
         }
 
         Ok(plan)
+    }
+
+    /// Build a unified DAG for specified tasks using the new consolidated approach
+    pub fn build_unified_dag(&self, task_names: &[String]) -> Result<UnifiedTaskDAG> {
+        let all_task_configs = self.env_manager.get_tasks();
+        let all_task_nodes = self.env_manager.get_task_nodes();
+
+        // Calculate configuration hash for cache key
+        let config_hash = self
+            .dag_cache
+            .calculate_config_hash(&all_task_configs, &all_task_nodes);
+
+        // Check cache first
+        if let Some(cached_dag) = self.dag_cache.get(task_names, config_hash) {
+            log::debug!("Using cached DAG for tasks: {:?}", task_names);
+            return Ok(cached_dag);
+        }
+
+        log::debug!("Building new DAG for tasks: {:?}", task_names);
+
+        // Build task definitions using the task builder
+        let task_definitions = self
+            .task_builder
+            .build_tasks_with_nodes(all_task_configs.clone(), all_task_nodes.clone())?;
+
+        let dag = UnifiedTaskDAG::builder()
+            .with_task_configs(all_task_configs.clone())
+            .with_task_nodes(all_task_nodes.clone())
+            .with_task_definitions(task_definitions)
+            .build_for_tasks(task_names)?;
+
+        // Store in cache for future use
+        if let Err(e) = self.dag_cache.put(task_names, config_hash, dag.clone()) {
+            log::warn!("Failed to cache DAG: {}", e);
+            // Continue execution even if caching fails
+        }
+
+        Ok(dag)
+    }
+
+    /// Get DAG cache statistics
+    pub fn get_dag_cache_stats(&self) -> Result<super::dag_cache::DAGCacheStats> {
+        self.dag_cache.stats()
+    }
+
+    /// Clear the DAG cache
+    pub fn clear_dag_cache(&self) -> Result<()> {
+        self.dag_cache.clear()
+    }
+
+    /// Clean up expired entries in the DAG cache
+    pub fn cleanup_dag_cache(&self) -> Result<usize> {
+        self.dag_cache.cleanup_expired()
     }
 }

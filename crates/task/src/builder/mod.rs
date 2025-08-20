@@ -6,6 +6,7 @@
 
 use cuenv_config::{TaskConfig, TaskNode};
 use cuenv_core::{Result, TaskDefinition};
+use indexmap::IndexMap;
 use std::collections::HashMap;
 use std::env;
 use std::path::{Path, PathBuf};
@@ -26,7 +27,7 @@ pub struct BuildContext {
     /// Task configurations by name (flattened)
     pub task_configs: HashMap<String, TaskConfig>,
     /// Task nodes (hierarchical structure)
-    pub task_nodes: HashMap<String, TaskNode>,
+    pub task_nodes: IndexMap<String, TaskNode>,
     /// Resolved task definitions by name
     pub task_definitions: HashMap<String, TaskDefinition>,
     /// Dependency graph for validation
@@ -65,14 +66,14 @@ impl TaskBuilder {
         &self,
         task_configs: HashMap<String, TaskConfig>,
     ) -> Result<HashMap<String, TaskDefinition>> {
-        self.build_tasks_with_nodes(task_configs, HashMap::new())
+        self.build_tasks_with_nodes(task_configs, IndexMap::new())
     }
 
     /// Build task definitions from configurations and task nodes
     pub fn build_tasks_with_nodes(
         &self,
         task_configs: HashMap<String, TaskConfig>,
-        task_nodes: HashMap<String, TaskNode>,
+        task_nodes: IndexMap<String, TaskNode>,
     ) -> Result<HashMap<String, TaskDefinition>> {
         let mut context = BuildContext {
             task_configs: task_configs.clone(),

@@ -203,7 +203,7 @@ async fn handle_task_protocol(
             metadata: HashMap::new(),
             commands: HashMap::new(),
             tasks: env_manager.get_tasks().clone(),
-            task_nodes: HashMap::new(), // Empty for internal commands
+            task_nodes: indexmap::IndexMap::new(), // Empty for internal commands
             hooks: HashMap::new(),
             config: None,
         };

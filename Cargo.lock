@@ -780,6 +780,7 @@ dependencies = [
  "dirs 5.0.1",
  "eyre",
  "futures",
+ "indexmap 2.10.0",
  "insta",
  "libc",
  "log",
@@ -860,6 +861,7 @@ dependencies = [
  "cuenv-libcue-ffi-bridge",
  "cuenv-utils",
  "fs2",
+ "indexmap 2.10.0",
  "log",
  "serde",
  "serde_json",
@@ -900,6 +902,7 @@ dependencies = [
  "dirs 5.0.1",
  "futures",
  "globset",
+ "indexmap 2.10.0",
  "libc",
  "log",
  "notify",
@@ -1010,6 +1013,7 @@ dependencies = [
  "cuenv-security",
  "cuenv-utils",
  "dashmap 6.1.0",
+ "indexmap 2.10.0",
  "log",
  "serde",
  "serde_json",
@@ -2037,6 +2041,7 @@ checksum = "fe4cd85333e22411419a0bcae1297d25e58c9443848b11dc6a86fefe8c78a661"
 dependencies = [
  "equivalent",
  "hashbrown 0.15.5",
+ "serde",
 ]
 
 [[package]]
