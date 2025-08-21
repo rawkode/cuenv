@@ -344,7 +344,7 @@ impl AccessRestrictions {
     #[cfg(target_os = "linux")]
     fn apply_landlock_restrictions(&self, cmd: &mut Command) -> Result<()> {
         use landlock::{
-            Access, AccessFs, AccessNet, NetPort, PathBeneath, PathFd, Ruleset, RulesetAttr,
+            Access, AccessFs, AccessNet, PathBeneath, PathFd, Ruleset, RulesetAttr,
             RulesetCreatedAttr, RulesetStatus, ABI,
         };
         use std::os::unix::process::CommandExt;
@@ -430,28 +430,31 @@ impl AccessRestrictions {
                     }
                 }
 
-                // Add network rules (requires ABI V2 or higher)
+                // Apply network restrictions using DNS filtering in network namespaces
                 if restrict_network {
-                    // Parse and add allowed hosts (ports)
-                    for host in &allowed_hosts {
-                        // Try to parse as port number
-                        if let Ok(port) = host.parse::<u16>() {
-                            // Allow both bind and connect on this port
-                            let bind_rule = NetPort::new(port, AccessNet::BindTcp);
-                            let connect_rule = NetPort::new(port, AccessNet::ConnectTcp);
+                    use crate::dns_filter;
 
-                            ruleset = ruleset.add_rule(bind_rule).map_err(|e| {
-                                std::io::Error::other(format!(
-                                    "Failed to add bind rule for port {port}: {e}"
-                                ))
-                            })?;
-
-                            ruleset = ruleset.add_rule(connect_rule).map_err(|e| {
-                                std::io::Error::other(format!(
-                                    "Failed to add connect rule for port {port}: {e}"
-                                ))
-                            })?;
+                    if !allowed_hosts.is_empty() {
+                        match dns_filter::create_and_apply(&allowed_hosts) {
+                            Ok(()) => {
+                                log::info!("DNS-based network filtering active for {} hosts", allowed_hosts.len());
+                            }
+                            Err(e) => {
+                                // Check if strict mode should be enforced
+                                if std::env::var("CUENV_SECURITY_STRICT").is_ok() {
+                                    return Err(std::io::Error::other(format!(
+                                        "Cannot enforce network restrictions: {e}. Use CUENV_SECURITY_STRICT=0 to allow fallback."
+                                    )));
+                                } else {
+                                    eprintln!("⚠️  WARNING: Network filtering unavailable: {e}");
+                                    eprintln!("   Task will run WITHOUT network restrictions!");
+                                    eprintln!("   Set CUENV_SECURITY_STRICT=1 to fail instead of warn");
+                                    log::warn!("Network filtering unavailable, running without restrictions: {e}");
+                                }
+                            }
                         }
+                    } else {
+                        log::debug!("Network restrictions enabled but no allowed hosts specified");
                     }
                 }
 

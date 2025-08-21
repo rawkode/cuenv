@@ -37,6 +37,10 @@ struct Cli {
     #[arg(long, global = true)]
     audit: bool,
 
+    /// Fail if security restrictions cannot be enforced (instead of warning)
+    #[arg(long, global = true)]
+    security_strict: bool,
+
     /// Output format for task execution (tui, spinner, simple, tree)
     #[arg(long, value_parser = ["tui", "spinner", "simple", "tree"])]
     output_format: Option<String>,
@@ -79,6 +83,11 @@ async fn main() -> eyre::Result<()> {
 
     if let Some(enabled) = cli.cache_enabled {
         env::set_var("CUENV_CACHE_ENABLED", enabled.to_string());
+    }
+
+    // Set security strict mode if flag is provided
+    if cli.security_strict {
+        env::set_var("CUENV_SECURITY_STRICT", "1");
     }
 
     // Determine the command to execute
