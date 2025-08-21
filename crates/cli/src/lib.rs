@@ -2,11 +2,11 @@
 pub mod commands;
 pub mod completion;
 pub mod directory;
-pub mod formatters;
+// pub mod formatters;  // MOVED - Now in commands::task::formatters 
 pub mod monorepo;
 pub mod platform;
 
 // Re-export commonly used types
 pub use commands::Commands;
 pub use directory::DirectoryManager;
-pub use formatters::{SimpleFormatterSubscriber, SpinnerFormatterSubscriber};
+// pub use formatters::{SimpleFormatterSubscriber, SpinnerFormatterSubscriber};  // MOVED to task module

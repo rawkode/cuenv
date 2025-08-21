@@ -1,5 +1,5 @@
 mod display;
-mod formatter;
+// mod formatter;  // DELETED - Replaced by EventSubscriber pattern
 mod formatters;
 mod graph;
 
@@ -335,33 +335,17 @@ async fn execute_task(
         // Execute the specified task
         let executor = TaskExecutor::new(env_manager, current_dir).await?;
 
-        // Check if the user wants to use the new EventSubscriber-based execution
-        // This is experimental and allows testing the new system
-        if env::var("CUENV_USE_SUBSCRIBER_FORMATTERS").is_ok() {
-            // Use the new subscriber-based execution
-            let status = execute_task_with_subscribers_demo(
-                &executor,
-                &actual_task_name,
-                &actual_args,
-                audit,
-                &output_format,
-                trace_output,
-            )
-            .await?;
-            std::process::exit(status);
-        } else {
-            // Use the legacy formatter system
-            let status = formatter::execute_with_formatter(
-                &executor,
-                &actual_task_name,
-                &actual_args,
-                audit,
-                &output_format,
-                trace_output,
-            )
-            .await?;
-            std::process::exit(status);
-        }
+        // Use the new EventSubscriber-based execution (now the default)
+        let status = execute_task_with_subscribers(
+            &executor,
+            &actual_task_name,
+            &actual_args,
+            audit,
+            &output_format,
+            trace_output,
+        )
+        .await?;
+        std::process::exit(status);
     } else {
         // Check if this might be a task group
         let prefix = format!("{task_name}.");
@@ -437,46 +421,28 @@ async fn execute_task_group(
     // Create executor and use unified DAG for all execution modes
     let executor = TaskExecutor::new(env_manager, current_dir).await?;
 
-    // Check if the user wants to use the new EventSubscriber-based execution
-    if env::var("CUENV_USE_SUBSCRIBER_FORMATTERS").is_ok() {
-        // Use the new subscriber-based execution
-        let status = execute_task_with_subscribers_demo(
-            &executor,
-            &group_name, // Pass the group name directly to unified DAG
-            &[],
-            audit,
-            &output_format,
-            trace_output,
-        )
-        .await?;
-        
-        if status != 0 {
-            std::process::exit(status);
-        }
-    } else {
-        // Use unified DAG execution - this handles all modes (Sequential, Parallel, Workflow) properly
-        let status = formatter::execute_with_formatter(
-            &executor,
-            &group_name, // Pass the group name directly to unified DAG
-            &[],
-            audit,
-            &output_format,
-            trace_output,
-        )
-        .await?;
-
-        if status != 0 {
-            std::process::exit(status);
-        }
+    // Use the new EventSubscriber-based execution
+    let status = execute_task_with_subscribers(
+        &executor,
+        &group_name, // Pass the group name directly to unified DAG
+        &[],
+        audit,
+        &output_format,
+        trace_output,
+    )
+    .await?;
+    
+    if status != 0 {
+        std::process::exit(status);
     }
 
     Ok(())
 }
 
-/// Demonstration of new EventSubscriber-based task execution
-/// This is an alternative implementation that can run alongside the current system
+/// Execute tasks using the new EventSubscriber-based architecture
+/// This is the main task execution path using the event-driven pattern
 #[allow(clippy::too_many_arguments)]
-async fn execute_task_with_subscribers_demo(
+async fn execute_task_with_subscribers(
     executor: &TaskExecutor,
     task_name: &str,
     args: &[String],
@@ -485,8 +451,8 @@ async fn execute_task_with_subscribers_demo(
     trace_output: bool,
 ) -> Result<i32> {
     // For now, we'll use the simple formatter for all formats
-    // This is a demonstration of the subscriber pattern
-    println!("🧪 Using experimental EventSubscriber-based execution (format: {})", output_format);
+    // TODO: Add support for spinner and TUI formatters in future iterations  
+    println!("🔄 Executing task with EventSubscriber architecture (format: {})", output_format);
     
     let formatter: Arc<dyn EventSubscriber> = Arc::new(SimpleFormatterSubscriber::new(trace_output));
 
