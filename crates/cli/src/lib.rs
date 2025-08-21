@@ -2,6 +2,7 @@
 pub mod commands;
 pub mod completion;
 pub mod directory;
+pub mod formatters;
 pub mod monorepo;
 pub mod platform;
 

@@ -2,9 +2,11 @@ mod display;
 mod formatter;
 mod graph;
 
+use crate::formatters::{SimpleFormatterSubscriber, SpinnerFormatterSubscriber, TuiFormatterSubscriber};
 use clap::Subcommand;
 use cuenv_config::{Config, TaskNode};
 use cuenv_core::{Result, CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR};
+use cuenv_core::events::{register_global_subscriber, EventSubscriber};
 use cuenv_env::manager::environment::SupervisorMode;
 use cuenv_env::EnvManager;
 use cuenv_task::TaskExecutor;
@@ -331,8 +333,8 @@ async fn execute_task(
     } else if env_manager.get_task(&actual_task_name).is_some() {
         // Execute the specified task
         let executor = TaskExecutor::new(env_manager, current_dir).await?;
-        // Use the formatter module to execute with the appropriate output format
-        let status = formatter::execute_with_formatter(
+        // Use the new subscriber pattern with the appropriate formatter
+        let status = execute_task_with_subscriber(
             &executor,
             &actual_task_name,
             &actual_args,
@@ -417,8 +419,8 @@ async fn execute_task_group(
     // Create executor and use unified DAG for all execution modes
     let executor = TaskExecutor::new(env_manager, current_dir).await?;
 
-    // Use unified DAG execution - this handles all modes (Sequential, Parallel, Workflow) properly
-    let status = formatter::execute_with_formatter(
+    // Use unified DAG execution with subscriber pattern
+    let status = execute_task_with_subscriber(
         &executor,
         &group_name, // Pass the group name directly to unified DAG
         &[],
@@ -433,6 +435,114 @@ async fn execute_task_group(
     }
 
     Ok(())
+}
+
+/// Execute tasks with the appropriate EventSubscriber formatter
+#[allow(clippy::too_many_arguments)]
+async fn execute_task_with_subscriber(
+    executor: &TaskExecutor,
+    task_name: &str,
+    args: &[String],
+    audit: bool,
+    output_format: &str,
+    trace_output: bool,
+) -> Result<i32> {
+    // Create the appropriate formatter subscriber
+    let formatter: Arc<dyn EventSubscriber> = match output_format {
+        "simple" | "tree" => {
+            Arc::new(SimpleFormatterSubscriber::new(trace_output))
+        }
+        "spinner" => {
+            let mut spinner_formatter = SpinnerFormatterSubscriber::new();
+            
+            // Build the execution plan for initialization
+            let dag = executor.build_unified_dag(&[task_name.to_string()])?;
+            let levels = dag.get_execution_levels()?;
+            
+            // Create a compatible execution plan for the formatter
+            let mut plan_tasks = std::collections::HashMap::new();
+            for task in dag.get_flattened_tasks() {
+                if !task.is_barrier {
+                    if let Some(definition) = dag.get_task_definition(&task.id) {
+                        plan_tasks.insert(task.id.clone(), definition.clone());
+                    }
+                }
+            }
+            let plan = cuenv_task::TaskExecutionPlan {
+                levels,
+                tasks: plan_tasks,
+            };
+            
+            // Initialize the spinner formatter
+            spinner_formatter.initialize(&plan).await.map_err(|e| {
+                cuenv_core::Error::configuration(format!(
+                    "Failed to initialize spinner formatter: {}", e
+                ))
+            })?;
+
+            // Start the ticker
+            let _ticker_handle = spinner_formatter.start_ticker().await;
+            
+            Arc::new(spinner_formatter)
+        }
+        "tui" => {
+            // Check if we're in a TTY environment
+            if !atty::is(atty::Stream::Stderr) {
+                eprintln!(
+                    "TUI mode requires an interactive terminal. Falling back to spinner mode."
+                );
+                // Fall back to spinner format
+                let mut spinner_formatter = SpinnerFormatterSubscriber::new();
+                
+                // Build and initialize as above
+                let dag = executor.build_unified_dag(&[task_name.to_string()])?;
+                let levels = dag.get_execution_levels()?;
+                let mut plan_tasks = std::collections::HashMap::new();
+                for task in dag.get_flattened_tasks() {
+                    if !task.is_barrier {
+                        if let Some(definition) = dag.get_task_definition(&task.id) {
+                            plan_tasks.insert(task.id.clone(), definition.clone());
+                        }
+                    }
+                }
+                let plan = cuenv_task::TaskExecutionPlan {
+                    levels,
+                    tasks: plan_tasks,
+                };
+                spinner_formatter.initialize(&plan).await.map_err(|e| {
+                    cuenv_core::Error::configuration(format!(
+                        "Failed to initialize spinner formatter: {}", e
+                    ))
+                })?;
+                let _ticker_handle = spinner_formatter.start_ticker().await;
+                Arc::new(spinner_formatter)
+            } else {
+                let mut tui_formatter = TuiFormatterSubscriber::new();
+                tui_formatter.initialize().await.map_err(|e| {
+                    cuenv_core::Error::configuration(format!(
+                        "Failed to initialize TUI formatter: {}", e
+                    ))
+                })?;
+                
+                // Register the task to be executed
+                tui_formatter.register_task(task_name.to_string(), vec![]).await;
+                
+                Arc::new(tui_formatter)
+            }
+        }
+        _ => {
+            // Fall back to simple output for unknown formats
+            Arc::new(SimpleFormatterSubscriber::new(trace_output))
+        }
+    };
+
+    // Register the formatter as a global subscriber
+    register_global_subscriber(formatter).await;
+
+    // Execute the task using the unified method
+    let status = executor.execute_tasks_unified(&[task_name.to_string()], args, audit).await?;
+
+    Ok(status)
 }
 
 /// Display the dependency graph for tasks
