@@ -1,12 +1,13 @@
 mod display;
 mod formatter;
+mod formatters;
 mod graph;
 
-// use crate::formatters::{SimpleFormatterSubscriber, SpinnerFormatterSubscriber, TuiFormatterSubscriber};
+use formatters::SimpleFormatterSubscriber;
 use clap::Subcommand;
 use cuenv_config::{Config, TaskNode};
 use cuenv_core::{Result, CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR};
-// use cuenv_core::events::{register_global_subscriber, EventSubscriber};
+use cuenv_core::events::{register_global_subscriber, EventSubscriber};
 use cuenv_env::manager::environment::SupervisorMode;
 use cuenv_env::EnvManager;
 use cuenv_task::{TaskExecutor};
@@ -333,17 +334,34 @@ async fn execute_task(
     } else if env_manager.get_task(&actual_task_name).is_some() {
         // Execute the specified task
         let executor = TaskExecutor::new(env_manager, current_dir).await?;
-        // Use the formatter module to execute with the appropriate output format
-        let status = formatter::execute_with_formatter(
-            &executor,
-            &actual_task_name,
-            &actual_args,
-            audit,
-            &output_format,
-            trace_output,
-        )
-        .await?;
-        std::process::exit(status);
+
+        // Check if the user wants to use the new EventSubscriber-based execution
+        // This is experimental and allows testing the new system
+        if env::var("CUENV_USE_SUBSCRIBER_FORMATTERS").is_ok() {
+            // Use the new subscriber-based execution
+            let status = execute_task_with_subscribers_demo(
+                &executor,
+                &actual_task_name,
+                &actual_args,
+                audit,
+                &output_format,
+                trace_output,
+            )
+            .await?;
+            std::process::exit(status);
+        } else {
+            // Use the legacy formatter system
+            let status = formatter::execute_with_formatter(
+                &executor,
+                &actual_task_name,
+                &actual_args,
+                audit,
+                &output_format,
+                trace_output,
+            )
+            .await?;
+            std::process::exit(status);
+        }
     } else {
         // Check if this might be a task group
         let prefix = format!("{task_name}.");
@@ -419,22 +437,66 @@ async fn execute_task_group(
     // Create executor and use unified DAG for all execution modes
     let executor = TaskExecutor::new(env_manager, current_dir).await?;
 
-    // Use unified DAG execution - this handles all modes (Sequential, Parallel, Workflow) properly
-    let status = formatter::execute_with_formatter(
-        &executor,
-        &group_name, // Pass the group name directly to unified DAG
-        &[],
-        audit,
-        &output_format,
-        trace_output,
-    )
-    .await?;
+    // Check if the user wants to use the new EventSubscriber-based execution
+    if env::var("CUENV_USE_SUBSCRIBER_FORMATTERS").is_ok() {
+        // Use the new subscriber-based execution
+        let status = execute_task_with_subscribers_demo(
+            &executor,
+            &group_name, // Pass the group name directly to unified DAG
+            &[],
+            audit,
+            &output_format,
+            trace_output,
+        )
+        .await?;
+        
+        if status != 0 {
+            std::process::exit(status);
+        }
+    } else {
+        // Use unified DAG execution - this handles all modes (Sequential, Parallel, Workflow) properly
+        let status = formatter::execute_with_formatter(
+            &executor,
+            &group_name, // Pass the group name directly to unified DAG
+            &[],
+            audit,
+            &output_format,
+            trace_output,
+        )
+        .await?;
 
-    if status != 0 {
-        std::process::exit(status);
+        if status != 0 {
+            std::process::exit(status);
+        }
     }
 
     Ok(())
+}
+
+/// Demonstration of new EventSubscriber-based task execution
+/// This is an alternative implementation that can run alongside the current system
+#[allow(clippy::too_many_arguments)]
+async fn execute_task_with_subscribers_demo(
+    executor: &TaskExecutor,
+    task_name: &str,
+    args: &[String],
+    audit: bool,
+    output_format: &str,
+    trace_output: bool,
+) -> Result<i32> {
+    // For now, we'll use the simple formatter for all formats
+    // This is a demonstration of the subscriber pattern
+    println!("🧪 Using experimental EventSubscriber-based execution (format: {})", output_format);
+    
+    let formatter: Arc<dyn EventSubscriber> = Arc::new(SimpleFormatterSubscriber::new(trace_output));
+
+    // Register the formatter as a global subscriber
+    register_global_subscriber(formatter).await;
+
+    // Execute the task using the unified method
+    let status = executor.execute_tasks_unified(&[task_name.to_string()], args, audit).await?;
+
+    Ok(status)
 }
 
 /// Display the dependency graph for tasks

@@ -9,3 +9,4 @@ pub mod platform;
 // Re-export commonly used types
 pub use commands::Commands;
 pub use directory::DirectoryManager;
+pub use formatters::{SimpleFormatterSubscriber, SpinnerFormatterSubscriber};
