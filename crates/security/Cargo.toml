@@ -55,6 +55,8 @@ nix = { version = "0.29", features = [
   "socket",
   "sched",
 ] }
+# hickory-dns dependencies are included for future implementation of full DNS server functionality
+# Currently only used in stub implementations, will be utilized when DNS filtering is fully implemented
 hickory-dns = { version = "0.24" }
 hickory-server = { version = "0.24" }
 

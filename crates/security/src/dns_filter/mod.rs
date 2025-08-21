@@ -17,6 +17,20 @@ use std::collections::HashSet;
 #[cfg(target_os = "linux")]
 use anyhow::{bail, Result};
 
+/// Helper function for wildcard domain matching
+#[cfg(target_os = "linux")]
+pub(crate) fn matches_wildcard(domain: &str, pattern: &str) -> bool {
+    if domain.ends_with(pattern) {
+        // Ensure it's a proper subdomain match (not partial match)
+        if domain.len() > pattern.len()
+            && domain.as_bytes()[domain.len() - pattern.len() - 1] == b'.'
+        {
+            return true;
+        }
+    }
+    false
+}
+
 /// Main DNS filter interface
 #[cfg(target_os = "linux")]
 pub struct DnsFilter {
@@ -59,13 +73,8 @@ impl DnsFilter {
 
         // Check wildcard patterns
         for pattern in &self.wildcard_patterns {
-            if domain.ends_with(pattern) {
-                // Ensure it's a proper subdomain match (not partial match)
-                if domain.len() > pattern.len()
-                    && domain.as_bytes()[domain.len() - pattern.len() - 1] == b'.'
-                {
-                    return true;
-                }
+            if matches_wildcard(domain, pattern) {
+                return true;
             }
         }
 

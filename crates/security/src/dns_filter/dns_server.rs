@@ -28,8 +28,7 @@ impl FilteringDnsServer {
             "Would filter DNS requests using {} allowed domains",
             self.filter.domain_count()
         );
-        // For now, just sleep to simulate running
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        // Stub implementation - return immediately
         Ok(())
     }
 }

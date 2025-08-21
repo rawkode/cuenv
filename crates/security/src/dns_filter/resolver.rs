@@ -57,17 +57,8 @@ impl DomainResolver {
             return false;
         }
 
-        // Check if domain ends with the pattern
-        if domain.ends_with(pattern) {
-            // Ensure there's a dot before the pattern (proper subdomain)
-            let prefix_len = domain.len() - pattern.len();
-            if prefix_len > 0 {
-                let prefix = &domain[..prefix_len];
-                return prefix.ends_with('.');
-            }
-        }
-
-        false
+        // Use shared wildcard matching logic
+        super::matches_wildcard(domain, pattern)
     }
 
     /// Add a new allowed host at runtime
