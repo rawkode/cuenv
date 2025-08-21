@@ -3,6 +3,7 @@
 //! This formatter provides Docker Compose-style spinner output for task execution events.
 
 use cuenv_core::events::{EnhancedEvent, EventSubscriber, SystemEvent, TaskEvent};
+use cuenv_task::TaskExecutionPlan;
 use cuenv_tui::spinner::SpinnerFormatter;
 use cuenv_tui::events::{TaskRegistry, TaskState};
 use std::sync::Arc;
@@ -27,7 +28,7 @@ impl SpinnerFormatterSubscriber {
     }
 
     /// Initialize the formatter with task execution plan
-    pub async fn initialize(&self, plan: &cuenv_task::TaskExecutionPlan) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn initialize(&self, plan: &TaskExecutionPlan) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Register all tasks in the execution plan
         for (task_name, _task_config) in &plan.tasks {
             self.task_registry

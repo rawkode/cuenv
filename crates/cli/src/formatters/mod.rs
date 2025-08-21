@@ -5,8 +5,8 @@
 
 pub mod simple;
 pub mod spinner;
-pub mod tui;
+// pub mod tui;  // TODO: Fix TUI integration issues
 
 pub use simple::SimpleFormatterSubscriber;
 pub use spinner::SpinnerFormatterSubscriber;
-pub use tui::TuiFormatterSubscriber;
+// pub use tui::TuiFormatterSubscriber;
