@@ -167,14 +167,14 @@ impl Supervisor {
         }
 
         if has_stale_hooks {
-            eprintln!(
+            tracing::error!(
                 "# cuenv: Detected stale hooks (processes no longer running), clearing status..."
             );
             self.status_manager.clear_status().map_err(|e| {
                 cuenv_core::Error::configuration(format!("Failed to clear status: {e}"))
             })?;
         } else if has_actually_running_hooks {
-            eprintln!("# cuenv: Hooks are already running, skipping...");
+            tracing::error!("# cuenv: Hooks are already running, skipping...");
             return Ok(());
         }
 
@@ -182,12 +182,12 @@ impl Supervisor {
         let input_hash = cache::calculate_input_hash(&self.hooks)?;
         if let Ok(cached_env) = cache::load_cached_environment(&self.cache_dir, &input_hash) {
             // Inputs haven't changed, use cached environment
-            eprintln!("# cuenv: Using cached environment (inputs unchanged)");
+            tracing::error!("# cuenv: Using cached environment (inputs unchanged)");
             cache::apply_cached_environment(&self.cache_dir, cached_env)?;
             return Ok(());
         }
 
-        eprintln!("# cuenv: Running {} hook(s)...", self.hooks.len());
+        tracing::error!("# cuenv: Running {} hook(s)...", self.hooks.len());
 
         // Clear any stale status from previous runs before initializing new hooks
         self.status_manager.clear_status().map_err(|e| {
@@ -256,7 +256,7 @@ impl Supervisor {
 
             // Show message after 1 second
             if !message_shown && start_time.elapsed() > Duration::from_secs(1) {
-                eprintln!("# cuenv: Press 'q' to quit");
+                tracing::error!("# cuenv: Press 'q' to quit");
                 message_shown = true;
             }
 
@@ -307,7 +307,7 @@ impl Supervisor {
         }
 
         self.status_manager.clear_status()?;
-        eprintln!("# cuenv: ✓ All hooks completed");
+        tracing::error!("# cuenv: ✓ All hooks completed");
         Ok(())
     }
 
@@ -413,7 +413,7 @@ impl Supervisor {
             return Ok(());
         }
 
-        eprintln!(
+        tracing::error!(
             "# cuenv: Starting {} hook(s) in background...",
             self.hooks.len()
         );
@@ -458,7 +458,7 @@ impl Supervisor {
             let hook_clone = hook.clone();
             let hook_key_clone = hook_key.clone();
 
-            eprintln!("# cuenv: Running hook: {}", hook.command);
+            tracing::error!("# cuenv: Running hook: {}", hook.command);
 
             // Mark hook as started
             let pid = std::process::id();
@@ -478,14 +478,14 @@ impl Supervisor {
                         if let Some(actual_pid) = pid {
                             let _ = status_manager.mark_hook_started(&hook_key_clone, actual_pid);
                         }
-                        eprintln!("# cuenv: Hook completed: {}", hook_clone.command);
+                        tracing::error!("# cuenv: Hook completed: {}", hook_clone.command);
                         let _ = status_manager.mark_hook_completed(&hook_key_clone);
 
                         // Return environment if this was a source hook
                         output
                     }
                     Err(e) => {
-                        eprintln!("# cuenv: Hook failed: {}: {}", hook_clone.command, e);
+                        tracing::error!("# cuenv: Hook failed: {}: {}", hook_clone.command, e);
                         let _ = status_manager.mark_hook_failed(&hook_key_clone, e.to_string());
                         None
                     }
@@ -510,7 +510,7 @@ impl Supervisor {
 
         // Clear status after successful completion
         self.status_manager.clear_status()?;
-        eprintln!("# cuenv: ✓ All hooks completed");
+        tracing::error!("# cuenv: ✓ All hooks completed");
         Ok(())
     }
 }

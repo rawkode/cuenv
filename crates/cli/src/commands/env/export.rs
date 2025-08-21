@@ -28,7 +28,7 @@ pub async fn execute(shell: Option<String>, all: bool) -> Result<()> {
     if all {
         // Export all system environment variables
         for (key, value) in env::vars() {
-            println!("{}", shell_impl.export(&key, &value));
+            tracing::info!("{}", shell_impl.export(&key, &value));
         }
     } else {
         // Export only the loaded environment from env.cue
@@ -40,11 +40,11 @@ pub async fn execute(shell: Option<String>, all: bool) -> Result<()> {
             env_manager.load_env(&current_dir).await?;
 
             match env_manager.export_for_shell(shell_type.name()) {
-                Ok(output) => print!("{output}"),
+                Ok(output) => tracing::info!("{output}"),
                 Err(e) => return Err(e),
             }
         } else {
-            eprintln!("No {ENV_CUE_FILENAME} found in current directory");
+            tracing::error!("No {ENV_CUE_FILENAME} found in current directory");
             std::process::exit(1);
         }
     }

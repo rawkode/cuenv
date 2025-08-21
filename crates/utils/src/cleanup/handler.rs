@@ -520,7 +520,7 @@ pub fn init_cleanup_handler() {
         if let Ok(mut registry) = CLEANUP_REGISTRY.lock() {
             registry.cleanup_all();
         } else {
-            eprintln!("Failed to lock cleanup registry in panic handler");
+            tracing::error!("Failed to lock cleanup registry in panic handler");
         }
 
         // Call the original panic handler

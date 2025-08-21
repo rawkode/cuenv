@@ -30,23 +30,23 @@ pub async fn execute() -> Result<()> {
         let shell_impl = shell_type.as_shell();
 
         // Output shell commands to unset environment variables
-        eprintln!("# cuenv: Generating shell commands to clean up environment variables");
+        tracing::warn!("# cuenv: Generating shell commands to clean up environment variables");
         for key in diff.removed() {
-            println!("{}", shell_impl.unset(key));
+            tracing::info!("{}", shell_impl.unset(key));
         }
         for (key, _) in diff.added_or_changed() {
             if diff.prev.contains_key(key) {
                 if let Some(orig_value) = diff.prev.get(key) {
-                    println!("{}", shell_impl.export(key, orig_value));
+                    tracing::info!("{}", shell_impl.export(key, orig_value));
                 }
             } else {
-                println!("{}", shell_impl.unset(key));
+                tracing::info!("{}", shell_impl.unset(key));
             }
         }
     }
 
     // Unload any stale state
     StateManager::unload().await?;
-    eprintln!("✓ Pruned stale environment state");
+    tracing::info!("✓ Pruned stale environment state");
     Ok(())
 }

@@ -592,12 +592,12 @@ async fn display_dependency_graph(
                                 cuenv_config::TaskCollection::Parallel(_) => "parallel",
                             };
 
-                            println!("📁 Group: {name} ({mode_name})");
+                            tracing::info!("📁 Group: {name} ({mode_name})");
 
                             for (task_name, _) in tasks.iter() {
-                                println!("  └─ {task_name}");
+                                tracing::info!("  └─ {task_name}");
                             }
-                            println!();
+                            tracing::info!();
                         }
                     }
                 }

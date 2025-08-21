@@ -107,7 +107,7 @@ where
         // Try to extract TaskEvent from the event
         if let Some(task_event) = extract_task_event(event) {
             if let Err(e) = self.handle_task_event(task_event) {
-                eprintln!("TuiFormatterLayer error: {}", e);
+                tracing::error!("TuiFormatterLayer error: {}", e);
             }
         }
     }

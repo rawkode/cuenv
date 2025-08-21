@@ -16,45 +16,45 @@ pub struct AuditReport {
 impl AuditReport {
     /// Print a human-readable summary of the audit report
     pub fn print_summary(&self) {
-        println!("🔍 Audit Report:");
-        println!("================");
+        tracing::info!("🔍 Audit Report:");
+        tracing::info!("================");
 
         if !self.accessed_files.is_empty() {
-            println!(
+            tracing::info!(
                 "\n📁 File Access ({} unique paths):",
                 self.accessed_files.len()
             );
             for file in &self.accessed_files {
-                println!("  • {file}");
+                tracing::info!("  • {file}");
             }
         }
 
         if !self.network_connections.is_empty() {
-            println!(
+            tracing::info!(
                 "\n🌐 Network Access ({} unique connections):",
                 self.network_connections.len()
             );
             for conn in &self.network_connections {
-                println!("  • {conn}");
+                tracing::info!("  • {conn}");
             }
         }
 
         if self.accessed_files.is_empty() && self.network_connections.is_empty() {
-            println!("  No file or network access detected");
+            tracing::info!("  No file or network access detected");
         }
 
-        println!("\n💡 Recommendations:");
+        tracing::info!("\n💡 Recommendations:");
         if !self.accessed_files.is_empty() {
-            println!("  Add to security.readOnlyPaths or security.readWritePaths:");
+            tracing::info!("  Add to security.readOnlyPaths or security.readWritePaths:");
             for file in &self.accessed_files {
-                println!("    - \"{file}\"");
+                tracing::info!("    - \"{file}\"");
             }
         }
 
         if !self.network_connections.is_empty() {
-            println!("  Add to security.allowedHosts:");
+            tracing::info!("  Add to security.allowedHosts:");
             for conn in &self.network_connections {
-                println!("    - \"{conn}\"");
+                tracing::info!("    - \"{conn}\"");
             }
         }
     }
@@ -461,7 +461,7 @@ impl AccessRestrictions {
                 })?;
 
                 if status.ruleset == RulesetStatus::NotEnforced {
-                    eprintln!("⚠️  Warning: Landlock is not supported by the running kernel. Security restrictions will not be enforced.");
+                    tracing::warn!("⚠️  Warning: Landlock is not supported by the running kernel. Security restrictions will not be enforced.");
                     log::warn!("Landlock is not supported by the running kernel - security restrictions disabled");
                 }
 

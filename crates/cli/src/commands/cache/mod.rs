@@ -23,25 +23,25 @@ impl CacheCommands {
                 let config = CacheConfig::default();
                 let manager = CacheManager::new(config).await?;
                 manager.clear_cache()?;
-                println!("✓ Cache cleared successfully");
+                tracing::info!("✓ Cache cleared successfully");
                 Ok(())
             }
             CacheCommands::Stats => {
                 let config = CacheConfig::default();
                 let manager = CacheManager::new(config).await?;
                 let stats = manager.get_statistics();
-                println!("Cache Statistics:");
-                println!("  Hits: {}", stats.hits);
-                println!("  Misses: {}", stats.misses);
-                println!("  Writes: {}", stats.writes);
-                println!("  Errors: {}", stats.errors);
+                tracing::info!("Cache Statistics:");
+                tracing::info!("  Hits: {}", stats.hits);
+                tracing::info!("  Misses: {}", stats.misses);
+                tracing::info!("  Writes: {}", stats.writes);
+                tracing::info!("  Errors: {}", stats.errors);
                 let hit_rate = if stats.hits + stats.misses > 0 {
                     (stats.hits as f64 / (stats.hits + stats.misses) as f64) * 100.0
                 } else {
                     0.0
                 };
-                println!("  Hit rate: {hit_rate:.1}%");
-                println!(
+                tracing::info!("  Hit rate: {hit_rate:.1}%");
+                tracing::info!(
                     "  Total bytes saved: {:.2} MB",
                     stats.total_bytes_saved as f64 / 1_048_576.0
                 );
@@ -51,7 +51,7 @@ impl CacheCommands {
                 let config = CacheConfig::default();
                 let manager = CacheManager::new(config).await?;
                 manager.cleanup_stale_entries()?;
-                println!("✓ Cleaned up stale cache entries");
+                tracing::info!("✓ Cleaned up stale cache entries");
                 Ok(())
             }
         }

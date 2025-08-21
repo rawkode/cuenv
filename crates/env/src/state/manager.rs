@@ -301,7 +301,7 @@ impl StateManager {
         if let Some(state) = current_state {
             // Display user message when unloading (but not during tests)
             if !cfg!(test) && std::env::var("CUENV_PREFIX").is_err() {
-                eprintln!(
+                tracing::info!(
                     "# cuenv: ✓ Unloading environment from {}",
                     state.dir.display()
                 );

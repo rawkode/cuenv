@@ -13,17 +13,17 @@ pub async fn execute(directory: PathBuf) -> Result<()> {
             .join(directory)
     };
     dir_manager.allow_directory(&abs_dir)?;
-    println!("✓ Allowed directory: {}", abs_dir.display());
+    tracing::info!("✓ Allowed directory: {}", abs_dir.display());
 
     // If there's an env.cue file in the allowed directory, load it (which will execute hooks)
     if abs_dir.join(ENV_CUE_FILENAME).exists() {
         let mut env_manager = EnvManager::new();
         match env_manager.load_env(&abs_dir).await {
             Ok(_) => {
-                println!("✓ Loaded environment and executed hooks");
+                tracing::info!("✓ Loaded environment and executed hooks");
             }
             Err(e) => {
-                eprintln!("⚠ Failed to load environment: {e}");
+                tracing::error!("⚠ Failed to load environment: {e}");
             }
         }
     }

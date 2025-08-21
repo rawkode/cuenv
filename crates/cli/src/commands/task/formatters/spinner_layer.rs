@@ -105,7 +105,7 @@ where
         // Try to extract TaskEvent from the event
         if let Some(task_event) = extract_task_event(event) {
             if let Err(e) = self.handle_task_event(task_event) {
-                eprintln!("SpinnerFormatterLayer error: {}", e);
+                tracing::error!("SpinnerFormatterLayer error: {}", e);
             }
         }
     }
@@ -115,7 +115,7 @@ impl Drop for SpinnerFormatterLayer {
     fn drop(&mut self) {
         if let Ok(formatter) = self.formatter.lock() {
             if let Err(e) = formatter.cleanup() {
-                eprintln!("Error cleaning up spinner formatter: {}", e);
+                tracing::error!("Error cleaning up spinner formatter: {}", e);
             }
         }
     }

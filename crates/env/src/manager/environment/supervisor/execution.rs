@@ -81,12 +81,13 @@ comm -z -13 "$TEMP_BEFORE" "$TEMP_AFTER"
     match timeout(timeout_duration, child.wait_with_output()).await {
         Ok(Ok(output)) => {
             if !output.status.success() && !silent {
-                eprintln!(
+                tracing::error!(
                     "# cuenv: Hook {} failed with status: {}",
-                    hook.command, output.status
+                    hook.command,
+                    output.status
                 );
                 if !output.stderr.is_empty() {
-                    eprintln!(
+                    tracing::error!(
                         "# cuenv: stderr: {}",
                         String::from_utf8_lossy(&output.stderr)
                     );
@@ -118,7 +119,7 @@ comm -z -13 "$TEMP_BEFORE" "$TEMP_AFTER"
         ))),
         Err(_) => {
             if !silent {
-                eprintln!("# cuenv: Hook {} timed out", hook.command);
+                tracing::error!("# cuenv: Hook {} timed out", hook.command);
             }
             Ok((None, pid))
         }
@@ -156,12 +157,13 @@ async fn execute_regular_hook(
     match timeout(timeout_duration, child.wait_with_output()).await {
         Ok(Ok(output)) => {
             if !output.status.success() && !silent {
-                eprintln!(
+                tracing::error!(
                     "# cuenv: Hook {} failed with status: {}",
-                    hook.command, output.status
+                    hook.command,
+                    output.status
                 );
                 if !output.stderr.is_empty() {
-                    eprintln!(
+                    tracing::error!(
                         "# cuenv: stderr: {}",
                         String::from_utf8_lossy(&output.stderr)
                     );
@@ -174,7 +176,7 @@ async fn execute_regular_hook(
         ))),
         Err(_) => {
             if !silent {
-                eprintln!("# cuenv: Hook {} timed out", hook.command);
+                tracing::error!("# cuenv: Hook {} timed out", hook.command);
             }
             Ok((None, pid))
         }

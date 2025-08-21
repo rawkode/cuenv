@@ -118,12 +118,12 @@ where
         // Try to extract TaskEvent from the event first
         if let Some(task_event) = extract_task_event(event) {
             if let Err(e) = self.format_task_event(&task_event) {
-                eprintln!("SimpleFormatterLayer write error: {}", e);
+                tracing::error!("SimpleFormatterLayer write error: {}", e);
             }
         } else {
             // Handle generic tracing events (from CLI calls)
             if let Err(e) = self.format_generic_event(event) {
-                eprintln!("SimpleFormatterLayer write error: {}", e);
+                tracing::error!("SimpleFormatterLayer write error: {}", e);
             }
         }
     }

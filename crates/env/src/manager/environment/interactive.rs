@@ -83,7 +83,7 @@ impl InteractiveHandler {
         let progress_indicator = ".".repeat(dots + 1);
 
         // Clear line and display progress
-        eprint!(
+        tracing::error!(
             "\r# cuenv: Running hooks{:<4} ({}s elapsed)",
             progress_indicator,
             elapsed.as_secs()
@@ -107,7 +107,7 @@ impl InteractiveHandler {
                         modifiers: KeyModifiers::NONE,
                         ..
                     })) => {
-                        eprintln!("\r\x1b[K# cuenv: Aborting...");
+                        tracing::error!("\r\x1b[K# cuenv: Aborting...");
                         return ControlFlow::Aborted;
                     }
                     Ok(Event::Key(KeyEvent {
@@ -115,7 +115,7 @@ impl InteractiveHandler {
                         modifiers: KeyModifiers::CONTROL,
                         ..
                     })) => {
-                        eprintln!("\r\x1b[K# cuenv: Interrupted!");
+                        tracing::error!("\r\x1b[K# cuenv: Interrupted!");
                         return ControlFlow::Interrupted;
                     }
                     _ => {}

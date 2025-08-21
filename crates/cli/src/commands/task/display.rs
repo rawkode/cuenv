@@ -27,7 +27,7 @@ fn display_task(
         verbose,
         use_color,
     );
-    println!("{task_line}");
+    tracing::info!("{task_line}");
 }
 
 /// Count tasks recursively in a node
@@ -337,7 +337,7 @@ fn display_tree_children(
                     verbose,
                     use_color,
                 );
-                println!("{task_line}");
+                tracing::info!("{task_line}");
             }
             TaskNode::Group { description, tasks } => {
                 display_group_collection(

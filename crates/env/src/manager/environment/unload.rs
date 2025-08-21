@@ -17,7 +17,7 @@ pub fn unload_env(
         .collect();
     if !exit_hooks.is_empty() {
         tracing::info!(count = %exit_hooks.len(), "Executing onExit hooks");
-        eprintln!("# cuenv: ✓ Running {} onExit hook(s)...", exit_hooks.len());
+        tracing::error!("# cuenv: ✓ Running {} onExit hook(s)...", exit_hooks.len());
 
         // Hook execution is temporarily disabled to resolve circular dependency
         // See comments in original code for details
@@ -44,6 +44,6 @@ pub fn unload_env(
     cue_vars.clear();
     cue_vars_metadata.clear();
 
-    eprintln!("# cuenv: ✓ Environment unloaded");
+    tracing::error!("# cuenv: ✓ Environment unloaded");
     Ok(())
 }

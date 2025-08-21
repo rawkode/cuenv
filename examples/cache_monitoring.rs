@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let base_cache = match ProductionCache::new(cache_dir, config).await {
         Ok(cache) => cache,
         Err(e) => {
-            eprintln!("Failed to create cache: {}", e);
+            etracing::info!("Failed to create cache: {}", e);
             return Err(e.into());
         }
     };
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         Ok(cache) => cache,
         Err(e) => {
-            eprintln!("Failed to create monitored cache: {}", e);
+            etracing::info!("Failed to create monitored cache: {}", e);
             return Err(e.into());
         }
     };
@@ -194,7 +194,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Demonstrate metrics access
     info!("\n=== Prometheus Metrics ===");
     let prometheus_metrics = metrics_endpoint.prometheus_metrics();
-    println!(
+    tracing::info!(
         "Metrics excerpt:\n{}",
         prometheus_metrics
             .lines()
@@ -205,21 +205,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("\n=== Hit Rate Analysis ===");
     if let Ok(hit_rate_json) = metrics_endpoint.hit_rate_json() {
-        println!("Hit rate data:\n{}", hit_rate_json);
+        tracing::info!("Hit rate data:\n{}", hit_rate_json);
     }
 
     info!("\n=== Real-time Stats ===");
     if let Ok(stats_json) = metrics_endpoint.stats_json() {
-        println!("Stats data:\n{}", stats_json);
+        tracing::info!("Stats data:\n{}", stats_json);
     }
 
     info!("\n=== Flamegraph Data ===");
     let flamegraph = metrics_endpoint.flamegraph_data();
     if !flamegraph.is_empty() {
         let lines: Vec<&str> = flamegraph.lines().take(5).collect();
-        println!("Flamegraph sample:\n{}", lines.join("\n"));
+        tracing::info!("Flamegraph sample:\n{}", lines.join("\n"));
     } else {
-        println!("No flamegraph data available (profiling may not be active)");
+        tracing::info!("No flamegraph data available (profiling may not be active)");
     }
 
     info!("\nMonitoring data successfully collected and displayed!");

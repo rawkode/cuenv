@@ -73,14 +73,14 @@ fn format_starship_output(status: &cuenv_utils::hooks_status::HooksStatus, verbo
         if should_show_completed_status(status.last_update) {
             if status.failed > 0 {
                 // Show failed status
-                print!(
+                tracing::info!(
                     "⚠️ {} hook{} failed",
                     status.failed,
                     if status.failed == 1 { "" } else { "s" }
                 );
             } else {
                 // Show success status
-                print!("✅ Hooks ready");
+                tracing::info!("✅ Hooks ready");
             }
         }
         // Otherwise show nothing (empty output)
@@ -97,7 +97,7 @@ fn format_starship_output(status: &cuenv_utils::hooks_status::HooksStatus, verbo
                 .find(|h| h.status == HookState::Running)
             {
                 let hook_elapsed = calculate_elapsed(running_hook.start_time);
-                print!(
+                tracing::info!(
                     "🔄 {} ({}s)",
                     extract_hook_name(&running_hook.name),
                     hook_elapsed.as_secs()
@@ -106,11 +106,11 @@ fn format_starship_output(status: &cuenv_utils::hooks_status::HooksStatus, verbo
         } else {
             // Show aggregate progress
             let completed = status.completed + status.failed;
-            print!("⏳ {}/{} hooks", completed, status.total);
+            tracing::info!("⏳ {}/{} hooks", completed, status.total);
 
             // Add duration if hooks have been running for more than 1 second
             if elapsed.as_secs() > 0 {
-                print!(" ({}s)", elapsed.as_secs());
+                tracing::info!(" ({}s)", elapsed.as_secs());
             }
         }
     }

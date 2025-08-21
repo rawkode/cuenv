@@ -89,10 +89,10 @@ async fn handle_task_protocol(
         match manager.add_server(server_executable, server_name).await {
             Ok(tasks) => {
                 all_tasks.extend(tasks);
-                println!("Connected to task server: {server_executable}");
+                tracing::info!("Connected to task server: {server_executable}");
             }
             Err(e) => {
-                eprintln!("Failed to connect to task server {server_executable}: {e}");
+                tracing::error!("Failed to connect to task server {server_executable}: {e}");
                 return Err(e);
             }
         }
@@ -104,14 +104,14 @@ async fn handle_task_protocol(
             Ok(tasks) => {
                 let task_count = tasks.len();
                 all_tasks.extend(tasks);
-                println!(
+                tracing::info!(
                     "Discovered {} task servers from {}",
                     task_count,
                     discovery_path.display()
                 );
             }
             Err(e) => {
-                eprintln!("Failed to discover task servers: {e}");
+                tracing::error!("Failed to discover task servers: {e}");
                 return Err(e);
             }
         }
@@ -120,14 +120,14 @@ async fn handle_task_protocol(
     if list_tasks {
         // List all available tasks from servers
         if all_tasks.is_empty() {
-            println!("No tasks available from task servers");
+            tracing::info!("No tasks available from task servers");
         } else {
-            println!("Available tasks from external servers:");
+            tracing::info!("Available tasks from external servers:");
             for task in &all_tasks {
                 if let Some(description) = &task.description {
-                    println!("  {}: {}", task.name, description);
+                    tracing::info!("  {}: {}", task.name, description);
                 } else {
-                    println!("  {}", task.name);
+                    tracing::info!("  {}", task.name);
                 }
             }
         }
@@ -136,7 +136,7 @@ async fn handle_task_protocol(
     if let Some(task_name) = run_task {
         // Run a specific task
         if all_tasks.iter().any(|t| t.name == *task_name) {
-            println!("Running task: {task_name}");
+            tracing::info!("Running task: {task_name}");
 
             let inputs = HashMap::new(); // TODO: Accept inputs from CLI
             let outputs = HashMap::new(); // TODO: Accept outputs from CLI
@@ -144,9 +144,9 @@ async fn handle_task_protocol(
             match manager.run_task(task_name, inputs, outputs).await {
                 Ok(exit_code) => {
                     if exit_code == 0 {
-                        println!("Task '{task_name}' completed successfully");
+                        tracing::info!("Task '{task_name}' completed successfully");
                     } else {
-                        println!("Task '{task_name}' failed with exit code {exit_code}");
+                        tracing::info!("Task '{task_name}' failed with exit code {exit_code}");
                         #[cfg(not(test))]
                         std::process::exit(exit_code);
                         #[cfg(test)]
@@ -156,15 +156,15 @@ async fn handle_task_protocol(
                     }
                 }
                 Err(e) => {
-                    eprintln!("Failed to run task '{task_name}': {e}");
+                    tracing::error!("Failed to run task '{task_name}': {e}");
                     return Err(e);
                 }
             }
         } else {
-            eprintln!("Task '{task_name}' not found");
-            eprintln!("Available tasks:");
+            tracing::error!("Task '{task_name}' not found");
+            tracing::error!("Available tasks:");
             for task in &all_tasks {
-                eprintln!("  - {}", task.name);
+                tracing::error!("  - {}", task.name);
             }
             #[cfg(not(test))]
             std::process::exit(1);
@@ -222,7 +222,7 @@ async fn handle_task_protocol(
                 .join(format!("cuenv-{}.sock", std::process::id()))
         });
 
-        println!(
+        tracing::info!(
             "Starting task server provider on socket: {}",
             socket_path.display()
         );
@@ -238,7 +238,7 @@ async fn handle_task_protocol(
         // Start the provider (blocks until shutdown)
         provider.start().await?;
 
-        println!("Task server provider started successfully");
+        tracing::info!("Task server provider started successfully");
     }
 
     if export_json {
@@ -261,7 +261,7 @@ async fn handle_task_protocol(
         // Extract and serialize tasks
         let tasks = env_manager.get_tasks();
         let json = serde_json::to_string_pretty(&tasks)?;
-        println!("{json}");
+        tracing::info!("{json}");
     }
 
     fn should_show_usage(
@@ -289,16 +289,16 @@ async fn handle_task_protocol(
         run_task,
         list_tasks,
     ) {
-        println!("Task Server Protocol (TSP) - Dual-Modality Support");
-        println!();
-        println!("Consumer Mode (use external task servers):");
-        println!("  cuenv internal task-protocol --server <executable> --list-tasks");
-        println!("  cuenv internal task-protocol --discovery-dir <path> --list-tasks");
-        println!("  cuenv internal task-protocol --server <executable> --run-task <task>");
-        println!();
-        println!("Provider Mode (expose cuenv tasks to external tools):");
-        println!("  cuenv internal task-protocol --serve [--socket <path>]");
-        println!("  cuenv internal task-protocol --export-json");
+        tracing::info!("Task Server Protocol (TSP) - Dual-Modality Support");
+        tracing::info!();
+        tracing::info!("Consumer Mode (use external task servers):");
+        tracing::info!("  cuenv internal task-protocol --server <executable> --list-tasks");
+        tracing::info!("  cuenv internal task-protocol --discovery-dir <path> --list-tasks");
+        tracing::info!("  cuenv internal task-protocol --server <executable> --run-task <task>");
+        tracing::info!();
+        tracing::info!("Provider Mode (expose cuenv tasks to external tools):");
+        tracing::info!("  cuenv internal task-protocol --serve [--socket <path>]");
+        tracing::info!("  cuenv internal task-protocol --export-json");
     }
 
     // Shutdown servers

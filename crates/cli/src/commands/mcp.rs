@@ -14,13 +14,13 @@ pub async fn execute(
     // Create the appropriate server based on transport
     let mut provider = match transport.as_str() {
         "stdio" => {
-            println!("Starting cuenv MCP server (stdio transport)");
-            println!("Transport: stdio");
-            println!(
+            tracing::info!("Starting cuenv MCP server (stdio transport)");
+            tracing::info!("Transport: stdio");
+            tracing::info!(
                 "Task execution: {}",
                 if allow_exec { "enabled" } else { "read-only" }
             );
-            println!("Ready for MCP clients (like Claude Code)");
+            tracing::info!("Ready for MCP clients (like Claude Code)");
 
             TaskServerProvider::new_stdio(Arc::clone(&config), allow_exec)
         }
@@ -31,9 +31,9 @@ pub async fn execute(
                     .unwrap_or_else(|_| PathBuf::from("/tmp/cuenv-mcp.sock"))
             });
 
-            println!("Starting cuenv MCP server (Unix socket transport)");
-            println!("Socket: {}", socket_path.display());
-            println!(
+            tracing::info!("Starting cuenv MCP server (Unix socket transport)");
+            tracing::info!("Socket: {}", socket_path.display());
+            tracing::info!(
                 "Task execution: {}",
                 if allow_exec { "enabled" } else { "read-only" }
             );
@@ -46,13 +46,13 @@ pub async fn execute(
             )
         }
         "tcp" => {
-            println!("Starting cuenv MCP server (TCP transport)");
-            println!("Port: {port}");
-            println!(
+            tracing::info!("Starting cuenv MCP server (TCP transport)");
+            tracing::info!("Port: {port}");
+            tracing::info!(
                 "Task execution: {}",
                 if allow_exec { "enabled" } else { "read-only" }
             );
-            println!("Note: TCP transport uses Unix socket internally - external TCP not implemented yet");
+            tracing::info!("Note: TCP transport uses Unix socket internally - external TCP not implemented yet");
 
             // For TCP, we'll create a temporary socket and note the limitation
             let temp_socket = tempfile::tempdir()
@@ -74,7 +74,7 @@ pub async fn execute(
     };
 
     // Start the server (this will block until interrupted)
-    println!("Press Ctrl+C to stop the server");
+    tracing::info!("Press Ctrl+C to stop the server");
 
     // Set up signal handling for graceful shutdown
     let ctrl_c = tokio::signal::ctrl_c();
@@ -82,17 +82,17 @@ pub async fn execute(
     tokio::select! {
         result = provider.start() => {
             match result {
-                Ok(()) => println!("MCP server stopped successfully"),
+                Ok(()) => tracing::info!("MCP server stopped successfully"),
                 Err(e) => {
-                    eprintln!("MCP server error: {e}");
+                    tracing::error!("MCP server error: {e}");
                     return Err(e);
                 }
             }
         }
         _ = ctrl_c => {
-            println!("Received interrupt signal, stopping MCP server...");
+            tracing::info!("Received interrupt signal, stopping MCP server...");
             if let Err(e) = provider.shutdown().await {
-                eprintln!("Error during shutdown: {e}");
+                tracing::error!("Error during shutdown: {e}");
             }
         }
     }

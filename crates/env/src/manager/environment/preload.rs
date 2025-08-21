@@ -75,7 +75,7 @@ impl PreloadHookManager {
         let preload_count = hooks.iter().filter(|h| h.preload.unwrap_or(false)).count();
 
         if preload_count > 0 {
-            eprintln!("# cuenv: Starting {preload_count} preload hook(s) in background...");
+            tracing::error!("# cuenv: Starting {preload_count} preload hook(s) in background...");
         }
 
         // Initialize status tracking if available
@@ -108,7 +108,7 @@ impl PreloadHookManager {
                 let status_manager = self.inner.status_manager.clone();
 
                 tracing::info!("Starting preload hook in background: {}", hook_key);
-                eprintln!("# cuenv: Running preload hook: {}", hook.command);
+                tracing::error!("# cuenv: Running preload hook: {}", hook.command);
 
                 // Mark hook as started
                 if let Some(ref sm) = status_manager {
@@ -125,7 +125,7 @@ impl PreloadHookManager {
                         match &result {
                             Ok(_) => {
                                 tracing::info!("Preload hook completed: {}", hook_clone.command);
-                                eprintln!(
+                                tracing::error!(
                                     "# cuenv: Preload hook completed: {}",
                                     hook_clone.command
                                 );
@@ -137,9 +137,10 @@ impl PreloadHookManager {
                                     hook_clone.command,
                                     e
                                 );
-                                eprintln!(
+                                tracing::error!(
                                     "# cuenv: Preload hook failed: {}: {}",
-                                    hook_clone.command, e
+                                    hook_clone.command,
+                                    e
                                 );
                                 let _ = sm.mark_hook_failed(&hook_key_clone, e.to_string());
                             }
@@ -149,7 +150,7 @@ impl PreloadHookManager {
                         match result {
                             Ok(_) => {
                                 tracing::info!("Preload hook completed: {}", hook_clone.command);
-                                eprintln!(
+                                tracing::error!(
                                     "# cuenv: Preload hook completed: {}",
                                     hook_clone.command
                                 );
@@ -160,9 +161,10 @@ impl PreloadHookManager {
                                     hook_clone.command,
                                     e
                                 );
-                                eprintln!(
+                                tracing::error!(
                                     "# cuenv: Preload hook failed: {}: {}",
-                                    hook_clone.command, e
+                                    hook_clone.command,
+                                    e
                                 );
                             }
                         }

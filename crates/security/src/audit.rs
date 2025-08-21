@@ -390,7 +390,7 @@ impl AuditLogger {
             })?;
         } else {
             // If no file configured, log to stderr
-            eprintln!("AUDIT: {json}");
+            tracing::error!("AUDIT: {json}");
         }
 
         Ok(())

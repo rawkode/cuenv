@@ -40,9 +40,9 @@ pub fn apply_security_restrictions_with_format(
 
         if json_output {
             match audit_report.to_json() {
-                Ok(json) => println!("{json}"),
+                Ok(json) => tracing::info!("{json}"),
                 Err(e) => {
-                    eprintln!("Warning: Failed to export audit report as JSON: {e}");
+                    tracing::error!("Warning: Failed to export audit report as JSON: {e}");
                     audit_report.print_summary();
                 }
             }

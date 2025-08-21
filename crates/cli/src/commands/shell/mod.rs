@@ -48,7 +48,7 @@ impl ShellCommands {
         match self {
             ShellCommands::Init { shell } => match ShellHook::generate_hook(&shell) {
                 Ok(output) => {
-                    print!("{output}");
+                    tracing::info!("{output}");
                     Ok(())
                 }
                 Err(e) => Err(cuenv_core::Error::configuration(format!(
@@ -93,7 +93,7 @@ impl ShellCommands {
 
                 match env_manager.export_for_shell(shell) {
                     Ok(output) => {
-                        print!("{output}");
+                        tracing::info!("{output}");
                         Ok(())
                     }
                     Err(e) => Err(e),
@@ -111,7 +111,7 @@ impl ShellCommands {
 
                 match env_manager.export_for_shell(shell) {
                     Ok(output) => {
-                        print!("{output}");
+                        tracing::info!("{output}");
                         Ok(())
                     }
                     Err(e) => Err(e),
@@ -154,19 +154,19 @@ impl ShellCommands {
 
                 if should_unload || has_orphaned_vars {
                     if should_unload {
-                        eprintln!("# cuenv: Unloading environment (directory changed)");
+                        tracing::warn!("# cuenv: Unloading environment (directory changed)");
                         // Use the diff for proper unloading
                         if let Ok(Some(diff)) = StateManager::get_diff() {
                             for key in diff.removed() {
-                                println!("{}", shell_impl.unset(key));
+                                tracing::info!("{}", shell_impl.unset(key));
                             }
                             for (key, _) in diff.added_or_changed() {
                                 if diff.prev.contains_key(key) {
                                     if let Some(orig_value) = diff.prev.get(key) {
-                                        println!("{}", shell_impl.export(key, orig_value));
+                                        tracing::info!("{}", shell_impl.export(key, orig_value));
                                     }
                                 } else {
-                                    println!("{}", shell_impl.unset(key));
+                                    tracing::info!("{}", shell_impl.unset(key));
                                 }
                             }
                         }
@@ -174,12 +174,12 @@ impl ShellCommands {
                             cuenv_core::Error::configuration(format!("Failed to unload state: {e}"))
                         })?;
                     } else if has_orphaned_vars {
-                        eprintln!("# cuenv: Cleaning up orphaned environment variables");
+                        tracing::warn!("# cuenv: Cleaning up orphaned environment variables");
                         // Manually clean up known orphaned variables
                         let known_vars = ["TEST_BG_VAR", "TEST_TIMESTAMP", "CUENV_ENV"];
                         for var in &known_vars {
                             if std::env::var(var).is_ok() {
-                                println!("{}", shell_impl.unset(var));
+                                tracing::info!("{}", shell_impl.unset(var));
                             }
                         }
                     }
@@ -198,11 +198,13 @@ impl ShellCommands {
                         {
                             // Apply newly available environment
                             for (key, value) in completed_env {
-                                println!("{}", shell_impl.export(&key, &value));
+                                tracing::info!("{}", shell_impl.export(&key, &value));
                             }
 
                             // Show subtle notification
-                            eprintln!("# cuenv: ✓ Background hooks completed, environment updated");
+                            tracing::info!(
+                                "# cuenv: ✓ Background hooks completed, environment updated"
+                            );
                         }
 
                         if StateManager::files_changed() || StateManager::should_load(&current_dir)
@@ -218,18 +220,18 @@ impl ShellCommands {
                                 )
                                 .await
                             {
-                                eprintln!("# cuenv: failed to load environment: {e}");
+                                tracing::error!("# cuenv: failed to load environment: {e}");
                             } else if let Ok(Some(diff)) = StateManager::get_diff() {
                                 for (key, value) in diff.added_or_changed() {
-                                    println!("{}", shell_impl.export(key, value));
+                                    tracing::info!("{}", shell_impl.export(key, value));
                                 }
                                 for key in diff.removed() {
-                                    println!("{}", shell_impl.unset(key));
+                                    tracing::info!("{}", shell_impl.unset(key));
                                 }
                             }
                         }
                     } else {
-                        eprintln!(
+                        tracing::warn!(
                             "# cuenv: Directory not allowed. Run 'cuenv env allow' to allow this directory.",
                         );
                     }

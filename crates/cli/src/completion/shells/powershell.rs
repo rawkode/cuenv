@@ -69,6 +69,6 @@ Register-ArgumentCompleter -Native -CommandName 'cuenv' -ScriptBlock {
         Sort-Object -Property ListItemText
 }
 "#;
-    print!("{script}");
+    tracing::info!("{script}");
     Ok(())
 }
