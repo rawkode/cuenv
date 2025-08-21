@@ -23,7 +23,7 @@ Feature: Supervisor Lifecycle Management
     Then the supervisor should be running
     And the environment variable "SUPERVISOR_TEST" should equal "active"
 
-  Scenario: Supervisor manages background hooks
+  Scenario: Supervisor manages hook lifecycle
     Given I have a CUE file "env.cue" with:
       """
       package cuenv
@@ -33,10 +33,10 @@ Feature: Supervisor Lifecycle Management
       }
       
       hooks: {
-        background: [{
-          name: "watcher"
-          command: "sh"
-          args: ["-c", "while true; do echo 'watching'; sleep 1; done"]
+        pre: [{
+          name: "setup"
+          command: "echo"
+          args: ["Setting up environment"]
         }]
       }
       
@@ -44,10 +44,9 @@ Feature: Supervisor Lifecycle Management
       """
     When I run "cuenv env allow"
     Then the supervisor should be running
-    And the background hook "watcher" should be running
+    And the pre hook "setup" should complete
     When I run "cuenv env deny"
     Then the supervisor should stop
-    And the background hook "watcher" should be terminated
 
   Scenario: Supervisor handles interactive control
     Given I have a CUE file "env.cue" with:
@@ -60,7 +59,7 @@ Feature: Supervisor Lifecycle Management
       }
       
       hooks: {
-        background: [{
+        pre: [{
           name: "slow-hook"
           command: "sleep"
           args: ["10"]
@@ -71,8 +70,8 @@ Feature: Supervisor Lifecycle Management
       """
     When I run "cuenv env allow" interactively
     And I wait 1 second
-    And I press "b" to background
-    Then the hooks should continue in background
+    And I press "q" to quit
+    Then the hooks should be terminated
     And control should return immediately
 
   Scenario: Supervisor tracks hook status
@@ -117,8 +116,8 @@ Feature: Supervisor Lifecycle Management
       environment: {
         dev: {
           hooks: {
-            background: [{
-              name: "dev-watcher"
+            pre: [{
+              name: "dev-setup"
               command: "echo"
               args: ["Dev environment"]
             }]
@@ -126,8 +125,8 @@ Feature: Supervisor Lifecycle Management
         }
         prod: {
           hooks: {
-            background: [{
-              name: "prod-monitor"
+            pre: [{
+              name: "prod-setup"
               command: "echo"
               args: ["Prod environment"]
             }]
@@ -140,10 +139,9 @@ Feature: Supervisor Lifecycle Management
       currentEnv: string | *"dev" @tag(env)
       """
     When I run "cuenv env allow --env dev"
-    Then the background hook "dev-watcher" should be running
+    Then the pre hook "dev-setup" should complete
     When I run "cuenv env allow --env prod"
-    Then the background hook "dev-watcher" should be terminated
-    And the background hook "prod-monitor" should be running
+    Then the pre hook "prod-setup" should complete
 
   Scenario: Supervisor cleanup on exit
     Given I have a CUE file "env.cue" with:
@@ -155,10 +153,10 @@ Feature: Supervisor Lifecycle Management
       }
       
       hooks: {
-        background: [{
-          name: "persistent"
+        pre: [{
+          name: "setup"
           command: "sh"
-          args: ["-c", "trap 'echo cleanup' EXIT; while true; do sleep 1; done"]
+          args: ["-c", "trap 'echo cleanup' EXIT; sleep 1"]
         }]
       }
       
@@ -168,4 +166,4 @@ Feature: Supervisor Lifecycle Management
     And the supervisor is running
     When I send SIGTERM to supervisor
     Then the output should contain "cleanup"
-    And all background processes should be terminated
+    And all processes should be terminated

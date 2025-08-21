@@ -150,17 +150,15 @@ cuenv-security = { path = "crates/security" }
 cuenv-tui = { path = "crates/tui" }
 cuenv-hooks = { path = "crates/hooks" }
 cuenv-utils = { path = "crates/utils" }
+cuenv-cli = { path = "crates/cli" }
 
 # Test dependencies
 insta = { version = "1.40", features = ["yaml", "json", "toml"] }
 cucumber = "0.21"
 
-[workspace.dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
+# Functional programming test utilities
 proptest = "1.5"
-expectrl = "0.7"
-serial_test = "3.1"
-rstest = "0.23"
+quickcheck = "1.0"
 
 # Test utilities
 wiremock = "0.6"

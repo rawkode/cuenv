@@ -1,11 +1,12 @@
-use super::events::EventHandler;
+// use super::events::EventHandler; // Removed
 use super::focus::FocusedPane;
 use super::input::InputHandler;
 use super::render::Renderer;
 use crate::{
     components::{EnvPane, FocusPane, MiniMap},
-    event_bus::{EventBus, EventSubscriber},
+    // event_bus::{EventBus, EventSubscriber}, // Removed - using tracing
     terminal::{InputEvent, TerminalManager},
+    TaskRegistry, // Add this import
 };
 use cuenv_task::executor::TaskExecutor;
 use std::collections::HashMap;
@@ -16,7 +17,7 @@ pub struct TuiApp {
     pub(super) minimap: MiniMap,
     pub(super) focus_pane: FocusPane,
     pub(super) env_pane: EnvPane,
-    pub(super) event_subscriber: EventSubscriber,
+    // pub(super) event_subscriber: EventSubscriber, // Removed
     pub(super) running: bool,
     pub(super) focused_pane: FocusedPane,
     pub(super) task_executor: TaskExecutor,
@@ -24,25 +25,24 @@ pub struct TuiApp {
 
 impl TuiApp {
     pub async fn new(
-        event_bus: EventBus,
         task_executor: TaskExecutor,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let terminal = TerminalManager::new()?;
 
-        let registry = event_bus.registry().clone();
-        let minimap = MiniMap::new(registry.clone());
-        let focus_pane = FocusPane::new(registry);
+        // let registry = event_bus.registry().clone();
+        let minimap = MiniMap::new(TaskRegistry::default()); // TODO: Update for tracing
+        let focus_pane = FocusPane::new(TaskRegistry::default()); // TODO: Update for tracing
 
         // Start with no environment variables - will be updated when a task is selected
         let env_pane = EnvPane::new(HashMap::new());
-        let event_subscriber = event_bus.subscribe();
+        // let event_subscriber = event_bus.subscribe(); // Removed
 
         Ok(Self {
             terminal,
             minimap,
             focus_pane,
             env_pane,
-            event_subscriber,
+            // event_subscriber, // Removed
             running: true,
             focused_pane: FocusedPane::MiniMap,
             task_executor,
@@ -70,12 +70,12 @@ impl TuiApp {
         // Keep TUI alive until explicit quit, even if tasks error, as per PRD
         while self.running {
             tokio::select! {
-                // Handle task events
-                Some(event) = self.event_subscriber.recv() => {
-                    // If a terminal error occurs, keep UI open; allow user to inspect and press 'q'
-                    self.handle_task_event(event).await;
-                    self.render()?;
-                }
+                // Handle task events - DISABLED (using tracing now)
+                // Some(event) = self.event_subscriber.recv() => {
+                //     // If a terminal error occurs, keep UI open; allow user to inspect and press 'q'
+                //     self.handle_task_event(event).await;
+                //     self.render()?;
+                // }
 
                 // Check if we need to update task info
                 _ = update_timer.tick() => {

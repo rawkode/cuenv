@@ -20,6 +20,9 @@
 pub mod constants;
 pub mod errors;
 pub mod events;
+pub mod functional;
+#[cfg(test)]
+pub mod testing;
 pub mod types;
 
 // The `pub use` statements re-export the most important items from the sub-modules
@@ -28,12 +31,16 @@ pub mod types;
 // for the core domain.
 pub use self::{
     constants::*,
-    errors::{Error, Result, ResultExt},
+    errors::{Error, ErrorTransform, Result, ResultCompose, ResultExt, Validate},
     events::{
-        emit_global_event, emit_global_event_with_metadata, global_event_bus, global_event_emitter,
-        initialize_global_events, publish_global_event, register_global_subscriber, CacheEvent,
-        DependencyEvent, EnhancedEvent, EnvEvent, EventBus, EventEmitter, EventSubscriber,
-        PipelineEvent, SystemEvent, TaskEvent,
+        // Event types still available for compatibility
+        CacheEvent,
+        DependencyEvent,
+        EnvEvent,
+        PipelineEvent,
+        SystemEvent,
+        TaskEvent,
+        // EventBus/EventEmitter removed - using tracing now
     },
     types::*,
 };

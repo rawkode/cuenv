@@ -52,15 +52,15 @@ impl TaskExecutor {
     /// Print cache statistics
     pub fn print_cache_statistics(&self) -> Result<()> {
         let stats = self.cache_manager.get_statistics();
-        println!("Cache Statistics:");
-        println!("  Hits: {}", stats.hits);
-        println!("  Misses: {}", stats.misses);
-        println!("  Writes: {}", stats.writes);
-        println!("  Errors: {}", stats.errors);
-        println!("  Lock contentions: {}", stats.lock_contentions);
-        println!("  Total bytes saved: {}", stats.total_bytes_saved);
+        tracing::info!("Cache Statistics:");
+        tracing::info!("  Hits: {}", stats.hits);
+        tracing::info!("  Misses: {}", stats.misses);
+        tracing::info!("  Writes: {}", stats.writes);
+        tracing::info!("  Errors: {}", stats.errors);
+        tracing::info!("  Lock contentions: {}", stats.lock_contentions);
+        tracing::info!("  Total bytes saved: {}", stats.total_bytes_saved);
         if let Some(last_cleanup) = stats.last_cleanup {
-            println!("  Last cleanup: {last_cleanup:?}");
+            tracing::info!("  Last cleanup: {:?}", last_cleanup);
         }
         Ok(())
     }

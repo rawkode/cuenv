@@ -14,8 +14,8 @@ pub fn generate_completion(shell: &str) -> Result<()> {
         "powershell" | "pwsh" => powershell::generate(),
         "elvish" => elvish::generate(),
         _ => {
-            eprintln!("Unsupported shell: {shell}");
-            eprintln!("Supported shells: bash, zsh, fish, powershell, elvish");
+            tracing::error!("Unsupported shell: {}", shell);
+            tracing::info!("Supported shells: bash, zsh, fish, powershell, elvish");
             std::process::exit(1);
         }
     }

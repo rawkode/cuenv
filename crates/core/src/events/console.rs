@@ -87,6 +87,16 @@ impl ConsoleSubscriber {
                     None
                 }
             }
+            SystemEvent::Log(log_event) => {
+                if matches!(
+                    self.verbosity,
+                    ConsoleVerbosity::Verbose | ConsoleVerbosity::Debug
+                ) {
+                    Some(self.format_log_event(log_event))
+                } else {
+                    None
+                }
+            }
         }
     }
 
@@ -291,6 +301,38 @@ impl ConsoleSubscriber {
         }
     }
 
+    fn format_log_event(&self, event: &crate::events::LogEvent) -> String {
+        use crate::events::LogEvent;
+        match event {
+            LogEvent::Message {
+                level,
+                message,
+                target,
+            } => {
+                let level_icon = match level {
+                    crate::events::LogLevel::Error => "❌",
+                    crate::events::LogLevel::Warn => "⚠️",
+                    crate::events::LogLevel::Info => "ℹ️",
+                    crate::events::LogLevel::Debug => "🐛",
+                    crate::events::LogLevel::Trace => "🔍",
+                };
+
+                if let Some(target) = target {
+                    format!("{level_icon} [{level}] {target}: {message}")
+                } else {
+                    format!("{level_icon} [{level}] {message}")
+                }
+            }
+            LogEvent::CapabilityFallback {
+                requested_format,
+                actual_format,
+                reason,
+            } => {
+                format!("⚠️  {reason}, falling back from {requested_format} to {actual_format}")
+            }
+        }
+    }
+
     /// Apply color to text if colors are enabled
     fn colorize(&self, text: &str, color: &str) -> String {
         if !self.use_colors {
@@ -313,12 +355,13 @@ impl ConsoleSubscriber {
 
     /// Write output to the configured destination
     fn write_output(&self, content: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        use std::io::{self, Write};
         match self.writer {
             ConsoleWriter::Stderr => {
-                eprintln!("{content}");
+                let _ = writeln!(io::stderr(), "{content}");
             }
             ConsoleWriter::Stdout => {
-                println!("{content}");
+                let _ = writeln!(io::stdout(), "{content}");
             }
         }
         Ok(())

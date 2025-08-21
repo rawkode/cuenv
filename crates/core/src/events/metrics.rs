@@ -463,7 +463,7 @@ impl EventSubscriber for MetricsSubscriber {
             SystemEvent::Cache(cache_event) => {
                 self.process_cache_event(cache_event).await;
             }
-            SystemEvent::Env(_) | SystemEvent::Dependency(_) => {
+            SystemEvent::Env(_) | SystemEvent::Dependency(_) | SystemEvent::Log(_) => {
                 // These events don't need special metric processing for now
             }
         }

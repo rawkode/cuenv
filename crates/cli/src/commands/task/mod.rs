@@ -3,14 +3,15 @@ mod display;
 mod formatters;
 mod graph;
 
-use formatters::SimpleFormatterSubscriber;
 use clap::Subcommand;
 use cuenv_config::{Config, TaskNode};
 use cuenv_core::{Result, CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR};
-use cuenv_core::events::{register_global_subscriber, EventSubscriber};
 use cuenv_env::manager::environment::SupervisorMode;
 use cuenv_env::EnvManager;
-use cuenv_task::{TaskExecutor};
+use cuenv_task::TaskExecutor;
+use formatters::{
+    SimpleFormatterLayer, SpinnerFormatterLayer, TerminalCapabilities, TuiFormatterLayer,
+};
 use std::env;
 use std::sync::Arc;
 
@@ -103,8 +104,8 @@ pub async fn execute_task_command(
                     }
                 } else {
                     // Not found as task or group
-                    eprintln!("Task or group '{name}' not found");
-                    eprintln!("Run 'cuenv task' to see available tasks");
+                    tracing::error!("Task or group '{}' not found", name);
+                    tracing::info!("Run 'cuenv task' to see available tasks");
                     std::process::exit(1)
                 }
             } else {
@@ -140,8 +141,8 @@ pub async fn execute_task_command(
                         )
                         .await
                     } else {
-                        eprintln!("Task '{name}' not found");
-                        eprintln!("Run 'cuenv task' to see available tasks");
+                        tracing::error!("Task '{}' not found", name);
+                        tracing::info!("Run 'cuenv task' to see available tasks");
                         std::process::exit(1)
                     }
                 }
@@ -207,7 +208,7 @@ async fn list_tasks(
     let task_nodes = config.get_task_nodes();
 
     if task_nodes.is_empty() {
-        println!("No tasks defined in the CUE package");
+        tracing::info!("No tasks defined in the CUE package");
         return Ok(());
     }
 
@@ -228,15 +229,15 @@ async fn list_tasks(
                     );
                 }
                 TaskNode::Task(config) => {
-                    println!("'{group}' is a single task, not a group");
+                    tracing::info!("'{}' is a single task, not a group", group);
                     if let Some(desc) = &config.description {
-                        println!("  Description: {desc}");
+                        tracing::info!("  Description: {}", desc);
                     }
                 }
             }
         } else {
-            println!("No task or group named '{group}' found");
-            println!("Run 'cuenv task' to see all available tasks");
+            tracing::error!("No task or group named '{}' found", group);
+            tracing::info!("Run 'cuenv task' to see all available tasks");
         }
         return Ok(());
     }
@@ -335,8 +336,8 @@ async fn execute_task(
         // Execute the specified task
         let executor = TaskExecutor::new(env_manager, current_dir).await?;
 
-        // Use the new EventSubscriber-based execution (now the default)
-        let status = execute_task_with_subscribers(
+        // Use the new tracing-based execution
+        let status = execute_task_with_tracing_layers(
             &executor,
             &actual_task_name,
             &actual_args,
@@ -356,16 +357,16 @@ async fn execute_task(
             .collect();
 
         if !group_tasks.is_empty() {
-            eprintln!("'{task_name}' is a task group. Available tasks:");
+            tracing::error!("'{}' is a task group. Available tasks:", task_name);
             for (name, _) in group_tasks {
                 let task_name = &name[prefix.len()..];
-                eprintln!("  {task_name}");
+                tracing::info!("  {}", task_name);
             }
-            eprintln!();
-            eprintln!("Run 'cuenv task {task_name} <task>' to execute a task");
+            tracing::info!("");
+            tracing::info!("Run 'cuenv task {} <task>' to execute a task", task_name);
         } else {
-            eprintln!("Task '{task_name}' not found");
-            eprintln!("Run 'cuenv task list' to see available tasks");
+            tracing::error!("Task '{}' not found", task_name);
+            tracing::info!("Run 'cuenv task list' to see available tasks");
         }
         std::process::exit(1);
     }
@@ -405,7 +406,8 @@ async fn execute_task_group(
 
     // Get the group's collection type for display
     let task_nodes = config.get_task_nodes();
-    let collection_type = if let Some(TaskNode::Group { tasks, .. }) = task_nodes.get(&group_name) {
+    let _collection_type = if let Some(TaskNode::Group { tasks, .. }) = task_nodes.get(&group_name)
+    {
         match tasks {
             cuenv_config::TaskCollection::Sequential(_) => "sequential",
             cuenv_config::TaskCollection::Parallel(_) => "parallel",
@@ -416,13 +418,11 @@ async fn execute_task_group(
         )));
     };
 
-    println!("Executing group '{group_name}' in {collection_type} mode");
-
     // Create executor and use unified DAG for all execution modes
     let executor = TaskExecutor::new(env_manager, current_dir).await?;
 
-    // Use the new EventSubscriber-based execution
-    let status = execute_task_with_subscribers(
+    // Use the new tracing-based execution
+    let status = execute_task_with_tracing_layers(
         &executor,
         &group_name, // Pass the group name directly to unified DAG
         &[],
@@ -431,7 +431,7 @@ async fn execute_task_group(
         trace_output,
     )
     .await?;
-    
+
     if status != 0 {
         std::process::exit(status);
     }
@@ -439,28 +439,72 @@ async fn execute_task_group(
     Ok(())
 }
 
-/// Execute tasks using the new EventSubscriber-based architecture
-/// This is the main task execution path using the event-driven pattern
+/// Execute tasks using tracing-subscriber layers
+/// This is the new tracing-based task execution path
 #[allow(clippy::too_many_arguments)]
-async fn execute_task_with_subscribers(
+async fn execute_task_with_tracing_layers(
     executor: &TaskExecutor,
     task_name: &str,
     args: &[String],
     audit: bool,
     output_format: &str,
-    trace_output: bool,
+    _trace_output: bool,
 ) -> Result<i32> {
-    // For now, we'll use the simple formatter for all formats
-    // TODO: Add support for spinner and TUI formatters in future iterations  
-    println!("🔄 Executing task with EventSubscriber architecture (format: {})", output_format);
-    
-    let formatter: Arc<dyn EventSubscriber> = Arc::new(SimpleFormatterSubscriber::new(trace_output));
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::Registry;
 
-    // Register the formatter as a global subscriber
-    register_global_subscriber(formatter).await;
+    // Detect terminal capabilities and get recommended formatter
+    let capabilities = TerminalCapabilities::detect();
+    let effective_format = capabilities.recommend_formatter(Some(output_format));
+
+    // Log terminal capabilities for debugging
+    tracing::debug!(
+        terminal_info = capabilities.display_info(),
+        requested_format = output_format,
+        effective_format = effective_format,
+        ci_environment = TerminalCapabilities::is_ci_environment(),
+        "formatter_selection"
+    );
+
+    // Create a tracing subscriber with the appropriate formatter layer
+    let subscriber = Registry::default();
+
+    // Set the global subscriber based on the effective format
+    match effective_format {
+        "simple" => {
+            let layer = SimpleFormatterLayer::new();
+            let subscriber = subscriber.with(layer);
+            if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
+                tracing::warn!("Failed to set global subscriber: {}", e);
+            }
+        }
+        "spinner" => {
+            let spinner_layer = SpinnerFormatterLayer::new()?;
+            let subscriber = subscriber.with(spinner_layer);
+            if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
+                tracing::warn!("Failed to set global subscriber: {}", e);
+            }
+        }
+        "tui" => {
+            let layer = TuiFormatterLayer::new()?;
+            let subscriber = subscriber.with(layer);
+            if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
+                tracing::warn!("Failed to set global subscriber: {}", e);
+            }
+        }
+        _ => {
+            let layer = SimpleFormatterLayer::new();
+            let subscriber = subscriber.with(layer);
+            if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
+                tracing::warn!("Failed to set global subscriber: {}", e);
+            }
+        }
+    }
 
     // Execute the task using the unified method
-    let status = executor.execute_tasks_unified(&[task_name.to_string()], args, audit).await?;
+    let status = executor
+        .execute_tasks_unified(&[task_name.to_string()], args, audit)
+        .await?;
 
     Ok(status)
 }

@@ -68,6 +68,7 @@ tempfile = { workspace = true }
 
 # Terminal UI
 crossterm = { workspace = true }
+ratatui = { workspace = true }
 atty = { workspace = true }
 
 [features]

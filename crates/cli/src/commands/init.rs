@@ -6,7 +6,10 @@ pub async fn execute(config: Arc<Config>, force: bool) -> Result<()> {
     let env_file = config.working_dir.join(ENV_CUE_FILENAME);
 
     if env_file.exists() && !force {
-        eprintln!("Error: {ENV_CUE_FILENAME} already exists. Use --force to overwrite.");
+        tracing::error!(
+            "Error: {} already exists. Use --force to overwrite.",
+            ENV_CUE_FILENAME
+        );
         std::process::exit(1);
     }
 
@@ -67,14 +70,17 @@ tasks: env.#Tasks & {
     std::fs::write(&env_file, template)
         .map_err(|e| cuenv_core::Error::file_system(&env_file, "write", e))?;
 
-    println!("✓ Created {ENV_CUE_FILENAME} with example configuration");
-    println!("\nNext steps:");
-    println!("  1. Edit {ENV_CUE_FILENAME} to customize your environment");
-    println!(
+    tracing::info!("✓ Created {} with example configuration", ENV_CUE_FILENAME);
+    tracing::info!("\nNext steps:");
+    tracing::info!(
+        "  1. Edit {} to customize your environment",
+        ENV_CUE_FILENAME
+    );
+    tracing::info!(
         "  2. Run 'cuenv allow {}' to allow this directory",
         config.working_dir.display()
     );
-    println!("  3. Add shell hook with 'eval \"$(cuenv shell init <shell>)\"'");
+    tracing::info!("  3. Add shell hook with 'eval \"$(cuenv shell init <shell>)\"'");
 
     Ok(())
 }

@@ -71,35 +71,30 @@ pub async fn execute_with_output_handling(
             };
 
             if !stdout_lines.is_empty() || !stderr_lines.is_empty() {
-                // Send output through event system for proper TUI handling
-                let event_bus = cuenv_core::events::global_event_bus();
+                // Send output through tracing system for proper handling
 
-                // Send stdout as TaskOutput events
+                // Send stdout as tracing events
                 if !stdout_lines.is_empty() {
                     let combined_stdout = stdout_lines.join("\n");
-                    let _ = event_bus
-                        .publish(cuenv_core::SystemEvent::Task(
-                            cuenv_core::TaskEvent::TaskOutput {
-                                task_name: task_name.to_string(),
-                                task_id: task_name.to_string(),
-                                output: combined_stdout,
-                            },
-                        ))
-                        .await;
+                    tracing::info!(
+                        task_name = %task_name,
+                        task_id = %task_name,
+                        output = %combined_stdout,
+                        event_type = "output",
+                        "task_output"
+                    );
                 }
 
-                // Send stderr as TaskError events
+                // Send stderr as tracing events
                 if !stderr_lines.is_empty() {
                     let combined_stderr = stderr_lines.join("\n");
-                    let _ = event_bus
-                        .publish(cuenv_core::SystemEvent::Task(
-                            cuenv_core::TaskEvent::TaskError {
-                                task_name: task_name.to_string(),
-                                task_id: task_name.to_string(),
-                                error: combined_stderr,
-                            },
-                        ))
-                        .await;
+                    tracing::warn!(
+                        task_name = %task_name,
+                        task_id = %task_name,
+                        error = %combined_stderr,
+                        event_type = "error_output",
+                        "task_error"
+                    );
                 }
             }
         }

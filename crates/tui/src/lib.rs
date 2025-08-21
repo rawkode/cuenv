@@ -8,7 +8,7 @@
 
 pub mod app;
 pub mod components;
-pub mod event_bus;
+// pub mod event_bus; // Removed - using tracing layers now
 pub mod events;
 pub mod fallback;
 pub mod formatters;
@@ -17,7 +17,7 @@ pub mod terminal;
 
 pub use app::*;
 pub use components::*;
-pub use event_bus::*;
+// pub use event_bus::*; // Removed
 pub use events::*;
 pub use fallback::*;
 // Only export SpinnerFormatter from spinner to avoid ambiguity

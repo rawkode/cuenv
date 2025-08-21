@@ -33,7 +33,7 @@ tokio-stream.workspace = true
 dashmap.workspace = true
 parking_lot.workspace = true
 once_cell.workspace = true
-indexmap = { version = "2.0", features = ["serde"] }
+indexmap.workspace = true
 
 # Error handling
 log.workspace = true
@@ -58,10 +58,10 @@ walkdir.workspace = true
 futures.workspace = true
 
 # Terminal interaction
-crossterm = "0.28"
+crossterm.workspace = true
 
 # System
-libc = "0.2"
+libc.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

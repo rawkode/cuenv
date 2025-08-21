@@ -168,8 +168,7 @@ impl ConcurrentCache {
         let mut freed_bytes = 0u64;
         let now = Instant::now();
 
-        // Use a min-heap to efficiently find the oldest entries
-        use std::cmp::Reverse;
+        // Use a max-heap to efficiently find the oldest entries (largest age first)
         use std::collections::BinaryHeap;
 
         // Collect a sample of entries to consider for eviction
@@ -186,19 +185,17 @@ impl ConcurrentCache {
 
                 // Use a bounded heap to keep only the oldest entries
                 if oldest_entries.len() < sample_size {
-                    oldest_entries.push(Reverse((age, key, size)));
-                } else if let Some(Reverse((min_age, _, _))) = oldest_entries.peek() {
+                    oldest_entries.push((age, key, size));
+                } else if let Some((min_age, _, _)) = oldest_entries.peek() {
                     if age > *min_age {
                         oldest_entries.pop();
-                        oldest_entries.push(Reverse((age, key, size)));
+                        oldest_entries.push((age, key, size));
                     }
                 }
 
                 // Early exit if we've found enough bytes to free
-                let potential_freed: u64 = oldest_entries
-                    .iter()
-                    .map(|Reverse((_, _, size))| *size as u64)
-                    .sum();
+                let potential_freed: u64 =
+                    oldest_entries.iter().map(|(_, _, size)| *size as u64).sum();
                 if potential_freed >= needed_to_free * 2 {
                     // We have more than enough candidates
                     break;
@@ -207,7 +204,7 @@ impl ConcurrentCache {
         }
 
         // Evict entries starting with the oldest
-        while let Some(Reverse((_, key, size))) = oldest_entries.pop() {
+        while let Some((_, key, size)) = oldest_entries.pop() {
             if freed_bytes >= needed_to_free {
                 break;
             }

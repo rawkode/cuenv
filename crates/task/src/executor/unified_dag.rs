@@ -458,17 +458,17 @@ mod tests {
             .build_for_tasks(&["count".to_string()])
             .unwrap();
 
-        println!("Debug: Flattened tasks from unified DAG:");
+        tracing::debug!("Flattened tasks from unified DAG:");
         for task in dag.get_flattened_tasks() {
             if !task.is_barrier {
-                println!("  Task: {} (ID: {})", task.name, task.id);
+                tracing::debug!("  Task: {} (ID: {})", task.name, task.id);
             }
         }
 
-        println!("Debug: Execution levels:");
+        tracing::debug!("Execution levels:");
         let levels = dag.get_execution_levels().unwrap();
         for (i, level) in levels.iter().enumerate() {
-            println!("  Level {i}: {level:?}");
+            tracing::debug!("  Level {i}: {level:?}");
         }
 
         // The execution should preserve the sequential order
@@ -483,7 +483,7 @@ mod tests {
             }
         }
 
-        println!("Debug: Final execution order: {execution_order:?}");
+        tracing::debug!("Final execution order: {execution_order:?}");
 
         // Should be: count:task_0, count:task_1, count:task_2, count:task_3 in sequential order
         let expected_tasks = [
@@ -497,7 +497,7 @@ mod tests {
             .filter(|task_id| expected_tasks.iter().any(|expected| task_id == expected))
             .collect();
 
-        println!("Debug: Filtered task names: {actual_task_names:?}");
+        tracing::debug!("Filtered task names: {actual_task_names:?}");
 
         // Verify we have the expected sequential tasks with auto-generated names
         assert_eq!(
@@ -558,19 +558,19 @@ mod tests {
             .build_for_tasks(&["counted".to_string()])
             .unwrap();
 
-        println!("Debug: Task->Group dependency - Flattened tasks:");
+        tracing::debug!("Task->Group dependency - Flattened tasks:");
         for task in dag.get_flattened_tasks() {
             if !task.is_barrier {
-                println!("  Task: {} (ID: {})", task.name, task.id);
+                tracing::debug!("  Task: {} (ID: {})", task.name, task.id);
             } else {
-                println!("  Barrier: {} (ID: {})", task.name, task.id);
+                tracing::debug!("  Barrier: {} (ID: {})", task.name, task.id);
             }
         }
 
-        println!("Debug: Task->Group dependency - Execution levels:");
+        tracing::debug!("Task->Group dependency - Execution levels:");
         let levels = dag.get_execution_levels().unwrap();
         for (i, level) in levels.iter().enumerate() {
-            println!("  Level {i}: {level:?}");
+            tracing::debug!("  Level {i}: {level:?}");
         }
 
         // Should have the count group tasks plus the counted task

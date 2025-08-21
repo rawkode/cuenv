@@ -18,7 +18,7 @@ use super::utils::{get_cache_dir, is_process_running};
 /// The mode in which the supervisor should run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SupervisorMode {
-    /// Run hooks interactively in the foreground, allowing user to background them. Used for 'cuenv task' and 'cuenv exec'.
+    /// Run hooks interactively in the foreground. Used for 'cuenv task' and 'cuenv exec'.
     Foreground,
     /// Run hooks in the background without user interaction. Default for shell operations.
     Background,
@@ -256,53 +256,36 @@ impl Supervisor {
 
             // Show message after 1 second
             if !message_shown && start_time.elapsed() > Duration::from_secs(1) {
-                eprintln!("# cuenv: Press 'b' to background, 'q' to quit");
+                eprintln!("# cuenv: Press 'q' to quit");
                 message_shown = true;
             }
 
             // Always check for input after message is shown
             if message_shown {
                 if let Some(interactive_handler) = &mut self.interactive_handler {
-                    if interactive_handler
+                    match interactive_handler
                         .monitor_with_timeout(Duration::from_millis(200))
                         .await
-                        == ControlFlow::Background
                     {
-                        // Spawn a background task to monitor hook completion
-                        eprintln!(
-                            "# cuenv: Continuing {} hook(s) in background...",
-                            handles.len()
-                        );
-
-                        let _status_manager = self.status_manager.clone();
-                        let hooks = self.hooks.clone();
-                        let cache_dir = self.cache_dir.clone();
-
-                        tokio::spawn(async move {
-                            // Wait for all handles to complete
-                            let mut captured_env = HashMap::new();
+                        ControlFlow::Continue => {} // Continue waiting
+                        ControlFlow::Aborted => {
+                            // User pressed 'q' - abort remaining hooks and return
                             for handle in handles {
-                                if let Ok(Some(env)) = handle.await {
-                                    captured_env.extend(env);
-                                }
+                                handle.abort();
                             }
-
-                            // Save captured environment if any
-                            if !captured_env.is_empty() {
-                                if let Ok(input_hash) = cache::calculate_input_hash(&hooks) {
-                                    let _ = cache::save_cached_environment(
-                                        &cache_dir,
-                                        &input_hash,
-                                        captured_env,
-                                    );
-                                }
+                            return Err(cuenv_core::Error::configuration(
+                                "Operation aborted by user".to_string(),
+                            ));
+                        }
+                        ControlFlow::Interrupted => {
+                            // User pressed Ctrl+C - abort and return with specific error
+                            for handle in handles {
+                                handle.abort();
                             }
-
-                            // DON'T clear status - keep it available for status command
-                            // The status will be cleared on next directory change
-                        });
-
-                        return Ok(());
+                            return Err(cuenv_core::Error::configuration(
+                                "Operation interrupted by user".to_string(),
+                            ));
+                        }
                     }
                 }
             } else {

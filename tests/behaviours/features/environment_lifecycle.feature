@@ -244,7 +244,7 @@ Feature: Environment Lifecycle
     Then the environment should not have "PERSISTENT_VAR"
     And the environment should not have "SESSION_ID"
 
-  Scenario: Default background loading with preload hooks
+  Scenario: Default loading with preload hooks
     Given I have a CUE file "env.cue" with:
       """
       package cuenv
@@ -261,8 +261,8 @@ Feature: Environment Lifecycle
     Then the command should complete within 3 seconds
     And the output should contain "export BACKGROUND_VAR=background-value"
     And the output should contain "export API_ENDPOINT=https://api.test.com"
-    And the output should not contain "Hooks are running, B to background, Q to quit"
-    And the output should not contain "B to background"
+    And the output should contain "Preload hook starting"
+    And the output should contain "Preload hook finished"
     When I run "printenv BACKGROUND_VAR"
     Then the output should contain "background-value"
     When I run "printenv API_ENDPOINT"

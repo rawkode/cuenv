@@ -32,7 +32,20 @@
       "Bash(cuenv task:*)",
       "Bash(CUENV_LOG=debug cuenv task --output=simple counted)",
       "WebSearch",
-      "WebFetch(domain:d2lang.com)"
+      "WebFetch(domain:d2lang.com)",
+      "Bash(timeout 30 nix develop -c:*)",
+      "Bash(RUST_LOG=debug timeout 30 bash -c \"export NIXPKGS_ALLOW_UNFREE=1 && nix develop --command bash -c ''''cargo check --bin cuenv''''\")",
+      "Bash(timeout 10 rustc:*)",
+      "Bash(timeout:*)",
+      "Bash(sed:*)",
+      "Bash(awk:*)",
+      "Bash(journalctl:*)",
+      "Bash(dmesg:*)",
+      "Bash(last:*)",
+      "Bash(sudo dmesg:*)",
+      "Bash(sudo journalctl:*)",
+      "Bash(cat:*)",
+      "Bash(top:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

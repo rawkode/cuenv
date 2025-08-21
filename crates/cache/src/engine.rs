@@ -213,9 +213,3 @@ impl CacheEngine {
         Ok((files_deleted, bytes_saved))
     }
 }
-
-impl Default for CacheEngine {
-    fn default() -> Self {
-        Self::new().expect("Failed to create default cache engine")
-    }
-}

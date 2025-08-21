@@ -52,8 +52,12 @@ async fn execute_single_task_async(params: TaskExecutionParams) -> i32 {
 
     let start_time = Instant::now();
 
-    // Publish task started event
-    publish_task_started(&task_name).await;
+    // Emit task started event within the span
+    tracing::info!(
+        task_name = task_name.as_str(),
+        task_id = task_name.as_str(),
+        "task_started"
+    );
 
     // Disabled: Detailed task configuration events (not essential for now)
     // if false {
@@ -78,18 +82,6 @@ async fn execute_single_task_async(params: TaskExecutionParams) -> i32 {
     }
 }
 
-async fn publish_task_started(task_name: &str) {
-    let event_bus = cuenv_core::events::global_event_bus();
-    let _ = event_bus
-        .publish(cuenv_core::SystemEvent::Task(
-            cuenv_core::TaskEvent::TaskStarted {
-                task_name: task_name.to_string(),
-                task_id: task_name.to_string(),
-            },
-        ))
-        .await;
-}
-
 async fn handle_task_success(
     status: i32,
     task_name: &str,
@@ -107,16 +99,12 @@ async fn handle_task_success(
         }
 
         // Publish task failed event
-        let event_bus = cuenv_core::events::global_event_bus();
-        let _ = event_bus
-            .publish(cuenv_core::SystemEvent::Task(
-                cuenv_core::TaskEvent::TaskFailed {
-                    task_name: task_name.to_string(),
-                    task_id: task_name.to_string(),
-                    error: format!("Task exited with code {status}"),
-                },
-            ))
-            .await;
+        tracing::error!(
+            task_name = task_name,
+            task_id = task_name,
+            error = format!("Task exited with code {status}"),
+            "task_failed"
+        );
     } else {
         // Mark task as executed
         if let Ok(mut guard) = executed_tasks.lock() {
@@ -124,21 +112,11 @@ async fn handle_task_success(
         }
 
         // Publish task completed event
-        let event_bus = cuenv_core::events::global_event_bus();
-        let _ = event_bus
-            .publish(cuenv_core::SystemEvent::Task(
-                cuenv_core::TaskEvent::TaskCompleted {
-                    task_name: task_name.to_string(),
-                    task_id: task_name.to_string(),
-                    duration_ms,
-                },
-            ))
-            .await;
-
         tracing::info!(
-            task = task_name,
+            task_name = task_name,
+            task_id = task_name,
             duration_ms = duration_ms,
-            "Task completed"
+            "task_completed"
         );
     }
 
@@ -160,21 +138,11 @@ async fn handle_task_error(
     }
 
     // Publish task failed event
-    let event_bus = cuenv_core::events::global_event_bus();
-    let _ = event_bus
-        .publish(cuenv_core::SystemEvent::Task(
-            cuenv_core::TaskEvent::TaskFailed {
-                task_name: task_name.to_string(),
-                task_id: task_name.to_string(),
-                error: e.to_string(),
-            },
-        ))
-        .await;
-
     tracing::error!(
-        task_name = %task_name,
-        error = %e,
-        "Task execution failed"
+        task_name = task_name,
+        task_id = task_name,
+        error = e.to_string(),
+        "task_failed"
     );
 
     -1

@@ -1,6 +1,6 @@
 //! Main system event enum
 
-use super::{CacheEvent, DependencyEvent, EnvEvent, PipelineEvent, TaskEvent};
+use super::{CacheEvent, DependencyEvent, EnvEvent, LogEvent, PipelineEvent, TaskEvent};
 use serde::{Deserialize, Serialize};
 
 /// Main event enum that encompasses all event types
@@ -11,4 +11,5 @@ pub enum SystemEvent {
     Cache(CacheEvent),
     Env(EnvEvent),
     Dependency(DependencyEvent),
+    Log(LogEvent),
 }

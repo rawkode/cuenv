@@ -30,7 +30,7 @@ pub async fn execute(hooks: bool, format: String, verbose: bool) -> Result<()> {
                 format_json_output(&status);
             } else {
                 // Output empty status for consistency
-                println!("{{}}");
+                tracing::info!("{{}}");
             }
         }
         _ => {
@@ -38,17 +38,17 @@ pub async fn execute(hooks: bool, format: String, verbose: bool) -> Result<()> {
             if let Some(status) = status {
                 // Show which directory if available
                 if let Some(ref dir) = status.directory {
-                    println!("Directory: {dir}");
-                    println!();
+                    tracing::info!("Directory: {}", dir);
+                    tracing::info!("");
                 }
                 format_human_output(&status);
-                println!(); // Add spacing
+                tracing::info!(""); // Add spacing
             }
 
             // Also show environment diff unless hooks flag is set
             if !hooks {
-                println!("Environment Status");
-                println!("==================");
+                tracing::info!("Environment Status");
+                tracing::info!("==================");
                 let env_manager = EnvManager::new();
                 env_manager.print_env_diff()?;
             }
@@ -119,30 +119,30 @@ fn format_starship_output(status: &cuenv_utils::hooks_status::HooksStatus, verbo
 fn format_json_output(status: &cuenv_utils::hooks_status::HooksStatus) {
     // Output raw JSON for machine consumption
     if let Ok(json) = serde_json::to_string_pretty(status) {
-        println!("{json}");
+        tracing::info!("{}", json);
     }
 }
 
 fn format_human_output(status: &cuenv_utils::hooks_status::HooksStatus) {
-    println!("Hook Execution Status");
-    println!("=====================");
-    println!("Total hooks: {}", status.total);
-    println!("Completed: {}", status.completed);
-    println!("Failed: {}", status.failed);
+    tracing::info!("Hook Execution Status");
+    tracing::info!("=====================");
+    tracing::info!("Total hooks: {}", status.total);
+    tracing::info!("Completed: {}", status.completed);
+    tracing::info!("Failed: {}", status.failed);
 
     let running_count = status
         .hooks
         .values()
         .filter(|h| h.status == HookState::Running)
         .count();
-    println!("Running: {running_count}");
+    tracing::info!("Running: {}", running_count);
 
     if running_count > 0 {
-        println!("\nCurrently Running:");
+        tracing::info!("\nCurrently Running:");
         for hook in status.hooks.values() {
             if hook.status == HookState::Running {
                 let elapsed = calculate_elapsed(hook.start_time);
-                println!(
+                tracing::info!(
                     "  - {} ({}s)",
                     extract_hook_name(&hook.name),
                     elapsed.as_secs()
@@ -152,19 +152,19 @@ fn format_human_output(status: &cuenv_utils::hooks_status::HooksStatus) {
     }
 
     if status.failed > 0 {
-        println!("\nFailed Hooks:");
+        tracing::info!("\nFailed Hooks:");
         for hook in status.hooks.values() {
             if hook.status == HookState::Failed {
-                println!("  - {}", extract_hook_name(&hook.name));
+                tracing::info!("  - {}", extract_hook_name(&hook.name));
                 if let Some(error) = &hook.error {
-                    println!("    Error: {error}");
+                    tracing::info!("    Error: {}", error);
                 }
             }
         }
     }
 
     let elapsed = calculate_elapsed(status.start_time);
-    println!("\nTotal elapsed time: {}s", elapsed.as_secs());
+    tracing::info!("\nTotal elapsed time: {}s", elapsed.as_secs());
 }
 
 /// Extract a cleaner hook name from the formatted name
