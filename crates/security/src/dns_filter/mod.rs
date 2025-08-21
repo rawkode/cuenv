@@ -45,6 +45,11 @@ impl DnsFilter {
         }
     }
 
+    /// Get the total number of allowed domains (exact + wildcard patterns)
+    pub fn domain_count(&self) -> usize {
+        self.allowed_hosts.len() + self.wildcard_patterns.len()
+    }
+
     /// Check if a domain should be resolved
     pub fn should_resolve(&self, domain: &str) -> bool {
         // Check exact matches

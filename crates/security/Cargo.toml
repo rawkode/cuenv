@@ -18,6 +18,7 @@ cuenv-config.workspace = true
 
 # System programming
 libc.workspace = true
+sysinfo.workspace = true
 
 # Serialization
 serde.workspace = true

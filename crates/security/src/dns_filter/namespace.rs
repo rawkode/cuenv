@@ -4,6 +4,7 @@ use anyhow::{bail, Context, Result};
 use nix::sched::{unshare, CloneFlags};
 use nix::unistd::getuid;
 use std::fs;
+use sysinfo::System;
 
 /// Check if unprivileged user namespaces are supported
 pub fn supports_unprivileged_namespaces() -> bool {
@@ -14,12 +15,35 @@ pub fn supports_unprivileged_namespaces() -> bool {
 
     // If the file doesn't exist, try to detect by kernel version
     // Unprivileged namespaces were added in Linux 3.8
-    if let Ok(version) = fs::read_to_string("/proc/version") {
-        // This is a basic check - in practice we'd test by attempting to create a namespace
-        return version.contains("Linux") && !version.contains("2.6");
+    if let Some(kernel_version) = System::kernel_version() {
+        return check_kernel_version_supports_namespaces(&kernel_version);
     }
 
     false
+}
+
+/// Parse kernel version and check if it supports unprivileged namespaces (>= 3.8)
+fn check_kernel_version_supports_namespaces(version_str: &str) -> bool {
+    // Parse the version string, looking for a pattern like "5.4.0" or "3.8.1"
+    let version_part = version_str
+        .split_whitespace()
+        .find(|s| {
+            s.chars()
+                .next()
+                .map(|c| c.is_ascii_digit())
+                .unwrap_or(false)
+        })
+        .unwrap_or("");
+
+    let mut parts = version_part
+        .split('.')
+        .take(2)
+        .filter_map(|p| p.parse::<u32>().ok());
+    let major = parts.next().unwrap_or(0);
+    let minor = parts.next().unwrap_or(0);
+
+    // Unprivileged user namespaces were added in Linux 3.8
+    major > 3 || (major == 3 && minor >= 8)
 }
 
 /// Create an isolated network namespace for the current process
@@ -120,6 +144,26 @@ mod tests {
         // Test that the function doesn't panic and returns a boolean
         let _supported = supports_unprivileged_namespaces();
         // Function should complete without panicking
+    }
+
+    #[test]
+    fn test_kernel_version_parsing() {
+        // Test various kernel version formats
+        assert!(check_kernel_version_supports_namespaces("5.4.0-42-generic"));
+        assert!(check_kernel_version_supports_namespaces("4.15.0"));
+        assert!(check_kernel_version_supports_namespaces("3.8.0"));
+        assert!(check_kernel_version_supports_namespaces("3.10.1"));
+
+        assert!(!check_kernel_version_supports_namespaces("3.7.0"));
+        assert!(!check_kernel_version_supports_namespaces("2.6.32"));
+        assert!(!check_kernel_version_supports_namespaces("3.0.0"));
+
+        // Test edge cases
+        assert!(!check_kernel_version_supports_namespaces(""));
+        assert!(!check_kernel_version_supports_namespaces("invalid"));
+        assert!(!check_kernel_version_supports_namespaces(
+            "Linux version xyz"
+        ));
     }
 
     #[test]

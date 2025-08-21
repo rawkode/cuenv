@@ -7,7 +7,6 @@ use super::DnsFilter;
 /// Simplified DNS server stub for now
 /// TODO: Implement full DNS server using hickory-dns when build issues are resolved
 pub struct FilteringDnsServer {
-    #[allow(dead_code)]
     filter: DnsFilter,
 }
 
@@ -15,12 +14,20 @@ impl FilteringDnsServer {
     /// Create a new filtering DNS server (stub implementation)
     pub fn new(filter: DnsFilter) -> Result<Self> {
         log::warn!("DNS server is a stub implementation - not yet functional");
+        log::debug!(
+            "DNS server configured with {} allowed domains",
+            filter.domain_count()
+        );
         Ok(Self { filter })
     }
 
     /// Start serving DNS requests (stub implementation)
     pub async fn serve(&self) -> Result<()> {
         log::warn!("DNS server serve() is not yet implemented");
+        log::debug!(
+            "Would filter DNS requests using {} allowed domains",
+            self.filter.domain_count()
+        );
         // For now, just sleep to simulate running
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         Ok(())
@@ -28,18 +35,24 @@ impl FilteringDnsServer {
 }
 
 /// Start the DNS filtering server (stub implementation)
-pub fn start_dns_server(_filter: DnsFilter) -> Result<()> {
+pub fn start_dns_server(filter: DnsFilter) -> Result<()> {
     log::info!("Starting DNS filtering server (stub implementation)");
     log::warn!("Full DNS server implementation pending - filtering not active yet");
+    log::debug!(
+        "DNS server will filter {} domains when implemented",
+        filter.domain_count()
+    );
 
     // For now, just return success to allow the system to continue
     // TODO: Implement proper DNS server with hickory-dns
+
+    // Configure system DNS (stub implementation)
+    configure_system_dns()?;
 
     Ok(())
 }
 
 /// Configure the system to use our DNS server (stub implementation)
-#[allow(dead_code)]
 fn configure_system_dns() -> Result<()> {
     log::debug!("DNS configuration is stubbed out");
     Ok(())
@@ -63,9 +76,11 @@ mod tests {
     fn test_dns_server_creation() {
         let filter = DnsFilter::new(vec!["test.com".to_string()]);
 
-        // Test server creation (stub implementation)
+        // Test server creation (stub implementation should succeed)
         let result = FilteringDnsServer::new(filter);
-        // Either success or failure is acceptable in test environments for stub implementation
-        assert!(result.is_ok() || result.is_err());
+        assert!(
+            result.is_ok(),
+            "DNS server creation should succeed in stub implementation"
+        );
     }
 }
