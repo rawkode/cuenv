@@ -19,7 +19,7 @@ impl ErrorTransform {
     /// Transform a configuration error with additional context
     pub fn config_with_context(context: &str) -> impl Fn(Error) -> Error + '_ {
         move |e| Error::Configuration {
-            message: format!("{}: {}", context, e),
+            message: format!("{context}: {e}"),
         }
     }
 
@@ -28,14 +28,14 @@ impl ErrorTransform {
         message: &str,
     ) -> impl Fn(Box<dyn std::error::Error + Send + Sync>) -> Error + '_ {
         move |e| Error::Configuration {
-            message: format!("{}: {}", message, e),
+            message: format!("{message}: {e}"),
         }
     }
 
     /// Transform validation errors with field context
     pub fn validation_with_field(field: &str) -> impl Fn(String) -> Error + '_ {
         move |msg| Error::Configuration {
-            message: format!("Validation failed for field '{}': {}", field, msg),
+            message: format!("Validation failed for field '{field}': {msg}"),
         }
     }
 
@@ -57,7 +57,7 @@ impl Validate {
     pub fn not_empty(value: &str, field_name: &str) -> Result<()> {
         if value.is_empty() {
             Err(Error::Configuration {
-                message: format!("Field '{}' cannot be empty", field_name),
+                message: format!("Field '{field_name}' cannot be empty"),
             })
         } else {
             Ok(())
@@ -72,8 +72,7 @@ impl Validate {
         if value < min || value > max {
             Err(Error::Configuration {
                 message: format!(
-                    "Field '{}' value {} is not in range [{}, {}]",
-                    field_name, value, min, max
+                    "Field '{field_name}' value {value} is not in range [{min}, {max}]"
                 ),
             })
         } else {

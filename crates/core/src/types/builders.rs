@@ -289,7 +289,7 @@ impl TaskConfig {
         if let Some(ref dir) = self.working_dir {
             if !dir.exists() {
                 return Err(Error::Configuration {
-                    message: format!("Working directory '{}' does not exist", dir),
+                    message: format!("Working directory '{dir}' does not exist"),
                 });
             }
         }
@@ -442,7 +442,7 @@ impl EnvConfig {
             .tasks
             .get(task_name)
             .ok_or_else(|| Error::Configuration {
-                message: format!("Task '{}' not found", task_name),
+                message: format!("Task '{task_name}' not found"),
             })?;
 
         // Visit dependencies first

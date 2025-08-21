@@ -16,13 +16,13 @@ impl<const MIN_LEN: usize, const MAX_LEN: usize> ValidatedString<MIN_LEN, MAX_LE
 
         if len < MIN_LEN {
             return Err(Error::Configuration {
-                message: format!("String length {} is less than minimum {}", len, MIN_LEN),
+                message: format!("String length {len} is less than minimum {MIN_LEN}"),
             });
         }
 
         if len > MAX_LEN {
             return Err(Error::Configuration {
-                message: format!("String length {} is greater than maximum {}", len, MAX_LEN),
+                message: format!("String length {len} is greater than maximum {MAX_LEN}"),
             });
         }
 
@@ -73,13 +73,13 @@ where
 
         if val_i64 < MIN {
             return Err(Error::Configuration {
-                message: format!("Value {} is less than minimum {}", val_i64, MIN),
+                message: format!("Value {val_i64} is less than minimum {MIN}"),
             });
         }
 
         if val_i64 > MAX {
             return Err(Error::Configuration {
-                message: format!("Value {} is greater than maximum {}", val_i64, MAX),
+                message: format!("Value {val_i64} is greater than maximum {MAX}"),
             });
         }
 
@@ -123,13 +123,13 @@ impl<T, const MIN_SIZE: usize, const MAX_SIZE: usize> ValidatedArray<T, MIN_SIZE
 
         if size < MIN_SIZE {
             return Err(Error::Configuration {
-                message: format!("Array size {} is less than minimum {}", size, MIN_SIZE),
+                message: format!("Array size {size} is less than minimum {MIN_SIZE}"),
             });
         }
 
         if size > MAX_SIZE {
             return Err(Error::Configuration {
-                message: format!("Array size {} is greater than maximum {}", size, MAX_SIZE),
+                message: format!("Array size {size} is greater than maximum {MAX_SIZE}"),
             });
         }
 
@@ -208,7 +208,7 @@ impl<T, const CAPACITY: usize> BoundedVec<T, CAPACITY> {
     pub fn try_push(&mut self, item: T) -> Result<()> {
         if self.items.len() >= CAPACITY {
             return Err(Error::Configuration {
-                message: format!("Cannot add item: capacity {} exceeded", CAPACITY),
+                message: format!("Cannot add item: capacity {CAPACITY} exceeded"),
             });
         }
 

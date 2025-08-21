@@ -45,7 +45,12 @@
       "Bash(sudo dmesg:*)",
       "Bash(sudo journalctl:*)",
       "Bash(cat:*)",
-      "Bash(top:*)"
+      "Bash(top:*)",
+      "Bash(for:*)",
+      "Bash(do)",
+      "Bash(echo \"Processing $file\")",
+      "Bash(done)",
+      "Bash(./target/debug/cuenv task:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

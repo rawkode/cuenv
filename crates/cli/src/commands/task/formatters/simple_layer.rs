@@ -22,51 +22,44 @@ impl SimpleFormatterLayer {
         }
     }
 
-    /// Create a new simple formatter with custom writer
-    pub fn with_writer<W: Write + Send + Sync + 'static>(writer: W) -> Self {
-        Self {
-            writer: Mutex::new(Box::new(writer)),
-        }
-    }
-
     fn format_task_event(&self, event: &TaskEvent) -> io::Result<()> {
         let mut writer = self.writer.lock().unwrap();
         match event {
             TaskEvent::TaskStarted { task_name, .. } => {
-                writeln!(writer, "🔄 {} (started)", task_name)?;
+                writeln!(writer, "🔄 {task_name} (started)")?;
             }
             TaskEvent::TaskCompleted {
                 task_name,
                 duration_ms,
                 ..
             } => {
-                writeln!(writer, "✅ {} (completed in {}ms)", task_name, duration_ms)?;
+                writeln!(writer, "✅ {task_name} (completed in {duration_ms}ms)")?;
             }
             TaskEvent::TaskFailed {
                 task_name, error, ..
             } => {
-                writeln!(writer, "❌ {} (failed)", task_name)?;
-                writeln!(writer, "   Error: {}", error)?;
+                writeln!(writer, "❌ {task_name} (failed)")?;
+                writeln!(writer, "   Error: {error}")?;
             }
             TaskEvent::TaskProgress {
                 task_name, message, ..
             } => {
-                writeln!(writer, "⏳ {} {}", task_name, message)?;
+                writeln!(writer, "⏳ {task_name} {message}")?;
             }
             TaskEvent::TaskOutput {
                 task_name, output, ..
             } => {
-                writeln!(writer, "📝 {}: {}", task_name, output)?;
+                writeln!(writer, "📝 {task_name}: {output}")?;
             }
             TaskEvent::TaskError {
                 task_name, error, ..
             } => {
-                writeln!(writer, "⚠️  {}: {}", task_name, error)?;
+                writeln!(writer, "⚠️  {task_name}: {error}")?;
             }
             TaskEvent::TaskSkipped {
                 task_name, reason, ..
             } => {
-                writeln!(writer, "⏭️  {} (skipped: {})", task_name, reason)?;
+                writeln!(writer, "⏭️  {task_name} (skipped: {reason})")?;
             }
         }
         writer.flush()
@@ -89,7 +82,7 @@ impl SimpleFormatterLayer {
         event.record(
             &mut |field: &tracing::field::Field, value: &dyn std::fmt::Debug| {
                 if field.name() == "message" {
-                    message = format!("{:?}", value).trim_matches('"').to_string();
+                    message = format!("{value:?}").trim_matches('"').to_string();
                 }
             },
         );
@@ -99,7 +92,7 @@ impl SimpleFormatterLayer {
             message = event.metadata().target().to_string();
         }
 
-        writeln!(writer, "{}{}", level_indicator, message)?;
+        writeln!(writer, "{level_indicator}{message}")?;
         writer.flush()
     }
 }
@@ -118,12 +111,12 @@ where
         // Try to extract TaskEvent from the event first
         if let Some(task_event) = extract_task_event(event) {
             if let Err(e) = self.format_task_event(&task_event) {
-                tracing::error!("SimpleFormatterLayer write error: {}", e);
+                tracing::error!("SimpleFormatterLayer write error: {e}");
             }
         } else {
             // Handle generic tracing events (from CLI calls)
             if let Err(e) = self.format_generic_event(event) {
-                tracing::error!("SimpleFormatterLayer write error: {}", e);
+                tracing::error!("SimpleFormatterLayer write error: {e}");
             }
         }
     }
@@ -142,20 +135,20 @@ fn extract_task_event(event: &Event<'_>) -> Option<TaskEvent> {
 
     event.record(
         &mut |field: &tracing::field::Field, value: &dyn std::fmt::Debug| match field.name() {
-            "task_name" => task_name = Some(format!("{:?}", value).trim_matches('"').to_string()),
-            "task_id" => task_id = Some(format!("{:?}", value).trim_matches('"').to_string()),
-            "event_type" => event_type = Some(format!("{:?}", value).trim_matches('"').to_string()),
-            "duration_ms" => duration_ms = format!("{:?}", value).parse().ok(),
-            "error" => error_msg = Some(format!("{:?}", value).trim_matches('"').to_string()),
-            "message" => message = Some(format!("{:?}", value).trim_matches('"').to_string()),
-            "output" => output = Some(format!("{:?}", value).trim_matches('"').to_string()),
-            "reason" => reason = Some(format!("{:?}", value).trim_matches('"').to_string()),
+            "task_name" => task_name = Some(format!("{value:?}").trim_matches('"').to_string()),
+            "task_id" => task_id = Some(format!("{value:?}").trim_matches('"').to_string()),
+            "event_type" => event_type = Some(format!("{value:?}").trim_matches('"').to_string()),
+            "duration_ms" => duration_ms = format!("{value:?}").parse().ok(),
+            "error" => error_msg = Some(format!("{value:?}").trim_matches('"').to_string()),
+            "message" => message = Some(format!("{value:?}").trim_matches('"').to_string()),
+            "output" => output = Some(format!("{value:?}").trim_matches('"').to_string()),
+            "reason" => reason = Some(format!("{value:?}").trim_matches('"').to_string()),
             _ => {}
         },
     );
 
     let task_name = task_name?;
-    let task_id = task_id.unwrap_or_else(|| format!("{}-{}", task_name, std::process::id()));
+    let task_id = task_id.unwrap_or_else(|| format!("{task_name}-{}", std::process::id()));
 
     match event_type?.as_str() {
         "started" => Some(TaskEvent::TaskStarted { task_name, task_id }),

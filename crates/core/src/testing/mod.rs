@@ -341,7 +341,7 @@ mod benchmarks {
         });
 
         assert_eq!(result1, result2);
-        println!("Direct: {:?}, Pipe: {:?}", time1, time2);
+        println!("Direct: {time1:?}, Pipe: {time2:?}");
 
         // The pipe version should be reasonably close in performance
         // This is more of a smoke test than a strict benchmark
@@ -349,8 +349,9 @@ mod benchmarks {
     }
 }
 
-/// Documentation examples for property-based testing
 pub mod examples {
+    //! Documentation examples for property-based testing
+    //!
     //! This module contains examples of how to use property-based testing
     //! with functional programming patterns in the cuenv project.
 

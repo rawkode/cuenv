@@ -16,49 +16,8 @@ mod tests {
     use super::*;
     use crate::events::TaskState;
     use crossterm::style::Color;
-    use cuenv_task::{TaskDefinition, TaskExecutionPlan};
-    use std::collections::HashMap;
     use std::time::Instant;
     use task_display::TaskDisplay;
-
-    fn create_test_task_definition(name: &str, dependencies: Vec<String>) -> TaskDefinition {
-        TaskDefinition {
-            name: name.to_string(),
-            description: Some(format!("Test task {}", name)),
-            command: "echo".to_string(),
-            args: vec![format!("Running {}", name)],
-            working_dir: None,
-            env_vars: HashMap::new(),
-            timeout: None,
-            dependencies,
-            inputs: vec![],
-            outputs: vec![],
-        }
-    }
-
-    fn create_test_execution_plan() -> TaskExecutionPlan {
-        let mut tasks = HashMap::new();
-        tasks.insert(
-            "build".to_string(),
-            create_test_task_definition("build", vec![]),
-        );
-        tasks.insert(
-            "test".to_string(),
-            create_test_task_definition("test", vec!["build".to_string()]),
-        );
-        tasks.insert(
-            "deploy".to_string(),
-            create_test_task_definition("deploy", vec!["test".to_string(), "build".to_string()]),
-        );
-
-        let levels = vec![
-            vec!["build".to_string()],
-            vec!["test".to_string()],
-            vec!["deploy".to_string()],
-        ];
-
-        TaskExecutionPlan { tasks, levels }
-    }
 
     #[test]
     fn test_task_display_new() {

@@ -9,9 +9,7 @@ use cuenv_core::{Result, CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR};
 use cuenv_env::manager::environment::SupervisorMode;
 use cuenv_env::EnvManager;
 use cuenv_task::TaskExecutor;
-use formatters::{
-    SimpleFormatterLayer, SpinnerFormatterLayer, TerminalCapabilities, TuiFormatterLayer,
-};
+use formatters::{SimpleFormatterLayer, SpinnerFormatterLayer, TerminalCapabilities};
 use std::env;
 use std::sync::Arc;
 
@@ -39,8 +37,12 @@ pub async fn execute_task_command(
 
     match task_or_group {
         None => {
-            // No arguments: list all tasks
-            list_tasks(config, verbose, None).await
+            // No arguments: list all tasks or show TUI for selection
+            if output_format == "tui" {
+                list_tasks_tui(config, environment, capabilities, verbose).await
+            } else {
+                list_tasks(config, verbose, None).await
+            }
         }
         Some(name) => {
             // Check if it's a task or a group
@@ -244,6 +246,59 @@ async fn list_tasks(
 
     // Display all tasks in tree format
     display_task_tree(task_nodes, verbose, use_color);
+    Ok(())
+}
+
+async fn list_tasks_tui(
+    _config: std::sync::Arc<cuenv_config::Config>,
+    environment: Option<String>,
+    capabilities: Vec<String>,
+    _verbose: bool,
+) -> Result<()> {
+    let current_dir = env::current_dir()
+        .map_err(|e| cuenv_core::Error::file_system(".", "get current directory", e))?;
+    let mut env_manager = EnvManager::new();
+
+    let env_name = environment.or_else(|| env::var(CUENV_ENV_VAR).ok());
+    let mut caps = capabilities;
+    if caps.is_empty() {
+        if let Ok(env_caps) = env::var(CUENV_CAPABILITIES_VAR) {
+            caps = env_caps
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        }
+    }
+
+    env_manager
+        .load_env_with_options(
+            &current_dir,
+            env_name,
+            caps,
+            None,
+            SupervisorMode::Foreground,
+        )
+        .await
+        .map_err(|e| {
+            cuenv_core::Error::configuration(format!("Failed to load environment: {}", e))
+        })?;
+
+    // Create executor
+    let executor = TaskExecutor::new(env_manager, current_dir).await?;
+
+    // Create TUI app for listing/selecting tasks (no auto-execution)
+    use cuenv_tui::TuiApp;
+    let mut tui_app = TuiApp::new_for_listing(executor)
+        .await
+        .map_err(|e| cuenv_core::Error::configuration(format!("Failed to setup TUI: {}", e)))?;
+
+    // Run the TUI (this will block until the user quits)
+    tui_app
+        .run()
+        .await
+        .map_err(|e| cuenv_core::Error::configuration(format!("TUI execution failed: {}", e)))?;
+
     Ok(())
 }
 
@@ -486,11 +541,21 @@ async fn execute_task_with_tracing_layers(
             }
         }
         "tui" => {
-            let layer = TuiFormatterLayer::new()?;
-            let subscriber = subscriber.with(layer);
-            if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
-                tracing::warn!("Failed to set global subscriber: {}", e);
-            }
+            // For TUI mode, create a proper TUI app and run task execution in background
+            use cuenv_tui::TuiApp;
+            let mut tui_app = TuiApp::new_with_task(executor.clone(), &task_name)
+                .await
+                .map_err(|e| {
+                    cuenv_core::Error::configuration(format!("Failed to setup TUI: {}", e))
+                })?;
+
+            // Run the TUI (this will block until the user quits or task completes)
+            let tui_result = tui_app.run().await.map_err(|e| {
+                cuenv_core::Error::configuration(format!("TUI execution failed: {}", e))
+            })?;
+
+            // Return the result from the TUI
+            return Ok(tui_result);
         }
         _ => {
             let layer = SimpleFormatterLayer::new();
@@ -597,7 +662,7 @@ async fn display_dependency_graph(
                             for (task_name, _) in tasks.iter() {
                                 tracing::info!("  └─ {task_name}");
                             }
-                            tracing::info!();
+                            tracing::info!("");
                         }
                     }
                 }

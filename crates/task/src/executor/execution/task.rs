@@ -56,6 +56,7 @@ async fn execute_single_task_async(params: TaskExecutionParams) -> i32 {
     tracing::info!(
         task_name = task_name.as_str(),
         task_id = task_name.as_str(),
+        event_type = "started",
         "task_started"
     );
 
@@ -102,6 +103,7 @@ async fn handle_task_success(
         tracing::error!(
             task_name = task_name,
             task_id = task_name,
+            event_type = "failed",
             error = format!("Task exited with code {status}"),
             "task_failed"
         );
@@ -115,6 +117,7 @@ async fn handle_task_success(
         tracing::info!(
             task_name = task_name,
             task_id = task_name,
+            event_type = "completed",
             duration_ms = duration_ms,
             "task_completed"
         );
@@ -141,6 +144,7 @@ async fn handle_task_error(
     tracing::error!(
         task_name = task_name,
         task_id = task_name,
+        event_type = "failed",
         error = e.to_string(),
         "task_failed"
     );

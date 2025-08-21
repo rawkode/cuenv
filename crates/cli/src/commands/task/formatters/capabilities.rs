@@ -52,8 +52,8 @@ impl TerminalCapabilities {
 
     /// Recommend the best formatter based on capabilities
     pub fn recommend_formatter(&self, requested: Option<&str>) -> &'static str {
-        if requested.is_some() {
-            return match requested.unwrap() {
+        if let Some(requested) = requested {
+            return match requested {
                 "simple" => "simple",
                 "spinner" => "spinner",
                 "tui" => "tui",

@@ -293,6 +293,9 @@
           };
         };
 
+        # Shared clippy arguments - zero tolerance for warnings
+        clippyArgs = "-- -D warnings";
+
         # Cargo dependencies for all crates - shared build artifacts
         cargoArtifacts = craneLib.buildDepsOnly (
           commonArgs
@@ -421,6 +424,7 @@
         }
         // pureRustPackages;
 
+
         # Optimized checks using Crane - massive performance improvement
         checks = {
           # Fast formatting check (no compilation needed)
@@ -434,51 +438,7 @@
             commonArgs
             // {
               inherit cargoArtifacts;
-              cargoClippyExtraArgs = builtins.concatStringsSep " " [
-                "--all-targets"
-                "--all-features"
-                "--"
-                "-D"
-                "warnings"
-                "-A"
-                "clippy::duplicate_mod"
-                "-A"
-                "clippy::uninlined_format_args"
-                "-A"
-                "clippy::too_many_arguments"
-                "-A"
-                "clippy::new_without_default"
-                "-A"
-                "clippy::ptr_arg"
-                "-A"
-                "clippy::needless_borrows_for_generic_args"
-                "-A"
-                "clippy::io_other_error"
-                "-A"
-                "clippy::manual_strip"
-                "-A"
-                "clippy::collapsible_if"
-                "-A"
-                "clippy::derivable_impls"
-                "-A"
-                "clippy::missing_safety_doc"
-                "-A"
-                "clippy::field_reassign_with_default"
-                "-A"
-                "clippy::manual_map"
-                "-A"
-                "clippy::not_unsafe_ptr_arg_deref"
-                "-A"
-                "clippy::question_mark"
-                "-A"
-                "clippy::needless_borrow"
-                "-A"
-                "clippy::await_holding_lock"
-                "-A"
-                "clippy::type_complexity"
-                "-A"
-                "clippy::enum_variant_names"
-              ];
+              cargoClippyExtraArgs = "--all-targets --all-features " + clippyArgs;
 
               preBuild = ''
                 export HOME=$(mktemp -d)
@@ -557,7 +517,7 @@
               inherit cargoArtifacts;
               pname = "cuenv-core-clippy";
               cargoExtraArgs = "-p cuenv-core";
-              cargoClippyExtraArgs = "-- -D warnings";
+              cargoClippyExtraArgs = clippyArgs;
               preBuild = ''
                 export CUE_ROOT="$PWD/cue"
 
@@ -576,7 +536,7 @@
               inherit cargoArtifacts;
               pname = "cuenv-cache-clippy";
               cargoExtraArgs = "-p cuenv-cache";
-              cargoClippyExtraArgs = "-- -D warnings";
+              cargoClippyExtraArgs = clippyArgs;
               preBuild = ''
                 export CUE_ROOT="$PWD/cue"
 
@@ -595,7 +555,7 @@
               inherit cargoArtifacts;
               pname = "cuenv-env-clippy";
               cargoExtraArgs = "-p cuenv-env";
-              cargoClippyExtraArgs = "-- -D warnings";
+              cargoClippyExtraArgs = clippyArgs;
               preBuild = ''
                 export CUE_ROOT="$PWD/cue"
 
@@ -614,7 +574,7 @@
               inherit cargoArtifacts;
               pname = "cuenv-utils-clippy";
               cargoExtraArgs = "-p cuenv-utils";
-              cargoClippyExtraArgs = "-- -D warnings";
+              cargoClippyExtraArgs = clippyArgs;
               preBuild = ''
                 export CUE_ROOT="$PWD/cue"
 

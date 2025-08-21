@@ -148,11 +148,6 @@ impl ValidatedPath {
         }
     }
 
-    /// Create from a string path
-    pub fn from_str(path: &str) -> Result<Self> {
-        Self::new(PathBuf::from(path))
-    }
-
     /// Check if the path exists
     pub fn exists(&self) -> bool {
         self.0.exists()
@@ -203,6 +198,14 @@ impl Deref for ValidatedPath {
     }
 }
 
+impl FromStr for ValidatedPath {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        Self::new(PathBuf::from(s))
+    }
+}
+
 /// A port number with validation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Port(u16);
@@ -231,7 +234,7 @@ impl FromStr for Port {
     fn from_str(s: &str) -> Result<Self> {
         s.parse::<u16>()
             .map_err(|e| Error::Configuration {
-                message: format!("Invalid port number: {}", e),
+                message: format!("Invalid port number: {e}"),
             })
             .and_then(Self::new)
     }
@@ -271,7 +274,7 @@ impl FromStr for TimeoutSecondsNewtype {
     fn from_str(s: &str) -> Result<Self> {
         s.parse::<u32>()
             .map_err(|e| Error::Configuration {
-                message: format!("Invalid timeout: {}", e),
+                message: format!("Invalid timeout: {e}"),
             })
             .and_then(Self::new)
     }
@@ -305,7 +308,7 @@ impl FromStr for CacheSize {
     fn from_str(s: &str) -> Result<Self> {
         s.parse::<usize>()
             .map_err(|e| Error::Configuration {
-                message: format!("Invalid cache size: {}", e),
+                message: format!("Invalid cache size: {e}"),
             })
             .and_then(Self::new)
     }

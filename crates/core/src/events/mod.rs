@@ -13,6 +13,15 @@
 pub mod types;
 pub mod utils;
 
+/// Type alias for async event handler result
+type EventHandlerResult<'a> = std::pin::Pin<
+    Box<
+        dyn std::future::Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>>
+            + Send
+            + 'a,
+    >,
+>;
+
 // Compatibility stubs for removed types
 #[derive(Debug, Clone)]
 pub struct EnhancedEvent {
@@ -22,16 +31,7 @@ pub struct EnhancedEvent {
 
 // Stub trait for removed EventSubscriber
 pub trait EventSubscriber: Send + Sync {
-    fn handle_event(
-        &self,
-        _event: &EnhancedEvent,
-    ) -> std::pin::Pin<
-        Box<
-            dyn std::future::Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>>
-                + Send
-                + '_,
-        >,
-    > {
+    fn handle_event(&self, _event: &EnhancedEvent) -> EventHandlerResult<'_> {
         Box::pin(async { Ok(()) })
     }
 }

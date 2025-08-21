@@ -63,7 +63,7 @@ tasks: {
 
 	counted: {
 		description: "Task that depends on count group completion"
-		// dependencies: ["count.task_3"] // Depend on the last task in the count sequence - disabled for now
+		dependencies: ["count"]
 		command: "echo"
 		args: ["counted to 4"]
 	}

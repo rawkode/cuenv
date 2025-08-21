@@ -8,18 +8,19 @@
 
 pub mod app;
 pub mod components;
-// pub mod event_bus; // Removed - using tracing layers now
 pub mod events;
 pub mod fallback;
 pub mod formatters;
 pub mod spinner;
 pub mod terminal;
 
-pub use app::*;
-pub use components::*;
-// pub use event_bus::*; // Removed
-pub use events::*;
+// Main exports
+pub use app::TuiApp;
+pub use components::{TaskConfigPane, TaskHierarchy, TaskLogsPane, TracingPane};
+pub use events::{TaskEvent, TaskRegistry, TaskState, TuiEvent};
 pub use fallback::*;
-// Only export SpinnerFormatter from spinner to avoid ambiguity
 pub use spinner::SpinnerFormatter;
-pub use terminal::*;
+pub use terminal::TerminalManager;
+
+// Export TUI layer for integration (will be redesigned)
+pub use formatters::TuiLayer;

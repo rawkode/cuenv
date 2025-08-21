@@ -341,13 +341,12 @@ pub trait IteratorExt<T>: Iterator<Item = T> + Sized {
     }
 
     /// Tap into each element for side effects
-    fn tap_each<F>(self, f: F) -> std::iter::Map<Self, impl FnMut(T) -> T>
+    fn tap_each<F>(self, f: F) -> std::iter::Inspect<Self, impl FnMut(&T)>
     where
         F: Fn(&T) + Clone,
     {
-        self.map(move |item| {
-            f(&item);
-            item
+        self.inspect(move |item| {
+            f(item);
         })
     }
 
@@ -364,7 +363,6 @@ impl<T, I> IteratorExt<T> for I where I: Iterator<Item = T> {}
 
 #[cfg(test)]
 mod tests {
-    use super::operators::{forward_compose, identity};
     use super::*;
 
     #[test]

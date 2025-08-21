@@ -290,12 +290,12 @@ async fn handle_task_protocol(
         list_tasks,
     ) {
         tracing::info!("Task Server Protocol (TSP) - Dual-Modality Support");
-        tracing::info!();
+        tracing::info!("");
         tracing::info!("Consumer Mode (use external task servers):");
         tracing::info!("  cuenv internal task-protocol --server <executable> --list-tasks");
         tracing::info!("  cuenv internal task-protocol --discovery-dir <path> --list-tasks");
         tracing::info!("  cuenv internal task-protocol --server <executable> --run-task <task>");
-        tracing::info!();
+        tracing::info!("");
         tracing::info!("Provider Mode (expose cuenv tasks to external tools):");
         tracing::info!("  cuenv internal task-protocol --serve [--socket <path>]");
         tracing::info!("  cuenv internal task-protocol --export-json");
