@@ -501,7 +501,7 @@ async fn display_dependency_graph(
     match task_or_group {
         Some(name) => {
             // Build DAG for specific task or group
-            let dag = executor.build_unified_dag(&[name.clone()])?;
+            let dag = executor.build_unified_dag(std::slice::from_ref(&name))?;
             display_formatted_graph(&dag, &name, graph_format, char_set)?;
         }
         None => {

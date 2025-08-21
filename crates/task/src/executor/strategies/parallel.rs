@@ -5,6 +5,7 @@ use cuenv_config::{TaskCollection, TaskNode};
 use cuenv_core::Result;
 
 /// Parallel execution strategy - all tasks run simultaneously
+#[allow(dead_code)]
 pub struct ParallelStrategy;
 
 impl GroupExecutionStrategy for ParallelStrategy {

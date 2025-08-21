@@ -105,7 +105,7 @@ impl FocusPane {
         }
     }
 
-    fn create_task_info_table(&self, task: &TaskInfo) -> Table {
+    fn create_task_info_table(&self, task: &TaskInfo) -> Table<'_> {
         let mut rows = vec![];
 
         // Task name and state
@@ -225,7 +225,7 @@ impl FocusPane {
         }
     }
 
-    fn format_logs(&self, logs: &[LogEntry]) -> (Vec<Line>, usize) {
+    fn format_logs(&self, logs: &[LogEntry]) -> (Vec<Line<'_>>, usize) {
         let mut lines = Vec::new();
         let mut line_count = 0;
 

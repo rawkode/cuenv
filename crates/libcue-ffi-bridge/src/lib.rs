@@ -248,16 +248,17 @@ env: {
 
         // The result depends on whether the FFI bridge is properly built
         // In CI this might fail if Go dependencies aren't available
-        if result.is_err() {
-            // If FFI isn't available, we should get a specific error
-            let error = result.unwrap_err();
-            println!("FFI not available in test environment: {error}");
-            // This is acceptable in test environments without Go build
-        } else {
-            // If it works, verify the JSON contains our values
-            let json = result.unwrap();
-            assert!(json.contains("TEST_VAR"), "JSON should contain TEST_VAR");
-            assert!(json.contains("test_value"), "JSON should contain the value");
+        match result {
+            Err(error) => {
+                // If FFI isn't available, we should get a specific error
+                println!("FFI not available in test environment: {error}");
+                // This is acceptable in test environments without Go build
+            }
+            Ok(json) => {
+                // If it works, verify the JSON contains our values
+                assert!(json.contains("TEST_VAR"), "JSON should contain TEST_VAR");
+                assert!(json.contains("test_value"), "JSON should contain the value");
+            }
         }
     }
 
@@ -322,17 +323,20 @@ this is not valid CUE syntax {
             let result = evaluate_cue_package(temp_dir.path(), "cuenv");
 
             // Each call should be independent and not cause memory issues
-            if result.is_ok() {
-                // If FFI is available, all calls should succeed
-                assert!(result.unwrap().contains("TEST"));
-            } else {
-                // If FFI isn't available, error should be consistent
-                let error_msg = result.unwrap_err().to_string();
-                println!("Iteration {i}: {error_msg}");
+            match result {
+                Ok(json) => {
+                    // If FFI is available, all calls should succeed
+                    assert!(json.contains("TEST"));
+                }
+                Err(error) => {
+                    // If FFI isn't available, error should be consistent
+                    let error_msg = error.to_string();
+                    println!("Iteration {i}: {error_msg}");
 
-                // Break early if it's clearly an FFI availability issue
-                if i > 5 {
-                    break;
+                    // Break early if it's clearly an FFI availability issue
+                    if i > 5 {
+                        break;
+                    }
                 }
             }
         }
