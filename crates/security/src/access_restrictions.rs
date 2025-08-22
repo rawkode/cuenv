@@ -432,26 +432,45 @@ impl AccessRestrictions {
                     }
                 }
 
-                // Apply network restrictions using DNS filtering in network namespaces
+                // Apply network restrictions using simple namespace + DNS proxy
                 if restrict_network {
-                    use crate::dns_filter;
-
                     if !allowed_hosts.is_empty() {
-                        match dns_filter::create_and_apply(&allowed_hosts) {
+                        // Create network namespace (requires user namespace for unprivileged operation)
+                        // Also create mount namespace to override /etc/resolv.conf
+                        match nix::sched::unshare(nix::sched::CloneFlags::CLONE_NEWUSER | nix::sched::CloneFlags::CLONE_NEWNET | nix::sched::CloneFlags::CLONE_NEWNS) {
                             Ok(()) => {
-                                log::info!("DNS-based network filtering active for {} hosts", allowed_hosts.len());
+                                log::debug!("Created user and network namespace");
+                                
+                                // Try to set up UID/GID mapping (best effort)
+                                let _ = setup_uid_gid_mapping();
+                                
+                                // Set up loopback interface
+                                if let Err(e) = setup_loopback_interface() {
+                                    log::warn!("Failed to setup loopback: {}", e);
+                                }
+                                
+                                // Start DNS filter (simple approach)
+                                match crate::dns_filter::start_dns_filter(&allowed_hosts) {
+                                    Ok(()) => {
+                                        log::info!("DNS filtering active for {} hosts", allowed_hosts.len());
+                                    }
+                                    Err(e) => {
+                                        log::warn!("DNS filtering failed: {}", e);
+                                        // Continue without DNS filtering rather than fail
+                                    }
+                                }
                             }
                             Err(e) => {
                                 // Check if strict mode should be enforced
                                 if std::env::var(CUENV_SECURITY_STRICT_ENV).is_ok() {
                                     return Err(std::io::Error::other(format!(
-                                        "Cannot enforce network restrictions: {e}. Use {CUENV_SECURITY_STRICT_ENV}=0 to allow fallback."
+                                        "Cannot create network namespace: {e}. Use {CUENV_SECURITY_STRICT_ENV}=0 to allow fallback."
                                     )));
                                 } else {
-                                    eprintln!("⚠️  WARNING: Network filtering unavailable: {e}");
+                                    eprintln!("⚠️  WARNING: Network isolation unavailable: {e}");
                                     eprintln!("   Task will run WITHOUT network restrictions!");
                                     eprintln!("   Set {CUENV_SECURITY_STRICT_ENV}=1 to fail instead of warn");
-                                    log::warn!("Network filtering unavailable, running without restrictions: {e}");
+                                    log::warn!("Network isolation unavailable, running without restrictions: {e}");
                                 }
                             }
                         }
@@ -486,6 +505,63 @@ impl AccessRestrictions {
             ));
         }
         Ok(())
+    }
+}
+
+/// Simple UID/GID mapping setup (best effort)
+#[cfg(target_os = "linux")]
+fn setup_uid_gid_mapping() -> Result<()> {
+    use nix::unistd::{getuid, getgid};
+    use std::fs;
+
+    let uid = getuid();
+    let gid = getgid();
+
+    // Try to write UID mapping
+    let uid_map = format!("0 {} 1", uid);
+    if let Err(e) = fs::write("/proc/self/uid_map", &uid_map) {
+        log::debug!("Could not write UID mapping: {}", e);
+        // Don't fail, just log - some environments don't allow this
+        return Ok(());
+    }
+
+    // Disable setgroups to allow GID mapping
+    if let Err(e) = fs::write("/proc/self/setgroups", "deny") {
+        log::debug!("Could not disable setgroups: {}", e);
+        return Ok(());
+    }
+
+    // Try to write GID mapping  
+    let gid_map = format!("0 {} 1", gid);
+    if let Err(e) = fs::write("/proc/self/gid_map", &gid_map) {
+        log::debug!("Could not write GID mapping: {}", e);
+    }
+
+    Ok(())
+}
+
+/// Set up the loopback interface in the network namespace
+#[cfg(target_os = "linux")]
+fn setup_loopback_interface() -> Result<()> {
+    use std::process::Command;
+
+    // Try using the ip command to bring up loopback
+    match Command::new("ip")
+        .args(["link", "set", "dev", "lo", "up"])
+        .output()
+    {
+        Ok(output) if output.status.success() => {
+            log::debug!("Loopback interface enabled using ip command");
+            Ok(())
+        }
+        Ok(_) => {
+            log::warn!("Failed to bring up loopback interface - some localhost connections may fail");
+            Ok(()) // Don't fail, just warn
+        }
+        Err(e) => {
+            log::warn!("Could not run 'ip' command to set up loopback: {}", e);
+            Ok(()) // Don't fail, just warn
+        }
     }
 }
 

@@ -31,6 +31,11 @@ pub fn apply_security_restrictions_with_format(
         restrictions.add_read_write_path(path);
     }
 
+    // Add allowed hosts for network filtering
+    for host in &security.allowed_hosts {
+        restrictions.add_allowed_host(host);
+    }
+
     if audit_mode {
         restrictions.enable_audit_mode();
         // TODO: Add tracing when moved to workspace
