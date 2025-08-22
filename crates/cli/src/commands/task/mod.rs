@@ -391,17 +391,34 @@ async fn execute_task(
         // Execute the specified task
         let executor = TaskExecutor::new(env_manager, current_dir).await?;
 
-        // Use the new tracing-based execution
-        let status = execute_task_with_tracing_layers(
-            &executor,
-            &actual_task_name,
-            &actual_args,
-            audit,
-            &output_format,
-            trace_output,
-        )
-        .await?;
-        std::process::exit(status);
+        // Handle TUI mode directly to avoid any tracing output before TUI starts
+        if output_format == "tui" {
+            use cuenv_tui::TuiApp;
+            let mut tui_app = TuiApp::new_with_task(executor.clone(), &actual_task_name)
+                .await
+                .map_err(|e| {
+                    cuenv_core::Error::configuration(format!("Failed to setup TUI: {}", e))
+                })?;
+
+            // Run the TUI (this will block until the user quits or task completes)
+            let tui_result = tui_app.run().await.map_err(|e| {
+                cuenv_core::Error::configuration(format!("TUI execution failed: {}", e))
+            })?;
+
+            std::process::exit(tui_result);
+        } else {
+            // Use the tracing-based execution for non-TUI modes
+            let status = execute_task_with_tracing_layers(
+                &executor,
+                &actual_task_name,
+                &actual_args,
+                audit,
+                &output_format,
+                trace_output,
+            )
+            .await?;
+            std::process::exit(status);
+        }
     } else {
         // Check if this might be a task group
         let prefix = format!("{task_name}.");
@@ -476,19 +493,34 @@ async fn execute_task_group(
     // Create executor and use unified DAG for all execution modes
     let executor = TaskExecutor::new(env_manager, current_dir).await?;
 
-    // Use the new tracing-based execution
-    let status = execute_task_with_tracing_layers(
-        &executor,
-        &group_name, // Pass the group name directly to unified DAG
-        &[],
-        audit,
-        &output_format,
-        trace_output,
-    )
-    .await?;
+    // Handle TUI mode directly to avoid any tracing output before TUI starts
+    if output_format == "tui" {
+        use cuenv_tui::TuiApp;
+        let mut tui_app = TuiApp::new_with_task(executor.clone(), &group_name)
+            .await
+            .map_err(|e| cuenv_core::Error::configuration(format!("Failed to setup TUI: {}", e)))?;
 
-    if status != 0 {
-        std::process::exit(status);
+        // Run the TUI (this will block until the user quits or task completes)
+        let tui_result = tui_app.run().await.map_err(|e| {
+            cuenv_core::Error::configuration(format!("TUI execution failed: {}", e))
+        })?;
+
+        std::process::exit(tui_result);
+    } else {
+        // Use the tracing-based execution for non-TUI modes
+        let status = execute_task_with_tracing_layers(
+            &executor,
+            &group_name, // Pass the group name directly to unified DAG
+            &[],
+            audit,
+            &output_format,
+            trace_output,
+        )
+        .await?;
+
+        if status != 0 {
+            std::process::exit(status);
+        }
     }
 
     Ok(())
@@ -566,9 +598,9 @@ async fn execute_task_with_tracing_layers(
         }
     }
 
-    // Execute the task using the unified method
+    // Execute the task using the new API
     let status = executor
-        .execute_tasks_unified(&[task_name.to_string()], args, audit)
+        .execute_tasks(&[task_name.to_string()], args, audit, false)
         .await?;
 
     Ok(status)
@@ -610,7 +642,7 @@ async fn display_dependency_graph(
     match task_or_group {
         Some(name) => {
             // Build DAG for specific task or group
-            let dag = executor.build_unified_dag(std::slice::from_ref(&name))?;
+            let dag = executor.build_dag(std::slice::from_ref(&name))?;
             display_formatted_graph(&dag, &name, graph_format, char_set)?;
         }
         None => {
@@ -635,8 +667,8 @@ async fn display_dependency_graph(
             }
 
             if !task_names.is_empty() {
-                // Build one unified DAG showing all tasks and their dependencies
-                if let Ok(dag) = executor.build_unified_dag(&task_names) {
+                // Build one DAG showing all tasks and their dependencies
+                if let Ok(dag) = executor.build_dag(&task_names) {
                     display_formatted_graph(
                         &dag,
                         "all-tasks",

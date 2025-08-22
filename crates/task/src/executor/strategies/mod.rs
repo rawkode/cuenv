@@ -64,6 +64,6 @@ pub fn create_task_id(path: &[String], name: &str) -> String {
     if path.is_empty() {
         name.to_string()
     } else {
-        format!("{}:{}", path.join("."), name)
+        format!("{}.{}", path.join("."), name)
     }
 }

@@ -99,8 +99,8 @@ impl TaskExecutor {
         Ok(plan)
     }
 
-    /// Build a unified DAG for specified tasks using the new consolidated approach
-    pub fn build_unified_dag(&self, task_names: &[String]) -> Result<UnifiedTaskDAG> {
+    /// Build a DAG for specified tasks using the consolidated approach
+    pub fn build_dag(&self, task_names: &[String]) -> Result<UnifiedTaskDAG> {
         let all_task_configs = self.env_manager.get_tasks();
         let all_task_nodes = self.env_manager.get_task_nodes();
 

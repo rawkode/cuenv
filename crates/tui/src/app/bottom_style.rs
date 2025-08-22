@@ -4,14 +4,16 @@
 use crate::{
     app::focus::FocusedPane,
     components::{TaskConfigPane, TaskHierarchy, TaskLogsPane, TracingPane},
-    events::{ControlEvent, TaskEvent, TaskRegistry, TuiEvent},
+    events::{ControlEvent, FlattenedTask, TaskEvent, TaskRegistry, TuiEvent},
     terminal::{setup_panic_hook, TerminalManager},
 };
 use crossterm::event::{
     self, Event as CrosstermEvent, KeyCode, KeyEvent, KeyEventKind, MouseEvent,
 };
+use cuenv_core::TaskDefinition;
 use cuenv_task::executor::TaskExecutor;
 use ratatui::Frame;
+use std::collections::HashMap;
 use std::sync::{
     mpsc::{self, Receiver, Sender},
     Arc,
@@ -19,8 +21,6 @@ use std::sync::{
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
-use tracing::{Event, Subscriber};
-use tracing_subscriber::{layer::Context, Layer};
 
 /// Configuration for the TUI application
 pub struct TuiConfig {
@@ -100,16 +100,29 @@ impl TuiApp {
 
         // Build execution plan if we have a target task
         if let Some(ref target_task) = config.target_task {
-            if let Ok(plan) = task_executor.build_execution_plan(&[target_task.clone()]) {
-                for (task_name, task_def) in &plan.tasks {
-                    let dependencies: Vec<String> = task_def
-                        .dependencies
-                        .iter()
-                        .map(|dep| dep.name.clone())
-                        .collect();
+            if let Ok(dag) = task_executor.build_dag(&[target_task.clone()]) {
+                // Register all tasks from the DAG to ensure they show up in TUI
+                let flattened_tasks = dag.get_flattened_tasks();
+                for flattened_task in flattened_tasks {
+                    // Skip barrier tasks (they contain "__" in their names)
+                    if flattened_task.id.contains("__") {
+                        continue;
+                    }
+
+                    // Get task definition to extract dependencies
+                    let dependencies =
+                        if let Some(task_def) = dag.get_task_definition(&flattened_task.id) {
+                            task_def
+                                .dependencies
+                                .iter()
+                                .map(|dep| dep.name.clone())
+                                .collect()
+                        } else {
+                            Vec::new()
+                        };
 
                     task_registry
-                        .register_task(task_name.clone(), dependencies)
+                        .register_task(flattened_task.id.clone(), dependencies)
                         .await;
                 }
             }
@@ -228,6 +241,14 @@ impl TuiApp {
                                 self.render()?;
                                 last_render = Instant::now();
                             }
+                        }
+                        TuiEvent::DAGReceived {
+                            tasks,
+                            execution_levels: _,
+                            task_definitions,
+                        } => {
+                            self.handle_dag_received(tasks, task_definitions).await;
+                            self.render()?;
                         }
                     }
                 }
@@ -409,6 +430,51 @@ impl TuiApp {
         }
     }
 
+    /// Handle DAG received event to build task hierarchy
+    async fn handle_dag_received(
+        &mut self,
+        tasks: Vec<FlattenedTask>,
+        task_definitions: HashMap<String, TaskDefinition>,
+    ) {
+        // Clear existing tasks
+        self.task_registry = Arc::new(TaskRegistry::new());
+
+        // Register all tasks from the DAG with proper structure
+        for flattened_task in &tasks {
+            // Skip barrier tasks
+            if flattened_task.id.contains("__") {
+                continue;
+            }
+
+            // Get dependencies from task definition
+            let dependencies = if let Some(task_def) = task_definitions.get(&flattened_task.id) {
+                task_def
+                    .dependencies
+                    .iter()
+                    .map(|dep| dep.name.clone())
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
+            // Register the task with its full ID and dependencies
+            self.task_registry
+                .register_task(flattened_task.id.clone(), dependencies)
+                .await;
+        }
+
+        // Rebuild the task hierarchy from the new DAG structure
+        self.task_hierarchy.build_tree_lines().await;
+
+        // If no task is selected yet, select the first one
+        if self.task_hierarchy.get_selected_task().is_none() {
+            if let Some(first_task) = tasks.first() {
+                self.task_hierarchy.selected_task = Some(first_task.id.clone());
+                self.update_panes_for_task(&first_task.id).await;
+            }
+        }
+    }
+
     /// Check if all tasks are complete
     async fn all_tasks_complete(&self) -> bool {
         let all_tasks = self.task_registry.get_all_tasks().await;
@@ -473,29 +539,25 @@ impl TuiApp {
                 ])
                 .split(top_horizontal[1]);
 
-            // Render components using simple placeholders to avoid borrow issues
-            render_placeholder(
+            // Render actual components
+            self.task_hierarchy.render_with_focus(
                 f,
                 top_horizontal[0],
-                "Task Hierarchy",
                 matches!(focused_pane, FocusedPane::TaskHierarchy),
             );
-            render_placeholder(
+            self.task_config_pane.render_with_focus(
                 f,
                 right_vertical[0],
-                "Task Config",
                 matches!(focused_pane, FocusedPane::TaskConfig),
             );
-            render_placeholder(
+            self.task_logs_pane.render_with_focus(
                 f,
                 right_vertical[1],
-                "Task Logs",
                 matches!(focused_pane, FocusedPane::TaskLogs),
             );
-            render_placeholder(
+            self.tracing_pane.render_with_focus(
                 f,
                 main_vertical[1],
-                "System Tracing",
                 matches!(focused_pane, FocusedPane::TracingOutput),
             );
 
@@ -677,45 +739,124 @@ impl TuiApp {
             let rt = Runtime::new().unwrap();
 
             rt.block_on(async {
-                // Set up a tracing layer to capture task events
-                use crate::app::tracing::TuiTracingLayer;
-                use std::sync::Arc;
-                use tracing_subscriber::{layer::SubscriberExt, Registry};
+                // Set up a TUI tracing layer that routes events to the TUI
+                use tracing::{Event, Subscriber};
+                use tracing_subscriber::layer::Context;
+                use tracing_subscriber::{layer::SubscriberExt, Layer, Registry};
 
-                // Create a task registry for the layer
-                let task_registry = Arc::new(crate::events::TaskRegistry::new());
+                // Custom layer that routes tracing events to TUI via sender
+                struct TaskExecutionTracingLayer {
+                    sender: Sender<TuiEvent>,
+                }
 
-                // Create a tracing layer that will convert tracing events to TUI events
-                let tui_layer = TuiTracingLayer::new(task_registry.clone());
+                impl<S> Layer<S> for TaskExecutionTracingLayer
+                where
+                    S: Subscriber + for<'lookup> tracing_subscriber::registry::LookupSpan<'lookup>,
+                {
+                    fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
+                        use crate::app::tracing::tracing_to_tui_event;
+                        use crate::events::{TracingEvent, TracingLevel, TuiEvent};
+                        use chrono::Local;
 
-                // Create a custom layer that sends events to the TUI
-                let event_layer = TuiEventLayer::new(sender.clone());
+                        // Try to convert to task event first
+                        if let Some(task_event) = tracing_to_tui_event(event, event.metadata()) {
+                            let _ = self.sender.send(TuiEvent::TaskUpdate(task_event));
+                        }
 
-                // Set up subscriber with both layers
-                let subscriber = Registry::default().with(tui_layer).with(event_layer);
+                        // Always send as tracing event for general output
+                        let mut visitor = crate::app::tracing::EventVisitor::default();
+                        event.record(&mut visitor);
 
-                // Set this as the global subscriber for this thread
-                let _guard = tracing::subscriber::set_default(subscriber);
+                        let level = match *event.metadata().level() {
+                            tracing::Level::TRACE => TracingLevel::Trace,
+                            tracing::Level::DEBUG => TracingLevel::Debug,
+                            tracing::Level::INFO => TracingLevel::Info,
+                            tracing::Level::WARN => TracingLevel::Warn,
+                            tracing::Level::ERROR => TracingLevel::Error,
+                        };
 
-                // Execute the task
-                let result = task_executor
-                    .execute_tasks_unified(&[target_task], &[], false)
-                    .await;
+                        let tracing_event = TracingEvent {
+                            timestamp: Local::now(),
+                            level,
+                            target: event.metadata().target().to_string(),
+                            message: visitor.message.unwrap_or_else(|| "".to_string()),
+                            fields: visitor.fields.into_iter().collect(),
+                        };
 
-                // Send completion event
-                match result {
-                    Ok(exit_code) if exit_code == 0 => {
-                        tracing::info!("Task execution completed successfully");
-                    }
-                    Ok(exit_code) => {
-                        tracing::error!("Task execution failed with exit code: {}", exit_code);
-                    }
-                    Err(e) => {
-                        tracing::error!("Task execution error: {}", e);
+                        let _ = self.sender.send(TuiEvent::TracingUpdate(tracing_event));
                     }
                 }
 
-                // Don't send terminate - let user quit manually with 'q'
+                let tui_layer = TaskExecutionTracingLayer {
+                    sender: sender.clone(),
+                };
+
+                let subscriber = Registry::default().with(tui_layer);
+                let _guard = tracing::subscriber::set_default(subscriber);
+
+                // Build and send DAG to TUI before execution starts
+                if let Ok(dag) = task_executor.build_dag(&[target_task.clone()]) {
+                    // Convert from executor FlattenedTask to TUI FlattenedTask
+                    let tui_tasks: Vec<FlattenedTask> = dag
+                        .get_flattened_tasks()
+                        .iter()
+                        .map(|task| FlattenedTask {
+                            id: task.id.clone(),
+                            name: task.name.clone(),
+                            group_path: task.group_path.clone(),
+                            dependencies: task.dependencies.clone(),
+                            is_barrier: task.is_barrier,
+                        })
+                        .collect();
+
+                    let _ = sender.send(TuiEvent::DAGReceived {
+                        tasks: tui_tasks,
+                        execution_levels: dag.get_execution_levels().unwrap_or_default(),
+                        task_definitions: dag.get_task_definitions().clone(),
+                    });
+                }
+
+                // Set up tracing layer to route task events to TUI
+
+                let tui_channel_layer = TuiChannelLayer::new(sender.clone());
+
+                // Execute the task with tracing subscriber to route events to TUI
+                let result = {
+                    let subscriber = Registry::default().with(tui_channel_layer);
+
+                    // Use with_default to ensure the subscriber is active for the entire task execution
+                    tracing::subscriber::with_default(subscriber, || async {
+                        task_executor
+                            .execute_tasks(&[target_task.clone()], &[], false, true)
+                            .await
+                    })
+                    .await
+                };
+
+                // Send completion event directly to TUI
+                match result {
+                    Ok(exit_code) if exit_code == 0 => {
+                        let _ = sender.send(TuiEvent::TaskUpdate(TaskEvent::Completed {
+                            task_name: target_task.clone(),
+                            exit_code,
+                            duration_ms: 0, // TODO: Track actual duration
+                        }));
+                    }
+                    Ok(exit_code) => {
+                        let _ = sender.send(TuiEvent::TaskUpdate(TaskEvent::Failed {
+                            task_name: target_task.clone(),
+                            error: format!("Task failed with exit code: {}", exit_code),
+                            duration_ms: 0, // TODO: Track actual duration
+                        }));
+                    }
+                    Err(e) => {
+                        let _ = sender.send(TuiEvent::TaskUpdate(TaskEvent::Failed {
+                            task_name: target_task.clone(),
+                            error: format!("Task execution error: {}", e),
+                            duration_ms: 0, // TODO: Track actual duration
+                        }));
+                    }
+                }
             });
         })
     }
@@ -727,33 +868,30 @@ impl Drop for TuiApp {
     }
 }
 
-/// Tracing layer that converts tracing events to TUI events
-struct TuiEventLayer {
+/// Tracing layer that routes task events to TUI via channel
+struct TuiChannelLayer {
     sender: Sender<TuiEvent>,
 }
 
-impl TuiEventLayer {
+impl TuiChannelLayer {
     fn new(sender: Sender<TuiEvent>) -> Self {
         Self { sender }
     }
 }
 
-impl<S> Layer<S> for TuiEventLayer
+impl<S> tracing_subscriber::Layer<S> for TuiChannelLayer
 where
-    S: Subscriber + for<'lookup> tracing_subscriber::registry::LookupSpan<'lookup>,
+    S: tracing::Subscriber + for<'lookup> tracing_subscriber::registry::LookupSpan<'lookup>,
 {
-    fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
-        // Extract task events from tracing
-        if let Some(task_event) = crate::app::tracing::tracing_to_tui_event(event, event.metadata())
-        {
-            let _ = self.sender.send(TuiEvent::TaskUpdate(task_event));
-        }
+    fn on_event(
+        &self,
+        event: &tracing::Event<'_>,
+        _ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) {
+        use crate::app::tracing::tracing_to_tui_event;
 
-        // Also extract general tracing events
-        if let Some(tracing_event) =
-            crate::app::tracing::tracing_to_general_event(event, event.metadata())
-        {
-            let _ = self.sender.send(TuiEvent::TracingUpdate(tracing_event));
+        if let Some(task_event) = tracing_to_tui_event(event, event.metadata()) {
+            let _ = self.sender.send(TuiEvent::TaskUpdate(task_event));
         }
     }
 }

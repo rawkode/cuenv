@@ -33,6 +33,16 @@ pub fn tracing_to_tui_event(
                 .unwrap_or_else(|| "Unknown error".to_string()),
             duration_ms: visitor.duration_ms.unwrap_or(0),
         }),
+        "task_output" => Some(TaskEvent::Log {
+            task_name: visitor.task_name?,
+            stream: crate::events::LogStream::Stdout,
+            content: visitor.output.unwrap_or_default(),
+        }),
+        "task_error" => Some(TaskEvent::Log {
+            task_name: visitor.task_name?,
+            stream: crate::events::LogStream::Stderr,
+            content: visitor.error.unwrap_or_default(),
+        }),
         _ => None,
     }
 }
@@ -84,10 +94,13 @@ pub fn is_task_event(metadata: &Metadata) -> bool {
 }
 
 #[derive(Default)]
-struct EventVisitor {
-    task_name: Option<String>,
-    message: Option<String>,
-    duration_ms: Option<u64>,
+pub struct EventVisitor {
+    pub task_name: Option<String>,
+    pub message: Option<String>,
+    pub duration_ms: Option<u64>,
+    pub output: Option<String>,
+    pub error: Option<String>,
+    pub fields: std::collections::HashMap<String, String>,
 }
 
 impl tracing::field::Visit for EventVisitor {
@@ -95,7 +108,12 @@ impl tracing::field::Visit for EventVisitor {
         match field.name() {
             "task_name" => self.task_name = Some(value.to_string()),
             "message" => self.message = Some(value.to_string()),
-            _ => {}
+            "output" => self.output = Some(value.to_string()),
+            "error" => self.error = Some(value.to_string()),
+            _ => {
+                self.fields
+                    .insert(field.name().to_string(), value.to_string());
+            }
         }
     }
 
@@ -103,10 +121,13 @@ impl tracing::field::Visit for EventVisitor {
         if field.name() == "duration_ms" {
             self.duration_ms = Some(value);
         }
+        self.fields
+            .insert(field.name().to_string(), value.to_string());
     }
 
-    fn record_debug(&mut self, _field: &tracing::field::Field, _value: &dyn std::fmt::Debug) {
-        // Handle debug fields if needed
+    fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+        self.fields
+            .insert(field.name().to_string(), format!("{:?}", value));
     }
 }
 
@@ -131,8 +152,8 @@ where
     S: Subscriber + for<'lookup> tracing_subscriber::registry::LookupSpan<'lookup>,
 {
     fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
-        // Extract task event from tracing event (copy from spinner_layer.rs)
-        if let Some(task_event) = extract_task_event(event) {
+        // Extract task event from tracing event using the same logic as tracing_to_tui_event
+        if let Some(task_event) = tracing_to_tui_event(event, event.metadata()) {
             // Handle async in a blocking context
             let registry = self.task_registry.clone();
             tokio::spawn(async move {
@@ -200,57 +221,15 @@ where
                             )
                             .await;
                     }
-                    TaskEvent::Log { .. } => {
-                        // Log events are already handled, no additional processing needed
+                    TaskEvent::Log {
+                        task_name,
+                        stream,
+                        content,
+                    } => {
+                        registry.add_log(&task_name, stream, content).await;
                     }
                 }
             });
         }
-    }
-}
-
-/// Extract task events from tracing events (copied from spinner_layer.rs)
-fn extract_task_event(event: &Event<'_>) -> Option<TaskEvent> {
-    let mut task_name = None;
-    let mut event_type = None;
-    let mut message = None;
-    let mut error_msg = None;
-    let mut duration_ms = None;
-
-    event.record(
-        &mut |field: &tracing::field::Field, value: &dyn std::fmt::Debug| match field.name() {
-            "task_name" => task_name = Some(format!("{value:?}").trim_matches('"').to_string()),
-            "event_type" => event_type = Some(format!("{value:?}").trim_matches('"').to_string()),
-            "message" => message = Some(format!("{value:?}").trim_matches('"').to_string()),
-            "error" => error_msg = Some(format!("{value:?}").trim_matches('"').to_string()),
-            "duration_ms" => duration_ms = format!("{value:?}").parse().ok(),
-            _ => {}
-        },
-    );
-
-    let task_name = task_name?;
-    let timestamp = std::time::Instant::now();
-
-    match event_type?.as_str() {
-        "started" => Some(TaskEvent::Started {
-            task_name,
-            timestamp,
-        }),
-        "progress" => Some(TaskEvent::Progress {
-            task_name,
-            message: message.unwrap_or_default(),
-        }),
-        "completed" => Some(TaskEvent::Completed {
-            task_name,
-            exit_code: 0,
-            duration_ms: duration_ms.unwrap_or(0),
-        }),
-        "failed" => Some(TaskEvent::Failed {
-            task_name,
-            error: error_msg.unwrap_or_else(|| "Unknown error".to_string()),
-            duration_ms: duration_ms.unwrap_or(0),
-        }),
-        "cancelled" => Some(TaskEvent::Cancelled { task_name }),
-        _ => None,
     }
 }

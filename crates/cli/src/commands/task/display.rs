@@ -47,11 +47,11 @@ pub fn display_task_tree(nodes: &IndexMap<String, TaskNode>, verbose: bool, use_
     let sorted = nodes;
 
     // Simple, clean header
-    println!();
+    tracing::info!("");
     if use_color {
-        println!("{}", "Tasks".bold());
+        tracing::info!("{}", "Tasks".bold());
     } else {
-        println!("Tasks");
+        tracing::info!("Tasks");
     }
 
     // Display all tasks in a unified format
@@ -60,9 +60,9 @@ pub fn display_task_tree(nodes: &IndexMap<String, TaskNode>, verbose: bool, use_
             TaskNode::Task(_config) => {
                 // Display single task with a simple bullet
                 if use_color {
-                    println!("  {} {}", "•".dark_grey(), name);
+                    tracing::info!("  {} {}", "•".dark_grey(), name);
                 } else {
-                    println!("  • {name}");
+                    tracing::info!("  • {name}");
                 }
             }
             TaskNode::Group {
@@ -84,40 +84,42 @@ pub fn display_task_tree(nodes: &IndexMap<String, TaskNode>, verbose: bool, use_
     }
 
     // Footer
-    println!();
+    tracing::info!("");
     if verbose {
         // Full footer with hints
         if use_color {
-            println!("{}", "─".repeat(40).dark_grey());
-            println!("Usage: cuenv task <name> [args...]");
-            println!();
-            println!(
+            tracing::info!("{}", "─".repeat(40).dark_grey());
+            tracing::info!("Usage: cuenv task <name> [args...]");
+            tracing::info!("");
+            tracing::info!(
                 "{}",
                 "Task groups can be executed directly or you can run specific subtasks."
                     .dark_grey()
             );
         } else {
-            println!("{}", "-".repeat(40));
-            println!("Usage: cuenv task <name> [args...]");
-            println!();
-            println!("Task groups can be executed directly or you can run specific subtasks.");
+            tracing::info!("{}", "-".repeat(40));
+            tracing::info!("Usage: cuenv task <name> [args...]");
+            tracing::info!("");
+            tracing::info!(
+                "Task groups can be executed directly or you can run specific subtasks."
+            );
         }
     } else {
         // Minimal footer with icon key
         if use_color {
-            println!("{}", "─".repeat(40).dark_grey());
-            println!(
+            tracing::info!("{}", "─".repeat(40).dark_grey());
+            tracing::info!(
                 "{} parallel  {} sequential  {} group  {} single",
                 "⚡".cyan(),
                 "⇢".yellow(),
                 "⇉".green(),
                 "•".dark_grey()
             );
-            println!();
-            println!("Run: cuenv task <name>  •  Use {} for details", "-v".cyan());
+            tracing::info!("");
+            tracing::info!("Run: cuenv task <name>  •  Use {} for details", "-v".cyan());
         } else {
-            println!("{}", "-".repeat(40));
-            println!("Run: cuenv task <name>  •  Use -v for details");
+            tracing::info!("{}", "-".repeat(40));
+            tracing::info!("Run: cuenv task <name>  •  Use -v for details");
         }
     }
 }
@@ -164,14 +166,14 @@ fn display_group_compact_collection(name: &str, tasks: &TaskCollection, use_colo
             TaskCollection::Parallel(_) => ("⇉", name.green()),
         };
 
-        println!(
+        tracing::info!(
             "  {} {} {}",
             symbol,
             color.bold(),
             format!("[{task_list}]").dark_grey()
         );
     } else {
-        println!("  {name} [{task_list}]");
+        tracing::info!("  {name} [{task_list}]");
     }
 }
 
@@ -209,9 +211,9 @@ fn display_group_collection(
     if use_color {
         print!("{}", formatted_name.cyan().bold());
         print!(" {mode_badge}");
-        println!(" ({task_count} tasks)");
+        tracing::info!(" ({task_count} tasks)");
     } else {
-        println!("{formatted_name} {mode_badge} ({task_count} tasks)");
+        tracing::info!("{formatted_name} {mode_badge} ({task_count} tasks)");
     }
 
     // Display description if present and verbose
@@ -219,9 +221,9 @@ fn display_group_collection(
         if let Some(desc) = description {
             let desc_indent = " ".repeat(depth * 4 + 2);
             if use_color {
-                println!("{desc_indent}{}", desc.dark_grey());
+                tracing::info!("{desc_indent}{}", desc.dark_grey());
             } else {
-                println!("{desc_indent}{desc}");
+                tracing::info!("{desc_indent}{desc}");
             }
         }
     }
@@ -292,7 +294,7 @@ fn display_tree_children_collection(
                         // Recursively display children
                         if depth < MAX_DEPTH {
                             print!("{}", " ".repeat(depth * 4 + 2));
-                            println!("{child_prefix}");
+                            tracing::info!("{child_prefix}");
                             display_tree_children_collection(
                                 subtasks,
                                 verbose,
@@ -380,26 +382,26 @@ pub fn display_group_contents(
 
     // Header
     if use_color {
-        println!("{} {}", group_name.bold().cyan(), mode_badge);
+        tracing::info!("{} {}", group_name.bold().cyan(), mode_badge);
     } else {
-        println!("{group_name} {mode_badge}");
+        tracing::info!("{group_name} {mode_badge}");
     }
 
     if let Some(desc) = description {
         if use_color {
-            println!("  {}", desc.dark_grey());
+            tracing::info!("  {}", desc.dark_grey());
         } else {
-            println!("  {desc}");
+            tracing::info!("  {desc}");
         }
     }
 
-    println!();
+    tracing::info!("");
 
     // Display tasks
     display_tree_children_collection(tasks, verbose, use_color, 0);
 
     // Action hint
-    println!();
+    tracing::info!("");
     let action_hint = match tasks {
         TaskCollection::Sequential(_) => {
             format!("Run 'cuenv task {group_name}' to execute all tasks sequentially")
@@ -410,9 +412,9 @@ pub fn display_group_contents(
     };
 
     if use_color {
-        println!("{}", action_hint.dark_grey());
+        tracing::info!("{}", action_hint.dark_grey());
     } else {
-        println!("{action_hint}");
+        tracing::info!("{action_hint}");
     }
 }
 

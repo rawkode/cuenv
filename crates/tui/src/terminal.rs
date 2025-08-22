@@ -156,11 +156,10 @@ fn check_if_terminal() {
     use crossterm::tty::IsTty;
 
     if !io::stdout().is_tty() {
-        eprintln!(
-            "Warning: cuenv TUI is not being output to a terminal. Things might not work properly."
+        tracing::warn!(
+            "cuenv TUI is not being output to a terminal. Things might not work properly."
         );
-        eprintln!("If you're stuck, press 'q' or 'Ctrl-c' to quit the program.");
-        let _ = io::stderr().flush();
+        tracing::warn!("If you're stuck, press 'q' or 'Ctrl-c' to quit the program.");
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
 }
@@ -195,9 +194,9 @@ pub fn create_panic_hook() -> Box<dyn Fn(&PanicHookInfo<'_>) + Send + Sync> {
 
         // Print panic information
         if let Some(location) = panic_info.location() {
-            eprintln!("thread 'main' panicked at '{msg}', {location}");
+            tracing::error!("thread 'main' panicked at '{msg}', {location}");
         } else {
-            eprintln!("thread 'main' panicked at '{msg}'");
+            tracing::error!("thread 'main' panicked at '{msg}'");
         }
 
         // Exit immediately

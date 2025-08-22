@@ -110,15 +110,16 @@ impl TaskExecutor {
         Ok(0)
     }
 
-    /// Execute tasks using the unified DAG system - this ensures consistent ordering
-    pub async fn execute_tasks_with_unified_dag(
+    /// Execute tasks using the DAG system - this ensures consistent ordering  
+    pub async fn execute_tasks_dag(
         &self,
         task_names: &[String],
         args: &[String],
         audit_mode: bool,
+        capture_output: bool,
     ) -> Result<i32> {
-        // Build unified DAG
-        let dag = self.build_unified_dag(task_names)?;
+        // Build DAG
+        let dag = self.build_dag(task_names)?;
         let levels = dag.get_execution_levels()?;
 
         tracing::info!(
@@ -180,7 +181,7 @@ impl TaskExecutor {
                         cache_config: self.cache_config.clone(),
                         executed_tasks: Arc::clone(&self.executed_tasks),
                         audit_mode,
-                        capture_output: false, // For now, unified DAG doesn't support output capture
+                        capture_output,
                     },
                 );
             }

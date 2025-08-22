@@ -1,6 +1,6 @@
 use super::{TaskHierarchy, TreeLine};
 use crate::events::TaskInfo;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 impl TaskHierarchy {
     pub async fn build_tree_lines(&mut self) {
@@ -64,43 +64,35 @@ impl TaskHierarchy {
         }
     }
 
-    // Build a hierarchical structure from execution dependencies (not CUE structure)
+    // Build a hierarchical structure from task groups (not execution dependencies)
     fn build_task_hierarchy(
         &self,
         tasks: &HashMap<String, TaskInfo>,
     ) -> HashMap<String, Vec<String>> {
         let mut hierarchy: HashMap<String, Vec<String>> = HashMap::new();
+        let mut group_tasks: HashMap<String, Vec<String>> = HashMap::new();
 
-        // Initialize all tasks as potential root nodes
+        // Parse task names to identify groups and standalone tasks
+        // Handle both colon (:) and dot (.) notation for task groups
         for task_name in tasks.keys() {
-            hierarchy.entry(task_name.clone()).or_default();
-        }
-
-        // Build hierarchy: if A depends on B, then B is a child of A
-        // This creates the execution tree where parents execute after their children
-        for (task_name, task_info) in tasks {
-            for dependency in &task_info.dependencies {
-                // task_name depends on dependency, so dependency is a child of task_name
-                hierarchy
-                    .entry(task_name.clone())
+            if let Some(separator_pos) = task_name.find(':').or_else(|| task_name.find('.')) {
+                // This is a grouped task like "count:task_0" or "count.task_0"
+                let group_name = &task_name[..separator_pos];
+                group_tasks
+                    .entry(group_name.to_string())
                     .or_default()
-                    .push(dependency.clone());
+                    .push(task_name.clone());
+            } else {
+                // This is a standalone task
+                hierarchy.entry(task_name.clone()).or_default();
             }
         }
 
-        // Remove duplicates and sort children
-        for children in hierarchy.values_mut() {
-            children.sort();
-            children.dedup();
+        // Add groups to hierarchy
+        for (group_name, mut group_task_list) in group_tasks {
+            group_task_list.sort();
+            hierarchy.insert(group_name, group_task_list);
         }
-
-        // Keep only root level entries (those that are not dependencies of others)
-        let all_dependencies: HashSet<String> = hierarchy
-            .values()
-            .flat_map(|deps| deps.iter().cloned())
-            .collect();
-
-        hierarchy.retain(|k, _| !all_dependencies.contains(k));
 
         hierarchy
     }
@@ -187,10 +179,10 @@ impl TaskHierarchy {
         }
     }
 
-    // Get display name (last part after final dot)
+    // Get display name (last part after final colon or dot)
     pub fn get_display_name(&self, full_name: &str) -> String {
-        if let Some(last_dot) = full_name.rfind('.') {
-            full_name[last_dot + 1..].to_string()
+        if let Some(last_separator) = full_name.rfind(':').or_else(|| full_name.rfind('.')) {
+            full_name[last_separator + 1..].to_string()
         } else {
             full_name.to_string()
         }

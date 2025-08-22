@@ -7,6 +7,19 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
+// Import task-related types for DAG events
+use cuenv_core::TaskDefinition;
+
+/// Simplified flattened task for TUI communication
+#[derive(Debug, Clone)]
+pub struct FlattenedTask {
+    pub id: String,
+    pub name: String,
+    pub group_path: Vec<String>,
+    pub dependencies: Vec<String>,
+    pub is_barrier: bool,
+}
+
 /// Events sent to the main TUI thread
 #[derive(Debug)]
 pub enum TuiEvent {
@@ -20,6 +33,12 @@ pub enum TuiEvent {
     TaskUpdate(TaskEvent),
     /// General tracing event for tracing pane
     TracingUpdate(TracingEvent),
+    /// DAG information sent before execution starts
+    DAGReceived {
+        tasks: Vec<FlattenedTask>,
+        execution_levels: Vec<Vec<String>>,
+        task_definitions: HashMap<String, TaskDefinition>,
+    },
     /// Signal to terminate the application
     Terminate,
 }

@@ -111,7 +111,7 @@ struct CapturedOutput {
 
 fn handle_captured_output(
     child: &mut std::process::Child,
-    _task_name: &str,
+    task_name: &str,
     captured_output: Arc<Mutex<CapturedOutput>>,
 ) -> (
     Option<std::thread::JoinHandle<()>>,
@@ -126,15 +126,22 @@ fn handle_captured_output(
     // Spawn thread to read stdout
     let stdout_handle = stdout.map(|stdout| {
         let output_clone = Arc::clone(&captured_output);
+        let task_name_clone = task_name.to_string();
         std::thread::spawn(move || {
             let reader = BufReader::new(stdout);
             for line in reader.lines().map_while(|result| result.ok()) {
                 // Store for potential error display
                 if let Ok(mut output) = output_clone.lock() {
-                    output.stdout.push(line);
+                    output.stdout.push(line.clone());
                 }
-                // Note: Real-time event sending removed as it's not working reliably
-                // Events will be sent after task completion
+                // Send real-time tracing event for TUI display
+                tracing::info!(
+                    task_name = %task_name_clone,
+                    task_id = %task_name_clone,
+                    output = %line,
+                    event_type = "output",
+                    "task_output"
+                );
             }
         })
     });
@@ -142,15 +149,22 @@ fn handle_captured_output(
     // Spawn thread to read stderr
     let stderr_handle = stderr.map(|stderr| {
         let output_clone = Arc::clone(&captured_output);
+        let task_name_clone = task_name.to_string();
         std::thread::spawn(move || {
             let reader = BufReader::new(stderr);
             for line in reader.lines().map_while(|result| result.ok()) {
                 // Store for potential error display
                 if let Ok(mut output) = output_clone.lock() {
-                    output.stderr.push(line);
+                    output.stderr.push(line.clone());
                 }
-                // Note: Real-time event sending removed as it's not working reliably
-                // Events will be sent after task completion
+                // Send real-time tracing event for TUI display
+                tracing::warn!(
+                    task_name = %task_name_clone,
+                    task_id = %task_name_clone,
+                    error = %line,
+                    event_type = "error_output",
+                    "task_error"
+                );
             }
         })
     });

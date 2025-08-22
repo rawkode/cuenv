@@ -129,9 +129,13 @@ impl TaskHierarchy {
             Style::default().fg(icon_color),
         ));
 
-        // Task name (show only the last part after the final dot)
-        let display_name = if let Some(last_dot) = tree_line.task_name.rfind('.') {
-            tree_line.task_name[last_dot + 1..].to_string()
+        // Task name (show only the last part after the final colon or dot)
+        let display_name = if let Some(last_separator) = tree_line
+            .task_name
+            .rfind(':')
+            .or_else(|| tree_line.task_name.rfind('.'))
+        {
+            tree_line.task_name[last_separator + 1..].to_string()
         } else {
             tree_line.task_name.clone()
         };

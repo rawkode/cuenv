@@ -253,7 +253,7 @@ impl TuiLayer {
                                 }
                             }
                             Err(e) => {
-                                eprintln!("Error reading input event: {}", e);
+                                tracing::error!("Error reading input event: {}", e);
                                 break;
                             }
                         }
@@ -262,7 +262,7 @@ impl TuiLayer {
                         // No event available, continue
                     }
                     Err(e) => {
-                        eprintln!("Error polling for events: {}", e);
+                        tracing::error!("Error polling for events: {}", e);
                         break;
                     }
                 }
@@ -550,7 +550,7 @@ where
         // Handle task events
         if let Some(task_event) = extract_task_event(event) {
             if let Err(e) = self.handle_task_event(task_event) {
-                eprintln!("TUI error: {e}");
+                tracing::error!("TUI error: {e}");
             }
         }
 

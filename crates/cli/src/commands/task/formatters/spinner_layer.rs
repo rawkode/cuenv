@@ -51,7 +51,7 @@ struct TaskDisplay {
 
 impl TaskDisplay {
     fn new(name: String) -> Self {
-        let depth = name.matches('.').count();
+        let depth = name.matches('.').count() + name.matches(':').count();
         Self {
             name,
             state: TaskState::Queued,
@@ -67,8 +67,8 @@ impl TaskDisplay {
     }
 
     fn display_name(&self) -> &str {
-        if let Some(last_dot) = self.name.rfind('.') {
-            &self.name[last_dot + 1..]
+        if let Some(last_separator) = self.name.rfind('.').or_else(|| self.name.rfind(':')) {
+            &self.name[last_separator + 1..]
         } else {
             &self.name
         }
@@ -182,60 +182,70 @@ impl SpinnerFormatterLayer {
             cuenv_tui::TaskEvent::Started { task_name, .. } => {
                 // Use animated spinner frame
                 let icon = SPINNER_FRAMES[0]; // Start with first frame
-                let depth = task_name.matches('.').count();
+                let depth = task_name.matches('.').count() + task_name.matches(':').count();
                 let indent = "  ".repeat(depth);
-                let display_name = if let Some(last_dot) = task_name.rfind('.') {
-                    &task_name[last_dot + 1..]
+                let display_name = if let Some(last_separator) =
+                    task_name.rfind('.').or_else(|| task_name.rfind(':'))
+                {
+                    &task_name[last_separator + 1..]
                 } else {
                     &task_name
                 };
 
-                eprintln!("{}{} {} (starting...)", indent, icon, display_name);
+                tracing::info!("{}{} {} (starting...)", indent, icon, display_name);
             }
             cuenv_tui::TaskEvent::Completed {
                 task_name,
                 duration_ms,
                 ..
             } => {
-                let depth = task_name.matches('.').count();
+                let depth = task_name.matches('.').count() + task_name.matches(':').count();
                 let indent = "  ".repeat(depth);
-                let display_name = if let Some(last_dot) = task_name.rfind('.') {
-                    &task_name[last_dot + 1..]
+                let display_name = if let Some(last_separator) =
+                    task_name.rfind('.').or_else(|| task_name.rfind(':'))
+                {
+                    &task_name[last_separator + 1..]
                 } else {
                     &task_name
                 };
 
-                eprintln!(
+                tracing::info!(
                     "{}✔ {} ✨ (completed in {}ms)",
-                    indent, display_name, duration_ms
+                    indent,
+                    display_name,
+                    duration_ms
                 );
             }
             cuenv_tui::TaskEvent::Failed {
                 task_name, error, ..
             } => {
-                let depth = task_name.matches('.').count();
+                let depth = task_name.matches('.').count() + task_name.matches(':').count();
                 let indent = "  ".repeat(depth);
-                let display_name = if let Some(last_dot) = task_name.rfind('.') {
-                    &task_name[last_dot + 1..]
+                let display_name = if let Some(last_separator) =
+                    task_name.rfind('.').or_else(|| task_name.rfind(':'))
+                {
+                    &task_name[last_separator + 1..]
                 } else {
                     &task_name
                 };
 
-                eprintln!("{}✖ {} 💥 (failed: {})", indent, display_name, error);
+                tracing::error!("{}✖ {} 💥 (failed: {})", indent, display_name, error);
             }
             cuenv_tui::TaskEvent::Progress { task_name, message } => {
                 // Show progress with current spinner frame
-                let depth = task_name.matches('.').count();
+                let depth = task_name.matches('.').count() + task_name.matches(':').count();
                 let indent = "  ".repeat(depth);
-                let display_name = if let Some(last_dot) = task_name.rfind('.') {
-                    &task_name[last_dot + 1..]
+                let display_name = if let Some(last_separator) =
+                    task_name.rfind('.').or_else(|| task_name.rfind(':'))
+                {
+                    &task_name[last_separator + 1..]
                 } else {
                     &task_name
                 };
 
                 // Use a different spinner frame for progress to show animation
                 let icon = SPINNER_FRAMES[1];
-                eprintln!("{}{} {} ({})", indent, icon, display_name, message);
+                tracing::info!("{}{} {} ({})", indent, icon, display_name, message);
             }
             _ => {}
         }
@@ -258,7 +268,7 @@ impl SpinnerFormatterLayer {
             // Use eprintln to avoid stdout deadlock with process
             let icon = task.status_icon();
             let indent = "  ".repeat(task.depth);
-            eprintln!("{}{} {} (started)", indent, icon, task.display_name());
+            tracing::info!("{}{} {} (started)", indent, icon, task.display_name());
         }
 
         if !state.is_initialized {
@@ -322,7 +332,7 @@ impl SpinnerFormatterLayer {
 
             // Use eprintln to avoid stdout deadlock with process
             let indent = "  ".repeat(task.depth);
-            eprintln!("{}✖ {} 💥 (failed: {})", indent, task.display_name(), error);
+            tracing::error!("{}✖ {} 💥 (failed: {})", indent, task.display_name(), error);
         }
         Ok(())
     }
@@ -360,7 +370,7 @@ impl SpinnerFormatterLayer {
 
         match task.state {
             TaskState::Running => {
-                println!(
+                tracing::info!(
                     "{}{} {} (running {}ms)",
                     indent,
                     icon,
@@ -370,7 +380,7 @@ impl SpinnerFormatterLayer {
                 io::stdout().flush()?;
             }
             TaskState::Completed => {
-                println!(
+                tracing::info!(
                     "{}{} {} ✨ (completed in {}ms)",
                     indent,
                     icon,
@@ -381,9 +391,9 @@ impl SpinnerFormatterLayer {
             }
             TaskState::Failed => {
                 if let Some(ref error) = task.error {
-                    println!("{}{} {} 💥 (failed: {})", indent, icon, name, error);
+                    tracing::error!("{}{} {} 💥 (failed: {})", indent, icon, name, error);
                 } else {
-                    println!("{}{} {} 💥 (failed)", indent, icon, name);
+                    tracing::error!("{}{} {} 💥 (failed)", indent, icon, name);
                 }
                 io::stdout().flush()?;
             }
@@ -548,11 +558,11 @@ where
 {
     fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
         // Extract our epic task event from the tracing event
-        if let Some(task_event) = extract_task_event(event) {
+        if let Some(task_event) = extract_task_event_by_name(event) {
             if let Err(e) = self.handle_task_event(task_event) {
                 // Don't pollute stderr during our epic display
                 let _ = self.cleanup();
-                eprintln!("Epic spinner error: {e}");
+                tracing::error!("Epic spinner error: {e}");
             }
         }
     }
@@ -565,48 +575,73 @@ impl Drop for SpinnerFormatterLayer {
     }
 }
 
-/// Extract our epic task events from tracing events
-fn extract_task_event(event: &Event<'_>) -> Option<cuenv_tui::TaskEvent> {
-    let mut task_name = None;
-    let mut event_type = None;
-    let mut message = None;
-    let mut error_msg = None;
-    let mut duration_ms = None;
+/// Extract our epic task events from tracing events using event names
+fn extract_task_event_by_name(event: &Event<'_>) -> Option<cuenv_tui::TaskEvent> {
+    let mut visitor = TaskEventVisitor::default();
+    event.record(&mut visitor);
 
-    event.record(
-        &mut |field: &tracing::field::Field, value: &dyn std::fmt::Debug| match field.name() {
-            "task_name" => task_name = Some(format!("{value:?}").trim_matches('"').to_string()),
-            "event_type" => event_type = Some(format!("{value:?}").trim_matches('"').to_string()),
-            "message" => message = Some(format!("{value:?}").trim_matches('"').to_string()),
-            "error" => error_msg = Some(format!("{value:?}").trim_matches('"').to_string()),
-            "duration_ms" => duration_ms = format!("{value:?}").parse().ok(),
-            _ => {}
-        },
-    );
-
-    let task_name = task_name?;
+    let task_name = visitor.task_name?;
     let timestamp = std::time::Instant::now();
 
-    match event_type?.as_str() {
-        "started" => Some(cuenv_tui::TaskEvent::Started {
+    match event.metadata().name() {
+        "task_started" => Some(cuenv_tui::TaskEvent::Started {
             task_name,
             timestamp,
         }),
-        "progress" => Some(cuenv_tui::TaskEvent::Progress {
+        "task_progress" => Some(cuenv_tui::TaskEvent::Progress {
             task_name,
-            message: message.unwrap_or_else(|| "Progress update".to_string()),
+            message: visitor
+                .message
+                .unwrap_or_else(|| "Progress update".to_string()),
         }),
-        "completed" => Some(cuenv_tui::TaskEvent::Completed {
+        "task_completed" => Some(cuenv_tui::TaskEvent::Completed {
             task_name,
             exit_code: 0,
-            duration_ms: duration_ms.unwrap_or(0),
+            duration_ms: visitor.duration_ms.unwrap_or(0),
         }),
-        "failed" => Some(cuenv_tui::TaskEvent::Failed {
+        "task_failed" => Some(cuenv_tui::TaskEvent::Failed {
             task_name,
-            error: error_msg.unwrap_or_else(|| "Unknown error".to_string()),
-            duration_ms: duration_ms.unwrap_or(0),
+            error: visitor.error.unwrap_or_else(|| "Unknown error".to_string()),
+            duration_ms: visitor.duration_ms.unwrap_or(0),
         }),
-        "cancelled" => Some(cuenv_tui::TaskEvent::Cancelled { task_name }),
+        "task_cancelled" => Some(cuenv_tui::TaskEvent::Cancelled { task_name }),
         _ => None,
+    }
+}
+
+#[derive(Default)]
+struct TaskEventVisitor {
+    task_name: Option<String>,
+    message: Option<String>,
+    error: Option<String>,
+    duration_ms: Option<u64>,
+}
+
+impl tracing::field::Visit for TaskEventVisitor {
+    fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+        match field.name() {
+            "task_name" => self.task_name = Some(value.to_string()),
+            "message" => self.message = Some(value.to_string()),
+            "error" => self.error = Some(value.to_string()),
+            _ => {}
+        }
+    }
+
+    fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
+        if field.name() == "duration_ms" {
+            self.duration_ms = Some(value);
+        }
+    }
+
+    fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+        match field.name() {
+            "task_name" => {
+                self.task_name = Some(format!("{:?}", value).trim_matches('"').to_string())
+            }
+            "message" => self.message = Some(format!("{:?}", value).trim_matches('"').to_string()),
+            "error" => self.error = Some(format!("{:?}", value).trim_matches('"').to_string()),
+            "duration_ms" => self.duration_ms = format!("{:?}", value).parse().ok(),
+            _ => {}
+        }
     }
 }
