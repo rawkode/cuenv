@@ -22,12 +22,20 @@ tasks: {
 			readWritePaths: ["/tmp", "./build"]
 		}
 	}
-	"network-task": {
-		description: "Task that needs network access but with restrictions"
-		command:     "echo 'Downloading dependencies...' && curl --version"
+	"github-api": {
+		description: "Can only access GitHub API"
+		command:     "curl https://api.github.com/repos/rawkode/cuenv"
 		security: {
 			restrictNetwork: true
-			allowedHosts: ["api.example.com", "registry.npmjs.org"]
+			allowedHosts: ["api.github.com"]
+		}
+	}
+	"npm-install": {
+		description: "Can only access npm registry"
+		command:     "echo 'npm install express (simulated)' && curl --head https://registry.npmjs.org"
+		security: {
+			restrictNetwork: true
+			allowedHosts: ["*.npmjs.org", "*.npmjs.com"]
 		}
 	}
 	"fully-restricted": {
