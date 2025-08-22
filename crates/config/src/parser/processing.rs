@@ -182,7 +182,7 @@ fn flatten_task_node(
             let full_name = if path.is_empty() {
                 name.to_string()
             } else {
-                format!("{}.{}", path.join("."), name)
+                format!("{}:{}", path.join(":"), name)
             };
             result.insert(full_name, *config.clone());
         }

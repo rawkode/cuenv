@@ -59,7 +59,8 @@ pub fn topological_sort(dependencies: &HashMap<String, Vec<String>>) -> Result<V
 
     // Check for remaining tasks (would indicate circular dependencies)
     let processed_count: usize = levels.iter().map(|level| level.len()).sum();
-    if processed_count != dependencies.len() {
+    let total_tasks = in_degree.len(); // Use actual count of all tasks in graph
+    if processed_count != total_tasks {
         return Err(Error::configuration(
             "Circular dependency detected in task graph".to_string(),
         ));

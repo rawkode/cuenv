@@ -142,7 +142,7 @@ impl TaskHierarchy {
 
         // Add group indicator for tasks with children
         let full_display_name = if tree_line.has_children {
-            format!("📁 {}", display_name)
+            format!("◢ {}", display_name)
         } else {
             display_name
         };
@@ -156,6 +156,14 @@ impl TaskHierarchy {
             Style::default().fg(Color::White)
         };
         spans.push(Span::styled(full_display_name, name_style));
+
+        // Add dependency indicator if task has dependencies
+        if tree_line.dependency_count > 0 && !tree_line.has_children {
+            spans.push(Span::styled(
+                format!(" ←{}", tree_line.dependency_count),
+                Style::default().fg(Color::Cyan),
+            ));
+        }
 
         Line::from(spans)
     }

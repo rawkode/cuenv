@@ -92,10 +92,10 @@ impl TaskConfigPane {
         };
 
         let status_text = match task_info.state {
-            TaskState::Queued => "⏳ Queued",
-            TaskState::Running => "🔄 Running",
-            TaskState::Completed => "✅ Completed",
-            TaskState::Failed => "❌ Failed",
+            TaskState::Queued => "◌ Queued",
+            TaskState::Running => "▣ Running",
+            TaskState::Completed => "✓ Completed",
+            TaskState::Failed => "✖ Failed",
             TaskState::Cancelled => "⊘ Cancelled",
         };
 
@@ -159,31 +159,6 @@ impl TaskConfigPane {
             Table::new(rows, [Constraint::Length(20), Constraint::Min(0)]).style(Style::default());
 
         frame.render_widget(table, area);
-    }
-
-    fn format_env_value(&self, value: &str) -> (String, Style) {
-        if value.starts_with("${") && value.ends_with("}") {
-            (
-                format!("🔒 {}", value),
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::ITALIC),
-            )
-        } else if value.contains("***") || value.contains("REDACTED") {
-            (
-                "🔒 [REDACTED]".to_string(),
-                Style::default()
-                    .fg(Color::Red)
-                    .add_modifier(Modifier::ITALIC),
-            )
-        } else if value.len() > 50 {
-            (
-                format!("{}...", &value[..47]),
-                Style::default().fg(Color::White),
-            )
-        } else {
-            (value.to_string(), Style::default().fg(Color::White))
-        }
     }
 
     pub fn scroll_up(&mut self, amount: u16) {

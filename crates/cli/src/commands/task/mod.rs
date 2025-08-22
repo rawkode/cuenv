@@ -112,7 +112,7 @@ pub async fn execute_task_command(
                 }
             } else {
                 // Has additional args - try as group + subtask
-                let subtask_name = format!("{}.{}", name, args[0]);
+                let subtask_name = format!("{}:{}", name, args[0]);
                 if tasks.contains_key(&subtask_name) {
                     // It's a subtask - run it with remaining args
                     let mut remaining_args = args;
@@ -351,7 +351,7 @@ async fn execute_task(
         actual_task_name = task_name.clone();
     } else if !task_args.is_empty() {
         // Task doesn't exist, try treating it as a group with the first arg as subtask
-        let potential_subtask = format!("{}.{}", task_name, task_args[0]);
+        let potential_subtask = format!("{}:{}", task_name, task_args[0]);
         if env_manager.get_task(&potential_subtask).is_some() {
             // It's a subtask! Remove the first arg since it's part of the task name
             actual_task_name = potential_subtask;
@@ -641,8 +641,8 @@ async fn display_dependency_graph(
 
     match task_or_group {
         Some(name) => {
-            // Build DAG for specific task or group
-            let dag = executor.build_dag(std::slice::from_ref(&name))?;
+            // Build petgraph DAG for specific task or group
+            let dag = executor.build_dag(&[name.clone()])?;
             display_formatted_graph(&dag, &name, graph_format, char_set)?;
         }
         None => {
@@ -667,7 +667,7 @@ async fn display_dependency_graph(
             }
 
             if !task_names.is_empty() {
-                // Build one DAG showing all tasks and their dependencies
+                // Build one petgraph DAG showing all tasks and their dependencies
                 if let Ok(dag) = executor.build_dag(&task_names) {
                     display_formatted_graph(
                         &dag,

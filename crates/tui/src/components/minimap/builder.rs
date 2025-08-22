@@ -72,13 +72,13 @@ impl MiniMap {
         let mut hierarchy: HashMap<String, Vec<String>> = HashMap::new();
 
         for task_name in tasks.keys() {
-            if task_name.contains('.') {
-                let parts: Vec<&str> = task_name.split('.').collect();
+            if task_name.contains(':') {
+                let parts: Vec<&str> = task_name.split(':').collect();
 
                 // Build parent names progressively
                 for i in 0..parts.len() - 1 {
-                    let parent = parts[0..=i].join(".");
-                    let child = parts[0..=i + 1].join(".");
+                    let parent = parts[0..=i].join(":");
+                    let child = parts[0..=i + 1].join(":");
 
                     hierarchy.entry(parent).or_default().push(child.clone());
                 }

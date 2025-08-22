@@ -1,8 +1,6 @@
 use crate::events::TaskEvent;
-use crate::events::{TracingEvent, TracingLevel};
-use chrono::Local;
 use std::time::Instant;
-use tracing::{Event, Metadata};
+use tracing::Event;
 
 /// Convert tracing events to TUI events
 pub fn tracing_to_tui_event(
@@ -45,52 +43,6 @@ pub fn tracing_to_tui_event(
         }),
         _ => None,
     }
-}
-
-/// Convert tracing events to general tracing output
-pub fn tracing_to_general_event(event: &Event, metadata: &Metadata) -> Option<TracingEvent> {
-    let mut visitor = EventVisitor::default();
-    event.record(&mut visitor);
-
-    // Convert tracing level to our internal level
-    let level = match *metadata.level() {
-        tracing::Level::TRACE => TracingLevel::Trace,
-        tracing::Level::DEBUG => TracingLevel::Debug,
-        tracing::Level::INFO => TracingLevel::Info,
-        tracing::Level::WARN => TracingLevel::Warn,
-        tracing::Level::ERROR => TracingLevel::Error,
-    };
-
-    // Extract message from the event
-    let message = visitor.message.unwrap_or_else(|| {
-        // If no explicit message field, try to format the event
-        format!("{:?}", event)
-    });
-
-    // Collect any additional fields
-    let mut fields = Vec::new();
-    if let Some(task_name) = visitor.task_name {
-        fields.push(("task".to_string(), task_name));
-    }
-    if let Some(duration) = visitor.duration_ms {
-        fields.push(("duration_ms".to_string(), duration.to_string()));
-    }
-
-    Some(TracingEvent {
-        timestamp: Local::now(),
-        level,
-        target: metadata.target().to_string(),
-        message,
-        fields,
-    })
-}
-
-/// Check if a tracing event is task-specific
-pub fn is_task_event(metadata: &Metadata) -> bool {
-    matches!(
-        metadata.name(),
-        "task_started" | "task_progress" | "task_completed" | "task_failed"
-    )
 }
 
 #[derive(Default)]
@@ -141,11 +93,7 @@ pub struct TuiTracingLayer {
     task_registry: Arc<TaskRegistry>,
 }
 
-impl TuiTracingLayer {
-    pub fn new(task_registry: Arc<TaskRegistry>) -> Self {
-        Self { task_registry }
-    }
-}
+impl TuiTracingLayer {}
 
 impl<S> Layer<S> for TuiTracingLayer
 where

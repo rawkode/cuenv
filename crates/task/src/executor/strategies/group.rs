@@ -57,7 +57,7 @@ impl GroupExecutionStrategy for GroupStrategy {
                         .unwrap_or_default();
 
                     flattened.push(FlattenedTask {
-                        id: create_task_id(&group_path, &task_name),
+                        id: super::create_user_task_id(&group_path, &task_name),
                         group_path: group_path.clone(),
                         name: task_name.clone(),
                         dependencies: deps,

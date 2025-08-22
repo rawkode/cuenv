@@ -137,9 +137,9 @@ fn collect_task_names_from_collection(
             TaskNode::Task(_) => {
                 // Build the full task name from the path with optimized string building
                 let full_name = if path.is_empty() {
-                    format!("{group_name}.{task_name}")
+                    format!("{group_name}:{task_name}")
                 } else {
-                    format!("{group_name}.{path}.{task_name}")
+                    format!("{group_name}:{path}:{task_name}")
                 };
                 result.push(full_name);
             }
@@ -148,18 +148,18 @@ fn collect_task_names_from_collection(
             } => {
                 // Create the full group path for cycle detection
                 let full_group_path = if path.is_empty() {
-                    format!("{group_name}.{task_name}")
+                    format!("{group_name}:{task_name}")
                 } else {
-                    format!("{group_name}.{path}.{task_name}")
+                    format!("{group_name}:{path}:{task_name}")
                 };
 
-                // Check for cycles in group nesting (temporarily disabled for debugging)
-                // if visited_groups.contains(&full_group_path) {
-                //     return Err(Error::configuration(format!(
-                //         "Circular group dependency detected: group '{}' references itself",
-                //         full_group_path
-                //     )));
-                // }
+                // Check for cycles in group nesting
+                if visited_groups.contains(&full_group_path) {
+                    return Err(Error::configuration(format!(
+                        "Circular group dependency detected: group '{}' references itself",
+                        full_group_path
+                    )));
+                }
 
                 visited_groups.insert(full_group_path.clone());
 

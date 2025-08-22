@@ -50,7 +50,10 @@
       "Bash(do)",
       "Bash(echo \"Processing $file\")",
       "Bash(done)",
-      "Bash(./target/debug/cuenv task:*)"
+      "Bash(./target/debug/cuenv task:*)",
+      "Bash(CUENV_LOG=trace timeout 5 nix develop -c cuenv task ci)",
+      "Bash(CUENV_LOG=debug timeout 5 nix develop -c cuenv task counted)",
+      "Bash(export CUENV_LOG=trace)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

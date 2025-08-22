@@ -434,7 +434,7 @@ impl TuiApp {
     async fn handle_dag_received(
         &mut self,
         tasks: Vec<FlattenedTask>,
-        task_definitions: HashMap<String, TaskDefinition>,
+        _task_definitions: HashMap<String, TaskDefinition>,
     ) {
         // Clear existing tasks
         self.task_registry = Arc::new(TaskRegistry::new());
@@ -446,16 +446,8 @@ impl TuiApp {
                 continue;
             }
 
-            // Get dependencies from task definition
-            let dependencies = if let Some(task_def) = task_definitions.get(&flattened_task.id) {
-                task_def
-                    .dependencies
-                    .iter()
-                    .map(|dep| dep.name.clone())
-                    .collect()
-            } else {
-                Vec::new()
-            };
+            // Use dependencies directly from the DAG
+            let dependencies = flattened_task.dependencies.clone();
 
             // Register the task with its full ID and dependencies
             self.task_registry

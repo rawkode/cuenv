@@ -11,24 +11,24 @@ use tracing_subscriber::{
 
 /// TUI formatter layer that provides full interactive display
 pub struct TuiFormatterLayer {
-    executor: Option<TaskExecutor>,
+    _executor: Option<TaskExecutor>,
 }
 
 impl TuiFormatterLayer {
     /// Create a new TUI formatter layer
     pub fn new() -> io::Result<Self> {
-        Ok(Self { executor: None })
+        Ok(Self { _executor: None })
     }
 
     /// Set the task executor that will be used to launch the TUI
     pub fn with_executor(mut self, executor: TaskExecutor) -> Self {
-        self.executor = Some(executor);
+        self._executor = Some(executor);
         self
     }
 
     /// Launch the TUI interface
     pub async fn launch_tui(&self) -> io::Result<()> {
-        if let Some(executor) = &self.executor {
+        if let Some(executor) = &self._executor {
             // Clone the executor for the TUI
             let executor_clone = executor.clone();
 

@@ -64,7 +64,7 @@ impl TaskHierarchy {
         }
     }
 
-    // Build a hierarchical structure from task groups (not execution dependencies)
+    // Build a hierarchical structure from task groups and execution dependencies
     fn build_task_hierarchy(
         &self,
         tasks: &HashMap<String, TaskInfo>,
@@ -72,8 +72,7 @@ impl TaskHierarchy {
         let mut hierarchy: HashMap<String, Vec<String>> = HashMap::new();
         let mut group_tasks: HashMap<String, Vec<String>> = HashMap::new();
 
-        // Parse task names to identify groups and standalone tasks
-        // Handle both colon (:) and dot (.) notation for task groups
+        // First, handle task groups based on naming convention
         for task_name in tasks.keys() {
             if let Some(separator_pos) = task_name.find(':').or_else(|| task_name.find('.')) {
                 // This is a grouped task like "count:task_0" or "count.task_0"
@@ -83,15 +82,37 @@ impl TaskHierarchy {
                     .or_default()
                     .push(task_name.clone());
             } else {
-                // This is a standalone task
+                // This is a standalone task - add ALL standalone tasks to hierarchy
                 hierarchy.entry(task_name.clone()).or_default();
             }
         }
 
-        // Add groups to hierarchy
+        // Add groups to hierarchy (they'll be moved under dependencies later if needed)
         for (group_name, mut group_task_list) in group_tasks {
             group_task_list.sort();
             hierarchy.insert(group_name, group_task_list);
+        }
+
+        // Now add dependency relationships for standalone tasks
+        for (task_name, task_info) in tasks {
+            // Skip if this task is part of a named group (already handled above)
+            if task_name.contains(':') || task_name.contains('.') {
+                continue;
+            }
+
+            // Add dependencies as children of this task
+            for dep_name in &task_info.dependencies {
+                hierarchy
+                    .entry(task_name.clone())
+                    .or_default()
+                    .push(dep_name.clone());
+            }
+        }
+
+        // Sort all children lists for consistent display
+        for children in hierarchy.values_mut() {
+            children.sort();
+            children.dedup(); // Remove duplicates
         }
 
         hierarchy
@@ -136,7 +157,7 @@ impl TaskHierarchy {
             is_expanded,
             has_children,
             prefix: prefix.clone(),
-            status_icon: status_icon.to_string(),
+            _status_icon: status_icon.to_string(),
             dependency_count,
         });
 

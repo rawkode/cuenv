@@ -8,4 +8,3 @@ pub mod tui_layer;
 pub use capabilities::TerminalCapabilities;
 pub use simple_layer::SimpleFormatterLayer;
 pub use spinner_layer::SpinnerFormatterLayer;
-pub use tui_layer::TuiFormatterLayer;

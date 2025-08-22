@@ -15,7 +15,7 @@ pub(crate) struct TreeLine {
     pub is_expanded: bool,
     pub has_children: bool,
     pub prefix: String,
-    pub status_icon: String,
+    pub _status_icon: String,
     pub dependency_count: usize,
 }
 
