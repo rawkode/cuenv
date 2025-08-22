@@ -130,6 +130,6 @@ _cuenv_capabilities() {
 
 _cuenv "$@"
 "#;
-    print!("{script}");
+    tracing::info!("{script}");
     Ok(())
 }

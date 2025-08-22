@@ -15,7 +15,6 @@ workspace = true
 # Workspace crates
 cuenv-core.workspace = true
 cuenv-config.workspace = true
-cuenv-env.workspace = true
 cuenv-security.workspace = true
 cuenv-utils.workspace = true
 cuenv-task.workspace = true

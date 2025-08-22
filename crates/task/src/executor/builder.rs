@@ -26,9 +26,6 @@ impl TaskExecutor {
         // Create TaskBuilder with current working directory and environment
         let task_builder = TaskBuilder::new(working_dir.clone());
 
-        // Initialize DAG cache for performance optimization
-        let dag_cache = Arc::new(super::dag_cache::DAGCache::new());
-
         Ok(Self {
             env_manager,
             working_dir,
@@ -38,7 +35,6 @@ impl TaskExecutor {
             task_builder,
             monorepo_registry: None,
             executed_tasks: Arc::new(Mutex::new(HashSet::new())),
-            dag_cache,
         })
     }
 
@@ -59,9 +55,6 @@ impl TaskExecutor {
         // Create TaskBuilder with current working directory
         let task_builder = TaskBuilder::new(working_dir.clone());
 
-        // Initialize DAG cache for performance optimization
-        let dag_cache = Arc::new(super::dag_cache::DAGCache::new());
-
         Ok(Self {
             env_manager,
             working_dir,
@@ -71,7 +64,6 @@ impl TaskExecutor {
             task_builder,
             monorepo_registry: Some(Arc::new(registry)),
             executed_tasks: Arc::new(Mutex::new(HashSet::new())),
-            dag_cache,
         })
     }
 
@@ -95,9 +87,6 @@ impl TaskExecutor {
         // Create TaskBuilder with current working directory
         let task_builder = TaskBuilder::new(working_dir.clone());
 
-        // Initialize DAG cache for performance optimization
-        let dag_cache = Arc::new(super::dag_cache::DAGCache::new());
-
         Ok(Self {
             env_manager,
             working_dir,
@@ -107,7 +96,6 @@ impl TaskExecutor {
             task_builder,
             monorepo_registry: None,
             executed_tasks: Arc::new(Mutex::new(HashSet::new())),
-            dag_cache,
         })
     }
 }

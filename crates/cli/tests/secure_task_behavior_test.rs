@@ -67,9 +67,9 @@ tasks: {
     );
 
     // In audit mode, check for successful task execution and audit report
-    assert!(stdout.contains("✓ Task completed successfully"));
+    assert!(stdout.contains("✅ Completed task: secure-build"));
     assert!(stdout.contains("🔍 Audit Report"));
-    assert!(stdout.contains("Executing task: secure-build"));
+    assert!(stdout.contains("🚀 Starting task: secure-build"));
 
     // Note: In audit mode, commands may not actually execute, just analyzed
     // So we'll check if the file exists but won't require it in audit mode
@@ -279,11 +279,11 @@ tasks: {
 
     // More robust assertions that work with nextest parallel execution
     assert!(
-        stdout.contains("Executing task: filesystem-analysis"),
+        stdout.contains("🚀 Starting task: filesystem-analysis"),
         "Should show task execution message"
     );
     assert!(
-        stdout.contains("✓ Task completed successfully"),
+        stdout.contains("✅ Completed task: filesystem-analysis"),
         "Should show task completion message"
     );
 
@@ -371,11 +371,11 @@ tasks: {
 
     // More robust assertions that work with parallel execution
     assert!(
-        stdout.contains("Executing task: recommendation-generator"),
+        stdout.contains("🚀 Starting task: recommendation-generator"),
         "Should show task execution message"
     );
     assert!(
-        stdout.contains("✓ Task completed successfully"),
+        stdout.contains("✅ Completed task: recommendation-generator"),
         "Should show task completion message"
     );
 
@@ -437,11 +437,11 @@ tasks: {
 
     // More robust assertions for parallel execution
     assert!(
-        stdout.contains("Executing task: network-analysis"),
+        stdout.contains("🚀 Starting task: network-analysis"),
         "Should show task execution message"
     );
     assert!(
-        stdout.contains("✓ Task completed successfully"),
+        stdout.contains("✅ Completed task: network-analysis"),
         "Should show task completion message"
     );
 
@@ -514,11 +514,11 @@ tasks: {
 
     // More robust assertions for parallel execution
     assert!(
-        stdout.contains("Executing task: full-security-analysis"),
+        stdout.contains("🚀 Starting task: full-security-analysis"),
         "Should show task execution message"
     );
     assert!(
-        stdout.contains("✓ Task completed successfully"),
+        stdout.contains("✅ Completed task: full-security-analysis"),
         "Should show task completion message"
     );
 
@@ -712,8 +712,8 @@ tasks: {
         "fully-restricted task failed. stdout: {stdout}, stderr: {stderr}"
     );
 
-    assert!(stdout.contains("✓ Task completed successfully"));
-    assert!(stdout.contains("Executing task: fully-restricted"));
+    assert!(stdout.contains("✅ Completed task: fully-restricted"));
+    assert!(stdout.contains("🚀 Starting task: fully-restricted"));
 }
 
 #[cfg(all(test, target_os = "linux"))]
@@ -761,8 +761,8 @@ tasks: {
     // or that the task execution system may not fully execute commands as expected
 
     if output.status.success() {
-        assert!(stdout.contains("✓ Task completed successfully"));
-        assert!(stdout.contains("Executing task: unrestricted"));
+        assert!(stdout.contains("✅ Completed task: unrestricted"));
+        assert!(stdout.contains("🚀 Starting task: unrestricted"));
 
         // Note: The fact that files may not be created even in "unrestricted" tasks
         // reveals important behavior about how cuenv handles task execution
@@ -948,8 +948,8 @@ tasks: {
 
     // Note: This test may fail due to security enforcement
     if output.status.success() {
-        assert!(stdout.contains("✓ Task completed successfully"));
-        assert!(stdout.contains("Executing task: secure-env"));
+        assert!(stdout.contains("✅ Completed task: secure-env"));
+        assert!(stdout.contains("🚀 Starting task: secure-env"));
 
         // Verify that environment variables were used correctly and file was created
         assert!(

@@ -91,10 +91,14 @@ impl CacheManagerBuilder {
         if let Some(config) = self.config {
             Ok(config)
         } else {
-            let base_dir = self.base_dir.unwrap_or_else(|| {
-                let engine = CacheEngine::new().unwrap();
+            let base_dir = if let Some(base_dir) = self.base_dir {
+                base_dir
+            } else {
+                let engine = CacheEngine::new().map_err(|e| Error::Configuration {
+                    message: format!("Failed to create default cache engine: {e}"),
+                })?;
                 engine.cache_dir.clone()
-            });
+            };
 
             Ok(CacheConfig {
                 base_dir,

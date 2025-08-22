@@ -41,6 +41,6 @@ complete -f -c cuenv -s e -l env -d "Environment to use"
 complete -f -c cuenv -s c -l capability -d "Capabilities to enable"
 complete -f -c cuenv -l audit -d "Run in audit mode"
 "#;
-    print!("{script}");
+    tracing::info!("{script}");
     Ok(())
 }

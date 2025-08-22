@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod format_tests {
-    use crate::commands::task::graph::formats::{d2, dot, json, mermaid, tree};
+    use crate::commands::task::graph::formats::{json, tree};
     use crate::commands::task::graph::{CharSet, GraphFormat};
 
     #[test]
@@ -13,18 +13,6 @@ mod format_tests {
         assert_eq!(
             GraphFormat::from_option(Some("json".to_string())),
             GraphFormat::Json
-        );
-        assert_eq!(
-            GraphFormat::from_option(Some("dot".to_string())),
-            GraphFormat::Dot
-        );
-        assert_eq!(
-            GraphFormat::from_option(Some("mermaid".to_string())),
-            GraphFormat::Mermaid
-        );
-        assert_eq!(
-            GraphFormat::from_option(Some("d2".to_string())),
-            GraphFormat::D2
         );
         assert_eq!(
             GraphFormat::from_option(Some("invalid".to_string())),
@@ -56,27 +44,6 @@ mod format_tests {
         let _ = formatter;
     }
 
-    #[test]
-    fn test_dot_formatter_creation() {
-        let formatter = dot::DotFormatter::new();
-        // Test that formatter is created successfully without panicking
-        let _ = formatter;
-    }
-
-    #[test]
-    fn test_mermaid_formatter_creation() {
-        let formatter = mermaid::MermaidFormatter::new();
-        // Test that formatter is created successfully without panicking
-        let _ = formatter;
-    }
-
-    #[test]
-    fn test_d2_formatter_creation() {
-        let formatter = d2::D2Formatter::new();
-        // Test that formatter is created successfully without panicking
-        let _ = formatter;
-    }
-
     // Integration test for format selection
     #[test]
     fn test_format_selection_logic() {
@@ -85,9 +52,6 @@ mod format_tests {
             (Some("".to_string()), GraphFormat::Tree),
             (Some("tree".to_string()), GraphFormat::Tree),
             (Some("json".to_string()), GraphFormat::Json),
-            (Some("dot".to_string()), GraphFormat::Dot),
-            (Some("mermaid".to_string()), GraphFormat::Mermaid),
-            (Some("d2".to_string()), GraphFormat::D2),
             (Some("TREE".to_string()), GraphFormat::Tree), // Case insensitive not implemented yet
         ];
 
@@ -116,13 +80,7 @@ mod format_tests {
     #[test]
     fn test_graph_format_debug() {
         // Test that the debug formatting works for GraphFormat enum
-        let formats = vec![
-            GraphFormat::Tree,
-            GraphFormat::Json,
-            GraphFormat::Dot,
-            GraphFormat::Mermaid,
-            GraphFormat::D2,
-        ];
+        let formats = vec![GraphFormat::Tree, GraphFormat::Json];
 
         for format in formats {
             let debug_string = format!("{format:?}");

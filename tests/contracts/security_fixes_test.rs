@@ -188,7 +188,9 @@ async fn test_cache_manager_lock_permissions() {
     std::env::set_var("XDG_CACHE_HOME", temp_dir.path());
 
     // Create cache manager using async constructor
-    let engine = std::sync::Arc::new(cuenv::cache::CacheEngine::new().unwrap());
+    let engine = std::sync::Arc::new(
+        cuenv::cache::CacheEngine::new().expect("Failed to create cache engine in test"),
+    );
     let config = cuenv::cache::CacheConfig {
         base_dir: engine.cache_dir.clone(),
         max_size: 1024 * 1024 * 1024, // 1GB default

@@ -230,14 +230,14 @@ impl FallbackRenderer {
             let dag_path = format!("{base_path}.dag.txt");
             let mut dag_file = File::create(&dag_path)?;
             dag_file.write_all(dag_content.as_bytes())?;
-            println!("Task DAG written to: {dag_path}");
+            tracing::info!("Task DAG written to: {dag_path}");
 
             // Write Chrome Trace JSON
             if let Ok(trace_content) = self.generate_chrome_trace().await {
                 let trace_path = format!("{base_path}.trace.json");
                 let mut trace_file = File::create(&trace_path)?;
                 trace_file.write_all(trace_content.as_bytes())?;
-                println!("Chrome Trace written to: {trace_path} (open in chrome://tracing)");
+                tracing::info!("Chrome Trace written to: {trace_path} (open in chrome://tracing)");
             }
         }
 
@@ -248,10 +248,10 @@ impl FallbackRenderer {
     pub async fn handle_event(&self, event: TaskEvent) {
         match event {
             TaskEvent::Started { task_name, .. } => {
-                println!("[START] {task_name}");
+                tracing::info!("[START] {task_name}");
             }
             TaskEvent::Progress { task_name, message } => {
-                println!("[PROGRESS] {task_name} - {message}");
+                tracing::info!("[PROGRESS] {task_name} - {message}");
             }
             TaskEvent::Log {
                 task_name,
@@ -264,7 +264,7 @@ impl FallbackRenderer {
                     crate::events::LogStream::System => "[SYS]",
                 };
                 for line in content.lines() {
-                    println!("{prefix} {task_name} | {line}");
+                    tracing::info!("{prefix} {task_name} | {line}");
                 }
             }
             TaskEvent::Completed {
@@ -272,7 +272,7 @@ impl FallbackRenderer {
                 exit_code,
                 duration_ms,
             } => {
-                println!(
+                tracing::info!(
                     "[DONE] {} - exit: {} - duration: {:.2}s",
                     task_name,
                     exit_code,
@@ -284,7 +284,7 @@ impl FallbackRenderer {
                 error,
                 duration_ms,
             } => {
-                println!(
+                tracing::info!(
                     "[FAIL] {} - error: {} - duration: {:.2}s",
                     task_name,
                     error,
@@ -292,7 +292,7 @@ impl FallbackRenderer {
                 );
             }
             TaskEvent::Cancelled { task_name } => {
-                println!("[CANCEL] {task_name}");
+                tracing::info!("[CANCEL] {task_name}");
             }
         }
     }

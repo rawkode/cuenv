@@ -230,13 +230,13 @@ pub async fn _list_packages() -> Result<()> {
     let packages = _discover_packages(false).await?;
 
     if packages.is_empty() {
-        println!("No CUE packages found");
+        tracing::info!("No CUE packages found");
         return Ok(());
     }
 
-    println!("Discovered CUE packages:");
+    tracing::info!("Discovered CUE packages:");
     for package in packages {
-        println!("  {} -> {}", package.name, package.path.display());
+        tracing::info!("  {} -> {}", package.name, package.path.display());
     }
 
     Ok(())

@@ -301,7 +301,7 @@ impl StateManager {
         if let Some(state) = current_state {
             // Display user message when unloading (but not during tests)
             if !cfg!(test) && std::env::var("CUENV_PREFIX").is_err() {
-                eprintln!(
+                tracing::info!(
                     "# cuenv: ✓ Unloading environment from {}",
                     state.dir.display()
                 );
@@ -511,7 +511,7 @@ mod tests {
 
         // Create a transaction and don't commit
         {
-            let mut transaction = StateTransaction::new(&[test_key.clone()]).unwrap();
+            let mut transaction = StateTransaction::new(std::slice::from_ref(&test_key)).unwrap();
             transaction.set_var(&test_key, "modified");
 
             // Apply changes
@@ -547,7 +547,7 @@ mod tests {
 
         // Create a transaction and commit it
         {
-            let mut transaction = StateTransaction::new(&[test_key.clone()]).unwrap();
+            let mut transaction = StateTransaction::new(std::slice::from_ref(&test_key)).unwrap();
             transaction.set_var(&test_key, "committed");
             transaction.commit().unwrap();
         }

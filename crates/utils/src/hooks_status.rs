@@ -4,12 +4,15 @@ use crate::paths::{
     ensure_state_dir_exists, ensure_status_dir_exists, get_hooks_status_file_path,
     get_hooks_status_file_path_for_dir,
 };
+#[cfg(unix)]
+use libc;
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Status of an individual hook
@@ -114,7 +117,9 @@ impl HooksStatus {
 fn is_process_running(pid: u32) -> bool {
     #[cfg(unix)]
     {
-        std::path::Path::new(&format!("/proc/{pid}")).exists()
+        // Use libc::kill with signal 0 to check if process exists
+        // This is more reliable than checking /proc
+        unsafe { libc::kill(pid as i32, 0) == 0 }
     }
 
     #[cfg(not(unix))]
@@ -184,7 +189,7 @@ impl HooksStatusManager {
 
     /// Initialize status for a set of hooks
     pub fn initialize_hooks(&self, hook_names: Vec<String>) -> io::Result<()> {
-        let mut status = self.status.lock().unwrap();
+        let mut status = self.status.lock();
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -223,7 +228,7 @@ impl HooksStatusManager {
         pid: Option<u32>,
         error: Option<String>,
     ) -> io::Result<()> {
-        let mut status = self.status.lock().unwrap();
+        let mut status = self.status.lock();
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -272,12 +277,12 @@ impl HooksStatusManager {
 
     /// Get the current status
     pub fn get_current_status(&self) -> HooksStatus {
-        self.status.lock().unwrap().clone()
+        self.status.lock().clone()
     }
 
     /// Clear the status
     pub fn clear_status(&self) -> io::Result<()> {
-        let mut status = self.status.lock().unwrap();
+        let mut status = self.status.lock();
         *status = HooksStatus::default();
         drop(status);
 
@@ -290,7 +295,7 @@ impl HooksStatusManager {
 
     /// Persist status to file atomically
     fn persist_status(&self) -> io::Result<()> {
-        let status = self.status.lock().unwrap();
+        let status = self.status.lock();
         let json = serde_json::to_string_pretty(&*status)?;
         drop(status);
 
@@ -335,7 +340,13 @@ impl HooksStatusManager {
 
 impl Default for HooksStatusManager {
     fn default() -> Self {
-        Self::new().expect("Failed to create status manager")
+        Self::new().unwrap_or_else(|_| {
+            // Fallback to in-memory only mode if we can't create the file-based manager
+            HooksStatusManager {
+                status: Arc::new(Mutex::new(HooksStatus::default())),
+                status_file: std::env::temp_dir().join("cuenv-hooks-status-fallback.json"),
+            }
+        })
     }
 }
 

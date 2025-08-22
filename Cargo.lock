@@ -786,6 +786,7 @@ dependencies = [
  "log",
  "miette",
  "once_cell",
+ "ratatui",
  "regex",
  "serde",
  "serde_json",
@@ -879,6 +880,8 @@ dependencies = [
  "chrono",
  "futures",
  "miette",
+ "proptest",
+ "quickcheck",
  "serde",
  "serde_json",
  "tempfile",
@@ -894,7 +897,7 @@ name = "cuenv-env"
 version = "0.6.2"
 dependencies = [
  "anyhow",
- "crossterm 0.28.1",
+ "crossterm 0.27.0",
  "cuenv-config",
  "cuenv-core",
  "cuenv-security",
@@ -931,7 +934,6 @@ dependencies = [
  "async-trait",
  "cuenv-config",
  "cuenv-core",
- "cuenv-env",
  "cuenv-security",
  "cuenv-task",
  "cuenv-utils",
@@ -957,6 +959,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "tracing",
 ]
 
 [[package]]
@@ -990,7 +993,6 @@ name = "cuenv-shell"
 version = "0.6.2"
 dependencies = [
  "cuenv-core",
- "cuenv-env",
  "log",
  "serde",
  "shlex",
@@ -1016,6 +1018,7 @@ dependencies = [
  "dashmap 6.1.0",
  "indexmap 2.10.0",
  "log",
+ "petgraph",
  "serde",
  "serde_json",
  "shlex",
@@ -1047,6 +1050,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tracing",
+ "tracing-subscriber",
  "unicode-width 0.1.14",
 ]
 
@@ -1333,6 +1337,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "env_logger"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a19187fea3ac7e84da7dacf48de0c45d63c6a76f9490dae389aead16c243fce3"
+dependencies = [
+ "log",
+ "regex",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1381,6 +1395,12 @@ dependencies = [
  "libredox",
  "windows-sys 0.59.0",
 ]
+
+[[package]]
+name = "fixedbitset"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
 
 [[package]]
 name = "flate2"
@@ -2658,6 +2678,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 
 [[package]]
+name = "petgraph"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4c5cc86750666a3ed20bdaf5ca2a0344f9c67674cae0515bec2da16fbaa47db"
+dependencies = [
+ "fixedbitset",
+ "indexmap 2.10.0",
+]
+
+[[package]]
 name = "pin-project"
 version = "1.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2815,6 +2845,17 @@ name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1d01941d82fa2ab50be1e79e6714289dd7cde78eba4c074bc5a4374f650dfe0"
+
+[[package]]
+name = "quickcheck"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "588f6378e4dd99458b60ec275b4477add41ce4fa9f64dcba6f15adccb19b50d6"
+dependencies = [
+ "env_logger",
+ "log",
+ "rand 0.8.5",
+]
 
 [[package]]
 name = "quote"

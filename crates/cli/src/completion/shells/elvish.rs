@@ -61,6 +61,6 @@ set edit:completion:arg-completer[cuenv] = {|@words|
     $completions[$command]
 }
 "#;
-    print!("{script}");
+    tracing::info!("{script}");
     Ok(())
 }

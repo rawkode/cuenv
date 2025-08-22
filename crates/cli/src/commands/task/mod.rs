@@ -1,5 +1,6 @@
 mod display;
-mod formatter;
+// mod formatter;  // DELETED - Replaced by EventSubscriber pattern
+mod formatters;
 mod graph;
 
 use clap::Subcommand;
@@ -8,6 +9,7 @@ use cuenv_core::{Result, CUENV_CAPABILITIES_VAR, CUENV_ENV_VAR};
 use cuenv_env::manager::environment::SupervisorMode;
 use cuenv_env::EnvManager;
 use cuenv_task::TaskExecutor;
+use formatters::{SimpleFormatterLayer, SpinnerFormatterLayer, TerminalCapabilities};
 use std::env;
 use std::sync::Arc;
 
@@ -35,8 +37,12 @@ pub async fn execute_task_command(
 
     match task_or_group {
         None => {
-            // No arguments: list all tasks
-            list_tasks(config, verbose, None).await
+            // No arguments: list all tasks or show TUI for selection
+            if output_format == "tui" {
+                list_tasks_tui(config, environment, capabilities, verbose).await
+            } else {
+                list_tasks(config, verbose, None).await
+            }
         }
         Some(name) => {
             // Check if it's a task or a group
@@ -100,13 +106,13 @@ pub async fn execute_task_command(
                     }
                 } else {
                     // Not found as task or group
-                    eprintln!("Task or group '{name}' not found");
-                    eprintln!("Run 'cuenv task' to see available tasks");
+                    tracing::error!("Task or group '{}' not found", name);
+                    tracing::info!("Run 'cuenv task' to see available tasks");
                     std::process::exit(1)
                 }
             } else {
                 // Has additional args - try as group + subtask
-                let subtask_name = format!("{}.{}", name, args[0]);
+                let subtask_name = format!("{}:{}", name, args[0]);
                 if tasks.contains_key(&subtask_name) {
                     // It's a subtask - run it with remaining args
                     let mut remaining_args = args;
@@ -137,8 +143,8 @@ pub async fn execute_task_command(
                         )
                         .await
                     } else {
-                        eprintln!("Task '{name}' not found");
-                        eprintln!("Run 'cuenv task' to see available tasks");
+                        tracing::error!("Task '{}' not found", name);
+                        tracing::info!("Run 'cuenv task' to see available tasks");
                         std::process::exit(1)
                     }
                 }
@@ -204,7 +210,7 @@ async fn list_tasks(
     let task_nodes = config.get_task_nodes();
 
     if task_nodes.is_empty() {
-        println!("No tasks defined in the CUE package");
+        tracing::info!("No tasks defined in the CUE package");
         return Ok(());
     }
 
@@ -225,21 +231,74 @@ async fn list_tasks(
                     );
                 }
                 TaskNode::Task(config) => {
-                    println!("'{group}' is a single task, not a group");
+                    tracing::info!("'{}' is a single task, not a group", group);
                     if let Some(desc) = &config.description {
-                        println!("  Description: {desc}");
+                        tracing::info!("  Description: {}", desc);
                     }
                 }
             }
         } else {
-            println!("No task or group named '{group}' found");
-            println!("Run 'cuenv task' to see all available tasks");
+            tracing::error!("No task or group named '{}' found", group);
+            tracing::info!("Run 'cuenv task' to see all available tasks");
         }
         return Ok(());
     }
 
     // Display all tasks in tree format
     display_task_tree(task_nodes, verbose, use_color);
+    Ok(())
+}
+
+async fn list_tasks_tui(
+    _config: std::sync::Arc<cuenv_config::Config>,
+    environment: Option<String>,
+    capabilities: Vec<String>,
+    _verbose: bool,
+) -> Result<()> {
+    let current_dir = env::current_dir()
+        .map_err(|e| cuenv_core::Error::file_system(".", "get current directory", e))?;
+    let mut env_manager = EnvManager::new();
+
+    let env_name = environment.or_else(|| env::var(CUENV_ENV_VAR).ok());
+    let mut caps = capabilities;
+    if caps.is_empty() {
+        if let Ok(env_caps) = env::var(CUENV_CAPABILITIES_VAR) {
+            caps = env_caps
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        }
+    }
+
+    env_manager
+        .load_env_with_options(
+            &current_dir,
+            env_name,
+            caps,
+            None,
+            SupervisorMode::Foreground,
+        )
+        .await
+        .map_err(|e| {
+            cuenv_core::Error::configuration(format!("Failed to load environment: {}", e))
+        })?;
+
+    // Create executor
+    let executor = TaskExecutor::new(env_manager, current_dir).await?;
+
+    // Create TUI app for listing/selecting tasks (no auto-execution)
+    use cuenv_tui::TuiApp;
+    let mut tui_app = TuiApp::new_for_listing(executor)
+        .await
+        .map_err(|e| cuenv_core::Error::configuration(format!("Failed to setup TUI: {}", e)))?;
+
+    // Run the TUI (this will block until the user quits)
+    tui_app
+        .run()
+        .await
+        .map_err(|e| cuenv_core::Error::configuration(format!("TUI execution failed: {}", e)))?;
+
     Ok(())
 }
 
@@ -292,7 +351,7 @@ async fn execute_task(
         actual_task_name = task_name.clone();
     } else if !task_args.is_empty() {
         // Task doesn't exist, try treating it as a group with the first arg as subtask
-        let potential_subtask = format!("{}.{}", task_name, task_args[0]);
+        let potential_subtask = format!("{}:{}", task_name, task_args[0]);
         if env_manager.get_task(&potential_subtask).is_some() {
             // It's a subtask! Remove the first arg since it's part of the task name
             actual_task_name = potential_subtask;
@@ -331,17 +390,35 @@ async fn execute_task(
     } else if env_manager.get_task(&actual_task_name).is_some() {
         // Execute the specified task
         let executor = TaskExecutor::new(env_manager, current_dir).await?;
-        // Use the formatter module to execute with the appropriate output format
-        let status = formatter::execute_with_formatter(
-            &executor,
-            &actual_task_name,
-            &actual_args,
-            audit,
-            &output_format,
-            trace_output,
-        )
-        .await?;
-        std::process::exit(status);
+
+        // Handle TUI mode directly to avoid any tracing output before TUI starts
+        if output_format == "tui" {
+            use cuenv_tui::TuiApp;
+            let mut tui_app = TuiApp::new_with_task(executor.clone(), &actual_task_name)
+                .await
+                .map_err(|e| {
+                    cuenv_core::Error::configuration(format!("Failed to setup TUI: {}", e))
+                })?;
+
+            // Run the TUI (this will block until the user quits or task completes)
+            let tui_result = tui_app.run().await.map_err(|e| {
+                cuenv_core::Error::configuration(format!("TUI execution failed: {}", e))
+            })?;
+
+            std::process::exit(tui_result);
+        } else {
+            // Use the tracing-based execution for non-TUI modes
+            let status = execute_task_with_tracing_layers(
+                &executor,
+                &actual_task_name,
+                &actual_args,
+                audit,
+                &output_format,
+                trace_output,
+            )
+            .await?;
+            std::process::exit(status);
+        }
     } else {
         // Check if this might be a task group
         let prefix = format!("{task_name}.");
@@ -352,16 +429,16 @@ async fn execute_task(
             .collect();
 
         if !group_tasks.is_empty() {
-            eprintln!("'{task_name}' is a task group. Available tasks:");
+            tracing::error!("'{}' is a task group. Available tasks:", task_name);
             for (name, _) in group_tasks {
                 let task_name = &name[prefix.len()..];
-                eprintln!("  {task_name}");
+                tracing::info!("  {}", task_name);
             }
-            eprintln!();
-            eprintln!("Run 'cuenv task {task_name} <task>' to execute a task");
+            tracing::info!("");
+            tracing::info!("Run 'cuenv task {} <task>' to execute a task", task_name);
         } else {
-            eprintln!("Task '{task_name}' not found");
-            eprintln!("Run 'cuenv task list' to see available tasks");
+            tracing::error!("Task '{}' not found", task_name);
+            tracing::info!("Run 'cuenv task list' to see available tasks");
         }
         std::process::exit(1);
     }
@@ -401,7 +478,8 @@ async fn execute_task_group(
 
     // Get the group's collection type for display
     let task_nodes = config.get_task_nodes();
-    let collection_type = if let Some(TaskNode::Group { tasks, .. }) = task_nodes.get(&group_name) {
+    let _collection_type = if let Some(TaskNode::Group { tasks, .. }) = task_nodes.get(&group_name)
+    {
         match tasks {
             cuenv_config::TaskCollection::Sequential(_) => "sequential",
             cuenv_config::TaskCollection::Parallel(_) => "parallel",
@@ -412,27 +490,120 @@ async fn execute_task_group(
         )));
     };
 
-    println!("Executing group '{group_name}' in {collection_type} mode");
-
     // Create executor and use unified DAG for all execution modes
     let executor = TaskExecutor::new(env_manager, current_dir).await?;
 
-    // Use unified DAG execution - this handles all modes (Sequential, Parallel, Workflow) properly
-    let status = formatter::execute_with_formatter(
-        &executor,
-        &group_name, // Pass the group name directly to unified DAG
-        &[],
-        audit,
-        &output_format,
-        trace_output,
-    )
-    .await?;
+    // Handle TUI mode directly to avoid any tracing output before TUI starts
+    if output_format == "tui" {
+        use cuenv_tui::TuiApp;
+        let mut tui_app = TuiApp::new_with_task(executor.clone(), &group_name)
+            .await
+            .map_err(|e| cuenv_core::Error::configuration(format!("Failed to setup TUI: {}", e)))?;
 
-    if status != 0 {
-        std::process::exit(status);
+        // Run the TUI (this will block until the user quits or task completes)
+        let tui_result = tui_app.run().await.map_err(|e| {
+            cuenv_core::Error::configuration(format!("TUI execution failed: {}", e))
+        })?;
+
+        std::process::exit(tui_result);
+    } else {
+        // Use the tracing-based execution for non-TUI modes
+        let status = execute_task_with_tracing_layers(
+            &executor,
+            &group_name, // Pass the group name directly to unified DAG
+            &[],
+            audit,
+            &output_format,
+            trace_output,
+        )
+        .await?;
+
+        if status != 0 {
+            std::process::exit(status);
+        }
     }
 
     Ok(())
+}
+
+/// Execute tasks using tracing-subscriber layers
+/// This is the new tracing-based task execution path
+#[allow(clippy::too_many_arguments)]
+async fn execute_task_with_tracing_layers(
+    executor: &TaskExecutor,
+    task_name: &str,
+    args: &[String],
+    audit: bool,
+    output_format: &str,
+    _trace_output: bool,
+) -> Result<i32> {
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::Registry;
+
+    // Detect terminal capabilities and get recommended formatter
+    let capabilities = TerminalCapabilities::detect();
+    let effective_format = capabilities.recommend_formatter(Some(output_format));
+
+    // Log terminal capabilities for debugging
+    tracing::debug!(
+        terminal_info = capabilities.display_info(),
+        requested_format = output_format,
+        effective_format = effective_format,
+        ci_environment = TerminalCapabilities::is_ci_environment(),
+        "formatter_selection"
+    );
+
+    // Create a tracing subscriber with the appropriate formatter layer
+    let subscriber = Registry::default();
+
+    // Set the global subscriber based on the effective format
+    match effective_format {
+        "simple" => {
+            let layer = SimpleFormatterLayer::new();
+            let subscriber = subscriber.with(layer);
+            if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
+                tracing::warn!("Failed to set global subscriber: {}", e);
+            }
+        }
+        "spinner" => {
+            let spinner_layer = SpinnerFormatterLayer::new()?;
+            let subscriber = subscriber.with(spinner_layer);
+            if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
+                tracing::warn!("Failed to set global subscriber: {}", e);
+            }
+        }
+        "tui" => {
+            // For TUI mode, create a proper TUI app and run task execution in background
+            use cuenv_tui::TuiApp;
+            let mut tui_app = TuiApp::new_with_task(executor.clone(), &task_name)
+                .await
+                .map_err(|e| {
+                    cuenv_core::Error::configuration(format!("Failed to setup TUI: {}", e))
+                })?;
+
+            // Run the TUI (this will block until the user quits or task completes)
+            let tui_result = tui_app.run().await.map_err(|e| {
+                cuenv_core::Error::configuration(format!("TUI execution failed: {}", e))
+            })?;
+
+            // Return the result from the TUI
+            return Ok(tui_result);
+        }
+        _ => {
+            let layer = SimpleFormatterLayer::new();
+            let subscriber = subscriber.with(layer);
+            if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
+                tracing::warn!("Failed to set global subscriber: {}", e);
+            }
+        }
+    }
+
+    // Execute the task using the new API
+    let status = executor
+        .execute_tasks(&[task_name.to_string()], args, audit, false)
+        .await?;
+
+    Ok(status)
 }
 
 /// Display the dependency graph for tasks
@@ -470,8 +641,8 @@ async fn display_dependency_graph(
 
     match task_or_group {
         Some(name) => {
-            // Build DAG for specific task or group
-            let dag = executor.build_unified_dag(&[name.clone()])?;
+            // Build petgraph DAG for specific task or group
+            let dag = executor.build_dag(&[name.clone()])?;
             display_formatted_graph(&dag, &name, graph_format, char_set)?;
         }
         None => {
@@ -496,8 +667,8 @@ async fn display_dependency_graph(
             }
 
             if !task_names.is_empty() {
-                // Build one unified DAG showing all tasks and their dependencies
-                if let Ok(dag) = executor.build_unified_dag(&task_names) {
+                // Build one petgraph DAG showing all tasks and their dependencies
+                if let Ok(dag) = executor.build_dag(&task_names) {
                     display_formatted_graph(
                         &dag,
                         "all-tasks",
@@ -518,12 +689,12 @@ async fn display_dependency_graph(
                                 cuenv_config::TaskCollection::Parallel(_) => "parallel",
                             };
 
-                            println!("📁 Group: {name} ({mode_name})");
+                            tracing::info!("📁 Group: {name} ({mode_name})");
 
                             for (task_name, _) in tasks.iter() {
-                                println!("  └─ {task_name}");
+                                tracing::info!("  └─ {task_name}");
                             }
-                            println!();
+                            tracing::info!("");
                         }
                     }
                 }

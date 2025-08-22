@@ -44,6 +44,7 @@ once_cell.workspace = true
 anyhow.workspace = true
 log.workspace = true
 tracing.workspace = true
+tracing-subscriber.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

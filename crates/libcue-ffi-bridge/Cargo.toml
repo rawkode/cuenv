@@ -17,6 +17,7 @@ cuenv-core = { workspace = true }
 libc = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+tracing = { workspace = true }
 
 [build-dependencies]
 cc = "1.0"

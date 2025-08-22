@@ -1,127 +1,210 @@
+//! Terminal management utilities
+//! Based on bottom's terminal handling
+
 use crossterm::{
-    event::{
-        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
-    },
+    cursor::{Hide, Show},
+    event::{DisableMouseCapture, EnableMouseCapture},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{
+        disable_raw_mode, enable_raw_mode, Clear, ClearType, EnterAlternateScreen,
+        LeaveAlternateScreen,
+    },
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
-use std::io;
-use std::time::Duration;
-use tokio::sync::mpsc;
+use std::io::{self, Stdout, Write};
+use std::panic::{self, PanicHookInfo};
 
-pub enum InputEvent {
-    Key(KeyEvent),
-    Resize,
-    Tick,
-}
-
+/// Terminal manager that handles setup and cleanup
 pub struct TerminalManager {
-    terminal: Terminal<CrosstermBackend<io::Stderr>>,
-    event_rx: mpsc::UnboundedReceiver<InputEvent>,
-    _event_task: tokio::task::JoinHandle<()>,
+    terminal: Terminal<CrosstermBackend<Stdout>>,
+    raw_mode_enabled: bool,
+    alternate_screen_enabled: bool,
+    mouse_capture_enabled: bool,
 }
 
 impl TerminalManager {
+    /// Create a new terminal manager and set up the terminal
     pub fn new() -> io::Result<Self> {
-        // Setup terminal
-        enable_raw_mode()?;
-        let mut stderr = io::stderr();
-        execute!(stderr, EnterAlternateScreen, EnableMouseCapture)?;
+        // Check if we're in a terminal
+        check_if_terminal();
 
-        let backend = CrosstermBackend::new(stderr);
-        let terminal = Terminal::new(backend)?;
+        // Enable raw mode
+        enable_raw_mode().map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to enable raw mode: {}", e),
+            )
+        })?;
 
-        // Setup event handling
-        let (event_tx, event_rx) = mpsc::unbounded_channel();
-        let event_task = tokio::spawn(Self::event_loop(event_tx));
+        let mut stdout = io::stdout();
+
+        // Enter alternate screen
+        execute!(stdout, Hide, EnterAlternateScreen).map_err(|e| {
+            let _ = disable_raw_mode();
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to enter alternate screen: {}", e),
+            )
+        })?;
+
+        // Enable mouse capture
+        execute!(stdout, EnableMouseCapture).map_err(|e| {
+            let _ = execute!(io::stdout(), LeaveAlternateScreen);
+            let _ = disable_raw_mode();
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to enable mouse capture: {}", e),
+            )
+        })?;
+
+        // Create terminal
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend).map_err(|e| {
+            let _ = execute!(
+                io::stdout(),
+                DisableMouseCapture,
+                LeaveAlternateScreen,
+                Show
+            );
+            let _ = disable_raw_mode();
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to create terminal: {}", e),
+            )
+        })?;
+
+        terminal.clear().map_err(|e| {
+            let _ = execute!(
+                io::stdout(),
+                DisableMouseCapture,
+                LeaveAlternateScreen,
+                Show
+            );
+            let _ = disable_raw_mode();
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to clear terminal: {}", e),
+            )
+        })?;
+
+        terminal.hide_cursor().map_err(|e| {
+            let _ = execute!(
+                io::stdout(),
+                DisableMouseCapture,
+                LeaveAlternateScreen,
+                Show
+            );
+            let _ = disable_raw_mode();
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to hide cursor: {}", e),
+            )
+        })?;
 
         Ok(Self {
             terminal,
-            event_rx,
-            _event_task: event_task,
+            raw_mode_enabled: true,
+            alternate_screen_enabled: true,
+            mouse_capture_enabled: true,
         })
     }
 
-    async fn event_loop(tx: mpsc::UnboundedSender<InputEvent>) {
-        let mut tick_interval = tokio::time::interval(Duration::from_millis(100));
-        tick_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
-        loop {
-            // Use tokio::select! to handle multiple async operations without blocking
-            tokio::select! {
-                // Poll for terminal events in a non-blocking way
-                _ = tokio::time::sleep(Duration::from_millis(10)) => {
-                    // Run the blocking poll/read operations in a blocking thread pool
-                    // This prevents them from blocking the tokio runtime
-                    let has_event = tokio::task::spawn_blocking(|| {
-                        event::poll(Duration::from_millis(0)).unwrap_or(false)
-                    }).await.unwrap_or(false);
-
-                    if has_event {
-                        let event_result = tokio::task::spawn_blocking(|| {
-                            event::read()
-                        }).await;
-
-                        if let Ok(Ok(event)) = event_result {
-                            let input_event = match event {
-                                Event::Key(key) => Some(InputEvent::Key(key)),
-                                Event::Resize(_, _) => Some(InputEvent::Resize),
-                                _ => None,
-                            };
-
-                            if let Some(evt) = input_event {
-                                if tx.send(evt).is_err() {
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Handle tick events
-                _ = tick_interval.tick() => {
-                    if tx.send(InputEvent::Tick).is_err() {
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn terminal(&mut self) -> &mut Terminal<CrosstermBackend<io::Stderr>> {
+    /// Get a mutable reference to the terminal
+    pub fn terminal_mut(&mut self) -> &mut Terminal<CrosstermBackend<Stdout>> {
         &mut self.terminal
     }
 
-    pub async fn next_event(&mut self) -> Option<InputEvent> {
-        self.event_rx.recv().await
-    }
+    /// Clean up the terminal and restore it to normal state
+    pub fn cleanup(&mut self) -> io::Result<()> {
+        if self.mouse_capture_enabled {
+            execute!(self.terminal.backend_mut(), DisableMouseCapture)?;
+            self.mouse_capture_enabled = false;
+        }
 
-    pub fn should_quit(key: &KeyEvent) -> bool {
-        matches!(
-            key,
-            KeyEvent {
-                code: KeyCode::Char('q'),
-                modifiers: KeyModifiers::NONE,
-                ..
-            } | KeyEvent {
-                code: KeyCode::Char('c'),
-                modifiers: KeyModifiers::CONTROL,
-                ..
-            }
-        )
+        if self.alternate_screen_enabled {
+            execute!(
+                self.terminal.backend_mut(),
+                LeaveAlternateScreen,
+                Clear(ClearType::All),
+                Show
+            )?;
+            self.alternate_screen_enabled = false;
+        }
+
+        self.terminal.show_cursor()?;
+
+        if self.raw_mode_enabled {
+            disable_raw_mode()?;
+            self.raw_mode_enabled = false;
+        }
+
+        // Clear any remaining output and flush
+        self.terminal.backend_mut().flush()?;
+
+        Ok(())
     }
 }
 
 impl Drop for TerminalManager {
     fn drop(&mut self) {
-        // Restore terminal
-        let _ = disable_raw_mode();
-        let _ = execute!(
-            self.terminal.backend_mut(),
-            LeaveAlternateScreen,
-            DisableMouseCapture
-        );
-        let _ = self.terminal.show_cursor();
+        let _ = self.cleanup();
     }
+}
+
+/// Check if the current environment is in a terminal and warn if not
+fn check_if_terminal() {
+    use crossterm::tty::IsTty;
+
+    if !io::stdout().is_tty() {
+        tracing::warn!(
+            "cuenv TUI is not being output to a terminal. Things might not work properly."
+        );
+        tracing::warn!("If you're stuck, press 'q' or 'Ctrl-c' to quit the program.");
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+}
+
+/// Reset stdout back to normal state (for panic recovery)
+pub fn reset_stdout() {
+    let mut stdout = io::stdout();
+    let _ = disable_raw_mode();
+    let _ = execute!(
+        stdout,
+        DisableMouseCapture,
+        LeaveAlternateScreen,
+        Clear(ClearType::All),
+        Show
+    );
+    let _ = stdout.flush();
+}
+
+/// Panic hook to properly restore the terminal
+pub fn create_panic_hook() -> Box<dyn Fn(&PanicHookInfo<'_>) + Send + Sync> {
+    Box::new(|panic_info: &PanicHookInfo<'_>| {
+        let msg = match panic_info.payload().downcast_ref::<&'static str>() {
+            Some(s) => *s,
+            None => match panic_info.payload().downcast_ref::<String>() {
+                Some(s) => &s[..],
+                None => "Box<Any>",
+            },
+        };
+
+        // Restore terminal first
+        reset_stdout();
+
+        // Print panic information
+        if let Some(location) = panic_info.location() {
+            tracing::error!("thread 'main' panicked at '{msg}', {location}");
+        } else {
+            tracing::error!("thread 'main' panicked at '{msg}'");
+        }
+
+        // Exit immediately
+        std::process::exit(1);
+    })
+}
+
+/// Set up the panic hook
+pub fn setup_panic_hook() {
+    panic::set_hook(create_panic_hook());
 }

@@ -12,8 +12,10 @@ use std::time::{Duration, Instant};
 pub enum ControlFlow {
     /// The operation should continue in the foreground.
     Continue,
-    /// The operation should be moved to the background.
-    Background,
+    /// The user requested to abort the operation (q key).
+    Aborted,
+    /// The operation was interrupted (Ctrl+C).
+    Interrupted,
 }
 
 /// Handles interactive terminal operations, such as monitoring for user input
@@ -42,8 +44,8 @@ impl InteractiveHandler {
 
     /// Monitors for user input with a specified timeout.
     ///
-    /// This function shows a progress indicator and listens for a `Ctrl-B` keypress
-    /// to background the task. Used only for interactive commands like 'cuenv task' and 'cuenv exec'.
+    /// This function shows a progress indicator and listens for user input
+    /// to quit the task. Used only for interactive commands like 'cuenv task' and 'cuenv exec'.
     pub async fn monitor_with_timeout(&mut self, duration: Duration) -> ControlFlow {
         // Update progress display if enough time has passed
         if self.last_progress_update.elapsed() > Duration::from_millis(500) {
@@ -81,7 +83,7 @@ impl InteractiveHandler {
         let progress_indicator = ".".repeat(dots + 1);
 
         // Clear line and display progress
-        eprint!(
+        tracing::error!(
             "\r# cuenv: Running hooks{:<4} ({}s elapsed)",
             progress_indicator,
             elapsed.as_secs()
@@ -101,29 +103,20 @@ impl InteractiveHandler {
             if event::poll(poll_duration).unwrap_or(false) {
                 match event::read() {
                     Ok(Event::Key(KeyEvent {
-                        code: KeyCode::Char('b'),
-                        modifiers: KeyModifiers::NONE,
-                        ..
-                    })) => {
-                        // Clear the progress line before showing background message
-                        eprintln!("\r\x1b[K# cuenv: Continuing in background...");
-                        return ControlFlow::Background;
-                    }
-                    Ok(Event::Key(KeyEvent {
                         code: KeyCode::Char('q'),
                         modifiers: KeyModifiers::NONE,
                         ..
                     })) => {
-                        eprintln!("\r\x1b[K# cuenv: Aborting...");
-                        std::process::exit(1);
+                        tracing::error!("\r\x1b[K# cuenv: Aborting...");
+                        return ControlFlow::Aborted;
                     }
                     Ok(Event::Key(KeyEvent {
                         code: KeyCode::Char('c'),
                         modifiers: KeyModifiers::CONTROL,
                         ..
                     })) => {
-                        eprintln!("\r\x1b[K# cuenv: Interrupted!");
-                        std::process::exit(130); // Standard exit code for SIGINT
+                        tracing::error!("\r\x1b[K# cuenv: Interrupted!");
+                        return ControlFlow::Interrupted;
                     }
                     _ => {}
                 }

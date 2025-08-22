@@ -2,47 +2,6 @@ use expectrl::{Eof, Regex, Session};
 use std::time::Duration;
 use tempfile::TempDir;
 
-/// Test interactive control for background hooks
-#[test]
-fn test_interactive_background_control() -> anyhow::Result<()> {
-    let temp_dir = TempDir::new()?;
-
-    // Create a CUE file with background hooks
-    let cue_content = r#"
-package cuenv
-
-hooks: {
-    background: [{
-        name: "slow-hook"
-        command: "sleep"
-        args: ["5"]
-    }]
-}
-
-env: {
-    TEST_VAR: "interactive"
-}
-"#;
-
-    std::fs::write(temp_dir.path().join("env.cue"), cue_content)?;
-
-    // Start cuenv in interactive mode
-    let mut session = expectrl::spawn("./target/debug/cuenv")?;
-    session.send_line(&format!("cd {}", temp_dir.path().display()))?;
-    session.send_line("env allow")?;
-
-    // Wait for interactive prompt
-    std::thread::sleep(Duration::from_millis(1500));
-
-    // Send 'b' to background
-    session.send("b")?;
-
-    // Verify control returns
-    session.expect(Regex("backgrounded"))?;
-
-    Ok(())
-}
-
 /// Test quit behavior in interactive mode
 #[test]
 fn test_interactive_quit() -> anyhow::Result<()> {
@@ -52,7 +11,7 @@ fn test_interactive_quit() -> anyhow::Result<()> {
 package cuenv
 
 hooks: {
-    background: [{
+    pre: [{
         name: "long-hook"
         command: "sleep"
         args: ["10"]
@@ -89,7 +48,7 @@ fn test_interactive_interrupt() -> anyhow::Result<()> {
 package cuenv
 
 hooks: {
-    background: [{
+    pre: [{
         name: "interruptible"
         command: "sleep"
         args: ["10"]

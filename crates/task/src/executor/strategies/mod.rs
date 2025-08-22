@@ -59,11 +59,20 @@ pub fn create_barrier_task(
     }
 }
 
-/// Helper function to create a task ID from path components
+/// Helper function to create a task ID from path components (internal format)
 pub fn create_task_id(path: &[String], name: &str) -> String {
     if path.is_empty() {
         name.to_string()
     } else {
-        format!("{}:{}", path.join("."), name)
+        format!("{}:{}", path.join(":"), name)
+    }
+}
+
+/// Helper function to create a user-facing task ID from path components (colon format)
+pub fn create_user_task_id(path: &[String], name: &str) -> String {
+    if path.is_empty() {
+        name.to_string()
+    } else {
+        format!("{}:{}", path.join(":"), name)
     }
 }

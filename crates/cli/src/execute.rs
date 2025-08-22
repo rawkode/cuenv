@@ -91,7 +91,7 @@ async fn complete_tasks(config: Arc<Config>) -> Result<()> {
     // Use config to get tasks
     let tasks = config.get_tasks();
     for name in tasks.keys() {
-        println!("{name}");
+        tracing::info!("{}", name);
     }
     Ok(())
 }

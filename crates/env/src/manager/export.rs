@@ -96,21 +96,21 @@ pub fn print_env_diff(original_env: &HashMap<String, String>) -> Result<()> {
         }
     } else {
         // In non-TTY mode, maintain original output format
-        println!("Environment changes:");
+        tracing::info!("Environment changes:");
 
         for (key, value) in &current_env {
             if let Some(original) = original_env.get(key) {
                 if original != value {
-                    println!("  {key} (modified): {original} -> {value}");
+                    tracing::info!("  {key} (modified): {original} -> {value}");
                 }
             } else {
-                println!("  {key} (new): {value}");
+                tracing::info!("  {key} (new): {value}");
             }
         }
 
         for (key, value) in original_env {
             if !current_env.contains_key(key) {
-                println!("  {key} (removed): {value}");
+                tracing::info!("  {key} (removed): {value}");
             }
         }
     }

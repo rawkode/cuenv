@@ -568,7 +568,7 @@ mod tests {
         let flamegraph = monitored.flamegraph_data();
         // Flamegraph may be empty if profiling didn't capture enough samples
         // Just check that the method doesn't panic
-        println!("Flamegraph data length: {}", flamegraph.len());
+        tracing::info!("Flamegraph data length: {}", flamegraph.len());
 
         Ok(())
     }

@@ -572,10 +572,10 @@ mod tests {
         let cache1 = cache.clone();
         let digest1 = digest.clone();
         let handle1 = tokio::spawn(async move {
-            println!("Task 1: Starting execution");
+            tracing::info!("Task 1: Starting execution");
             let result = cache1
                 .execute_action(&digest1, || async move {
-                    println!("Task 1: Actually executing");
+                    tracing::info!("Task 1: Actually executing");
                     // Simulate some work
                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                     Ok(ActionResult {
@@ -588,7 +588,7 @@ mod tests {
                     })
                 })
                 .await;
-            println!("Task 1: Finished with result: {:?}", result.is_ok());
+            tracing::info!("Task 1: Finished with result: {:?}", result.is_ok());
             result
         });
 
@@ -598,10 +598,10 @@ mod tests {
         let cache2 = cache.clone();
         let digest2 = digest.clone();
         let handle2 = tokio::spawn(async move {
-            println!("Task 2: Starting execution");
+            tracing::info!("Task 2: Starting execution");
             let result = cache2
                 .execute_action(&digest2, || async move {
-                    println!("Task 2: Actually executing (should not happen)");
+                    tracing::info!("Task 2: Actually executing (should not happen)");
                     // This should not execute
                     Ok(ActionResult {
                         exit_code: 0,
@@ -613,7 +613,7 @@ mod tests {
                     })
                 })
                 .await;
-            println!("Task 2: Finished with result: {:?}", result.is_ok());
+            tracing::info!("Task 2: Finished with result: {:?}", result.is_ok());
             result
         });
 
@@ -633,7 +633,7 @@ mod tests {
 
         // Only one execution should have happened
         let stats = cache.stats();
-        println!("Cache stats: {stats:?}");
+        tracing::info!("Cache stats: {stats:?}");
         assert_eq!(stats.writes, 1);
     }
 }

@@ -4,13 +4,13 @@ use cuenv_core::{Error, Result};
 impl TaskExecutor {
     /// Execute a single task by name
     pub async fn execute_task(&self, task_name: &str, args: &[String]) -> Result<i32> {
-        self.execute_tasks_with_dependencies(&[task_name.to_string()], args, false)
+        self.execute_tasks(&[task_name.to_string()], args, false, false)
             .await
     }
 
     /// Execute a single task by name with audit mode
     pub async fn execute_task_with_audit(&self, task_name: &str, args: &[String]) -> Result<i32> {
-        self.execute_tasks_with_dependencies(&[task_name.to_string()], args, true)
+        self.execute_tasks(&[task_name.to_string()], args, true, false)
             .await
     }
 
@@ -50,37 +50,51 @@ impl TaskExecutor {
             .unwrap_or(false)
     }
 
-    /// Execute multiple tasks with their dependencies
+    /// Execute multiple tasks with dependencies and optional output capture
+    /// This is the main task execution method - all tasks go through the DAG system
+    pub async fn execute_tasks(
+        &self,
+        task_names: &[String],
+        args: &[String],
+        audit_mode: bool,
+        capture_output: bool,
+    ) -> Result<i32> {
+        self.execute_tasks_dag(task_names, args, audit_mode, capture_output)
+            .await
+    }
+
+    /// Execute multiple tasks with their dependencies (backward compatibility)
+    #[deprecated(note = "Use execute_tasks() instead")]
     pub async fn execute_tasks_with_dependencies(
         &self,
         task_names: &[String],
         args: &[String],
         audit_mode: bool,
     ) -> Result<i32> {
-        self.execute_tasks_with_dependencies_internal(task_names, args, audit_mode, false)
+        self.execute_tasks(task_names, args, audit_mode, false)
             .await
     }
 
-    /// Execute multiple tasks with their dependencies and output capture
+    /// Execute multiple tasks with their dependencies and output capture (backward compatibility)
+    #[deprecated(note = "Use execute_tasks() instead")]
     pub async fn execute_tasks_with_capture(
         &self,
         task_names: &[String],
         args: &[String],
         audit_mode: bool,
     ) -> Result<i32> {
-        self.execute_tasks_with_dependencies_internal(task_names, args, audit_mode, true)
-            .await
+        self.execute_tasks(task_names, args, audit_mode, true).await
     }
 
-    /// Execute tasks using the unified DAG system - ensures consistent ordering
-    /// This is the new consolidated execution path that should be used going forward
+    /// Execute tasks using the unified DAG system (backward compatibility)
+    #[deprecated(note = "Use execute_tasks() instead")]
     pub async fn execute_tasks_unified(
         &self,
         task_names: &[String],
         args: &[String],
         audit_mode: bool,
     ) -> Result<i32> {
-        self.execute_tasks_with_unified_dag(task_names, args, audit_mode)
+        self.execute_tasks(task_names, args, audit_mode, false)
             .await
     }
 }

@@ -63,7 +63,7 @@ tasks: {
 
 	counted: {
 		description: "Task that depends on count group completion"
-		// dependencies: ["count.task_3"] // Depend on the last task in the count sequence - disabled for now
+		dependencies: ["count"]
 		command: "echo"
 		args: ["counted to 4"]
 	}
@@ -266,7 +266,7 @@ tasks: {
 
 		test: {
 			description: "Run all tests"
-			dependencies: ["quality"] // Wait for quality checks
+			// dependencies: ["ci:quality"] // Wait for quality checks
 			// Object structure enables parallel test execution
 			unit: {
 				command: "cargo"
@@ -292,7 +292,7 @@ tasks: {
 
 		build: {
 			description: "Build release artifacts"
-			dependencies: ["test.unit"]
+			// dependencies: ["ci:test"]
 			command: "cargo"
 			args: ["build", "--release"]
 			outputs: ["target/release/cuenv"]

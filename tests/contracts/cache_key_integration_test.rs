@@ -615,7 +615,9 @@ async fn test_cache_manager_integration() {
     let _temp_dir = tempfile::tempdir().unwrap(); // Prefix with underscore to indicate intentional unused
 
     // Create cache manager - use the same pattern as new_sync but with async
-    let engine = std::sync::Arc::new(cuenv::cache::CacheEngine::new().unwrap());
+    let engine = std::sync::Arc::new(
+        cuenv::cache::CacheEngine::new().expect("Failed to create cache engine in test"),
+    );
     let config = cuenv::cache::CacheConfig {
         base_dir: engine.cache_dir.clone(),
         max_size: 1024 * 1024 * 1024, // 1GB default

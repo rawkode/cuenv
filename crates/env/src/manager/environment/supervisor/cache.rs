@@ -102,7 +102,7 @@ pub fn save_cached_environment(
 
 /// Apply cached environment to current process
 pub fn apply_cached_environment(cache_dir: &Path, cached: CapturedEnvironment) -> Result<()> {
-    eprintln!("# cuenv: Using cached environment (inputs unchanged)");
+    tracing::error!("# cuenv: Using cached environment (inputs unchanged)");
 
     // Write to latest file for main process to read
     let latest_file = cache_dir.join("latest_env.json");

@@ -243,13 +243,19 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
             .map_err(|e| anyhow!("Hook execution failed: {}", e))?;
 
         if !output.stdout.is_empty() {
-            // Print hook output to stdout so users can see it
-            print!("{}", String::from_utf8_lossy(&output.stdout));
+            // Log hook output
+            tracing::info!(
+                "Hook stdout: {}",
+                String::from_utf8_lossy(&output.stdout).trim()
+            );
         }
 
         if !output.stderr.is_empty() {
-            // Print hook stderr to stderr
-            eprint!("{}", String::from_utf8_lossy(&output.stderr));
+            // Log hook stderr
+            tracing::warn!(
+                "Hook stderr: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            );
         }
 
         Ok(())
@@ -289,13 +295,19 @@ impl<E: CommandExecutor + Send + Sync> HookManager<E> {
             .map_err(|e| anyhow!("Remote hook execution failed: {}", e))?;
 
         if !output.stdout.is_empty() {
-            // Print hook output to stdout so users can see it
-            print!("{}", String::from_utf8_lossy(&output.stdout));
+            // Log hook output
+            tracing::info!(
+                "Hook stdout: {}",
+                String::from_utf8_lossy(&output.stdout).trim()
+            );
         }
 
         if !output.stderr.is_empty() {
-            // Print hook stderr to stderr
-            eprint!("{}", String::from_utf8_lossy(&output.stderr));
+            // Log hook stderr
+            tracing::warn!(
+                "Hook stderr: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            );
         }
 
         Ok(())

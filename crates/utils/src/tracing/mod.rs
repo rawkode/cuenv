@@ -1,13 +1,13 @@
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-pub mod bridge_layer;
+// pub mod bridge_layer; // Removed - no longer needed with pure tracing
 pub mod progress;
 pub mod task_span;
 pub mod tree_formatter;
 pub mod tree_subscriber;
 
 // Re-export tracing macros for convenience
-pub use bridge_layer::EventBridgeLayer;
+// pub use bridge_layer::EventBridgeLayer; // Removed - no longer needed
 pub use tracing::{debug, error, info, instrument, span, trace, warn, Level, Span};
 
 /// Initialize the tracing system
@@ -15,14 +15,13 @@ pub use tracing::{debug, error, info, instrument, span, trace, warn, Level, Span
 /// Detects TTY vs non-TTY environments and configures the appropriate subscriber.
 /// For TTY environments, uses the custom tree subscriber for real-time task visualization.
 /// For non-TTY environments, uses a simple formatter that maintains compatibility.
-/// Also initializes the event bridge layer for Phase 3 event system integration.
+/// Uses pure tracing - no event bridge needed.
 pub fn init() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     let filter = EnvFilter::try_from_default_env()
         .or_else(|_| EnvFilter::try_new("info"))
         .unwrap();
 
-    // Initialize the event bridge layer for Phase 3 integration
-    let bridge_layer = EventBridgeLayer::new();
+    // Event bridge layer removed - using pure tracing now
 
     if is_tty() {
         // TTY environment - use tree subscriber for interactive display
@@ -30,7 +29,6 @@ pub fn init() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> 
 
         tracing_subscriber::registry()
             .with(filter)
-            .with(bridge_layer)
             .with(tree_layer)
             .try_init()?;
     } else {
@@ -45,7 +43,6 @@ pub fn init() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> 
 
         tracing_subscriber::registry()
             .with(filter)
-            .with(bridge_layer)
             .with(fmt_layer)
             .try_init()?;
     }

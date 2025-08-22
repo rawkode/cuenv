@@ -12,6 +12,6 @@ pub async fn execute(directory: PathBuf) -> Result<()> {
             .join(directory)
     };
     dir_manager.deny_directory(&abs_dir)?;
-    println!("✓ Denied directory: {}", abs_dir.display());
+    tracing::info!("✓ Denied directory: {}", abs_dir.display());
     Ok(())
 }

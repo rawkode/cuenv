@@ -1,10 +1,13 @@
 //! Parallel execution strategy
 
-use super::{create_barrier_task, create_task_id, FlattenedTask, GroupExecutionStrategy};
+use super::{
+    create_barrier_task, create_task_id, create_user_task_id, FlattenedTask, GroupExecutionStrategy,
+};
 use cuenv_config::{TaskCollection, TaskNode};
 use cuenv_core::Result;
 
 /// Parallel execution strategy - all tasks run simultaneously
+#[allow(dead_code)]
 pub struct ParallelStrategy;
 
 impl GroupExecutionStrategy for ParallelStrategy {
@@ -19,7 +22,7 @@ impl GroupExecutionStrategy for ParallelStrategy {
         group_path.push(group_name.to_string());
 
         // Create start barrier
-        let start_barrier_id = create_task_id(&group_path, "__start__");
+        let start_barrier_id = create_user_task_id(&group_path, "__start__");
         flattened.push(create_barrier_task(
             start_barrier_id.clone(),
             group_path.clone(),
@@ -62,7 +65,7 @@ impl GroupExecutionStrategy for ParallelStrategy {
                     task_ids.push(task_id.clone());
 
                     flattened.push(FlattenedTask {
-                        id: task_id,
+                        id: create_user_task_id(&group_path, &task_name),
                         group_path: group_path.clone(),
                         name: task_name.clone(),
                         dependencies: deps,
@@ -121,7 +124,7 @@ impl GroupExecutionStrategy for ParallelStrategy {
         }
 
         // Create end barrier that depends on all tasks
-        let end_barrier_id = create_task_id(&group_path, "__end__");
+        let end_barrier_id = create_user_task_id(&group_path, "__end__");
         flattened.push(create_barrier_task(
             end_barrier_id,
             group_path.clone(),

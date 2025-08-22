@@ -59,6 +59,6 @@ _cuenv_completion() {
 
 complete -F _cuenv_completion cuenv
 "#;
-    print!("{script}");
+    tracing::info!("{script}");
     Ok(())
 }
